@@ -1,4 +1,4 @@
-### History-tree solution structure
+## SEEMless ![Build Status](https://github.com/novifinancial/SEEMless/workflows/CI/badge.svg)
 
 The history tree consists of a vector of HistoryTreeNodes and is assumed to be a k-ary trie. The vector is stored in an append only zero-knowledge set, which calls the various recursive functions on the root node.
 
