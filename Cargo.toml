@@ -1,5 +1,5 @@
 [package]
-name = "history_patricia_trie"
+name = "seemless"
 version = "0.1.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>"]
 edition = "2018"
