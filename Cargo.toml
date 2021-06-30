@@ -1,0 +1,11 @@
+[package]
+name = "history_patricia_trie"
+version = "0.1.0"
+authors = ["Harjasleen Malvai <hmalvai@fb.com>"]
+edition = "2018"
+
+[dependencies]
+crypto = { git  = "https://github.com/novifinancial/winterfell", package = "winter-crypto", branch = "main" }
+rand = "0.8"
+queues = "1.0.0"
+keyed_priority_queue = "0.3"
