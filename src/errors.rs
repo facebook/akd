@@ -123,6 +123,7 @@ impl fmt::Display for AzksError {
 #[derive(Debug)]
 pub enum SeemlessDirectoryError {
     AuditProofStartEpLess(u64, u64),
+    StorageError,
 }
 
 impl fmt::Display for SeemlessDirectoryError {
@@ -136,6 +137,15 @@ impl fmt::Display for SeemlessDirectoryError {
                     end
                 )
             }
+            Self::StorageError => {
+                write!(f, "Error with retrieving value from storage")
+            }
         }
     }
+}
+
+#[derive(Debug)]
+pub enum StorageError {
+    SetError,
+    GetError,
 }
