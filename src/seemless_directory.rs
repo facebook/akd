@@ -3,23 +3,25 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+use crate::append_only_zks::{self, Azks, MembershipProof};
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
-use crate::errors::SeemlessDirectoryError;
-use crate::{
-    append_only_zks::{self, Azks, MembershipProof},
-    node_state::NodeLabel,
-};
+use crate::errors::{SeemlessDirectoryError, StorageError};
+use crate::node_state::NodeLabel;
 use crypto::hash::Hasher;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
+#[derive(Clone)]
 pub struct Username(String);
+#[derive(Clone)]
 pub struct Values(String);
-pub struct SeemlessDirectory<H: Hasher> {
-    user_data: HashMap<Username, User>,
+pub struct SeemlessDirectory<S: Storage<User>, H: Hasher> {
     commitments: Vec<Azks<H>>,
     current_epoch: u64,
+    _s: PhantomData<S>,
 }
 
+#[derive(Clone)]
 pub struct UserState {
     plaintext_val: Values, // This needs to be the plaintext value, to discuss
     version: u64,          // to discuss
@@ -27,6 +29,7 @@ pub struct UserState {
     stale_label: NodeLabel,
 }
 
+#[derive(Clone)]
 pub struct User {
     username: Username, // to decide
     states: Vec<UserState>,
@@ -54,10 +57,39 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
-impl<H: Hasher> SeemlessDirectory<H> {
+pub trait Storage<N> {
+    fn set(pos: usize, node: N) -> Result<(), StorageError>;
+    fn get(pos: usize) -> Result<N, StorageError>;
+}
+
+impl<S: Storage<User>, H: Hasher> SeemlessDirectory<S, H> {
+    // FIXME: this code won't work
+    pub fn publish(updates: Vec<(Username, Values)>) -> Result<(), SeemlessDirectoryError> {
+        for (key, val) in updates {
+            S::set(
+                0,
+                User {
+                    username: key,
+                    states: vec![UserState {
+                        plaintext_val: val,
+                        version: 0,
+                        label: NodeLabel { val: 0, len: 0 },
+                        stale_label: NodeLabel { val: 0, len: 0 },
+                    }],
+                },
+            )
+            .map_err(|_| SeemlessDirectoryError::StorageError)?;
+        }
+
+        Ok(())
+    }
+
     // Provides proof for correctness of latest version
-    pub fn lookup(uname: Username) -> LookupProof<H> {
-        unimplemented!()
+    pub fn lookup(uname: Username) -> Result<(), SeemlessDirectoryError> {
+        // FIXME: restore with: LookupProof<H> {
+        // FIXME: this code won't work
+        S::get(0).unwrap();
+        Ok(())
     }
 
     pub fn lookup_verify(
@@ -99,5 +131,50 @@ impl<H: Hasher> SeemlessDirectory<H> {
         proof: HistoryProof<H>,
     ) -> Result<(), SeemlessDirectoryError> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crypto::hash::Blake3_256;
+    use lazy_static::lazy_static;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    lazy_static! {
+        static ref HASHMAP: Mutex<HashMap<usize, User>> = {
+            let mut m = HashMap::new();
+            Mutex::new(m)
+        };
+    }
+
+    struct InMemoryDb(HashMap<usize, User>);
+
+    impl Storage<User> for InMemoryDb {
+        fn set(pos: usize, node: User) -> Result<(), StorageError> {
+            let mut hashmap = HASHMAP.lock().unwrap();
+            hashmap.insert(pos, node);
+            Ok(())
+        }
+
+        fn get(pos: usize) -> Result<User, StorageError> {
+            let mut hashmap = HASHMAP.lock().unwrap();
+            hashmap
+                .get(&pos)
+                .map(|v| v.clone())
+                .ok_or(StorageError::GetError)
+        }
+    }
+
+    #[test]
+    fn test_simple_publish() -> Result<(), SeemlessDirectoryError> {
+        SeemlessDirectory::<InMemoryDb, Blake3_256>::publish(vec![(
+            Username("hello".to_string()),
+            Values("world".to_string()),
+        )])?;
+        SeemlessDirectory::<InMemoryDb, Blake3_256>::lookup(Username("hello".to_string()));
+        Ok(())
     }
 }

@@ -9,3 +9,6 @@ crypto = { git  = "https://github.com/novifinancial/winterfell", package = "wint
 rand = "0.8"
 queues = "1.0.0"
 keyed_priority_queue = "0.3"
+
+[dev-dependencies]
+lazy_static = "1.4.0"
