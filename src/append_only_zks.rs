@@ -60,7 +60,9 @@ impl<H: Hasher> Azks<H> {
 
     pub fn insert_leaf(&mut self, label: NodeLabel, value: [u8; 32]) -> Result<(), SeemlessError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
-        self.increment_epoch();
+        if self.latest_epoch != 0 {
+            self.increment_epoch();
+        }
         let mut new_leaf = get_leaf_node::<H>(label, 0, &value, 0, self.latest_epoch);
         let mut tree_repr = self.tree_nodes.clone();
         let (_, tree_repr) = self.tree_nodes[self.root].insert_single_leaf(
@@ -69,6 +71,9 @@ impl<H: Hasher> Azks<H> {
             tree_repr,
         )?;
         self.tree_nodes = tree_repr;
+        if self.latest_epoch != 0 {
+            self.increment_epoch();
+        }
         Ok(())
         // self.batch_insert_leaves(vec![(label, value)])
     }
@@ -78,7 +83,9 @@ impl<H: Hasher> Azks<H> {
         insertion_set: Vec<(NodeLabel, [u8; 32])>,
     ) -> Result<(), SeemlessError> {
         let original_len = self.tree_nodes.len();
-        self.increment_epoch();
+        if self.latest_epoch != 0 {
+            self.increment_epoch();
+        }
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         for insertion_elt in insertion_set {
@@ -113,6 +120,9 @@ impl<H: Hasher> Azks<H> {
                 priorities -= 1;
             }
         }
+        if self.latest_epoch == 0 {
+            self.increment_epoch();
+        }
         Ok(())
         // unimplemented!()
     }
@@ -144,7 +154,7 @@ impl<H: Hasher> Azks<H> {
     }
 
     pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        unimplemented!()
+        self.tree_nodes[self.root].get_value_at_epoch(epoch)
     }
 
     pub fn get_latest_epoch(&self) -> u64 {
@@ -187,7 +197,7 @@ mod tests {
     use super::*;
     use crypto::hash::Blake3_256;
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
-    //#[test]
+    #[test]
     fn test_batch_insert_basic() -> Result<(), HistoryTreeNodeError> {
         let num_nodes = 1000;
         let mut rng = OsRng;
@@ -206,7 +216,6 @@ mod tests {
 
         let mut azks2 = Azks::<Blake3_256>::new();
         azks2.batch_insert_leaves(insertion_set);
-
         assert_eq!(
             azks1.get_root_hash()?,
             azks2.get_root_hash()?,
@@ -215,7 +224,7 @@ mod tests {
 
         Ok(())
     }
-    //#[test]
+    #[test]
     fn test_insert_permuted() -> Result<(), HistoryTreeNodeError> {
         let num_nodes = 1000;
         let mut rng = OsRng;

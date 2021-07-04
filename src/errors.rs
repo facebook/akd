@@ -46,6 +46,8 @@ pub enum HistoryTreeNodeError {
     NodeCreatedWithoutEpochs(u64),
     LeafNodeLabelLenLessThanInterior(NodeLabel),
     CompressionError(NodeLabel),
+    NodeDidNotExistAtEp(NodeLabel, u64),
+    NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
 }
 
 impl fmt::Display for HistoryTreeNodeError {
@@ -96,6 +98,20 @@ impl fmt::Display for HistoryTreeNodeError {
                     f,
                     "A node without a child in some direction exists, labelled: {:?}",
                     label
+                )
+            }
+            Self::NodeDidNotExistAtEp(label, epoch) => {
+                write!(
+                    f,
+                    "This node, labelled {:?}, did not exist at epoch {:?}.",
+                    label, epoch
+                )
+            }
+            Self::NodeDidNotHaveExistingStateAtEp(label, epoch) => {
+                write!(
+                    f,
+                    "This node, labelled {:?}, did not exist at epoch {:?}.",
+                    label, epoch
                 )
             }
         }
