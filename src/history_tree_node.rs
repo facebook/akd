@@ -332,10 +332,6 @@ impl<H: Hasher> HistoryTreeNode<H> {
             Ok(tree_repr_copy)
         } else {
             let mut parent = tree_repr_copy[self.parent].clone();
-            println!("parent = {}", self.parent);
-            println!("parent_state_epochs = {:?}", parent.state_map.keys());
-            println!("self = {}", self.label.val);
-            //let mut parent_latest_ep = parent.get_latest_epoch().unwrap_or(0);
             match parent.state_map.get(&epoch) {
                 //&parent_latest_ep) {
                 None => Err(HistoryTreeNodeError::ParentNextEpochInvalid(epoch)),
@@ -425,8 +421,8 @@ impl<H: Hasher> HistoryTreeNode<H> {
 
     ////// getrs for this node ////
 
-    pub fn get_value_at_epoch(&self, epoch: u64) -> Result<&H::Digest, HistoryTreeNodeError> {
-        unimplemented!()
+    pub fn get_value_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+        Ok(self.get_state_at_epoch(epoch).unwrap().value)
     }
 
     // gets value at current epoch
@@ -456,7 +452,10 @@ impl<H: Hasher> HistoryTreeNode<H> {
     // child or right. If not found, return None
     pub fn get_direction_at_ep(&self, node: &HistoryTreeNode<H>, ep: u64) -> Direction {
         let mut outcome: Direction = None;
-        let latest_state = self.state_map.get(&ep).unwrap();
+        let latest_state = self
+            .state_map
+            .get(&self.get_latest_epoch().unwrap())
+            .unwrap();
         for node_index in 0..ARITY {
             let node_val = latest_state.get_child_state_in_dir(node_index);
             let node_label = node_val.label;
@@ -524,6 +523,38 @@ impl<H: Hasher> HistoryTreeNode<H> {
                         self.get_child_at_existing_epoch(self.epochs[i - 1], direction)
                     }
                 }
+            }
+        }
+    }
+
+    pub fn get_state_at_existing_epoch(
+        &self,
+        epoch: u64,
+    ) -> Result<&HistoryNodeState<H>, HistoryTreeNodeError> {
+        self.state_map
+            .get(&epoch)
+            .ok_or(HistoryTreeNodeError::NodeDidNotHaveExistingStateAtEp(
+                self.label, epoch,
+            ))
+    }
+
+    pub fn get_state_at_epoch(
+        &self,
+        epoch: u64,
+    ) -> Result<&HistoryNodeState<H>, HistoryTreeNodeError> {
+        if self.get_birth_epoch() > epoch {
+            Err(HistoryTreeNodeError::NodeDidNotExistAtEp(self.label, epoch))
+        } else {
+            let mut curr_ep = self.get_birth_epoch();
+            let mut i = 0;
+            while curr_ep <= epoch && i < self.epochs.len() - 1 {
+                i += 1;
+                curr_ep = self.epochs[i];
+            }
+            if (i == 0) {
+                self.get_state_at_existing_epoch(self.epochs[i])
+            } else {
+                self.get_state_at_existing_epoch(self.epochs[i - 1])
             }
         }
     }
