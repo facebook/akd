@@ -27,8 +27,10 @@ pub struct Azks<H: Hasher> {
 pub struct MembershipProof<H: Hasher> {
     label: NodeLabel,
     hash_val: H::Digest,
-    sibling_labels: Vec<NodeLabel>,
-    sibling_hashes: Vec<H::Digest>,
+    parent_labels: Vec<NodeLabel>,
+    sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
+    sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
+    dirs: Vec<Direction>,
 }
 
 pub struct NonMembershipProof<H: Hasher> {
@@ -124,13 +126,13 @@ impl<H: Hasher> Azks<H> {
             self.increment_epoch();
         }
         Ok(())
-        // unimplemented!()
     }
 
     pub fn get_membership_proof(&self, label: NodeLabel, epoch: u64) -> MembershipProof<H> {
         // Regular Merkle membership proof for the trie as it stood at epoch
         // Assumes the verifier as access to the root at epoch
-        unimplemented!()
+        let (pf, _) = self.get_membership_proof_and_node(label, epoch);
+        pf
     }
 
     pub fn get_non_membership_proof(&self, label: NodeLabel, epoch: u64) -> NonMembershipProof<H> {
@@ -184,6 +186,61 @@ impl<H: Hasher> Azks<H> {
         self.latest_epoch = epoch;
         self.epochs.push(epoch);
     }
+
+    pub fn get_membership_proof_and_node(
+        &self,
+        label: NodeLabel,
+        epoch: u64,
+    ) -> (MembershipProof<H>, usize) {
+        // Regular Merkle membership proof for the trie as it stood at epoch
+        // Assumes the verifier as access to the root at epoch
+        /*pub struct MembershipProof<H: Hasher> {
+            label: NodeLabel,
+            hash_val: H::Digest,
+            sibling_labels: Vec<NodeLabel>,
+            sibling_hashes: Vec<H::Digest>,
+        }*/
+        let mut parent_labels = Vec::<NodeLabel>::new();
+        let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
+        let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
+        let mut dirs = Vec::<Direction>::new();
+        let mut curr_node = self.tree_nodes[self.root].clone();
+        let mut dir = curr_node.label.get_dir(label);
+        let mut equal = label == curr_node.label;
+        let mut prev_node = 0;
+        while !equal && dir.is_some() {
+            dirs.push(dir);
+            prev_node = curr_node.location;
+            let curr_state = curr_node.get_state_at_epoch(epoch).unwrap();
+            let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
+            let mut hashes = [H::hash(&[0u8]); ARITY - 1];
+            let mut count = 0;
+            for i in 0..ARITY {
+                if i != dir.unwrap() {
+                    labels[count] = curr_state.child_states[i].label;
+                    hashes[count] = curr_state.child_states[i].hash_val;
+                }
+                count += 1;
+            }
+            sibling_labels.push(labels);
+            sibling_hashes.push(hashes);
+            parent_labels.push(curr_node.label);
+            curr_node = self.tree_nodes[curr_node.get_child_location_at_epoch(epoch, dir)].clone();
+            dir = curr_node.label.get_dir(label);
+            equal = label == curr_node.label;
+        }
+        (
+            MembershipProof::<H> {
+                label: curr_node.label,
+                hash_val: curr_node.get_value_at_epoch(epoch).unwrap(),
+                parent_labels,
+                sibling_labels,
+                sibling_hashes,
+                dirs,
+            },
+            prev_node,
+        )
+    }
 }
 
 impl<H: Hasher> Default for Azks<H> {
@@ -191,6 +248,8 @@ impl<H: Hasher> Default for Azks<H> {
         Self::new()
     }
 }
+
+// fn<H: Hasher> create_layer_for_hashing(hashes: )
 
 #[cfg(test)]
 mod tests {
