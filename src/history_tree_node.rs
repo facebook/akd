@@ -425,6 +425,10 @@ impl<H: Hasher> HistoryTreeNode<H> {
         Ok(self.get_state_at_epoch(epoch).unwrap().value)
     }
 
+    pub fn get_child_location_at_epoch(&self, epoch: u64, dir: Direction) -> usize {
+        self.get_child_at_epoch(epoch, dir).unwrap().location
+    }
+
     // gets value at current epoch
     pub fn get_value(&self) -> Result<&H::Digest, HistoryTreeNodeError> {
         //&HistoryNodeHash<H> {
