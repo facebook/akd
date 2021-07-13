@@ -279,7 +279,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
         match self.node_type {
             NodeType::Leaf => {
                 // the hash of this is just the value, simply place in parent
-                let leaf_hash_val = H::merge(&[hash_label::<H>(self.label), *self.get_value()?]);
+                let leaf_hash_val = H::merge(&[H::merge(&[H::hash(&[]), *self.get_value()?]), hash_label::<H>(self.label)]);
                 self.update_hash_at_parent(epoch, leaf_hash_val, tree_repr)
             }
             _ => {
@@ -307,7 +307,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
         match self.state_map.get(&epoch) {
             None => Err(HistoryTreeNodeError::NoChildrenInTreeAtEpoch(epoch)),
             Some(mut epoch_node_state) => {
-                let mut new_hash = hash_label::<H>(self.label);
+                let mut new_hash = H::hash(&[]); //hash_label::<H>(self.label);
                 for child_index in 0..ARITY {
                     new_hash = H::merge(&[
                         new_hash,
@@ -316,6 +316,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
                             .hash_val,
                     ]);
                 }
+                new_hash = H::merge(&[new_hash, hash_label::<H>(self.label)]);
                 Ok(new_hash)
             }
         }
@@ -423,6 +424,22 @@ impl<H: Hasher> HistoryTreeNode<H> {
 
     pub fn get_value_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
         Ok(self.get_state_at_epoch(epoch).unwrap().value)
+    }
+
+    pub fn get_value_without_label_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+        if self.is_leaf() {
+            return Ok(H::merge(&[H::hash(&[]), self.get_value_at_epoch(epoch).unwrap()]));
+        }
+        let children = self.get_state_at_epoch(epoch).unwrap().child_states;
+        let mut new_hash = H::hash(&[]);
+        for child_index in 0..ARITY {
+            new_hash = H::merge(&[
+                new_hash,
+                children[child_index]
+                    .hash_val,
+            ]);
+        }
+        Ok(new_hash)
     }
 
     pub fn get_child_location_at_epoch(&self, epoch: u64, dir: Direction) -> usize {
