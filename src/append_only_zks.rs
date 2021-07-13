@@ -180,10 +180,7 @@ impl<H: Hasher> Azks<H> {
         epoch: u64,
         proof: MembershipProof<H>,
     ) -> bool {
-        let hash_val = H::merge(&[
-            proof.hash_val,
-            hash_label::<H>(proof.label),
-        ]);
+        let hash_val = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
         let mut sibling_hashes = proof.sibling_hashes.clone();
         let mut parent_labels = proof.parent_labels.clone();
         let mut dirs = proof.dirs;

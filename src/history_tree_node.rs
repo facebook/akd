@@ -279,7 +279,10 @@ impl<H: Hasher> HistoryTreeNode<H> {
         match self.node_type {
             NodeType::Leaf => {
                 // the hash of this is just the value, simply place in parent
-                let leaf_hash_val = H::merge(&[H::merge(&[H::hash(&[]), *self.get_value()?]), hash_label::<H>(self.label)]);
+                let leaf_hash_val = H::merge(&[
+                    H::merge(&[H::hash(&[]), *self.get_value()?]),
+                    hash_label::<H>(self.label),
+                ]);
                 self.update_hash_at_parent(epoch, leaf_hash_val, tree_repr)
             }
             _ => {
@@ -426,18 +429,20 @@ impl<H: Hasher> HistoryTreeNode<H> {
         Ok(self.get_state_at_epoch(epoch).unwrap().value)
     }
 
-    pub fn get_value_without_label_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+    pub fn get_value_without_label_at_epoch(
+        &self,
+        epoch: u64,
+    ) -> Result<H::Digest, HistoryTreeNodeError> {
         if self.is_leaf() {
-            return Ok(H::merge(&[H::hash(&[]), self.get_value_at_epoch(epoch).unwrap()]));
+            return Ok(H::merge(&[
+                H::hash(&[]),
+                self.get_value_at_epoch(epoch).unwrap(),
+            ]));
         }
         let children = self.get_state_at_epoch(epoch).unwrap().child_states;
         let mut new_hash = H::hash(&[]);
         for child_index in 0..ARITY {
-            new_hash = H::merge(&[
-                new_hash,
-                children[child_index]
-                    .hash_val,
-            ]);
+            new_hash = H::merge(&[new_hash, children[child_index].hash_val]);
         }
         Ok(new_hash)
     }
