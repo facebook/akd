@@ -10,7 +10,7 @@ use crate::{
     history_tree_node::{NodeType, *},
 };
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
-use crypto::hash::{Blake3_256, Hasher};
+use crypto::Hasher;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use queues::*;
@@ -60,12 +60,12 @@ impl<H: Hasher> Azks<H> {
         }
     }
 
-    pub fn insert_leaf(&mut self, label: NodeLabel, value: [u8; 32]) -> Result<(), SeemlessError> {
+    pub fn insert_leaf(&mut self, label: NodeLabel, value: H::Digest) -> Result<(), SeemlessError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         if self.latest_epoch != 0 {
             self.increment_epoch();
         }
-        let mut new_leaf = get_leaf_node::<H>(label, 0, &value, 0, self.latest_epoch);
+        let mut new_leaf = get_leaf_node::<H>(label, 0, value.as_ref(), 0, self.latest_epoch);
         let mut tree_repr = self.tree_nodes.clone();
         let (_, tree_repr) = self.tree_nodes[self.root].insert_single_leaf(
             new_leaf,
@@ -82,7 +82,7 @@ impl<H: Hasher> Azks<H> {
 
     pub fn batch_insert_leaves(
         &mut self,
-        insertion_set: Vec<(NodeLabel, [u8; 32])>,
+        insertion_set: Vec<(NodeLabel, H::Digest)>,
     ) -> Result<(), SeemlessError> {
         let original_len = self.tree_nodes.len();
         if self.latest_epoch != 0 {
@@ -91,8 +91,13 @@ impl<H: Hasher> Azks<H> {
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         for insertion_elt in insertion_set {
-            let mut new_leaf =
-                get_leaf_node::<H>(insertion_elt.0, 0, &insertion_elt.1, 0, self.latest_epoch);
+            let mut new_leaf = get_leaf_node::<H>(
+                insertion_elt.0,
+                0,
+                insertion_elt.1.as_ref(),
+                0,
+                self.latest_epoch,
+            );
             let mut tree_repr = self.tree_nodes.clone();
             let (_, tree_repr) = self.tree_nodes[self.root].insert_single_leaf_without_hash(
                 new_leaf,
@@ -313,26 +318,30 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::hash::Blake3_256;
+    use crypto::hashers::Blake3_256;
+    use math::fields::f128::BaseElement;
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+
+    type Blake3 = Blake3_256<BaseElement>;
+    type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest; //Blake3_256<BaseElement>::Digest;
     #[test]
     fn test_batch_insert_basic() -> Result<(), HistoryTreeNodeError> {
         let num_nodes = 1000;
         let mut rng = OsRng;
 
-        let mut azks1 = Azks::<Blake3_256>::new();
-        let mut insertion_set: Vec<(NodeLabel, [u8; 32])> = vec![];
+        let mut azks1 = Azks::<Blake3>::new();
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
             let node = NodeLabel::random(&mut rng);
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
-            let val = Blake3_256::hash(&input);
+            let val = Blake3::hash(&input);
             insertion_set.push((node, val));
             azks1.insert_leaf(node, val);
         }
 
-        let mut azks2 = Azks::<Blake3_256>::new();
+        let mut azks2 = Azks::<Blake3>::new();
         azks2.batch_insert_leaves(insertion_set);
         assert_eq!(
             azks1.get_root_hash()?,
@@ -347,13 +356,14 @@ mod tests {
         let num_nodes = 1000;
         let mut rng = OsRng;
 
-        let mut azks1 = Azks::<Blake3_256>::new();
-        let mut insertion_set: Vec<(NodeLabel, [u8; 32])> = vec![];
+        let mut azks1 = Azks::<Blake3>::new();
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
             let node = NodeLabel::random(&mut rng);
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
             azks1.insert_leaf(node, input);
         }
@@ -361,7 +371,7 @@ mod tests {
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
-        let mut azks2 = Azks::<Blake3_256>::new();
+        let mut azks2 = Azks::<Blake3>::new();
         azks2.batch_insert_leaves(insertion_set);
 
         assert_eq!(
@@ -378,19 +388,20 @@ mod tests {
         let num_nodes = 1000;
         let mut rng = OsRng;
 
-        let mut insertion_set: Vec<(NodeLabel, [u8; 32])> = vec![];
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
             let node = NodeLabel::random(&mut rng);
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
         }
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
-        let mut azks = Azks::<Blake3_256>::new();
+        let mut azks = Azks::<Blake3>::new();
         azks.batch_insert_leaves(insertion_set.clone());
 
         let proof = azks.get_membership_proof(insertion_set[0].0, 0);
@@ -408,24 +419,25 @@ mod tests {
         let num_nodes = 1000;
         let mut rng = OsRng;
 
-        let mut insertion_set: Vec<(NodeLabel, [u8; 32])> = vec![];
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
             let node = NodeLabel::random(&mut rng);
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
         }
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
-        let mut azks = Azks::<Blake3_256>::new();
+        let mut azks = Azks::<Blake3>::new();
         azks.batch_insert_leaves(insertion_set.clone());
 
         let mut proof = azks.get_membership_proof(insertion_set[0].0, 0);
-        let hash_val = Blake3_256::hash(&[0u8]);
-        proof = MembershipProof::<Blake3_256> {
+        let hash_val = Blake3::hash(&[0u8]);
+        proof = MembershipProof::<Blake3> {
             label: proof.label,
             hash_val,
             sibling_hashes: proof.sibling_hashes,
