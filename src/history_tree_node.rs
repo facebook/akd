@@ -441,8 +441,8 @@ impl<H: Hasher> HistoryTreeNode<H> {
         }
         let children = self.get_state_at_epoch(epoch).unwrap().child_states;
         let mut new_hash = H::hash(&[]);
-        for child_index in 0..ARITY {
-            new_hash = H::merge(&[new_hash, children[child_index].hash_val]);
+        for child in children.iter().take(ARITY) {
+            new_hash = H::merge(&[new_hash, child.hash_val]);
         }
         Ok(new_hash)
     }
