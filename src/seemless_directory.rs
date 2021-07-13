@@ -7,7 +7,7 @@ use crate::append_only_zks::{self, Azks, MembershipProof};
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
 use crate::errors::{SeemlessDirectoryError, StorageError};
 use crate::node_state::NodeLabel;
-use crypto::hash::Hasher;
+use crypto::Hasher;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -138,10 +138,15 @@ impl<S: Storage<User>, H: Hasher> SeemlessDirectory<S, H> {
 mod tests {
 
     use super::*;
-    use crypto::hash::Blake3_256;
+    use crypto::hashers::Blake3_256;
     use lazy_static::lazy_static;
     use std::collections::HashMap;
     use std::sync::Mutex;
+
+    use math::fields::f128::BaseElement;
+
+    type Blake3 = Blake3_256<BaseElement>;
+    type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest;
 
     lazy_static! {
         static ref HASHMAP: Mutex<HashMap<usize, User>> = {
@@ -170,11 +175,11 @@ mod tests {
 
     #[test]
     fn test_simple_publish() -> Result<(), SeemlessDirectoryError> {
-        SeemlessDirectory::<InMemoryDb, Blake3_256>::publish(vec![(
+        SeemlessDirectory::<InMemoryDb, Blake3>::publish(vec![(
             Username("hello".to_string()),
             Values("world".to_string()),
         )])?;
-        SeemlessDirectory::<InMemoryDb, Blake3_256>::lookup(Username("hello".to_string()));
+        SeemlessDirectory::<InMemoryDb, Blake3>::lookup(Username("hello".to_string()));
         Ok(())
     }
 }

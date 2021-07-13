@@ -4,7 +4,7 @@
 // LICENSE file in the root directory of this source tree.
 
 use crate::{Direction, ARITY};
-use crypto::hash::Hasher;
+use crypto::Hasher;
 use std::{
     array,
     convert::TryInto,

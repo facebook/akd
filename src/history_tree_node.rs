@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use crate::{node_state::*, Direction, ARITY};
-use crypto::hash::Hasher;
+use crypto::Hasher;
 
 use crate::errors::HistoryTreeNodeError;
 
