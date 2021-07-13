@@ -395,18 +395,31 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let root_val = *root.get_value()?;
 
-    let expected = Blake3_256::merge(&[
+    let leaf_0_hash = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(root.label),
-            Blake3_256::merge(&[
-                hash_label::<Blake3_256>(new_leaf.label),
-                Blake3_256::hash(&[0b0u8]),
-            ]),
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b0u8]),
         ]),
+        hash_label::<Blake3_256>(new_leaf.label),
+    ]);
+
+    let leaf_1_hash = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(leaf_1.label),
+            Blake3_256::hash(&[]),
             Blake3_256::hash(&[0b1u8]),
         ]),
+        hash_label::<Blake3_256>(leaf_1.label),
+    ]);
+
+    let expected = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                leaf_0_hash,
+            ]),
+            leaf_1_hash,
+        ]),
+        hash_label::<Blake3_256>(root.label),
     ]);
     assert!(root_val == expected, "Root hash not equal to expected");
 
@@ -426,24 +439,38 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
         get_leaf_node::<Blake3_256>(NodeLabel::new(0b10u64, 2u32), 3, &[1u8, 1u8], 0, 0);
 
     let leaf_0_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b0u8]),
+        ]),
         hash_label::<Blake3_256>(new_leaf.label),
-        Blake3_256::hash(&[0b0u8]),
     ]);
 
     let leaf_1_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b1u8]),
+        ]),
         hash_label::<Blake3_256>(leaf_1.label),
-        Blake3_256::hash(&[0b1u8]),
     ]);
+
     let leaf_2_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[1u8, 1u8]),
+        ]),
         hash_label::<Blake3_256>(leaf_2.label),
-        Blake3_256::hash(&[0b1u8, 0b1u8]),
     ]);
+
     let right_child_expected_hash = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(NodeLabel::new(0b1u64, 1u32)),
-            leaf_2_hash,
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                leaf_2_hash,
+            ]),
+            leaf_1_hash,
         ]),
-        leaf_1_hash,
+        hash_label::<Blake3_256>(NodeLabel::new(0b1u64, 1u32)),
     ]);
 
     let mut leaf_1_as_child = leaf_1.to_node_child_state()?;
@@ -451,15 +478,6 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
 
     let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
     leaf_2_as_child.hash_val = leaf_2_hash;
-
-    let mut right_of_root: HistoryTreeNode<Blake3_256> = get_interior_node::<Blake3_256>(
-        NodeLabel::new(0b1u64, 1u32),
-        4,
-        right_child_expected_hash,
-        0,
-        0,
-        [leaf_2_as_child, leaf_1_as_child],
-    );
 
     let mut tree_repr = vec![root.clone()];
 
@@ -478,8 +496,11 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let root_val = *root.get_value()?;
 
     let expected = Blake3_256::merge(&[
-        Blake3_256::merge(&[hash_label::<Blake3_256>(root.label), leaf_0_hash]),
-        right_child_expected_hash,
+        Blake3_256::merge(&[
+            Blake3_256::merge(&[Blake3_256::hash(&[]), leaf_0_hash]),
+            right_child_expected_hash
+        ]),
+        hash_label::<Blake3_256>(root.label),
     ]);
     assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
@@ -501,38 +522,58 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
         get_leaf_node::<Blake3_256>(NodeLabel::new(0b010u64, 3u32), 4, &[0u8, 1u8], 0, 0);
 
     let leaf_0_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b0u8]),
+        ]),
         hash_label::<Blake3_256>(new_leaf.label),
-        Blake3_256::hash(&[0b0u8]),
     ]);
 
     let leaf_1_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b1u8]),
+        ]),
         hash_label::<Blake3_256>(leaf_1.label),
-        Blake3_256::hash(&[0b1u8]),
     ]);
     let leaf_2_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b1u8, 0b1u8]),
+        ]),
         hash_label::<Blake3_256>(leaf_2.label),
-        Blake3_256::hash(&[0b1u8, 0b1u8]),
     ]);
 
     let leaf_3_hash = Blake3_256::merge(&[
+        Blake3_256::merge(&[
+            Blake3_256::hash(&[]),
+            Blake3_256::hash(&[0b0u8, 0b1u8])
+        ]),
         hash_label::<Blake3_256>(leaf_3.label),
-        Blake3_256::hash(&[0b0u8, 0b1u8]),
     ]);
 
     let right_child_expected_hash = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(NodeLabel::new(0b1u64, 1u32)),
-            leaf_2_hash,
+            Blake3_256::merge(
+                &[
+                    Blake3_256::hash(&[]),
+                    leaf_2_hash,
+                ]
+            ),
+            leaf_1_hash,
         ]),
-        leaf_1_hash,
+        hash_label::<Blake3_256>(NodeLabel::new(0b1u64, 1u32)),
     ]);
 
     let left_child_expected_hash = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(NodeLabel::new(0b0u64, 1u32)),
-            leaf_0_hash,
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                leaf_0_hash,
+            ]),
+            leaf_3_hash
         ]),
-        leaf_3_hash,
+        hash_label::<Blake3_256>(NodeLabel::new(0b0u64, 1u32)),
     ]);
 
     let mut leaf_0_as_child = new_leaf.to_node_child_state()?;
@@ -540,15 +581,6 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
 
     let mut leaf_3_as_child = leaf_3.to_node_child_state()?;
     leaf_3_as_child.hash_val = leaf_3_hash;
-
-    let mut right_of_root: HistoryTreeNode<Blake3_256> = get_interior_node::<Blake3_256>(
-        NodeLabel::new(0b1u64, 1u32),
-        4,
-        right_child_expected_hash,
-        0,
-        0,
-        [leaf_0_as_child, leaf_3_as_child],
-    );
 
     let mut tree_repr = vec![root.clone()];
 
@@ -572,10 +604,13 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
 
     let expected = Blake3_256::merge(&[
         Blake3_256::merge(&[
-            hash_label::<Blake3_256>(root.label),
-            left_child_expected_hash,
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                left_child_expected_hash
+            ]),
+            right_child_expected_hash,
         ]),
-        right_child_expected_hash,
+        hash_label::<Blake3_256>(root.label),
     ]);
     assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
@@ -596,8 +631,11 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
             0,
         );
         leaf_hashes.push(Blake3_256::merge(&[
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                Blake3_256::hash(&i.to_ne_bytes()),
+            ]),
             hash_label::<Blake3_256>(new_leaf.label),
-            Blake3_256::hash(&i.to_ne_bytes()),
         ]));
         leaves.push(new_leaf);
     }
@@ -609,10 +647,13 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
         let right_child_hash = leaf_hashes[2 * i + 1];
         layer_1_hashes.push(Blake3_256::merge(&[
             Blake3_256::merge(&[
-                hash_label::<Blake3_256>(NodeLabel::new(j, 2u32)),
-                left_child_hash,
+                Blake3_256::merge(&[
+                    Blake3_256::hash(&[]),
+                    left_child_hash,
+                ]),
+                right_child_hash,
             ]),
-            right_child_hash,
+            hash_label::<Blake3_256>(NodeLabel::new(j, 2u32)),
         ]));
         j += 1;
     }
@@ -624,17 +665,26 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
         let right_child_hash = layer_1_hashes[2 * i + 1];
         layer_2_hashes.push(Blake3_256::merge(&[
             Blake3_256::merge(&[
-                hash_label::<Blake3_256>(NodeLabel::new(j, 1u32)),
-                left_child_hash,
+                Blake3_256::merge(&[
+                    Blake3_256::hash(&[]),
+                    left_child_hash,
+                ]),
+                right_child_hash,
             ]),
-            right_child_hash,
+            hash_label::<Blake3_256>(NodeLabel::new(j, 1u32)),
         ]));
         j += 1;
     }
 
     let expected = Blake3_256::merge(&[
-        Blake3_256::merge(&[hash_label::<Blake3_256>(root.label), layer_2_hashes[0]]),
-        layer_2_hashes[1],
+        Blake3_256::merge(&[
+            Blake3_256::merge(&[
+                Blake3_256::hash(&[]),
+                layer_2_hashes[0],
+            ]),
+            layer_2_hashes[1],
+        ]),
+        hash_label::<Blake3_256>(root.label),
     ]);
 
     for i in 0..8 {
