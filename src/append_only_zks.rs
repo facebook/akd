@@ -338,11 +338,11 @@ mod tests {
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
             insertion_set.push((node, val));
-            azks1.insert_leaf(node, val);
+            azks1.insert_leaf(node, val).unwrap();
         }
 
         let mut azks2 = Azks::<Blake3>::new();
-        azks2.batch_insert_leaves(insertion_set);
+        azks2.batch_insert_leaves(insertion_set).unwrap();
         assert_eq!(
             azks1.get_root_hash()?,
             azks2.get_root_hash()?,
@@ -365,14 +365,14 @@ mod tests {
             rng.fill_bytes(&mut input);
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
-            azks1.insert_leaf(node, input);
+            azks1.insert_leaf(node, input).unwrap();
         }
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
         let mut azks2 = Azks::<Blake3>::new();
-        azks2.batch_insert_leaves(insertion_set);
+        azks2.batch_insert_leaves(insertion_set).unwrap();
 
         assert_eq!(
             azks1.get_root_hash()?,
