@@ -11,7 +11,7 @@ use std::{
     fmt::{self, Debug},
 };
 
-#[cfg(test)]
+#[cfg(any(test, feature = "bench"))]
 use rand::{CryptoRng, RngCore};
 
 #[derive(Debug, Copy, Clone)]
@@ -32,7 +32,7 @@ impl NodeLabel {
         self.val
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "bench"))]
     /// Generate a random NodeLabel for testing purposes
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // FIXME: should we always select length-64 labels?

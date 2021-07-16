@@ -156,6 +156,10 @@ impl<H: Hasher> Azks<H> {
             longest_prefix_membership_proof: MembershipProof<H>,
         }
         */
+
+        let (membership_pf, lcp_node_id) = self.get_membership_proof_and_node(label, epoch);
+
+
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch);
         let lcp_node = self.tree_nodes[lcp_node_id].clone();
@@ -180,6 +184,7 @@ impl<H: Hasher> Azks<H> {
             longest_prefix_children_values,
             longest_prefix_membership_proof,
         }
+
     }
 
     pub fn get_consecutive_append_only_proof(&self, start_epoch: u64) -> AppendOnlyProof<H> {
@@ -389,7 +394,7 @@ mod tests {
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
             insertion_set.push((node, val));
-            azks1.insert_leaf(node, val);
+            azks1.insert_leaf(node, val).unwrap();
         }
 
         let mut azks2 = Azks::<Blake3>::new();
@@ -416,13 +421,14 @@ mod tests {
             rng.fill_bytes(&mut input);
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
-            azks1.insert_leaf(node, input);
+            azks1.insert_leaf(node, input).unwrap();
         }
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
         let mut azks2 = Azks::<Blake3>::new();
+
         azks2.batch_insert_leaves(insertion_set);
 
         assert_eq!(

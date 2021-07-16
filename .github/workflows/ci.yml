@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, nightly]
+        toolchain: [stable]
         os: [ubuntu]
     steps:
       - uses: actions/checkout@main
@@ -32,11 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
-      - name: Install minimal nightly with clippy
+      - name: Install minimal stable with clippy
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           components: clippy
           override: true
 
@@ -51,11 +51,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
-      - name: Install minimal nightly with rustfmt
+      - name: Install minimal stable with rustfmt
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           components: rustfmt
           override: true
 
@@ -64,3 +64,23 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  benches:
+    name: cargo bench compilation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Run cargo bench --no-run
+        uses: actions-rs/cargo@v1
+        with:
+          command: bench
+          args: --features "bench" --no-run

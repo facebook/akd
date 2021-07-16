@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>"]
 edition = "2018"
 
+[features]
+bench = []
+
 [dependencies]
 crypto = { git  = "https://github.com/novifinancial/winterfell", package = "winter-crypto", branch = "main" }
 math = { git  = "https://github.com/novifinancial/winterfell", package = "winter-math", branch = "main" }
@@ -13,4 +16,10 @@ queues = "1.0.0"
 keyed_priority_queue = "0.3"
 
 [dev-dependencies]
+criterion = "0.3.3"
 lazy_static = "1.4.0"
+
+[[bench]]
+name = "azks"
+harness = false
+required-features = ["bench"]
