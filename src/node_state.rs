@@ -52,8 +52,11 @@ impl NodeLabel {
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
     fn get_prefix(&self, len: u32) -> Self {
-        if len >= self.len {
+        if len >= self.get_len() {
             return *self;
+        }
+        if len == 0 {
+            return Self::new(0, 0);
         }
         Self::new(self.val >> (self.len - len), len)
     }
@@ -86,14 +89,18 @@ impl NodeLabel {
         if self.get_len() >= other.get_len() {
             return Direction::None;
         }
-        let other_self_difference = other.get_len() - self.get_len();
-        let self_at_other_len = self.get_val().wrapping_shl(other_self_difference);
-        let other_xored = self_at_other_len ^ other.get_val();
-        let dir: usize = other_xored
-            .wrapping_shr(other_self_difference - 1)
-            .try_into()
-            .unwrap();
-        Direction::Some(dir)
+        if other.get_prefix(self.get_len()) != *self {
+            return Direction::None;
+        }
+        Direction::Some(other.get_bit_at(self.get_len()).try_into().unwrap())
+        // let other_self_difference = other.get_len() - self.get_len();
+        // let self_at_other_len = self.get_val().wrapping_shl(other_self_difference);
+        // let other_xored = self_at_other_len ^ other.get_val();
+        // let dir: usize = other_xored
+        //     .wrapping_shr(other_self_difference - 1)
+        //     .try_into()
+        //     .unwrap();
+        // Direction::Some(dir)
     }
 }
 
@@ -410,8 +417,64 @@ mod tests {
         );
         let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
         assert!(
-        computed == expected,
-        "Longest common substring or direction with other with leading zero, not equal to expected!"
-    )
+            computed == expected,
+            "Longest common substring or direction with other with leading zero, not equal to expected!"
+        )
+    }
+
+    #[test]
+    pub fn test_get_dir_large() {
+        use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+        for i in 1..65 {
+            let mut rng = OsRng;
+            let label_1 = NodeLabel::random(&mut rng);
+            let pos = i;
+            let pos_32 = pos as u32;
+            let label_2 = label_1.get_prefix(pos_32); //NodeLabel::new(0b11011000u64, 1u32);
+            let mut direction = Direction::Some(label_1.get_bit_at(pos).try_into().unwrap());
+            if pos == 64 {
+                direction = Direction::None;
+            }
+            let computed = label_2.get_dir(label_1);
+            assert!(
+                computed == direction,
+                "Direction not equal to expected. Node = {:?}, prefix = {:?}",
+                label_1,
+                label_2
+            )
+        }
+    }
+
+    #[test]
+    pub fn test_get_dir_example() {
+        let label_1 = NodeLabel::new(10049430782486799941u64, 64u32);
+        let label_2 = NodeLabel::new(23u64, 5u32);
+        let mut direction = Direction::None;
+        let computed = label_2.get_dir(label_1);
+        assert!(
+            computed == direction,
+            "Direction not equal to expected. Node = {:?}, prefix = {:?}, computed = {:?}",
+            label_1,
+            label_2,
+            computed
+        )
+    }
+
+    #[test]
+    pub fn test_get_prefix_small() {
+        let label_1 = NodeLabel::new(
+            0b1000101101110110110000000000110101110001000000000110011001000101u64,
+            64u32,
+        );
+        let prefix_len = 10u32;
+        let label_2 = NodeLabel::new(0b1000101101u64, prefix_len);
+        let computed = label_1.get_prefix(prefix_len);
+        assert!(
+            computed == label_2,
+            "Direction not equal to expected. Node = {:?}, prefix = {:?}, computed = {:?}",
+            label_1,
+            label_2,
+            computed
+        )
     }
 }

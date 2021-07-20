@@ -24,6 +24,7 @@ pub struct Azks<H: Hasher> {
                                          // For now going to assume that the inserted leaves come with unique labels.
 }
 
+#[derive(Debug)]
 pub struct MembershipProof<H: Hasher> {
     label: NodeLabel,
     hash_val: H::Digest,
@@ -33,6 +34,7 @@ pub struct MembershipProof<H: Hasher> {
     dirs: Vec<Direction>,
 }
 
+#[derive(Debug)]
 pub struct NonMembershipProof<H: Hasher> {
     label: NodeLabel,
     longest_prefix: NodeLabel,
@@ -41,6 +43,7 @@ pub struct NonMembershipProof<H: Hasher> {
     longest_prefix_membership_proof: MembershipProof<H>,
 }
 
+#[derive(Debug)]
 pub struct AppendOnlyProof<H: Hasher> {
     inserted: Vec<(NodeLabel, H::Digest)>,
     unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
@@ -153,9 +156,37 @@ impl<H: Hasher> Azks<H> {
             longest_prefix_membership_proof: MembershipProof<H>,
         }
         */
+
+
         let (membership_pf, lcp_node_id) = self.get_membership_proof_and_node(label, epoch);
 
-        unimplemented!()
+
+        let (longest_prefix_membership_proof, lcp_node_id) =
+            self.get_membership_proof_and_node(label, epoch);
+        let lcp_node = self.tree_nodes[lcp_node_id].clone();
+        let longest_prefix = lcp_node.label;
+        let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
+        let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
+        let children = lcp_node
+            .get_state_at_epoch(epoch)
+            .unwrap()
+            .child_states
+            .iter()
+            .map(|x| self.tree_nodes[x.location].clone());
+        for (i, child) in children.enumerate() {
+            longest_prefix_children_labels[i] = child.label;
+            longest_prefix_children_values[i] =
+                child.get_value_without_label_at_epoch(epoch).unwrap();
+        }
+        NonMembershipProof {
+            label,
+            longest_prefix,
+            longest_prefix_children_labels,
+            longest_prefix_children_values,
+            longest_prefix_membership_proof,
+        }
+
+
     }
 
     pub fn get_consecutive_append_only_proof(&self, start_epoch: u64) -> AppendOnlyProof<H> {
@@ -202,21 +233,42 @@ impl<H: Hasher> Azks<H> {
 
     pub fn verify_nonmembership(
         &self,
+        label: NodeLabel,
         root_hash: H::Digest,
         epoch: u64,
         proof: NonMembershipProof<H>,
     ) -> bool {
         /*
-        pub struct MembershipProof<H: Hasher> {
+        pub struct NonMembershipProof<H: Hasher> {
             label: NodeLabel,
-            hash_val: H::Digest,
-            parent_labels: Vec<NodeLabel>,
-            sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
-            sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
-            dirs: Vec<Direction>,
+            longest_prefix: NodeLabel,
+            longest_prefix_children_labels: [NodeLabel; ARITY],
+            longest_prefix_children_values: [H::Digest; ARITY],
+            longest_prefix_membership_proof: MembershipProof<H>,
         }
         */
-        unimplemented!()
+        let mut verified = true;
+        let mut lcp_hash = H::hash(&[]);
+        let mut lcp_real = label;
+        for i in 0..ARITY {
+            let child_hash = H::merge(&[
+                proof.longest_prefix_children_values[i],
+                hash_label::<H>(proof.longest_prefix_children_labels[i]),
+            ]);
+            lcp_hash = H::merge(&[lcp_hash, child_hash]);
+            lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children_labels[i]);
+        }
+        // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
+        verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
+        assert!(verified, "lcp_hash != longest_prefix_hash");
+        verified = verified
+            && self.verify_membership(root_hash, epoch, proof.longest_prefix_membership_proof);
+        assert!(verified, "membership_proof did not verify");
+        // The audit must have checked that this node is indeed the lcp of its children.
+        // So we can just check that one of the children's lcp is = the proof.longest_prefix
+        verified = verified && (proof.longest_prefix == lcp_real);
+        assert!(verified, "longest_prefix != lcp");
+        verified
     }
 
     fn increment_epoch(&mut self) {
@@ -256,7 +308,9 @@ impl<H: Hasher> Azks<H> {
             let mut count = 0;
             for i in 0..ARITY {
                 if i != dir.unwrap() {
-                    let test = curr_state.child_states[i];
+                    if dir.unwrap() > 1 {
+                        println! {"Curr node = {:?}", curr_node.label};
+                    }
                     labels[count] = curr_state.child_states[i].label;
                     hashes[count] = curr_state.child_states[i].hash_val;
                     count += 1;
@@ -270,6 +324,11 @@ impl<H: Hasher> Azks<H> {
         }
         if !equal {
             curr_node = self.tree_nodes[prev_node].clone();
+
+            parent_labels.pop();
+            sibling_labels.pop();
+            sibling_hashes.pop();
+            dirs.pop();
         }
 
         let hash_val = curr_node.get_value_without_label_at_epoch(epoch).unwrap();
@@ -342,7 +401,9 @@ mod tests {
         }
 
         let mut azks2 = Azks::<Blake3>::new();
-        azks2.batch_insert_leaves(insertion_set).unwrap();
+
+        azks2.batch_insert_leaves(insertion_set);
+
         assert_eq!(
             azks1.get_root_hash()?,
             azks2.get_root_hash()?,
@@ -372,7 +433,10 @@ mod tests {
         insertion_set.shuffle(&mut rng);
 
         let mut azks2 = Azks::<Blake3>::new();
-        azks2.batch_insert_leaves(insertion_set).unwrap();
+
+
+        azks2.batch_insert_leaves(insertion_set);
+
 
         assert_eq!(
             azks1.get_root_hash()?,
@@ -448,6 +512,59 @@ mod tests {
         assert!(
             !azks.verify_membership(azks.get_root_hash()?, 0, proof),
             "Membership proof does verifies, despite being wrong"
+        );
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_membership_proof_intermediate() -> Result<(), HistoryTreeNodeError> {
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
+        insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
+        insertion_set.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
+        insertion_set.push((NodeLabel::new(0b11 << 62, 64), Blake3::hash(&[])));
+        insertion_set.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
+        insertion_set.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
+        let mut azks = Azks::<Blake3>::new();
+        azks.batch_insert_leaves(insertion_set);
+        let search_label = NodeLabel::new(0b1111 << 60, 64);
+        let proof = azks.get_non_membership_proof(search_label, 0);
+        println!(
+            "proof label = {:?}",
+            proof.longest_prefix_membership_proof.label
+        );
+        println!("proof = {:?}", proof.longest_prefix_membership_proof);
+        assert!(
+            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 0, proof),
+            "Nonmembership proof does not verify"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_nonmembership_proof() -> Result<(), HistoryTreeNodeError> {
+        let num_nodes = 1000;
+        let mut rng = OsRng;
+
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for _ in 0..num_nodes {
+            let node = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
+            insertion_set.push((node, input));
+        }
+
+        let mut azks = Azks::<Blake3>::new();
+        let search_label = insertion_set[num_nodes - 1].0;
+        azks.batch_insert_leaves(insertion_set.clone()[0..num_nodes - 1].to_vec());
+        let proof = azks.get_non_membership_proof(search_label, 0);
+
+        assert!(
+            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 0, proof),
+            "Nonmembership proof does not verify"
         );
 
         Ok(())
