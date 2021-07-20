@@ -157,9 +157,7 @@ impl<H: Hasher> Azks<H> {
         }
         */
 
-
         let (membership_pf, lcp_node_id) = self.get_membership_proof_and_node(label, epoch);
-
 
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch);
@@ -185,8 +183,6 @@ impl<H: Hasher> Azks<H> {
             longest_prefix_children_values,
             longest_prefix_membership_proof,
         }
-
-
     }
 
     pub fn get_consecutive_append_only_proof(&self, start_epoch: u64) -> AppendOnlyProof<H> {
@@ -434,9 +430,7 @@ mod tests {
 
         let mut azks2 = Azks::<Blake3>::new();
 
-
         azks2.batch_insert_leaves(insertion_set);
-
 
         assert_eq!(
             azks1.get_root_hash()?,
@@ -516,7 +510,6 @@ mod tests {
 
         Ok(())
     }
-
 
     #[test]
     fn test_membership_proof_intermediate() -> Result<(), HistoryTreeNodeError> {
