@@ -157,6 +157,7 @@ impl<H: Hasher> Azks<H> {
         }
         */
 
+
         let (membership_pf, lcp_node_id) = self.get_membership_proof_and_node(label, epoch);
 
 
@@ -184,6 +185,7 @@ impl<H: Hasher> Azks<H> {
             longest_prefix_children_values,
             longest_prefix_membership_proof,
         }
+
 
     }
 
@@ -322,6 +324,7 @@ impl<H: Hasher> Azks<H> {
         }
         if !equal {
             curr_node = self.tree_nodes[prev_node].clone();
+
             parent_labels.pop();
             sibling_labels.pop();
             sibling_hashes.pop();
@@ -398,7 +401,9 @@ mod tests {
         }
 
         let mut azks2 = Azks::<Blake3>::new();
+
         azks2.batch_insert_leaves(insertion_set);
+
         assert_eq!(
             azks1.get_root_hash()?,
             azks2.get_root_hash()?,
@@ -429,7 +434,9 @@ mod tests {
 
         let mut azks2 = Azks::<Blake3>::new();
 
+
         azks2.batch_insert_leaves(insertion_set);
+
 
         assert_eq!(
             azks1.get_root_hash()?,
@@ -509,6 +516,7 @@ mod tests {
 
         Ok(())
     }
+
 
     #[test]
     fn test_membership_proof_intermediate() -> Result<(), HistoryTreeNodeError> {
