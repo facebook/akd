@@ -403,12 +403,14 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     new_hash
 }
 
+type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
+
 fn get_append_only_proof_helper<H: Hasher>(
     node: HistoryTreeNode<H>,
     start_epoch: u64,
     end_epoch: u64,
     tree_nodes: Vec<HistoryTreeNode<H>>,
-) -> (Vec<(NodeLabel, H::Digest)>, Vec<(NodeLabel, H::Digest)>) {
+) -> AppendOnlyHelper<H::Digest> {
     let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
     let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
     if node.get_latest_epoch().unwrap() <= start_epoch {
