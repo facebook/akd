@@ -287,7 +287,11 @@ impl<H: Hasher> HistoryTreeNode<H> {
             }
             _ => {
                 // the root has no parent, so the hash must only be stored within the value
-                let hash_digest = self.hash_node_and_children(epoch)?;
+                let mut hash_digest = self.hash_node(epoch)?;
+                if self.is_root() {
+                    hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
+                }
+
                 match self.state_map.get(&epoch) {
                     Some(epoch_state) => {
                         let mut updated_state = epoch_state.clone();
@@ -295,10 +299,29 @@ impl<H: Hasher> HistoryTreeNode<H> {
                         self.state_map.insert(epoch, updated_state);
                         let mut updated_tree = tree_repr;
                         updated_tree[self.location] = self.clone();
+                        let hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
                         self.update_hash_at_parent(epoch, hash_digest, updated_tree)
                     }
                     None => Err(HistoryTreeNodeError::NoChildrenInTreeAtEpoch(epoch)),
                 }
+            }
+        }
+    }
+
+    pub fn hash_node(&mut self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+        match self.state_map.get(&epoch) {
+            None => Err(HistoryTreeNodeError::NoChildrenInTreeAtEpoch(epoch)),
+            Some(mut epoch_node_state) => {
+                let mut new_hash = H::hash(&[]); //hash_label::<H>(self.label);
+                for child_index in 0..ARITY {
+                    new_hash = H::merge(&[
+                        new_hash,
+                        epoch_node_state
+                            .get_child_state_in_dir(child_index)
+                            .hash_val,
+                    ]);
+                }
+                Ok(new_hash)
             }
         }
     }
@@ -333,6 +356,10 @@ impl<H: Hasher> HistoryTreeNode<H> {
     ) -> Result<Vec<Self>, HistoryTreeNodeError> {
         let mut tree_repr_copy = tree_repr;
         if self.is_root() {
+            // let mut new_state = self.state_map.get(&epoch).unwrap().clone();
+            // new_state.value = new_hash_val;
+            // self.state_map.insert(epoch, new_state);
+            // tree_repr_copy[self.location] = self.clone();
             Ok(tree_repr_copy)
         } else {
             let mut parent = tree_repr_copy[self.parent].clone();
@@ -651,7 +678,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
             dummy_marker: DummyChildState::Real,
             location: self.location,
             label: self.label,
-            hash_val: *self.get_value()?,
+            hash_val: H::merge(&[*self.get_value()?, hash_label::<H>(self.label)]),
             epoch_version: epoch_val,
         })
     }
@@ -662,7 +689,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
             dummy_marker: DummyChildState::Real,
             location: self.location,
             label: self.label,
-            hash_val: *self.get_value()?,
+            hash_val: H::merge(&[*self.get_value()?, hash_label::<H>(self.label)]),
             epoch_version: epoch_val,
         })
     }
