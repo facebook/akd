@@ -119,7 +119,7 @@ impl<H: Hasher> Azks<H> {
             let mut next_node = self.tree_nodes[next_node_loc].clone();
             let mut tree_repr = self.tree_nodes.clone();
             let tree_repr = next_node.update_hash(self.latest_epoch, tree_repr)?;
-            self.tree_nodes = tree_repr;
+            self.tree_nodes = tree_repr.clone();
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => entry.set_priority(priorities),
@@ -417,6 +417,7 @@ fn get_append_only_proof_helper<H: Hasher>(
             node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
                 .unwrap(),
         ));
+        return (unchanged, leaves);
     }
     if node.get_birth_epoch() > end_epoch {
         // really you shouldn't even be here. Later do error checking
@@ -429,8 +430,13 @@ fn get_append_only_proof_helper<H: Hasher>(
                 .unwrap(),
         ));
     } else {
-        for child in node.get_state_at_epoch(end_epoch).unwrap().child_states {
-            let child_node = tree_nodes[child.location].clone();
+        if node.is_root() {
+            let child_labels: Vec<NodeLabel> = node.get_state_at_epoch(end_epoch).unwrap().child_states.iter().map(|x| x.label).collect();
+            let states = node.state_map.keys();
+            println!("At root node, and state is: {:?}, states at {:?}", child_labels, states);
+        }
+        for child_node in node.get_state_at_epoch(end_epoch).unwrap().child_states.iter().map(|x| tree_nodes[x.location].clone()) {
+            // let child_node = tree_nodes[child.location].clone();
             let (mut unchanged_rec, mut leaves_rec) = get_append_only_proof_helper(
                 child_node,
                 start_epoch,
@@ -640,34 +646,53 @@ mod tests {
 
     #[test]
     fn test_append_only_proof_tiny() -> Result<(), HistoryTreeNodeError> {
-        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
-
-        for i in 0..2 {
-            let node = NodeLabel::new(i, 3);
-            let mut input = [0u8; 32];
-            let input = Blake3Digest::new(input);
-            insertion_set_1.push((node, input));
-        }
 
         let mut azks = Azks::<Blake3>::new();
-        azks.batch_insert_leaves(insertion_set_1.clone());
 
+        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
+        insertion_set_1.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
+        insertion_set_1.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
+        azks.batch_insert_leaves(insertion_set_1);
         let start_hash = azks.get_root_hash()?;
+        println!("tree_node_len = {:?}", azks.tree_nodes.len());
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
+        insertion_set_2.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
+        insertion_set_2.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
 
-        for i in 2..4 {
-            let node = NodeLabel::new(i, 3);
-            let mut input = [0u8; 32];
-            let input = Blake3Digest::new(input);
-            insertion_set_2.push((node, input));
-        }
-
-        azks.batch_insert_leaves(insertion_set_2.clone());
-
+        azks.batch_insert_leaves(insertion_set_2);
         let end_hash = azks.get_root_hash()?;
+        println!("tree_node_len = {:?}", azks.tree_nodes.len());
+        // let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
-        let proof = azks.get_append_only_proof(0, 1);
+        // for i in 0..2 {
+        //     let node = NodeLabel::new(i, 3);
+        //     let mut input = [0u8; 32];
+        //     let input = Blake3Digest::new(input);
+        //     insertion_set_1.push((node, input));
+        // }
+
+        // let mut azks = Azks::<Blake3>::new();
+        // azks.batch_insert_leaves(insertion_set_1.clone());
+
+        // let start_hash = azks.get_root_hash()?;
+
+        // let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        // for i in 2..4 {
+        //     let node = NodeLabel::new(i, 3);
+        //     let mut input = [0u8; 32];
+        //     let input = Blake3Digest::new(input);
+        //     insertion_set_2.push((node, input));
+        // }
+
+        // azks.batch_insert_leaves(insertion_set_2.clone());
+
+        // let end_hash = azks.get_root_hash()?;
+
+        let proof = azks.get_append_only_proof(0, 2);
+        println!("proof: {:?}", proof);
+
         assert!(
             azks.verify_append_only(proof, start_hash, end_hash),
             "Append only proof did not verify!"

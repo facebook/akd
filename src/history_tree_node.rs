@@ -95,11 +95,14 @@ impl<H: Hasher> HistoryTreeNode<H> {
                 new_node.set_node_child_without_hash(epoch, dir_leaf, new_leaf.clone())?;
                 new_node.set_node_child_without_hash(epoch, dir_self, self.clone())?;
                 tree_repr[new_node_location] = new_node.clone();
-                tree_repr[self.parent].set_node_child_without_hash(
+                let new_parent = tree_repr[self.parent].set_node_child_without_hash(
                     epoch,
                     self_dir_in_parent,
                     new_node.clone(),
                 )?;
+
+                tree_repr[self.parent] = new_parent;
+                println!("Here at parent being updated {:?}", tree_repr[self.parent].label);
                 new_leaf.parent = new_node.location;
                 self.parent = new_node.location;
                 tree_repr[new_leaf.location] = new_leaf.clone();
@@ -241,6 +244,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
                                 let mut child_node = tree_repr[child_st.location].clone();
                                 let (mut updated_child, mut tree_repr) =
                                     child_node.insert_single_leaf(new_leaf, epoch, tree_repr)?;
+                                println!("Here and the updated child has label {:?}", updated_child.label);
                                 tree_repr[self.location] = self.set_node_child_without_hash(
                                     epoch,
                                     dir_leaf,
