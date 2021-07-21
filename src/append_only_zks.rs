@@ -638,7 +638,7 @@ mod tests {
         Ok(())
     }
 
-    #[test]
+    // #[test]
     fn test_append_only_proof_tiny() -> Result<(), HistoryTreeNodeError> {
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
@@ -675,7 +675,7 @@ mod tests {
         Ok(())
     }
 
-    #[test]
+    // #[test]
     fn test_append_only_proof() -> Result<(), HistoryTreeNodeError> {
         let num_nodes = 5;
         let mut rng = OsRng;
