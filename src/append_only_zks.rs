@@ -185,6 +185,23 @@ impl<H: Hasher> Azks<H> {
         }
     }
 
+    pub fn get_append_only_proof(&self, start_epoch: u64, end_epoch: u64) -> AppendOnlyProof<H> {
+        // Suppose the epochs start_epoch and end_epoch exist in the set.
+        // This function should return the proof that nothing was removed/changed from the tree
+        // between these epochs.
+        let (unchanged, leaves) = get_append_only_proof_helper(
+            self.tree_nodes[self.root].clone(),
+            start_epoch,
+            end_epoch,
+            self.tree_nodes.clone(),
+        );
+        AppendOnlyProof {
+            inserted: leaves,
+            unchanged_nodes: unchanged,
+        }
+        // unimplemented!()
+    }
+
     pub fn get_consecutive_append_only_proof(&self, start_epoch: u64) -> AppendOnlyProof<H> {
         // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
@@ -264,6 +281,22 @@ impl<H: Hasher> Azks<H> {
         // So we can just check that one of the children's lcp is = the proof.longest_prefix
         verified = verified && (proof.longest_prefix == lcp_real);
         assert!(verified, "longest_prefix != lcp");
+        verified
+    }
+
+    pub fn verify_append_only(
+        &self,
+        proof: AppendOnlyProof<H>,
+        start_hash: H::Digest,
+        end_hash: H::Digest,
+    ) -> bool {
+        let unchanged_nodes = proof.unchanged_nodes;
+        let inserted = proof.inserted;
+        let mut azks = Self::new();
+        azks.batch_insert_leaves(unchanged_nodes);
+        let mut verified = azks.get_root_hash().unwrap() == start_hash;
+        azks.batch_insert_leaves(inserted);
+        verified = verified && (azks.get_root_hash().unwrap() == end_hash);
         verified
     }
 
@@ -368,6 +401,50 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     }
     new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
     new_hash
+}
+
+type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
+
+fn get_append_only_proof_helper<H: Hasher>(
+    node: HistoryTreeNode<H>,
+    start_epoch: u64,
+    end_epoch: u64,
+    tree_nodes: Vec<HistoryTreeNode<H>>,
+) -> AppendOnlyHelper<H::Digest> {
+    let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
+    let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
+    if node.get_latest_epoch().unwrap() <= start_epoch {
+        unchanged.push((
+            node.label,
+            node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
+                .unwrap(),
+        ));
+    }
+    if node.get_birth_epoch() > end_epoch {
+        // really you shouldn't even be here. Later do error checking
+        return (unchanged, leaves);
+    }
+    if node.is_leaf() {
+        leaves.push((
+            node.label,
+            node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
+                .unwrap(),
+        ));
+    } else {
+        for child in node.get_state_at_epoch(end_epoch).unwrap().child_states {
+            let child_node = tree_nodes[child.location].clone();
+            let (mut unchanged_rec, mut leaves_rec) = get_append_only_proof_helper(
+                child_node,
+                start_epoch,
+                end_epoch,
+                tree_nodes.clone(),
+            );
+            unchanged.append(&mut unchanged_rec);
+            leaves.append(&mut leaves_rec);
+        }
+    }
+    (unchanged, leaves)
+    // unimplemented!()
 }
 
 #[cfg(test)]
@@ -560,6 +637,85 @@ mod tests {
             "Nonmembership proof does not verify"
         );
 
+        Ok(())
+    }
+
+    // #[test]
+    fn test_append_only_proof_tiny() -> Result<(), HistoryTreeNodeError> {
+        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for i in 0..2 {
+            let node = NodeLabel::new(i, 3);
+            let mut input = [0u8; 32];
+            let input = Blake3Digest::new(input);
+            insertion_set_1.push((node, input));
+        }
+
+        let mut azks = Azks::<Blake3>::new();
+        azks.batch_insert_leaves(insertion_set_1.clone());
+
+        let start_hash = azks.get_root_hash()?;
+
+        let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for i in 2..4 {
+            let node = NodeLabel::new(i, 3);
+            let mut input = [0u8; 32];
+            let input = Blake3Digest::new(input);
+            insertion_set_2.push((node, input));
+        }
+
+        azks.batch_insert_leaves(insertion_set_2.clone());
+
+        let end_hash = azks.get_root_hash()?;
+
+        let proof = azks.get_append_only_proof(0, 1);
+        assert!(
+            azks.verify_append_only(proof, start_hash, end_hash),
+            "Append only proof did not verify!"
+        );
+        Ok(())
+    }
+
+    // #[test]
+    fn test_append_only_proof() -> Result<(), HistoryTreeNodeError> {
+        let num_nodes = 5;
+        let mut rng = OsRng;
+
+        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for _ in 0..num_nodes {
+            let node = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
+            insertion_set_1.push((node, input));
+        }
+
+        let mut azks = Azks::<Blake3>::new();
+        azks.batch_insert_leaves(insertion_set_1.clone());
+
+        let start_hash = azks.get_root_hash()?;
+
+        let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for _ in 0..num_nodes {
+            let node = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
+            insertion_set_2.push((node, input));
+        }
+
+        azks.batch_insert_leaves(insertion_set_2.clone());
+
+        let end_hash = azks.get_root_hash()?;
+
+        let proof = azks.get_append_only_proof(0, 1);
+        assert!(
+            azks.verify_append_only(proof, start_hash, end_hash),
+            "Append only proof did not verify!"
+        );
         Ok(())
     }
 }
