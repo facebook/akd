@@ -150,6 +150,18 @@ impl<H: Hasher> Clone for HistoryNodeState<H> {
     }
 }
 
+// To use the `{}` marker, the trait `fmt::Display` must be implemented
+// manually for the type.
+impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "\tvalue = {:?}", self.value);
+        for i in 0..ARITY {
+            writeln!(f, "\tchildren {}: {:#}", i, self.child_states[i]);
+        }
+        write!(f, "")
+    }
+}
 /*
 
 pub type HistoryChildLabel = NodeLabel;
@@ -229,6 +241,31 @@ impl<H: Hasher> PartialEq for HistoryChildState<H> {
     }
 }
 
+impl<H: Hasher> fmt::Display for HistoryChildState<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "\n\t\t location = {:?}
+                \n\t\t label = {:?}
+                \n\t\t hash = {:?},
+                \n\t\t epoch_version = {:?}\n\n",
+            self.location, self.label, self.hash_val, self.epoch_version
+        )
+    }
+}
+
+// type ChildStateArr<H> = [HistoryChildState<H>; ARITY];
+
+// impl<H: Hasher> fmt::Display for ChildStateArr<H> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         for i in 0..ARITY {
+//             write!(f, "\t location = {:?}", self[i]);
+//         }
+//         write!(f, "\n")
+
+//     }
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,8 +338,6 @@ mod tests {
         let label_2 = NodeLabel::new(0b10000000u64, 8u32);
         let expected = NodeLabel::new(0b1000u64, 4u32);
 
-        println!("{:?}", label_1.get_longest_common_prefix(label_2));
-        println!("{:?}", expected);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with self with leading one, not equal to itself!"
