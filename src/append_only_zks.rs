@@ -427,7 +427,6 @@ fn get_append_only_proof_helper<H: Hasher>(
     let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
     let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
     if node.get_latest_epoch().unwrap() <= start_epoch {
-
         // if node.is_root() {
         //     // this is the case where the root is unchanged since the last epoch
         //     return (unchanged, leaves);
@@ -439,7 +438,6 @@ fn get_append_only_proof_helper<H: Hasher>(
                 .unwrap(),
         ));
         return (unchanged, leaves);
-
     }
     if node.get_birth_epoch() > end_epoch {
         // really you shouldn't even be here. Later do error checking
@@ -459,7 +457,6 @@ fn get_append_only_proof_helper<H: Hasher>(
             .iter()
             .map(|x| tree_nodes[x.location].clone())
         {
-
             let (mut unchanged_rec, mut leaves_rec) = get_append_only_proof_helper(
                 child_node,
                 start_epoch,
@@ -711,7 +708,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_append_only_proof_tiny() -> Result<(), HistoryTreeNodeError> {
         let mut azks = Azks::<Blake3>::new();
@@ -737,7 +733,6 @@ mod tests {
         );
         Ok(())
     }
-
 
     #[test]
     fn test_append_only_proof() -> Result<(), HistoryTreeNodeError> {
@@ -771,7 +766,6 @@ mod tests {
         }
 
         azks.batch_insert_leaves(insertion_set_2.clone());
-
 
         let mut insertion_set_3: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
