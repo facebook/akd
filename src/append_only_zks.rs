@@ -311,6 +311,7 @@ impl<H: Hasher> Azks<H> {
         azks.batch_insert_leaves_helper(unchanged_nodes, true);
         let mut verified = azks.get_root_hash().unwrap() == start_hash;
         azks.batch_insert_leaves_helper(inserted, true);
+
         verified = verified && (azks.get_root_hash().unwrap() == end_hash);
         verified
     }
@@ -426,16 +427,19 @@ fn get_append_only_proof_helper<H: Hasher>(
     let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
     let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
     if node.get_latest_epoch().unwrap() <= start_epoch {
+
         // if node.is_root() {
         //     // this is the case where the root is unchanged since the last epoch
         //     return (unchanged, leaves);
         // }
+
         unchanged.push((
             node.label,
             node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
                 .unwrap(),
         ));
         return (unchanged, leaves);
+
     }
     if node.get_birth_epoch() > end_epoch {
         // really you shouldn't even be here. Later do error checking
@@ -455,7 +459,7 @@ fn get_append_only_proof_helper<H: Hasher>(
             .iter()
             .map(|x| tree_nodes[x.location].clone())
         {
-            // let child_node = tree_nodes[child.location].clone();
+
             let (mut unchanged_rec, mut leaves_rec) = get_append_only_proof_helper(
                 child_node,
                 start_epoch,
@@ -707,6 +711,7 @@ mod tests {
         Ok(())
     }
 
+
     #[test]
     fn test_append_only_proof_tiny() -> Result<(), HistoryTreeNodeError> {
         let mut azks = Azks::<Blake3>::new();
@@ -725,6 +730,7 @@ mod tests {
         let end_hash = azks.get_root_hash()?;
 
         let proof = azks.get_append_only_proof(1, 2);
+
         assert!(
             azks.verify_append_only(proof, start_hash, end_hash),
             "Append only proof did not verify!"
@@ -732,9 +738,11 @@ mod tests {
         Ok(())
     }
 
+
     #[test]
     fn test_append_only_proof() -> Result<(), HistoryTreeNodeError> {
         let num_nodes = 301;
+
         let mut rng = OsRng;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -764,6 +772,7 @@ mod tests {
 
         azks.batch_insert_leaves(insertion_set_2.clone());
 
+
         let mut insertion_set_3: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
@@ -779,6 +788,7 @@ mod tests {
         let end_hash = azks.get_root_hash()?;
 
         let proof = azks.get_append_only_proof(1, 3);
+
         assert!(
             azks.verify_append_only(proof, start_hash, end_hash),
             "Append only proof did not verify!"

@@ -299,6 +299,7 @@ impl<H: Hasher> HistoryTreeNode<H> {
         }
     }
 
+
     pub fn hash_node(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
         let epoch_node_state = self.get_state_at_epoch(epoch).unwrap();
         let mut new_hash = H::hash(&[]); //hash_label::<H>(self.label);
