@@ -5,8 +5,9 @@
 
 use crate::append_only_zks::{self, Azks, MembershipProof};
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
-use crate::errors::{SeemlessDirectoryError, StorageError};
-use crate::node_state::NodeLabel;
+use crate::errors::SeemlessDirectoryError;
+use crate::node_state::{HistoryNodeState, NodeLabel};
+use crate::storage::Storage;
 use crypto::Hasher;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -15,10 +16,11 @@ use std::marker::PhantomData;
 pub struct Username(String);
 #[derive(Clone)]
 pub struct Values(String);
-pub struct SeemlessDirectory<S: Storage<User>, H: Hasher> {
-    commitments: Vec<Azks<H>>,
+pub struct SeemlessDirectory<S: Storage<HistoryNodeState<H>>, H: Hasher> {
+    commitments: Vec<Azks<H, S>>,
     current_epoch: u64,
     _s: PhantomData<S>,
+    _h: PhantomData<H>,
 }
 
 #[derive(Clone)]
@@ -57,28 +59,12 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
-pub trait Storage<N> {
-    fn set(pos: usize, node: N) -> Result<(), StorageError>;
-    fn get(pos: usize) -> Result<N, StorageError>;
-}
-
-impl<S: Storage<User>, H: Hasher> SeemlessDirectory<S, H> {
+impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
     // FIXME: this code won't work
     pub fn publish(updates: Vec<(Username, Values)>) -> Result<(), SeemlessDirectoryError> {
         for (key, val) in updates {
-            S::set(
-                0,
-                User {
-                    username: key,
-                    states: vec![UserState {
-                        plaintext_val: val,
-                        version: 0,
-                        label: NodeLabel { val: 0, len: 0 },
-                        stale_label: NodeLabel { val: 0, len: 0 },
-                    }],
-                },
-            )
-            .map_err(|_| SeemlessDirectoryError::StorageError)?;
+            S::set("0".to_string(), HistoryNodeState::new())
+                .map_err(|_| SeemlessDirectoryError::StorageError)?;
         }
 
         Ok(())
@@ -88,7 +74,7 @@ impl<S: Storage<User>, H: Hasher> SeemlessDirectory<S, H> {
     pub fn lookup(uname: Username) -> Result<(), SeemlessDirectoryError> {
         // FIXME: restore with: LookupProof<H> {
         // FIXME: this code won't work
-        S::get(0).unwrap();
+        S::get("0".to_string()).unwrap();
         Ok(())
     }
 
@@ -138,6 +124,8 @@ impl<S: Storage<User>, H: Hasher> SeemlessDirectory<S, H> {
 mod tests {
 
     use super::*;
+    use crate::errors::StorageError;
+    use crate::tests::InMemoryDb;
     use crypto::hashers::Blake3_256;
     use lazy_static::lazy_static;
     use std::collections::HashMap;
@@ -147,31 +135,6 @@ mod tests {
 
     type Blake3 = Blake3_256<BaseElement>;
     type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest;
-
-    lazy_static! {
-        static ref HASHMAP: Mutex<HashMap<usize, User>> = {
-            let mut m = HashMap::new();
-            Mutex::new(m)
-        };
-    }
-
-    struct InMemoryDb(HashMap<usize, User>);
-
-    impl Storage<User> for InMemoryDb {
-        fn set(pos: usize, node: User) -> Result<(), StorageError> {
-            let mut hashmap = HASHMAP.lock().unwrap();
-            hashmap.insert(pos, node);
-            Ok(())
-        }
-
-        fn get(pos: usize) -> Result<User, StorageError> {
-            let mut hashmap = HASHMAP.lock().unwrap();
-            hashmap
-                .get(&pos)
-                .map(|v| v.clone())
-                .ok_or(StorageError::GetError)
-        }
-    }
 
     #[test]
     fn test_simple_publish() -> Result<(), SeemlessDirectoryError> {
