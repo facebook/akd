@@ -20,15 +20,47 @@ use crate::{
     node_state::HistoryChildState,
     node_state::HistoryNodeState,
     node_state::{hash_label, NodeLabel},
+    storage::Storage,
     *,
 };
+
+use crate::errors::StorageError;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref HASHMAP: Mutex<HashMap<String, HistoryNodeState<Blake3>>> = {
+        let mut m = HashMap::new();
+        Mutex::new(m)
+    };
+}
+
+#[derive(Debug)]
+pub(crate) struct InMemoryDb(HashMap<String, HistoryNodeState<Blake3>>);
+
+impl Storage<HistoryNodeState<Blake3>> for InMemoryDb {
+    fn set(pos: String, node: HistoryNodeState<Blake3>) -> Result<(), StorageError> {
+        let mut hashmap = HASHMAP.lock().unwrap();
+        hashmap.insert(pos, node);
+        Ok(())
+    }
+
+    fn get(pos: String) -> Result<HistoryNodeState<Blake3>, StorageError> {
+        let mut hashmap = HASHMAP.lock().unwrap();
+        hashmap
+            .get(&pos)
+            .map(|v| v.clone())
+            .ok_or(StorageError::GetError)
+    }
+}
 
 ////////// history_tree_node tests //////
 //  Test set_child_without_hash and get_child_at_existing_epoch
 
 #[test]
 fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = &mut get_empty_root::<Blake3>(Option::None);
+    let mut root = &mut get_empty_root::<Blake3, InMemoryDb>(Option::None);
     let ep = 1;
     let mut child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
@@ -50,17 +82,13 @@ fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
         "Latest epochs don't match!"
     );
     assert!(root.epochs.len() == 1, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
-    assert!(
-        root.state_map.keys().len() == 1,
-        "State map has too many epochs"
-    );
 
     Ok(())
 }
 
 #[test]
 fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = &mut get_empty_root::<Blake3>(Option::None);
+    let mut root = &mut get_empty_root::<Blake3, InMemoryDb>(Option::None);
     let ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
@@ -96,17 +124,13 @@ fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> 
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 1, "Latest epochs don't match!");
     assert!(root.epochs.len() == 1, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
-    assert!(
-        root.state_map.keys().len() == 1,
-        "State map has too many epochs"
-    );
 
     Ok(())
 }
 
 #[test]
 fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = &mut get_empty_root::<Blake3>(Option::None);
+    let mut root = &mut get_empty_root::<Blake3, InMemoryDb>(Option::None);
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
@@ -159,17 +183,13 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
     assert!(root.epochs.len() == 2, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
-    assert!(
-        root.state_map.keys().len() == 2,
-        "State map has too many epochs"
-    );
 
     Ok(())
 }
 
 #[test]
 fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = &mut get_empty_root::<Blake3>(Option::None);
+    let mut root = &mut get_empty_root::<Blake3, InMemoryDb>(Option::None);
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
@@ -222,10 +242,6 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
     assert!(root.epochs.len() == 2, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
-    assert!(
-        root.state_map.keys().len() == 2,
-        "State map has too many epochs"
-    );
 
     Ok(())
 }
@@ -233,7 +249,7 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
 //  Test get_child_at_epoch
 #[test]
 pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = &mut get_empty_root::<Blake3>(Option::None);
+    let mut root = &mut get_empty_root::<Blake3, InMemoryDb>(Option::None);
 
     for ep in 0u64..3u64 {
         let child_hist_node_1 = HistoryChildState::new(
@@ -300,10 +316,6 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 4, "Latest epochs don't match!");
     assert!(root.epochs.len() == 3, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
-    assert!(
-        root.state_map.keys().len() == 3,
-        "State map has too many epochs"
-    );
 
     Ok(())
 }
@@ -311,12 +323,12 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
 // update_hash tests
 // #[test]
 fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
-    let mut root = get_empty_root::<Blake3>(Option::None);
-    let mut new_leaf: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b0u64, 1u32), 1, &[0u8], 0, 0);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(Option::None);
+    let mut new_leaf =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b0u64, 1u32), 1, &[0u8], 0, 0);
 
-    let mut leaf_1: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b1u64, 1u32), 2, &[1u8], 0, 0);
+    let mut leaf_1 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b1u64, 1u32), 2, &[1u8], 0, 0);
 
     root.set_node_child_without_hash(0, Direction::Some(0), new_leaf.clone());
     root.set_node_child_without_hash(0, Direction::Some(1), leaf_1.clone());
@@ -357,7 +369,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
         }
     }
 
-    let root_val = *root.get_value()?;
+    let root_val = root.get_value()?;
 
     let expected = Blake3::merge(&[
         Blake3::merge(&[
@@ -375,12 +387,12 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
 
 #[test]
 fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
-    let mut new_leaf: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b0u64, 1u32), 1, &[0u8], 0, 0);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(Option::Some(0u64));
+    let mut new_leaf =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b0u64, 1u32), 1, &[0u8], 0, 0);
 
-    let mut leaf_1: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b1u64, 1u32), 2, &[1u8], 0, 0);
+    let mut leaf_1 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b1u64, 1u32), 2, &[1u8], 0, 0);
     let mut tree_repr = vec![root.clone()];
 
     let (new_root, repr) = root.insert_single_leaf(new_leaf.clone(), 0, tree_repr)?;
@@ -391,7 +403,7 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     root = new_root;
     tree_repr = repr;
 
-    let root_val = *root.get_value()?;
+    let root_val = root.get_value()?;
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -417,15 +429,15 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
 #[test]
 fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
-    let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
-    let mut new_leaf: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b00u64, 2u32), 1, &[0u8], 0, 0);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(Option::Some(0u64));
+    let mut new_leaf =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b00u64, 2u32), 1, &[0u8], 0, 0);
 
-    let mut leaf_1: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b11u64, 2u32), 2, &[1u8], 0, 0);
+    let mut leaf_1 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b11u64, 2u32), 2, &[1u8], 0, 0);
 
-    let mut leaf_2: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b10u64, 2u32), 3, &[1u8, 1u8], 0, 0);
+    let mut leaf_2 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b10u64, 2u32), 3, &[1u8, 1u8], 0, 0);
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -470,7 +482,7 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     root = new_root;
     tree_repr = repr;
 
-    let root_val = *root.get_value()?;
+    let root_val = root.get_value()?;
 
     let expected = Blake3::merge(&[
         Blake3::merge(&[
@@ -485,18 +497,18 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
 
 #[test]
 fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNodeError> {
-    let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
-    let mut new_leaf: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b000u64, 3u32), 1, &[0u8], 0, 0);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(Option::Some(0u64));
+    let mut new_leaf =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b000u64, 3u32), 1, &[0u8], 0, 0);
 
-    let mut leaf_1: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b111u64, 3u32), 2, &[1u8], 0, 0);
+    let mut leaf_1 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b111u64, 3u32), 2, &[1u8], 0, 0);
 
-    let mut leaf_2: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b100u64, 3u32), 3, &[1u8, 1u8], 0, 0);
+    let mut leaf_2 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b100u64, 3u32), 3, &[1u8, 1u8], 0, 0);
 
-    let mut leaf_3: HistoryTreeNode<Blake3> =
-        get_leaf_node::<Blake3>(NodeLabel::new(0b010u64, 3u32), 4, &[0u8, 1u8], 0, 0);
+    let mut leaf_3 =
+        get_leaf_node::<Blake3, InMemoryDb>(NodeLabel::new(0b010u64, 3u32), 4, &[0u8, 1u8], 0, 0);
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -557,7 +569,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     root = new_root;
     tree_repr = repr;
 
-    let root_val = *root.get_value()?;
+    let root_val = root.get_value()?;
 
     let expected = Blake3::merge(&[
         Blake3::merge(&[
@@ -572,12 +584,12 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
 
 #[test]
 fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
-    let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(Option::Some(0u64));
     let mut tree_repr = vec![root.clone()];
-    let mut leaves = Vec::<HistoryTreeNode<Blake3>>::new();
+    let mut leaves = Vec::<HistoryTreeNode<Blake3, InMemoryDb>>::new();
     let mut leaf_hashes = Vec::new();
     for i in 0u64..8u64 {
-        let mut new_leaf: HistoryTreeNode<Blake3> = get_leaf_node::<Blake3>(
+        let mut new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
             NodeLabel::new(i.clone(), 3u32),
             leaves.len(),
             &i.to_ne_bytes(),
@@ -635,7 +647,7 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
         tree_repr = repr;
     }
 
-    let root_val = *root.get_value()?;
+    let root_val = root.get_value()?;
 
     assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())

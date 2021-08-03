@@ -10,7 +10,6 @@ bench = []
 [dependencies]
 crypto = { git  = "https://github.com/novifinancial/winterfell", package = "winter-crypto", branch = "main" }
 math = { git  = "https://github.com/novifinancial/winterfell", package = "winter-math", branch = "main" }
-
 rand = "0.8"
 queues = "1.0.0"
 keyed_priority_queue = "0.3"
