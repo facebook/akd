@@ -300,9 +300,11 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                     hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
                 }
                 let epoch_state = self.get_state_at_epoch(epoch).unwrap();
+
                 let mut updated_state = epoch_state;
                 updated_state.value = hash_digest;
                 set_state_map(self, &epoch, updated_state);
+              
                 let mut updated_tree = tree_repr;
                 updated_tree[self.location] = self.clone();
                 let hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
@@ -476,6 +478,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
     // gets value at current epoch
     pub fn get_value(&self) -> Result<H::Digest, HistoryTreeNodeError> {
         //&HistoryNodeHash<H> {
+
         match get_state_map(self, &self.get_latest_epoch().unwrap()) {
             Ok(node_state) => Ok(node_state.value),
             Err(_) => Err(HistoryTreeNodeError::NodeCreatedWithoutEpochs(
