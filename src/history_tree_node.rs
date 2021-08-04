@@ -29,6 +29,7 @@ pub type HistoryNodeHash<H> = Option<H>;
  **/
 #[derive(Debug)]
 pub struct HistoryTreeNode<H: Hasher, S: Storage<HistoryNodeState<H>>> {
+    pub(crate) azks_id: Vec<u8>,
     pub label: NodeLabel,
     pub location: usize,
     pub epochs: Vec<u64>,
@@ -46,6 +47,7 @@ pub struct HistoryTreeNode<H: Hasher, S: Storage<HistoryNodeState<H>>> {
 impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Clone for HistoryTreeNode<H, S> {
     fn clone(&self) -> Self {
         Self {
+            azks_id: self.azks_id.clone(),
             label: self.label,
             location: self.location,
             epochs: self.epochs.clone(),
@@ -60,9 +62,16 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Clone for HistoryTreeNode<H, S>
 }
 
 impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
-    pub fn new(label: NodeLabel, location: usize, parent: usize, node_type: NodeType) -> Self {
+    pub fn new(
+        azks_id: Vec<u8>,
+        label: NodeLabel,
+        location: usize,
+        parent: usize,
+        node_type: NodeType,
+    ) -> Self {
         let ep: Vec<u64> = Vec::new();
         HistoryTreeNode {
+            azks_id,
             label,
             location,
             epochs: ep,
@@ -79,6 +88,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
     pub fn insert_single_leaf(
         &mut self,
         mut new_leaf: Self,
+        azks_id: &[u8],
         epoch: u64,
         tree_repr_original: Vec<Self>,
     ) -> Result<(Self, Vec<Self>), HistoryTreeNodeError> {
@@ -97,6 +107,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 let self_dir_in_parent = tree_repr[self.parent].get_direction_at_ep(self, epoch);
                 let new_node_location = tree_repr.len();
                 let mut new_node = HistoryTreeNode::new(
+                    azks_id.to_vec(),
                     lcs_label,
                     new_node_location,
                     self.parent,
@@ -151,8 +162,8 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                             }
                             DummyChildState::Real => {
                                 let mut child_node = tree_repr[child_st.location].clone();
-                                let (mut updated_child, mut tree_repr) =
-                                    child_node.insert_single_leaf(new_leaf, epoch, tree_repr)?;
+                                let (mut updated_child, mut tree_repr) = child_node
+                                    .insert_single_leaf(new_leaf, azks_id, epoch, tree_repr)?;
 
                                 tree_repr[self.location] = self.set_node_child_without_hash(
                                     epoch,
@@ -195,6 +206,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
     pub fn insert_single_leaf_without_hash(
         &mut self,
         mut new_leaf: Self,
+        azks_id: &[u8],
         epoch: u64,
         tree_repr_original: Vec<Self>,
     ) -> Result<(Self, Vec<Self>), HistoryTreeNodeError> {
@@ -213,6 +225,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 let self_dir_in_parent = tree_repr[self.parent].get_direction_at_ep(self, epoch);
                 let new_node_location = tree_repr.len();
                 let mut new_node = HistoryTreeNode::new(
+                    azks_id.to_vec(),
                     lcs_label,
                     new_node_location,
                     self.parent,
@@ -254,7 +267,9 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         DummyChildState::Real => {
                             let mut child_node = tree_repr[child_st.location].clone();
                             let (mut updated_child, mut tree_repr) = child_node
-                                .insert_single_leaf_without_hash(new_leaf, epoch, tree_repr)?;
+                                .insert_single_leaf_without_hash(
+                                    new_leaf, azks_id, epoch, tree_repr,
+                                )?;
                             self.set_node_child_without_hash(epoch, dir_leaf, updated_child)?;
                             tree_repr[self.location] = self.clone();
                             let loc_and_behold = tree_repr[self.location]
@@ -304,7 +319,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 let mut updated_state = epoch_state;
                 updated_state.value = hash_digest;
                 set_state_map(self, &epoch, updated_state);
-              
+
                 let mut updated_tree = tree_repr;
                 updated_tree[self.location] = self.clone();
                 let hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
@@ -704,12 +719,14 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
 /////// Helpers //////
 
 pub fn get_empty_root<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+    azks_id: &[u8],
     ep: Option<u64>,
 ) -> HistoryTreeNode<H, S> {
     let label = NodeLabel::new(0u64, 0u32);
     let loc = 0;
     let parent = 0;
-    let mut node: HistoryTreeNode<H, S> = HistoryTreeNode::new(label, loc, parent, NodeType::Root);
+    let mut node: HistoryTreeNode<H, S> =
+        HistoryTreeNode::new(azks_id.to_vec(), label, loc, parent, NodeType::Root);
     if let Some(epoch) = ep {
         node.epochs.push(epoch);
     }
@@ -717,6 +734,7 @@ pub fn get_empty_root<H: Hasher, S: Storage<HistoryNodeState<H>>>(
 }
 
 pub fn get_leaf_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+    azks_id: &[u8],
     label: NodeLabel,
     location: usize,
     value: &[u8],
@@ -724,6 +742,7 @@ pub fn get_leaf_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     birth_epoch: u64,
 ) -> HistoryTreeNode<H, S> {
     let mut node = HistoryTreeNode {
+        azks_id: azks_id.to_vec(),
         label,
         location,
         epochs: vec![birth_epoch],
@@ -744,6 +763,7 @@ pub fn get_leaf_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
 }
 
 pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+    azks_id: &[u8],
     label: NodeLabel,
     location: usize,
     value: &[u8],
@@ -751,6 +771,7 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     birth_epoch: u64,
 ) -> HistoryTreeNode<H, S> {
     let mut node = HistoryTreeNode {
+        azks_id: azks_id.to_vec(),
         label,
         location,
         epochs: vec![birth_epoch],
@@ -771,6 +792,7 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
 }
 
 pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+    azks_id: &[u8],
     label: NodeLabel,
     location: usize,
     value: H::Digest,
@@ -778,6 +800,7 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>
     birth_epoch: u64,
 ) -> HistoryTreeNode<H, S> {
     let mut node = HistoryTreeNode {
+        azks_id: azks_id.to_vec(),
         label,
         location,
         epochs: vec![birth_epoch],
@@ -798,6 +821,7 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>
 }
 
 pub fn get_interior_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+    azks_id: &[u8],
     label: NodeLabel,
     location: usize,
     value: H::Digest,
@@ -806,6 +830,7 @@ pub fn get_interior_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     child_states: [HistoryChildState<H>; 2],
 ) -> HistoryTreeNode<H, S> {
     let mut node = HistoryTreeNode {
+        azks_id: azks_id.to_vec(),
         label,
         location,
         epochs: vec![birth_epoch],

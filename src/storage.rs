@@ -26,7 +26,12 @@ pub(crate) fn set_state_map<H: Hasher, S: Storage<HistoryNodeState<H>>>(
 
     #[cfg(not(test))]
     {
-        let k = format!("location: {}, key: {}", node.location, key);
+        let k = format!(
+            "azks_id: {}, location: {}, key: {}",
+            hex::encode(&node.azks_id),
+            node.location,
+            key
+        );
         S::set(k, val)
     }
 }
@@ -47,7 +52,12 @@ pub(crate) fn get_state_map<H: Hasher, S: Storage<HistoryNodeState<H>>>(
 
     #[cfg(not(test))]
     {
-        let k = format!("location: {}, key: {}", node.location, key);
+        let k = format!(
+            "azks_id: {}, location: {}, key: {}",
+            hex::encode(&node.azks_id),
+            node.location,
+            key
+        );
         S::get(k)
     }
 }
