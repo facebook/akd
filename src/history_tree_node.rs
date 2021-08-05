@@ -3,9 +3,9 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+#[cfg(test)]
 use std::collections::HashMap;
 
-use crate::errors::StorageError;
 use crate::storage::{get_state_map, set_state_map, Storage};
 use crate::{node_state::*, Direction, ARITY};
 use crypto::Hasher;
@@ -103,7 +103,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
             .label
             .get_longest_common_prefix_and_dirs(new_leaf.get_label());
         match dir_self {
-            Some(dir) => {
+            Some(_) => {
                 let self_dir_in_parent = tree_repr[self.parent].get_direction_at_ep(self, epoch);
                 let new_node_location = tree_repr.len();
                 let mut new_node = HistoryTreeNode::new(
@@ -221,7 +221,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
             .label
             .get_longest_common_prefix_and_dirs(new_leaf.get_label());
         match dir_self {
-            Some(dir) => {
+            Some(_) => {
                 let self_dir_in_parent = tree_repr[self.parent].get_direction_at_ep(self, epoch);
                 let new_node_location = tree_repr.len();
                 let mut new_node = HistoryTreeNode::new(
@@ -266,15 +266,12 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         }
                         DummyChildState::Real => {
                             let mut child_node = tree_repr[child_st.location].clone();
-                            let (mut updated_child, mut tree_repr) = child_node
+                            let (updated_child, mut tree_repr) = child_node
                                 .insert_single_leaf_without_hash(
                                     new_leaf, azks_id, epoch, tree_repr,
                                 )?;
                             self.set_node_child_without_hash(epoch, dir_leaf, updated_child)?;
                             tree_repr[self.location] = self.clone();
-                            let loc_and_behold = tree_repr[self.location]
-                                .get_child_at_existing_epoch(epoch, dir_leaf)
-                                .unwrap();
 
                             Ok((tree_repr[self.location].clone(), tree_repr))
                         }
@@ -318,7 +315,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
 
                 let mut updated_state = epoch_state;
                 updated_state.value = hash_digest;
-                set_state_map(self, &epoch, updated_state);
+                set_state_map(self, &epoch, updated_state)?;
 
                 let mut updated_tree = tree_repr;
                 updated_tree[self.location] = self.clone();
@@ -348,7 +345,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
     ) -> Result<H::Digest, HistoryTreeNodeError> {
         match get_state_map(self, &epoch) {
             Err(_) => Err(HistoryTreeNodeError::NoChildrenInTreeAtEpoch(epoch)),
-            Ok(mut epoch_node_state) => {
+            Ok(epoch_node_state) => {
                 let mut new_hash = H::hash(&[]); //hash_label::<H>(self.label);
                 for child_index in 0..ARITY {
                     new_hash = H::merge(&[
@@ -389,7 +386,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                             parent_updated_state.get_child_state_in_dir(s_dir);
                         self_child_state.hash_val = new_hash_val;
                         parent_updated_state.child_states[s_dir] = self_child_state;
-                        set_state_map(&mut parent, &epoch, parent_updated_state);
+                        set_state_map(&mut parent, &epoch, parent_updated_state)?;
                         tree_repr_copy[self.parent] = parent.clone();
                         Ok(tree_repr_copy)
                     }
@@ -419,7 +416,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                             value,
                             child_states,
                         },
-                    );
+                    )?;
                     Ok(self.clone())
                 }
                 Err(_) => {
@@ -431,7 +428,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
 
                             Err(_) => HistoryNodeState::<H>::new(),
                         },
-                    );
+                    )?;
 
                     match self.get_latest_epoch() {
                         Ok(latest) => {
@@ -439,7 +436,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                                 self.epochs.push(epoch);
                             }
                         }
-                        Err(e) => {
+                        Err(_) => {
                             self.epochs.push(epoch);
                         }
                     }
@@ -565,7 +562,6 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
         epoch: u64,
         direction: Direction,
     ) -> Result<HistoryChildState<H>, HistoryTreeNodeError> {
-        let dir: usize;
         match direction {
             Direction::None => Err(HistoryTreeNodeError::DirectionIsNone),
             Direction::Some(dir_val) => {
@@ -740,7 +736,7 @@ pub fn get_leaf_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     value: &[u8],
     parent: usize,
     birth_epoch: u64,
-) -> HistoryTreeNode<H, S> {
+) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
     let mut node = HistoryTreeNode {
         azks_id: azks_id.to_vec(),
         label,
@@ -757,9 +753,9 @@ pub fn get_leaf_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     let mut new_state = HistoryNodeState::new();
     new_state.value = H::merge(&[H::hash(&[]), H::hash(value)]);
 
-    set_state_map(&mut node, &birth_epoch, new_state);
+    set_state_map(&mut node, &birth_epoch, new_state)?;
 
-    node
+    Ok(node)
 }
 
 pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
@@ -769,7 +765,7 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     value: &[u8],
     parent: usize,
     birth_epoch: u64,
-) -> HistoryTreeNode<H, S> {
+) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
     let mut node = HistoryTreeNode {
         azks_id: azks_id.to_vec(),
         label,
@@ -786,9 +782,9 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     let mut new_state = HistoryNodeState::new();
     new_state.value = H::hash(value);
 
-    set_state_map(&mut node, &birth_epoch, new_state);
+    set_state_map(&mut node, &birth_epoch, new_state)?;
 
-    node
+    Ok(node)
 }
 
 pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>(
@@ -798,7 +794,7 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>
     value: H::Digest,
     parent: usize,
     birth_epoch: u64,
-) -> HistoryTreeNode<H, S> {
+) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
     let mut node = HistoryTreeNode {
         azks_id: azks_id.to_vec(),
         label,
@@ -815,9 +811,9 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryNodeState<H>>>
     let mut new_state = HistoryNodeState::new();
     new_state.value = value;
 
-    set_state_map(&mut node, &birth_epoch, new_state);
+    set_state_map(&mut node, &birth_epoch, new_state)?;
 
-    node
+    Ok(node)
 }
 
 pub fn get_interior_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
@@ -828,7 +824,7 @@ pub fn get_interior_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     parent: usize,
     birth_epoch: u64,
     child_states: [HistoryChildState<H>; 2],
-) -> HistoryTreeNode<H, S> {
+) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
     let mut node = HistoryTreeNode {
         azks_id: azks_id.to_vec(),
         label,
@@ -847,7 +843,7 @@ pub fn get_interior_node<H: Hasher, S: Storage<HistoryNodeState<H>>>(
         child_states,
     };
 
-    set_state_map(&mut node, &birth_epoch, new_state);
+    set_state_map(&mut node, &birth_epoch, new_state)?;
 
-    node
+    Ok(node)
 }
