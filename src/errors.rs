@@ -32,6 +32,12 @@ impl From<AzksError> for SeemlessError {
     }
 }
 
+impl From<StorageError> for HistoryTreeNodeError {
+    fn from(error: StorageError) -> Self {
+        Self::StorageError(error)
+    }
+}
+
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
     NoDirectionInSettingChild(u64, u64),
@@ -48,6 +54,7 @@ pub enum HistoryTreeNodeError {
     CompressionError(NodeLabel),
     NodeDidNotExistAtEp(NodeLabel, u64),
     NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
+    StorageError(StorageError),
 }
 
 impl fmt::Display for HistoryTreeNodeError {
@@ -113,6 +120,9 @@ impl fmt::Display for HistoryTreeNodeError {
                     "This node, labelled {:?}, did not exist at epoch {:?}.",
                     label, epoch
                 )
+            }
+            Self::StorageError(err) => {
+                write!(f, "Encountered a storage error: {:?}", err,)
             }
         }
     }

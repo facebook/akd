@@ -6,7 +6,6 @@
 use crate::{Direction, ARITY};
 use crypto::Hasher;
 use std::{
-    array,
     convert::TryInto,
     fmt::{self, Debug},
 };
@@ -123,7 +122,7 @@ pub struct HistoryNodeState<H: Hasher> {
 
 impl<H: Hasher> HistoryNodeState<H> {
     pub fn new() -> Self {
-        let mut children = [HistoryChildState::<H>::new_dummy(); ARITY];
+        let children = [HistoryChildState::<H>::new_dummy(); ARITY];
         HistoryNodeState {
             value: H::hash(&[0u8]),
             child_states: children,
@@ -155,9 +154,9 @@ impl<H: Hasher> Clone for HistoryNodeState<H> {
 impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "\tvalue = {:?}", self.value);
+        writeln!(f, "\tvalue = {:?}", self.value).unwrap();
         for i in 0..ARITY {
-            writeln!(f, "\tchildren {}: {:#}", i, self.child_states[i]);
+            writeln!(f, "\tchildren {}: {:#}", i, self.child_states[i]).unwrap();
         }
         write!(f, "")
     }
@@ -254,21 +253,10 @@ impl<H: Hasher> fmt::Display for HistoryChildState<H> {
     }
 }
 
-// type ChildStateArr<H> = [HistoryChildState<H>; ARITY];
-
-// impl<H: Hasher> fmt::Display for ChildStateArr<H> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         for i in 0..ARITY {
-//             write!(f, "\t location = {:?}", self[i]);
-//         }
-//         write!(f, "\n")
-
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::OsRng;
 
     // Test for equality
     #[test]
@@ -459,7 +447,6 @@ mod tests {
 
     #[test]
     pub fn test_get_dir_large() {
-        use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
         for i in 1..65 {
             let mut rng = OsRng;
             let label_1 = NodeLabel::random(&mut rng);
@@ -484,7 +471,7 @@ mod tests {
     pub fn test_get_dir_example() {
         let label_1 = NodeLabel::new(10049430782486799941u64, 64u32);
         let label_2 = NodeLabel::new(23u64, 5u32);
-        let mut direction = Direction::None;
+        let direction = Direction::None;
         let computed = label_2.get_dir(label_1);
         assert!(
             computed == direction,
