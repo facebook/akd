@@ -24,7 +24,7 @@ use std::sync::Mutex;
 
 lazy_static! {
     static ref HASHMAP: Mutex<HashMap<String, HistoryNodeState<Blake3>>> = {
-        let mut m = HashMap::new();
+        let m = HashMap::new();
         Mutex::new(m)
     };
 }
@@ -40,7 +40,7 @@ impl Storage<HistoryNodeState<Blake3>> for InMemoryDb {
     }
 
     fn get(pos: String) -> Result<HistoryNodeState<Blake3>, StorageError> {
-        let mut hashmap = HASHMAP.lock().unwrap();
+        let hashmap = HASHMAP.lock().unwrap();
         hashmap
             .get(&pos)
             .map(|v| v.clone())
@@ -53,7 +53,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut azks1 = Azks::<Blake3, InMemoryDb>::new();
+    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng);
 
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);

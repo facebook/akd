@@ -80,15 +80,13 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
             0,
             self.latest_epoch,
         )?;
-
-        let tree_repr = self.tree_nodes.clone();
-        let (_, tree_repr) = self.tree_nodes[self.root].insert_single_leaf(
+        let mut root_node = self.tree_nodes[self.root].clone();
+        let _ = root_node.insert_single_leaf(
             new_leaf,
             &self.azks_id,
             self.latest_epoch,
-            tree_repr,
+            &mut self.tree_nodes,
         )?;
-        self.tree_nodes = tree_repr;
         Ok(())
     }
 
@@ -131,16 +129,13 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
                     self.latest_epoch,
                 )?;
             }
-            let tree_repr = self.tree_nodes.clone();
-            let (_, tree_repr_updated) = self.tree_nodes[self.root]
-                .insert_single_leaf_without_hash(
-                    new_leaf,
-                    &self.azks_id,
-                    self.latest_epoch,
-                    tree_repr,
-                )?;
-
-            self.tree_nodes = tree_repr_updated.clone();
+            let mut root_node = self.tree_nodes[self.root].clone();
+            let _ = root_node.insert_single_leaf_without_hash(
+                new_leaf,
+                &self.azks_id,
+                self.latest_epoch,
+                &mut self.tree_nodes,
+            )?;
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -152,9 +147,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))
                 .unwrap();
             let mut next_node = self.tree_nodes[next_node_loc].clone();
-            let tree_repr = self.tree_nodes.clone();
-            let tree_repr = next_node.update_hash(self.latest_epoch, tree_repr)?;
-            self.tree_nodes = tree_repr.clone();
+            next_node.update_hash(self.latest_epoch, &mut self.tree_nodes)?;
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => entry.set_priority(priorities),
@@ -223,7 +216,6 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
             inserted: leaves,
             unchanged_nodes: unchanged,
         }
-        // unimplemented!()
     }
 
     pub fn get_consecutive_append_only_proof(&self, _start_epoch: u64) -> AppendOnlyProof<H> {
