@@ -364,22 +364,18 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
 
     let mut tree_repr = vec![root.clone(), new_leaf.clone(), leaf_1.clone()];
 
-    let tree_repr_after_0 = new_leaf.clone().update_hash(0, tree_repr.clone());
-    match tree_repr_after_0 {
-        Ok(repr) => {
-            tree_repr = repr.clone();
-        }
+    let updated_after_0 = new_leaf.clone().update_hash(0, &mut tree_repr);
+    match updated_after_0 {
+        Ok(()) => {}
         Err(e) => {
             eprintln!("Application error: {}", e);
             panic!("Node failed to update hash, the node is {:?}", new_leaf);
         }
     }
-    let tree_repr_after_1 = leaf_1.clone().update_hash(0, tree_repr.clone());
+    let updated_after_1 = leaf_1.clone().update_hash(0, &mut tree_repr);
 
-    match tree_repr_after_1 {
-        Ok(repr) => {
-            tree_repr = repr.clone();
-        }
+    match updated_after_1 {
+        Ok(()) => {}
         Err(e) => {
             eprintln!("Application error: {}", e);
             panic!("Node failed to update hash, the node is {:?}", leaf_1);
@@ -387,8 +383,8 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     }
 
     root = tree_repr[0].clone();
-    let tree_repr_after_root = root.update_hash(0, tree_repr.clone());
-    match tree_repr_after_root {
+    let updated_after_root = root.update_hash(0, &mut tree_repr);
+    match updated_after_root {
         Ok(_) => {}
         Err(e) => {
             eprintln!("Application error: {}", e);
@@ -435,11 +431,10 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
         0,
         0,
     )?;
-    let tree_repr = vec![root.clone()];
+    let mut tree_repr = vec![root.clone()];
 
-    let (mut root, tree_repr) =
-        root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, tree_repr)?;
-    let (root, _) = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, tree_repr)?;
+    root = root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -527,12 +522,11 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
     leaf_2_as_child.hash_val = leaf_2_hash;
 
-    let tree_repr = vec![root.clone()];
+    let mut tree_repr = vec![root.clone()];
 
-    let (mut root, tree_repr) =
-        root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, tree_repr)?;
-    let (mut root, tree_repr) = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, tree_repr)?;
-    let (root, _) = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, tree_repr)?;
+    root = root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -630,13 +624,12 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     let mut leaf_3_as_child = leaf_3.to_node_child_state()?;
     leaf_3_as_child.hash_val = leaf_3_hash;
 
-    let tree_repr = vec![root.clone()];
+    let mut tree_repr = vec![root.clone()];
 
-    let (mut root, tree_repr) =
-        root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, tree_repr)?;
-    let (mut root, tree_repr) = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, tree_repr)?;
-    let (mut root, tree_repr) = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, tree_repr)?;
-    let (root, _) = root.insert_single_leaf(leaf_3.clone(), &azks_id, 0, tree_repr)?;
+    root = root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut tree_repr)?;
+    root = root.insert_single_leaf(leaf_3.clone(), &azks_id, 0, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -715,10 +708,9 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     ]);
 
     for i in 0..8 {
-        let (new_root, repr) =
-            root.insert_single_leaf(leaves[7 - i].clone(), &azks_id, 0, tree_repr)?;
+        let new_root =
+            root.insert_single_leaf(leaves[7 - i].clone(), &azks_id, 0, &mut tree_repr)?;
         root = new_root;
-        tree_repr = repr;
     }
 
     let root_val = root.get_value()?;
