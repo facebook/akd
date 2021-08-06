@@ -93,9 +93,11 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
         tree_repr: &mut Vec<Self>,
     ) -> Result<Self, HistoryTreeNodeError> {
 
+
         let (lcs_label, dir_leaf, dir_self) = self
             .label
             .get_longest_common_prefix_and_dirs(new_leaf.get_label());
+
 
         if self.is_root() {
             new_leaf.location = tree_repr.len();
@@ -117,6 +119,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 new_self.update_hash(epoch, tree_repr)?;
                 return Ok(tree_repr[self.location].clone());
             }
+
         }
 
         // if a node is the longest common prefix of itself and the leaf, dir_self will be None
@@ -168,6 +171,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                     match child_st.dummy_marker {
                         DummyChildState::Dummy => {
                             Err(HistoryTreeNodeError::CompressionError(self.label))
+
                         }
                         DummyChildState::Real => {
                             let mut child_node = tree_repr[child_st.location].clone();
@@ -204,7 +208,6 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
         epoch: u64,
         tree_repr: &mut Vec<Self>,
     ) -> Result<Self, HistoryTreeNodeError> {
-
         let (lcs_label, dir_leaf, dir_self) = self
             .label
             .get_longest_common_prefix_and_dirs(new_leaf.get_label());
@@ -218,6 +221,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 tree_repr[self.location] = self.clone();
                 return Ok(tree_repr[self.location].clone());
             }
+
         }
         match dir_self {
             Some(_) => {
@@ -254,6 +258,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                     Ok(child_st) => match child_st.dummy_marker {
                         DummyChildState::Dummy => {
                             Err(HistoryTreeNodeError::CompressionError(self.label))
+
                         }
                         DummyChildState::Real => {
                             let mut child_node = tree_repr[child_st.location].clone();
@@ -267,13 +272,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         }
                     },
                     Err(e) => {
-                        // if self.is_root() {
-                        //     tree_repr[self.location] =
-                        //         self.set_node_child_without_hash(epoch, dir_leaf, new_leaf)?;
-                        //     Ok(tree_repr[self.location].clone())
-                        // } else {
-                            Err(e)
-                        // }
+                        Err(e)
                     }
                 }
             }
