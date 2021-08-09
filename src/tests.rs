@@ -365,6 +365,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     let mut tree_repr = vec![root.clone(), leaf_0.clone(), leaf_1.clone()];
 
     let updated_after_0 = leaf_0.update_hash(0, &mut tree_repr);
+
     match updated_after_0 {
         Ok(()) => {}
         Err(e) => {
@@ -372,6 +373,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
             panic!("Node failed to update hash, the node is {:?}", leaf_0);
         }
     }
+
     let updated_after_1 = leaf_1.update_hash(0, &mut tree_repr);
 
     match updated_after_1 {

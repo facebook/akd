@@ -108,7 +108,6 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 new_leaf.parent = self.location;
                 tree_repr[self.location] =
                     self.set_node_child_without_hash(epoch, dir_leaf, &new_leaf)?;
-                // tree_repr[self.location] = self.clone();
                 let mut new_leaf = tree_repr[new_leaf_loc].clone();
                 new_leaf.update_hash(epoch, tree_repr)?;
                 let mut new_self = tree_repr[self.location].clone();
@@ -187,7 +186,8 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         }
                         Ok(tree_repr[self.location].clone())
                     }
-                }
+
+
             }
         }
     }
@@ -257,6 +257,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                             let updated_child = child_node.insert_single_leaf_without_hash(
                                 new_leaf, azks_id, epoch, tree_repr,
                             )?;
+                          
                             self.set_node_child_without_hash(epoch, dir_leaf, &updated_child)?;
                             tree_repr[self.location] = self.clone();
 
@@ -264,13 +265,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         }
                     },
                     Err(e) => {
-                        // if self.is_root() {
-                        //     tree_repr[self.location] =
-                        //         self.set_node_child_without_hash(epoch, dir_leaf, new_leaf)?;
-                        //     Ok(tree_repr[self.location].clone())
-                        // } else {
                         Err(e)
-                        // }
                     }
                 }
             }
@@ -347,6 +342,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         parent_updated_state.child_states[s_dir] = self_child_state;
                         set_state_map(parent, &epoch, parent_updated_state)?;
                         tree_repr[self.parent] = parent.clone();
+                      
                         Ok(())
                     }
                 },
