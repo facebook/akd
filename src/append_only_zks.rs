@@ -11,12 +11,13 @@ use std::marker::PhantomData;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
-pub struct Azks<H: Hasher, S: Storage<HistoryNodeState<H>>> {
+pub struct Azks<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> {
     /// Random identifier for the AZKS instance
     azks_id: Vec<u8>,
     root: usize,
     latest_epoch: u64,
     epochs: Vec<u64>,
+    num_nodes: usize,                       // The size of the tree
     tree_nodes: Vec<HistoryTreeNode<H, S>>, // This also needs to include a VRF key to actually compute
     // labels but need to figure out how we want to instantiate.
     // For now going to assume that the inserted leaves come with unique labels.
@@ -49,17 +50,19 @@ pub struct AppendOnlyProof<H: Hasher> {
     unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
 }
 
-impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
+impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
     pub fn new<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut azks_id = vec![0u8; 32];
         rng.fill_bytes(&mut azks_id);
 
         let root = get_empty_root::<H, S>(&azks_id, Option::Some(0));
+
         Azks {
             azks_id,
             root: 0,
             latest_epoch: 0,
             epochs: vec![0],
+            num_nodes: 1,
             tree_nodes: vec![root],
             _s: PhantomData,
             _h: PhantomData,
@@ -81,10 +84,11 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
             self.latest_epoch,
         )?;
         let mut root_node = self.tree_nodes[self.root].clone();
-        let _ = root_node.insert_single_leaf(
+        root_node.insert_single_leaf(
             new_leaf,
             &self.azks_id,
             self.latest_epoch,
+            &mut self.num_nodes,
             &mut self.tree_nodes,
         )?;
         Ok(())
@@ -102,14 +106,14 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
     ) -> Result<(), SeemlessError> {
-        // let original_len = self.tree_nodes.len();
+        // let original_len = self.num_nodes;
         // if self.latest_epoch != 0 {
         self.increment_epoch();
         // }
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         for insertion_elt in insertion_set {
-            let new_leaf_loc = self.tree_nodes.len();
+            let new_leaf_loc = self.num_nodes;
 
             let mut new_leaf = get_leaf_node::<H, S>(
                 &self.azks_id,
@@ -134,6 +138,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> Azks<H, S> {
                 new_leaf,
                 &self.azks_id,
                 self.latest_epoch,
+                &mut self.num_nodes,
                 &mut self.tree_nodes,
             )?;
 
@@ -415,7 +420,7 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
 
 type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 
-fn get_append_only_proof_helper<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+fn get_append_only_proof_helper<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
     node: HistoryTreeNode<H, S>,
     start_epoch: u64,
     end_epoch: u64,

@@ -6,7 +6,8 @@
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
 use crate::append_only_zks::{Azks, MembershipProof};
 use crate::errors::SeemlessDirectoryError;
-use crate::node_state::{HistoryNodeState, NodeLabel};
+use crate::history_tree_node::HistoryTreeNode;
+use crate::node_state::NodeLabel;
 use crate::storage::Storage;
 use crypto::Hasher;
 use std::marker::PhantomData;
@@ -15,7 +16,7 @@ use std::marker::PhantomData;
 pub struct Username(String);
 #[derive(Clone)]
 pub struct Values(String);
-pub struct SeemlessDirectory<S: Storage<HistoryNodeState<H>>, H: Hasher> {
+pub struct SeemlessDirectory<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> {
     _commitments: Vec<Azks<H, S>>,
     _current_epoch: u64,
     _s: PhantomData<S>,
@@ -58,12 +59,15 @@ pub struct HistoryProof<H: Hasher> {
     _proofs: Vec<UpdateProof<H>>,
 }
 
-impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
+impl<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
     // FIXME: this code won't work
     pub fn publish(updates: Vec<(Username, Values)>) -> Result<(), SeemlessDirectoryError> {
         for (_key, _val) in updates {
-            S::set("0".to_string(), HistoryNodeState::new())
-                .map_err(|_| SeemlessDirectoryError::StorageError)?;
+            S::set(
+                "0".to_string(),
+                crate::history_tree_node::get_empty_root(&[], None),
+            )
+            .map_err(|_| SeemlessDirectoryError::StorageError)?;
         }
 
         Ok(())

@@ -13,52 +13,42 @@ pub trait Storage<N> {
     fn get(pos: String) -> Result<N, StorageError>;
 }
 
-pub(crate) fn set_state_map<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+#[allow(unused)]
+pub(crate) fn set_node<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+    azks_id: &[u8],
+    location: usize,
+    val: HistoryTreeNode<H, S>,
+) -> Result<(), StorageError> {
+    let k = format!("azks_id: {}, location: {}", hex::encode(azks_id), location);
+    S::set(k, val)
+}
+
+#[allow(unused)]
+pub(crate) fn get_node<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+    azks_id: &[u8],
+    location: usize,
+) -> Result<HistoryTreeNode<H, S>, StorageError> {
+    let k = format!("azks_id: {}, location: {}", hex::encode(azks_id), location);
+    S::get(k)
+}
+
+pub(crate) fn set_state_map<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
     node: &mut HistoryTreeNode<H, S>,
     key: &u64,
     val: HistoryNodeState<H>,
 ) -> Result<(), StorageError> {
-    #[cfg(test)]
-    {
-        node.state_map.insert(*key, val.clone());
-        Ok(())
-    }
-
-    #[cfg(not(test))]
-    {
-        let k = format!(
-            "azks_id: {}, location: {}, key: {}",
-            hex::encode(&node.azks_id),
-            node.location,
-            key
-        );
-        S::set(k, val)
-    }
+    node.state_map.insert(*key, val);
+    Ok(())
 }
 
-pub(crate) fn get_state_map<H: Hasher, S: Storage<HistoryNodeState<H>>>(
+pub(crate) fn get_state_map<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
     node: &HistoryTreeNode<H, S>,
     key: &u64,
 ) -> Result<HistoryNodeState<H>, StorageError> {
-    #[cfg(test)]
-    {
-        let val = node.state_map.get(key);
+    let val = node.state_map.get(key);
 
-        match val {
-            Some(v) => Ok(v.clone()),
-            None => Err(StorageError::GetError),
-        }
-    }
-
-    #[cfg(not(test))]
-    {
-        let k = format!(
-            "azks_id: {}, label_value: {}, label_length: {}, key: {}",
-            hex::encode(&node.azks_id),
-            node.label.val,
-            node.label.len,
-            key
-        );
-        S::get(k)
+    match val {
+        Some(v) => Ok(v.clone()),
+        None => Err(StorageError::GetError),
     }
 }
