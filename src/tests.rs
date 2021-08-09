@@ -341,7 +341,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
-    let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+    let mut leaf_0 = get_leaf_node::<Blake3, InMemoryDb>(
         &azks_id,
         NodeLabel::new(0b0u64, 1u32),
         1,
@@ -350,7 +350,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
         0,
     )?;
 
-    let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+    let mut leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
         &azks_id,
         NodeLabel::new(0b1u64, 1u32),
         2,
@@ -359,20 +359,20 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
         0,
     )?;
 
-    root.set_node_child_without_hash(0, Direction::Some(0), new_leaf.clone())?;
-    root.set_node_child_without_hash(0, Direction::Some(1), leaf_1.clone())?;
+    root.set_node_child_without_hash(0, Direction::Some(0), &leaf_0)?;
+    root.set_node_child_without_hash(0, Direction::Some(1), &leaf_1)?;
 
-    let mut tree_repr = vec![root.clone(), new_leaf.clone(), leaf_1.clone()];
+    let mut tree_repr = vec![root.clone(), leaf_0.clone(), leaf_1.clone()];
 
-    let updated_after_0 = new_leaf.clone().update_hash(0, &mut tree_repr);
+    let updated_after_0 = leaf_0.update_hash(0, &mut tree_repr);
     match updated_after_0 {
         Ok(()) => {}
         Err(e) => {
             eprintln!("Application error: {}", e);
-            panic!("Node failed to update hash, the node is {:?}", new_leaf);
+            panic!("Node failed to update hash, the node is {:?}", leaf_0);
         }
     }
-    let updated_after_1 = leaf_1.clone().update_hash(0, &mut tree_repr);
+    let updated_after_1 = leaf_1.update_hash(0, &mut tree_repr);
 
     match updated_after_1 {
         Ok(()) => {}
@@ -397,7 +397,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     let expected = Blake3::merge(&[
         Blake3::merge(&[
             hash_label::<Blake3>(root.label),
-            Blake3::merge(&[hash_label::<Blake3>(new_leaf.label), Blake3::hash(&[0b0u8])]),
+            Blake3::merge(&[hash_label::<Blake3>(leaf_0.label), Blake3::hash(&[0b0u8])]),
         ]),
         Blake3::merge(&[hash_label::<Blake3>(leaf_1.label), Blake3::hash(&[0b1u8])]),
     ]);
