@@ -115,7 +115,6 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                 return Ok(tree_repr[self.location].clone());
             }
         }
-
         // if a node is the longest common prefix of itself and the leaf, dir_self will be None
         match dir_self {
             Some(_) => {
@@ -186,8 +185,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         }
                         Ok(tree_repr[self.location].clone())
                     }
-
-
+                }
             }
         }
     }
@@ -257,16 +255,14 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                             let updated_child = child_node.insert_single_leaf_without_hash(
                                 new_leaf, azks_id, epoch, tree_repr,
                             )?;
-                          
+
                             self.set_node_child_without_hash(epoch, dir_leaf, &updated_child)?;
                             tree_repr[self.location] = self.clone();
 
                             Ok(tree_repr[self.location].clone())
                         }
                     },
-                    Err(e) => {
-                        Err(e)
-                    }
+                    Err(e) => Err(e),
                 }
             }
         }
@@ -342,7 +338,7 @@ impl<H: Hasher, S: Storage<HistoryNodeState<H>>> HistoryTreeNode<H, S> {
                         parent_updated_state.child_states[s_dir] = self_child_state;
                         set_state_map(parent, &epoch, parent_updated_state)?;
                         tree_repr[self.parent] = parent.clone();
-                      
+
                         Ok(())
                     }
                 },
