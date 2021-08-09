@@ -53,9 +53,10 @@ pub(crate) fn get_state_map<H: Hasher, S: Storage<HistoryNodeState<H>>>(
     #[cfg(not(test))]
     {
         let k = format!(
-            "azks_id: {}, location: {}, key: {}",
+            "azks_id: {}, label_value: {}, label_length: {}, key: {}",
             hex::encode(&node.azks_id),
-            node.location,
+            node.label.val,
+            node.label.len,
             key
         );
         S::get(k)
