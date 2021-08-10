@@ -20,6 +20,12 @@ impl From<HistoryTreeNodeError> for SeemlessError {
     }
 }
 
+impl From<StorageError> for SeemlessError {
+    fn from(error: StorageError) -> Self {
+        Self::HistoryTreeNodeErr(HistoryTreeNodeError::StorageError(error))
+    }
+}
+
 impl From<SeemlessDirectoryError> for SeemlessError {
     fn from(error: SeemlessDirectoryError) -> Self {
         Self::SeemlessDirectoryErr(error)
