@@ -3,7 +3,14 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-use crate::{errors::HistoryTreeNodeError, history_tree_node::*, storage::Storage};
+use crate::{
+    errors::HistoryTreeNodeError,
+    history_tree_node::*,
+    storage::{get_node, set_node, Storage},
+};
+
+use std::collections::HashMap;
+
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use crypto::Hasher;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
@@ -17,10 +24,7 @@ pub struct Azks<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> {
     root: usize,
     latest_epoch: u64,
     epochs: Vec<u64>,
-    num_nodes: usize,                       // The size of the tree
-    tree_nodes: Vec<HistoryTreeNode<H, S>>, // This also needs to include a VRF key to actually compute
-    // labels but need to figure out how we want to instantiate.
-    // For now going to assume that the inserted leaves come with unique labels.
+    num_nodes: usize, // The size of the tree
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
@@ -57,16 +61,22 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
 
         let root = get_empty_root::<H, S>(&azks_id, Option::Some(0));
 
-        Azks {
+        let mut changeset = HashMap::new();
+        changeset.insert(0, root);
+
+        let azks = Azks {
             azks_id,
             root: 0,
             latest_epoch: 0,
             epochs: vec![0],
             num_nodes: 1,
-            tree_nodes: vec![root],
             _s: PhantomData,
             _h: PhantomData,
-        }
+        };
+
+        azks.commit_changeset(&changeset);
+
+        azks
     }
 
     pub fn insert_leaf(&mut self, label: NodeLabel, value: H::Digest) -> Result<(), SeemlessError> {
@@ -83,15 +93,26 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             0,
             self.latest_epoch,
         )?;
-        let mut root_node = self.tree_nodes[self.root].clone();
+        let mut root_node = get_node(&self.azks_id, self.root)?;
+
+        let mut changeset = HashMap::new();
         root_node.insert_single_leaf(
             new_leaf,
             &self.azks_id,
             self.latest_epoch,
             &mut self.num_nodes,
-            &mut self.tree_nodes,
+            &mut changeset,
         )?;
+
+        self.commit_changeset(&changeset);
+
         Ok(())
+    }
+
+    fn commit_changeset(&self, changeset: &HashMap<usize, HistoryTreeNode<H, S>>) {
+        for (location, node) in changeset {
+            set_node(&self.azks_id, *location, node.clone()).unwrap();
+        }
     }
 
     pub fn batch_insert_leaves(
@@ -106,6 +127,8 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
     ) -> Result<(), SeemlessError> {
+        let mut changeset = HashMap::new();
+
         // let original_len = self.num_nodes;
         // if self.latest_epoch != 0 {
         self.increment_epoch();
@@ -133,14 +156,15 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
                     self.latest_epoch,
                 )?;
             }
-            let mut root_node = self.tree_nodes[self.root].clone();
-            let _ = root_node.insert_single_leaf_without_hash(
+            let mut root_node = get_node(&self.azks_id, self.root)?;
+            root_node.insert_single_leaf_without_hash(
                 new_leaf,
                 &self.azks_id,
                 self.latest_epoch,
                 &mut self.num_nodes,
-                &mut self.tree_nodes,
+                &mut changeset,
             )?;
+            self.commit_changeset(&changeset);
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -151,8 +175,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))
                 .unwrap();
-            let mut next_node = self.tree_nodes[next_node_loc].clone();
-            next_node.update_hash(self.latest_epoch, &mut self.tree_nodes)?;
+            let mut next_node = get_node(&self.azks_id, next_node_loc)?;
+            next_node.update_hash(self.latest_epoch, &mut changeset)?;
+            self.commit_changeset(&changeset);
+
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => entry.set_priority(priorities),
@@ -167,6 +193,8 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         // if self.latest_epoch == 0 {
         // self.increment_epoch();
         // }
+
+        self.commit_changeset(&changeset);
         Ok(())
     }
 
@@ -184,7 +212,7 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
 
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch);
-        let lcp_node = self.tree_nodes[lcp_node_id].clone();
+        let lcp_node = get_node::<H, S>(&self.azks_id, lcp_node_id).unwrap();
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
@@ -192,7 +220,9 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         let children = state
             .child_states
             .iter()
-            .map(|x| self.tree_nodes[x.location].clone());
+            .map(|x: &node_state::HistoryChildState<H>| {
+                get_node::<H, S>(&self.azks_id, x.location).unwrap()
+            });
         for (i, child) in children.enumerate() {
             longest_prefix_children_labels[i] = child.label;
             longest_prefix_children_values[i] =
@@ -211,16 +241,69 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let (unchanged, leaves) = get_append_only_proof_helper(
-            self.tree_nodes[self.root].clone(),
+        let (unchanged, leaves) = self.get_append_only_proof_helper(
+            get_node(&self.azks_id, self.root).unwrap(),
             start_epoch,
             end_epoch,
-            self.tree_nodes.clone(),
         );
         AppendOnlyProof {
             inserted: leaves,
             unchanged_nodes: unchanged,
         }
+    }
+
+    fn get_append_only_proof_helper(
+        &self,
+        node: HistoryTreeNode<H, S>,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> AppendOnlyHelper<H::Digest> {
+        let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
+        let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
+        if node.get_latest_epoch().unwrap() <= start_epoch {
+            if node.is_root() {
+                // this is the case where the root is unchanged since the last epoch
+                return (unchanged, leaves);
+            }
+
+            unchanged.push((
+                node.label,
+                node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
+                    .unwrap(),
+            ));
+            return (unchanged, leaves);
+        }
+        if node.get_birth_epoch() > end_epoch {
+            // really you shouldn't even be here. Later do error checking
+            return (unchanged, leaves);
+        }
+        if node.is_leaf() {
+            leaves.push((
+                node.label,
+                node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
+                    .unwrap(),
+            ));
+        } else {
+            for child_node_state in node
+                .get_state_at_epoch(end_epoch)
+                .unwrap()
+                .child_states
+                .iter()
+                .map(|x| *x)
+            {
+                if child_node_state.dummy_marker == DummyChildState::Dummy {
+                    continue;
+                } else {
+                    let child_node = get_node(&self.azks_id, child_node_state.location).unwrap();
+                    let mut rec_output =
+                        self.get_append_only_proof_helper(child_node, start_epoch, end_epoch);
+                    unchanged.append(&mut rec_output.0);
+                    leaves.append(&mut rec_output.1);
+                }
+            }
+        }
+        (unchanged, leaves)
+        // unimplemented!()
     }
 
     pub fn get_consecutive_append_only_proof(&self, _start_epoch: u64) -> AppendOnlyProof<H> {
@@ -237,7 +320,7 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
     }
 
     pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        self.tree_nodes[self.root].get_value_at_epoch(epoch)
+        get_node::<H, S>(&self.azks_id, self.root)?.get_value_at_epoch(epoch)
     }
 
     pub fn get_latest_epoch(&self) -> u64 {
@@ -347,7 +430,7 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
-        let mut curr_node = self.tree_nodes[self.root].clone();
+        let mut curr_node = get_node::<H, S>(&self.azks_id, self.root).unwrap();
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
@@ -368,12 +451,16 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-            curr_node = self.tree_nodes[curr_node.get_child_location_at_epoch(epoch, dir)].clone();
+            curr_node = get_node(
+                &self.azks_id,
+                curr_node.get_child_location_at_epoch(epoch, dir),
+            )
+            .unwrap();
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
         if !equal {
-            curr_node = self.tree_nodes[prev_node].clone();
+            curr_node = get_node(&self.azks_id, prev_node).unwrap();
 
             parent_labels.pop();
             sibling_labels.pop();
@@ -419,64 +506,6 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
 }
 
 type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
-
-fn get_append_only_proof_helper<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
-    node: HistoryTreeNode<H, S>,
-    start_epoch: u64,
-    end_epoch: u64,
-    tree_nodes: Vec<HistoryTreeNode<H, S>>,
-) -> AppendOnlyHelper<H::Digest> {
-    let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
-    let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
-    if node.get_latest_epoch().unwrap() <= start_epoch {
-        if node.is_root() {
-            // this is the case where the root is unchanged since the last epoch
-            return (unchanged, leaves);
-        }
-
-        unchanged.push((
-            node.label,
-            node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
-                .unwrap(),
-        ));
-        return (unchanged, leaves);
-    }
-    if node.get_birth_epoch() > end_epoch {
-        // really you shouldn't even be here. Later do error checking
-        return (unchanged, leaves);
-    }
-    if node.is_leaf() {
-        leaves.push((
-            node.label,
-            node.get_value_without_label_at_epoch(node.get_latest_epoch().unwrap())
-                .unwrap(),
-        ));
-    } else {
-        for child_node_state in node
-            .get_state_at_epoch(end_epoch)
-            .unwrap()
-            .child_states
-            .iter()
-            .map(|x| *x)
-        {
-            if child_node_state.dummy_marker == DummyChildState::Dummy {
-                continue;
-            } else {
-                let child_node = tree_nodes[child_node_state.location].clone();
-                let mut rec_output = get_append_only_proof_helper(
-                    child_node,
-                    start_epoch,
-                    end_epoch,
-                    tree_nodes.clone(),
-                );
-                unchanged.append(&mut rec_output.0);
-                leaves.append(&mut rec_output.1);
-            }
-        }
-    }
-    (unchanged, leaves)
-    // unimplemented!()
-}
 
 #[cfg(test)]
 mod tests {

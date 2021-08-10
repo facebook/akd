@@ -361,7 +361,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     root.set_node_child_without_hash(0, Direction::Some(0), &leaf_0)?;
     root.set_node_child_without_hash(0, Direction::Some(1), &leaf_1)?;
 
-    let mut tree_repr = vec![root.clone(), leaf_0.clone(), leaf_1.clone()];
+    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone()), (1, leaf_0.clone()), (2, leaf_1.clone())].into_iter().collect();
 
     let updated_after_0 = leaf_0.update_hash(0, &mut tree_repr);
 
@@ -383,7 +383,7 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
         }
     }
 
-    root = tree_repr[0].clone();
+    root = tree_repr.get(&0).unwrap().clone();
     let updated_after_root = root.update_hash(0, &mut tree_repr);
     match updated_after_root {
         Ok(_) => {}
@@ -432,7 +432,7 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
         0,
         0,
     )?;
-    let mut tree_repr = vec![root.clone()];
+    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
 
     let mut num_nodes = 1;
 
@@ -531,7 +531,7 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
     leaf_2_as_child.hash_val = leaf_2_hash;
 
-    let mut tree_repr = vec![root.clone()];
+    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
 
     root = root.insert_single_leaf(
@@ -640,7 +640,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     let mut leaf_3_as_child = leaf_3.to_node_child_state()?;
     leaf_3_as_child.hash_val = leaf_3_hash;
 
-    let mut tree_repr = vec![root.clone()];
+    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
 
     root = root.insert_single_leaf(
@@ -673,7 +673,7 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64));
-    let mut tree_repr = vec![root.clone()];
+    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
     let mut leaves = Vec::<HistoryTreeNode<Blake3, InMemoryDb>>::new();
     let mut leaf_hashes = Vec::new();
