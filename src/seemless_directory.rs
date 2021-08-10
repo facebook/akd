@@ -65,7 +65,7 @@ impl<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         for (_key, _val) in updates {
             S::set(
                 "0".to_string(),
-                crate::history_tree_node::get_empty_root(&[], None),
+                crate::history_tree_node::get_empty_root(&[], None).unwrap(),
             )
             .map_err(|_| SeemlessDirectoryError::StorageError)?;
         }

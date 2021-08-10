@@ -12,6 +12,7 @@ pub enum SeemlessError {
     HistoryTreeNodeErr(HistoryTreeNodeError),
     SeemlessDirectoryErr(SeemlessDirectoryError),
     AzksErr(AzksError),
+    NoDirectionError,
 }
 
 impl From<HistoryTreeNodeError> for SeemlessError {
