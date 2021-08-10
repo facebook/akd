@@ -9,7 +9,7 @@ use crate::storage::{get_node, get_state_map, set_state_map, Storage};
 use crate::{node_state::*, Direction, ARITY};
 use crypto::Hasher;
 
-use crate::errors::{StorageError, HistoryTreeNodeError};
+use crate::errors::{HistoryTreeNodeError, StorageError};
 
 use std::marker::PhantomData;
 
@@ -80,7 +80,11 @@ impl<H: Hasher, S: Storage<Self>> HistoryTreeNode<H, S> {
         }
     }
 
-    fn tree_repr_get(&self, changeset: &mut HashMap<usize, Self>, location: usize) -> Result<Self, StorageError> {
+    fn tree_repr_get(
+        &self,
+        changeset: &mut HashMap<usize, Self>,
+        location: usize,
+    ) -> Result<Self, StorageError> {
         match changeset.get(&location) {
             None => get_node(&self.azks_id, location),
             Some(node) => Ok(node.clone()),
@@ -266,7 +270,8 @@ impl<H: Hasher, S: Storage<Self>> HistoryTreeNode<H, S> {
                             Err(HistoryTreeNodeError::CompressionError(self.label))
                         }
                         DummyChildState::Real => {
-                            let mut child_node = self.tree_repr_get(changeset, child_st.location)?;
+                            let mut child_node =
+                                self.tree_repr_get(changeset, child_st.location)?;
                             let updated_child = child_node.insert_single_leaf_without_hash(
                                 new_leaf, azks_id, epoch, num_nodes, changeset,
                             )?;

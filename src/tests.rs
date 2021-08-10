@@ -361,7 +361,10 @@ fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
     root.set_node_child_without_hash(0, Direction::Some(0), &leaf_0)?;
     root.set_node_child_without_hash(0, Direction::Some(1), &leaf_1)?;
 
-    let mut tree_repr: HashMap<_, _> = vec![(0, root.clone()), (1, leaf_0.clone()), (2, leaf_1.clone())].into_iter().collect();
+    let mut tree_repr: HashMap<_, _> =
+        vec![(0, root.clone()), (1, leaf_0.clone()), (2, leaf_1.clone())]
+            .into_iter()
+            .collect();
 
     let updated_after_0 = leaf_0.update_hash(0, &mut tree_repr);
 
