@@ -4,8 +4,9 @@
 // LICENSE file in the root directory of this source tree.
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
 use crate::append_only_zks::{Azks, MembershipProof};
-use crate::errors::{SeemlessDirectoryError, SeemlessError};
-use crate::node_state::{HistoryNodeState, NodeLabel};
+use crate::errors::SeemlessDirectoryError;
+use crate::history_tree_node::HistoryTreeNode;
+use crate::node_state::NodeLabel;
 use crate::storage::Storage;
 use crypto::Hasher;
 use rand::{prelude::ThreadRng, thread_rng};
@@ -25,6 +26,14 @@ pub struct Username(String);
 
 #[derive(Clone)]
 pub struct Values(String);
+
+pub struct SeemlessDirectory<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> {
+    _commitments: Vec<Azks<H, S>>,
+    _current_epoch: u64,
+    _s: PhantomData<S>,
+    _h: PhantomData<H>,
+}
+
 
 #[derive(Clone)]
 pub struct UserState {
@@ -89,6 +98,7 @@ pub struct SeemlessDirectory<S: Storage<HistoryNodeState<H>>, H: Hasher> {
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
+
 
 impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
     pub fn new() -> Self {

@@ -11,7 +11,8 @@ use crypto::{hashers::Blake3_256, Hasher};
 use math::fields::f128::BaseElement;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use seemless::{
-    append_only_zks::Azks, node_state::HistoryNodeState, node_state::NodeLabel, storage::Storage,
+    append_only_zks::Azks, history_tree_node::HistoryTreeNode, node_state::NodeLabel,
+    storage::Storage,
 };
 use std::time::{Duration, Instant};
 
@@ -23,23 +24,23 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref HASHMAP: Mutex<HashMap<String, HistoryNodeState<Blake3>>> = {
+    static ref HASHMAP: Mutex<HashMap<String, HistoryTreeNode<Blake3, InMemoryDb>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, HistoryNodeState<Blake3>>);
+pub(crate) struct InMemoryDb(HashMap<String, HistoryTreeNode<Blake3, InMemoryDb>>);
 
-impl Storage<HistoryNodeState<Blake3>> for InMemoryDb {
-    fn set(pos: String, node: HistoryNodeState<Blake3>) -> Result<(), StorageError> {
+impl Storage<HistoryTreeNode<Blake3, InMemoryDb>> for InMemoryDb {
+    fn set(pos: String, node: HistoryTreeNode<Blake3, InMemoryDb>) -> Result<(), StorageError> {
         let mut hashmap = HASHMAP.lock().unwrap();
         hashmap.insert(pos, node);
         Ok(())
     }
 
-    fn get(pos: String) -> Result<HistoryNodeState<Blake3>, StorageError> {
+    fn get(pos: String) -> Result<HistoryTreeNode<Blake3, InMemoryDb>, StorageError> {
         let hashmap = HASHMAP.lock().unwrap();
         hashmap
             .get(&pos)
@@ -53,7 +54,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng);
+    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng).unwrap();
 
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);

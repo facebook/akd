@@ -12,11 +12,18 @@ pub enum SeemlessError {
     HistoryTreeNodeErr(HistoryTreeNodeError),
     SeemlessDirectoryErr(SeemlessDirectoryError),
     AzksErr(AzksError),
+    NoDirectionError,
 }
 
 impl From<HistoryTreeNodeError> for SeemlessError {
     fn from(error: HistoryTreeNodeError) -> Self {
         Self::HistoryTreeNodeErr(error)
+    }
+}
+
+impl From<StorageError> for SeemlessError {
+    fn from(error: StorageError) -> Self {
+        Self::HistoryTreeNodeErr(HistoryTreeNodeError::StorageError(error))
     }
 }
 
