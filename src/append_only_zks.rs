@@ -24,19 +24,19 @@ pub struct Azks<H: Hasher, S: Storage<HistoryNodeState<H>>> {
     _h: PhantomData<H>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MembershipProof<H: Hasher> {
-    label: NodeLabel,
-    hash_val: H::Digest,
+    pub(crate) label: NodeLabel,
+    pub(crate) hash_val: H::Digest,
     parent_labels: Vec<NodeLabel>,
     sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
     sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
     dirs: Vec<Direction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NonMembershipProof<H: Hasher> {
-    label: NodeLabel,
+    pub(crate) label: NodeLabel,
     longest_prefix: NodeLabel,
     longest_prefix_children_labels: [NodeLabel; ARITY],
     longest_prefix_children_values: [H::Digest; ARITY],
