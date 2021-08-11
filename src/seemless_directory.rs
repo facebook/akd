@@ -391,10 +391,10 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         uname: &Username,
     ) -> Result<(), SeemlessError> {
         let epoch = proof.epoch;
-        let plaintext_value = proof.plaintext_value;
+        let _plaintext_value = proof.plaintext_value;
         let version = proof.version;
         let label_at_ep = Self::get_nodelabel(uname, false, version);
-        let prev_label_at_ep = Self::get_nodelabel(uname, true, version);
+        let _prev_label_at_ep = Self::get_nodelabel(uname, true, version);
         let existence_at_ep = proof.existence_at_ep;
         let previous_val_stale_at_ep = proof.previous_val_stale_at_ep;
 
@@ -407,30 +407,45 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
                     format!("Label of user {:?}'s version {:?} at epoch {:?} does not match the one in the proof",
                     uname, version, epoch))));
         }
-        if !self.azks
-            .verify_membership(root_hash, epoch, existence_at_ep) {
-                return Err(SeemlessError::SeemlessDirectoryErr(
-                    SeemlessDirectoryError::KeyHistoryVerificationErr(
-                        format!("Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                        uname, version, epoch))));
-            }
-        // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
-        if !self.azks
-        .verify_membership(root_hash, epoch, previous_val_stale_at_ep) {
+        if !self
+            .azks
+            .verify_membership(root_hash, epoch, existence_at_ep)
+        {
             return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(
-                    format!("Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, version-1, epoch))));
+                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+                    "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    uname, version, epoch
+                )),
+            ));
         }
-        if !self.azks.verify_nonmembership(label_at_ep, root_hash, epoch - 1, non_existence_before_ep) {
+        // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
+        if !self
+            .azks
+            .verify_membership(root_hash, epoch, previous_val_stale_at_ep)
+        {
+            return Err(SeemlessError::SeemlessDirectoryErr(
+                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    uname,
+                    version - 1,
+                    epoch
+                )),
+            ));
+        }
+        if !self.azks.verify_nonmembership(
+            label_at_ep,
+            root_hash,
+            epoch - 1,
+            non_existence_before_ep,
+        ) {
             return Err(SeemlessError::SeemlessDirectoryErr(
                 SeemlessDirectoryError::KeyHistoryVerificationErr(
                     format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     uname, version, epoch-1))));
         }
 
-        let next_marker = Self::get_marker_version(version) + 1;
-        let final_marker = Self::get_marker_version(epoch);
+        let _next_marker = Self::get_marker_version(version) + 1;
+        let _final_marker = Self::get_marker_version(epoch);
         // for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
         //     let label_for_ver = Self::get_nodelabel(uname, false, ver);
         //     let pf = proof.non_existence_of_next_few[i];
@@ -441,8 +456,6 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         //                 uname, version, epoch-1))));
         //     }
         // }
-
-
 
         Ok(())
         // unimplemented!()
