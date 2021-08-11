@@ -54,7 +54,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng);
+    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng).unwrap();
 
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);

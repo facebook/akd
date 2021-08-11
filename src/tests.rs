@@ -60,7 +60,7 @@ fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None)?;
     let ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
@@ -92,7 +92,7 @@ fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> 
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None)?;
     let ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
@@ -137,7 +137,7 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None)?;
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
@@ -199,7 +199,7 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None)?;
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
@@ -262,7 +262,7 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None)?;
 
     for ep in 0u64..3u64 {
         let child_hist_node_1 = HistoryChildState::new(
@@ -332,84 +332,6 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
     Ok(())
 }
 
-// update_hash tests
-// #[test]
-#[allow(dead_code)]
-fn test_update_hash_root_children() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::None);
-    let mut leaf_0 = get_leaf_node::<Blake3, InMemoryDb>(
-        &azks_id,
-        NodeLabel::new(0b0u64, 1u32),
-        1,
-        &[0u8],
-        0,
-        0,
-    )?;
-
-    let mut leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
-        &azks_id,
-        NodeLabel::new(0b1u64, 1u32),
-        2,
-        &[1u8],
-        0,
-        0,
-    )?;
-
-    root.set_node_child_without_hash(0, Direction::Some(0), &leaf_0)?;
-    root.set_node_child_without_hash(0, Direction::Some(1), &leaf_1)?;
-
-    let mut tree_repr: HashMap<_, _> =
-        vec![(0, root.clone()), (1, leaf_0.clone()), (2, leaf_1.clone())]
-            .into_iter()
-            .collect();
-
-    let updated_after_0 = leaf_0.update_hash(0, &mut tree_repr);
-
-    match updated_after_0 {
-        Ok(()) => {}
-        Err(e) => {
-            eprintln!("Application error: {}", e);
-            panic!("Node failed to update hash, the node is {:?}", leaf_0);
-        }
-    }
-
-    let updated_after_1 = leaf_1.update_hash(0, &mut tree_repr);
-
-    match updated_after_1 {
-        Ok(()) => {}
-        Err(e) => {
-            eprintln!("Application error: {}", e);
-            panic!("Node failed to update hash, the node is {:?}", leaf_1);
-        }
-    }
-
-    root = tree_repr.get(&0).unwrap().clone();
-    let updated_after_root = root.update_hash(0, &mut tree_repr);
-    match updated_after_root {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Application error: {}", e);
-            panic!("Node failed to update hash, the node is {:?}", root);
-        }
-    }
-
-    let root_val = root.get_value()?;
-
-    let expected = Blake3::merge(&[
-        Blake3::merge(&[
-            hash_label::<Blake3>(root.label),
-            Blake3::merge(&[hash_label::<Blake3>(leaf_0.label), Blake3::hash(&[0b0u8])]),
-        ]),
-        Blake3::merge(&[hash_label::<Blake3>(leaf_1.label), Blake3::hash(&[0b1u8])]),
-    ]);
-    assert!(root_val == expected, "Root hash not equal to expected");
-
-    Ok(())
-}
-
 // insert_single_leaf tests
 
 #[test]
@@ -417,7 +339,7 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64));
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
         &azks_id,
         NodeLabel::new(0b0u64, 1u32),
@@ -439,14 +361,14 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let mut num_nodes = 1;
 
-    root = root.insert_single_leaf(
+    root.insert_single_leaf(
         new_leaf.clone(),
         &azks_id,
         0,
         &mut num_nodes,
         &mut tree_repr,
     )?;
-    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -477,7 +399,7 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64));
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
         &azks_id,
         NodeLabel::new(0b00u64, 2u32),
@@ -537,15 +459,15 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
 
-    root = root.insert_single_leaf(
+    root.insert_single_leaf(
         new_leaf.clone(),
         &azks_id,
         0,
         &mut num_nodes,
         &mut tree_repr,
     )?;
-    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
-    root = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -565,7 +487,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64));
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
         &azks_id,
         NodeLabel::new(0b000u64, 3u32),
@@ -646,16 +568,16 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
 
-    root = root.insert_single_leaf(
+    root.insert_single_leaf(
         new_leaf.clone(),
         &azks_id,
         0,
         &mut num_nodes,
         &mut tree_repr,
     )?;
-    root = root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
-    root = root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
-    root = root.insert_single_leaf(leaf_3.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_2.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
+    root.insert_single_leaf(leaf_3.clone(), &azks_id, 0, &mut num_nodes, &mut tree_repr)?;
 
     let root_val = root.get_value()?;
 
@@ -675,7 +597,7 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64));
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
     let mut tree_repr: HashMap<_, _> = vec![(0, root.clone())].into_iter().collect();
     let mut num_nodes = 1;
     let mut leaves = Vec::<HistoryTreeNode<Blake3, InMemoryDb>>::new();
@@ -735,14 +657,13 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     ]);
 
     for i in 0..8 {
-        let new_root = root.insert_single_leaf(
+        root.insert_single_leaf(
             leaves[7 - i].clone(),
             &azks_id,
             0,
             &mut num_nodes,
             &mut tree_repr,
         )?;
-        root = new_root;
     }
 
     let root_val = root.get_value()?;

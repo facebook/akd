@@ -92,14 +92,6 @@ impl NodeLabel {
             return Direction::None;
         }
         Direction::Some(other.get_bit_at(self.get_len()).try_into().unwrap())
-        // let other_self_difference = other.get_len() - self.get_len();
-        // let self_at_other_len = self.get_val().wrapping_shl(other_self_difference);
-        // let other_xored = self_at_other_len ^ other.get_val();
-        // let dir: usize = other_xored
-        //     .wrapping_shr(other_self_difference - 1)
-        //     .try_into()
-        //     .unwrap();
-        // Direction::Some(dir)
     }
 }
 
@@ -161,25 +153,7 @@ impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
         write!(f, "")
     }
 }
-/*
 
-pub type HistoryChildLabel = NodeLabel;
-
-pub type HistoryChildHash<H: Hasher> = Option<H::Digest>;
-
-pub type HistoryChildEpochVersion = Option<u64>;
-
-pub type HistoryChildLocation = Option<usize>;
-
-
-#[derive(Debug, Copy, Clone)]
-pub struct HistoryChildState<H: Hasher> {
-    pub location: HistoryChildLocation,
-    pub label: HistoryChildLabel,
-    pub hash_val: HistoryChildHash<H>,
-    pub epoch_version: HistoryChildEpochVersion,
-}
-*/
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DummyChildState {
     Dummy,
