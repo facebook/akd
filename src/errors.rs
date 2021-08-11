@@ -156,6 +156,8 @@ impl fmt::Display for AzksError {
 #[derive(Debug)]
 pub enum SeemlessDirectoryError {
     AuditProofStartEpLess(u64, u64),
+    LookedUpNonExistentUser(String, u64),
+    KeyHistoryVerificationErr(String),
     StorageError,
 }
 
@@ -172,6 +174,12 @@ impl fmt::Display for SeemlessDirectoryError {
             }
             Self::StorageError => {
                 write!(f, "Error with retrieving value from storage")
+            }
+            Self::LookedUpNonExistentUser(uname, ep) => {
+                write!(f, "The user {} did not exist at the epoch {}", uname, ep)
+            }
+            Self::KeyHistoryVerificationErr(err_string) => {
+                write!(f, "{}", err_string)
             }
         }
     }
