@@ -4,7 +4,7 @@
 // LICENSE file in the root directory of this source tree.
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
 use crate::append_only_zks::{Azks, MembershipProof};
-use crate::errors::SeemlessDirectoryError;
+use crate::errors::{SeemlessDirectoryError, SeemlessError};
 use crate::history_tree_node::HistoryTreeNode;
 use crate::node_state::NodeLabel;
 use crate::storage::Storage;
@@ -26,14 +26,6 @@ pub struct Username(String);
 
 #[derive(Clone)]
 pub struct Values(String);
-
-pub struct SeemlessDirectory<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> {
-    _commitments: Vec<Azks<H, S>>,
-    _current_epoch: u64,
-    _s: PhantomData<S>,
-    _h: PhantomData<H>,
-}
-
 
 #[derive(Clone)]
 pub struct UserState {
@@ -91,7 +83,7 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
-pub struct SeemlessDirectory<S: Storage<HistoryNodeState<H>>, H: Hasher> {
+pub struct SeemlessDirectory<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> {
     azks: Azks<H, S>,
     user_data: HashMap<Username, UserData>,
     current_epoch: u64,
@@ -99,17 +91,16 @@ pub struct SeemlessDirectory<S: Storage<HistoryNodeState<H>>, H: Hasher> {
     _h: PhantomData<H>,
 }
 
-
-impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
-    pub fn new() -> Self {
+impl<S: Storage<HistoryTreeNode<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
+    pub fn new() -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
-        SeemlessDirectory {
-            azks: Azks::<H, S>::new(&mut rng),
+        Ok(SeemlessDirectory {
+            azks: Azks::<H, S>::new(&mut rng)?,
             user_data: HashMap::<Username, UserData>::new(),
             current_epoch: 0,
             _s: PhantomData::<S>,
             _h: PhantomData::<H>,
-        }
+        })
     }
 
     // FIXME: this code won't work
@@ -195,13 +186,13 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
                 let existence_proof = self
                     .azks
-                    .get_membership_proof(existent_label, self.current_epoch);
+                    .get_membership_proof(existent_label, self.current_epoch)?;
                 let freshness_proof = self
                     .azks
-                    .get_non_membership_proof(non_existent_label, self.current_epoch);
+                    .get_non_membership_proof(non_existent_label, self.current_epoch)?;
                 let marker_proof = self
                     .azks
-                    .get_membership_proof(marker_label, self.current_epoch);
+                    .get_membership_proof(marker_label, self.current_epoch)?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
                     plaintext_value,
@@ -221,7 +212,7 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         &self,
         uname: Username,
         proof: LookupProof<H>,
-    ) -> Result<(), SeemlessDirectoryError> {
+    ) -> Result<(), SeemlessError> {
         let epoch = proof.epoch;
         let root_node = self.azks.get_root_hash_at_epoch(epoch).unwrap();
         // pub struct LookupProof<H: Hasher> {
@@ -246,21 +237,12 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         let marker_label = Self::get_nodelabel(&uname, false, marker_version);
         assert!(marker_label != marker_proof.label);
 
-        assert!(
-            self.azks
-                .verify_membership(root_node, epoch, existence_proof),
-            "Existence proof did not verify!"
-        );
-        assert!(
-            self.azks.verify_membership(root_node, epoch, marker_proof),
-            "Marker proof did not verify!"
-        );
-        assert!(
-            self.azks
-                .verify_nonmembership(non_existence_label, root_node, epoch, freshness_proof),
-            "Freshness proof did not verify!"
-        );
-
+        self.azks
+            .verify_membership(root_node, epoch, existence_proof)?;
+        self.azks
+            .verify_membership(root_node, epoch, marker_proof)?;
+        self.azks
+            .verify_nonmembership(non_existence_label, root_node, epoch, freshness_proof)?;
         Ok(())
         // unimplemented!()
     }
@@ -359,9 +341,9 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
         let prev_label_at_ep = Self::get_nodelabel(uname, true, *version);
 
-        let existence_at_ep = self.azks.get_membership_proof(label_at_ep, epoch);
-        let previous_val_stale_at_ep = self.azks.get_membership_proof(prev_label_at_ep, epoch);
-        let non_existence_before_ep = self.azks.get_non_membership_proof(label_at_ep, epoch - 1);
+        let existence_at_ep = self.azks.get_membership_proof(label_at_ep, epoch)?;
+        let previous_val_stale_at_ep = self.azks.get_membership_proof(prev_label_at_ep, epoch)?;
+        let non_existence_before_ep = self.azks.get_non_membership_proof(label_at_ep, epoch - 1)?;
 
         let next_marker = Self::get_marker_version(*version) + 1;
         let final_marker = Self::get_marker_version(epoch);
@@ -370,7 +352,7 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
 
         for ver in version + 1..(1 << next_marker) {
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
-            let non_existence_of_ver = self.azks.get_non_membership_proof(label_for_ver, epoch);
+            let non_existence_of_ver = self.azks.get_non_membership_proof(label_for_ver, epoch)?;
             non_existence_of_next_few.push(non_existence_of_ver);
         }
 
@@ -379,7 +361,7 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
-            let non_existence_of_ver = self.azks.get_non_membership_proof(label_for_ver, epoch);
+            let non_existence_of_ver = self.azks.get_non_membership_proof(label_for_ver, epoch)?;
             non_existence_of_future_markers.push(non_existence_of_ver);
         }
 
@@ -417,43 +399,19 @@ impl<S: Storage<HistoryNodeState<H>>, H: Hasher> SeemlessDirectory<S, H> {
                     format!("Label of user {:?}'s version {:?} at epoch {:?} does not match the one in the proof",
                     uname, version, epoch))));
         }
-        if !self
-            .azks
-            .verify_membership(root_hash, epoch, existence_at_ep)
-        {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
-                    "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, version, epoch
-                )),
-            ));
-        }
+        self.azks
+            .verify_membership(root_hash, epoch, existence_at_ep)?;
+
         // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
-        if !self
-            .azks
-            .verify_membership(root_hash, epoch, previous_val_stale_at_ep)
-        {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
-                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname,
-                    version - 1,
-                    epoch
-                )),
-            ));
-        }
-        if !self.azks.verify_nonmembership(
+        self.azks
+            .verify_membership(root_hash, epoch, previous_val_stale_at_ep)?;
+
+        self.azks.verify_nonmembership(
             label_at_ep,
             root_hash,
             epoch - 1,
             non_existence_before_ep,
-        ) {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, version, epoch-1))));
-        }
-
+        )?;
         let _next_marker = Self::get_marker_version(version) + 1;
         let _final_marker = Self::get_marker_version(epoch);
         // for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
