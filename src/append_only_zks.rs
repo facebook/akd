@@ -6,7 +6,7 @@
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
-    storage::{get_node, set_node, Storage},
+    storage::{IdEnum::*, Storage, StorageEnum, StorageEnum::*},
 };
 
 use std::collections::HashMap;
@@ -18,15 +18,28 @@ use std::marker::PhantomData;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
-pub struct Azks<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> {
+#[derive(Debug)]
+pub struct Azks<H: Hasher, S: Storage<StorageEnum<H, S>>> {
     /// Random identifier for the AZKS instance
     azks_id: Vec<u8>,
     root: usize,
     latest_epoch: u64,
-    epochs: Vec<u64>,
     num_nodes: usize, // The size of the tree
     _s: PhantomData<S>,
     _h: PhantomData<H>,
+}
+
+impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for Azks<H, S> {
+    fn clone(&self) -> Self {
+        Self {
+            azks_id: self.azks_id.clone(),
+            root: self.root,
+            latest_epoch: self.latest_epoch,
+            num_nodes: self.num_nodes,
+            _s: PhantomData,
+            _h: PhantomData,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +67,7 @@ pub struct AppendOnlyProof<H: Hasher> {
     unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
 }
 
-impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
+impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
     pub fn new<R: CryptoRng + RngCore>(rng: &mut R) -> Result<Self, SeemlessError> {
         let mut azks_id = vec![0u8; 32];
         rng.fill_bytes(&mut azks_id);
@@ -68,7 +81,6 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             azks_id,
             root: 0,
             latest_epoch: 0,
-            epochs: vec![0],
             num_nodes: 1,
             _s: PhantomData,
             _h: PhantomData,
@@ -93,7 +105,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             0,
             self.latest_epoch,
         )?;
-        let mut root_node = get_node(&self.azks_id, self.root)?;
+        let mut root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+            "history_tree_node",
+            NodeLocation(&self.azks_id, self.root),
+        ))?;
 
         let mut changeset = HashMap::new();
         root_node.insert_single_leaf(
@@ -114,7 +129,7 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         changeset: &HashMap<usize, HistoryTreeNode<H, S>>,
     ) -> Result<(), SeemlessError> {
         for (location, node) in changeset {
-            set_node(&self.azks_id, *location, node.clone())?;
+            StorageEnum::write_data(NodeLocation(&self.azks_id, *location), Node(node.clone()))?;
         }
         Ok(())
     }
@@ -160,7 +175,13 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
                     self.latest_epoch,
                 )?;
             }
-            let mut root_node = get_node(&self.azks_id, self.root)?;
+            // let Node(mut root_node) = get_node(&self.azks_id, self.root)?;
+
+            let mut root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+                "history_tree_node",
+                NodeLocation(&self.azks_id, self.root),
+            ))?;
+
             root_node.insert_single_leaf_without_hash(
                 new_leaf,
                 &self.azks_id,
@@ -178,13 +199,21 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             let (next_node_loc, _) = hash_q
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
-            let mut next_node = get_node(&self.azks_id, next_node_loc)?;
+            // let Node(mut next_node) = StorageEnum::read_data("date_type: &str", id: IdEnum)(&self.azks_id, next_node_loc)?;
+
+            let mut next_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+                "history_tree_node",
+                NodeLocation(&self.azks_id, next_node_loc),
+            ))?;
+
             next_node.update_hash(self.latest_epoch, &mut changeset)?;
             self.commit_changeset(&changeset)?;
 
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
-                    Entry::Vacant(entry) => entry.set_priority(priorities),
+                    Entry::Vacant(entry) => {
+                        entry.set_priority(priorities);
+                    }
                     Entry::Occupied(entry) => {
                         entry.set_priority(priorities);
                     }
@@ -220,7 +249,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
 
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch)?;
-        let lcp_node = get_node::<H, S>(&self.azks_id, lcp_node_id)?;
+        let lcp_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+            "history_tree_node",
+            NodeLocation(&self.azks_id, lcp_node_id),
+        ))?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
@@ -229,7 +261,9 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             .child_states
             .iter()
             .map(|x: &node_state::HistoryChildState<H>| -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
-                Ok(get_node::<H, S>(&self.azks_id, x.location)?)
+                // let Node(node) = get_node::<H, S>(&self.azks_id, x.location)?;
+                let node = StorageEnum::<H, S>::to_node(StorageEnum::read_data("history_tree_node", NodeLocation(&self.azks_id, x.location)))?;
+                Ok(node)
             });
         for (i, child) in children.enumerate() {
             let unwrapped_child = child?;
@@ -254,11 +288,12 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let (unchanged, leaves) = self.get_append_only_proof_helper(
-            get_node(&self.azks_id, self.root)?,
-            start_epoch,
-            end_epoch,
-        )?;
+        let node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+            "history_tree_node",
+            NodeLocation(&self.azks_id, self.root),
+        ))?;
+        let (unchanged, leaves) =
+            self.get_append_only_proof_helper(node, start_epoch, end_epoch)?;
         Ok(AppendOnlyProof {
             inserted: leaves,
             unchanged_nodes: unchanged,
@@ -304,7 +339,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
                 if child_node_state.dummy_marker == DummyChildState::Dummy {
                     continue;
                 } else {
-                    let child_node = get_node(&self.azks_id, child_node_state.location)?;
+                    let child_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+                        "history_tree_node",
+                        NodeLocation(&self.azks_id, child_node_state.location),
+                    ))?;
                     let mut rec_output =
                         self.get_append_only_proof_helper(child_node, start_epoch, end_epoch)?;
                     unchanged.append(&mut rec_output.0);
@@ -329,7 +367,11 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
     }
 
     pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        get_node::<H, S>(&self.azks_id, self.root)?.get_value_at_epoch(epoch)
+        let root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+            "history_tree_node",
+            NodeLocation(&self.azks_id, self.root),
+        ))?;
+        root_node.get_value_at_epoch(epoch)
     }
 
     pub fn get_latest_epoch(&self) -> u64 {
@@ -408,7 +450,6 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
     fn increment_epoch(&mut self) {
         let epoch = self.latest_epoch + 1;
         self.latest_epoch = epoch;
-        self.epochs.push(epoch);
     }
 
     pub fn get_membership_proof_and_node(
@@ -420,7 +461,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
-        let mut curr_node = get_node::<H, S>(&self.azks_id, self.root)?;
+        let mut curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+            "history_tree_node",
+            NodeLocation(&self.azks_id, self.root),
+        ))?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
@@ -441,15 +485,23 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-            curr_node = get_node(
-                &self.azks_id,
-                curr_node.get_child_location_at_epoch(epoch, dir)?,
-            )?;
+            let new_curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+                "history_tree_node",
+                NodeLocation(
+                    &self.azks_id,
+                    curr_node.get_child_location_at_epoch(epoch, dir)?,
+                ),
+            ))?;
+            curr_node = new_curr_node;
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
         if !equal {
-            curr_node = get_node(&self.azks_id, prev_node)?;
+            let new_curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
+                "history_tree_node",
+                NodeLocation(&self.azks_id, prev_node),
+            ))?;
+            curr_node = new_curr_node;
 
             parent_labels.pop();
             sibling_labels.pop();
@@ -470,6 +522,10 @@ impl<H: Hasher, S: Storage<HistoryTreeNode<H, S>>> Azks<H, S> {
             },
             prev_node,
         ))
+    }
+
+    pub fn get_azks_id(&self) -> &[u8] {
+        &self.azks_id
     }
 }
 

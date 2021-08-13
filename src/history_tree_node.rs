@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use crate::storage::{get_node, get_state_map, set_state_map, Storage};
+use crate::storage::{get_node, get_state_map, set_state_map, Storage, StorageEnum};
 use crate::{node_state::*, Direction, ARITY};
 use crypto::Hasher;
 
@@ -27,7 +27,7 @@ pub type HistoryNodeHash<H> = Option<H>;
  * HistoryNode will represent a generic interior node of a compressed history tree
  **/
 #[derive(Debug)]
-pub struct HistoryTreeNode<H: Hasher, S: Storage<Self>> {
+pub struct HistoryTreeNode<H: Hasher, S: Storage<StorageEnum<H, S>>> {
     pub(crate) azks_id: Vec<u8>,
     pub label: NodeLabel,
     pub location: usize,
@@ -42,7 +42,7 @@ pub struct HistoryTreeNode<H: Hasher, S: Storage<Self>> {
     _h: PhantomData<H>,
 }
 
-impl<H: Hasher, S: Storage<Self>> Clone for HistoryTreeNode<H, S> {
+impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for HistoryTreeNode<H, S> {
     fn clone(&self) -> Self {
         Self {
             azks_id: self.azks_id.clone(),
@@ -58,7 +58,7 @@ impl<H: Hasher, S: Storage<Self>> Clone for HistoryTreeNode<H, S> {
     }
 }
 
-impl<H: Hasher, S: Storage<Self>> HistoryTreeNode<H, S> {
+impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
     fn new(
         azks_id: Vec<u8>,
         label: NodeLabel,
@@ -86,9 +86,14 @@ impl<H: Hasher, S: Storage<Self>> HistoryTreeNode<H, S> {
     ) -> Result<Self, StorageError> {
         match changeset.get(&location) {
             None => {
-                let node = get_node(&self.azks_id, location)?;
-                changeset.insert(location, node.clone());
-                Ok(node)
+                let node_val = get_node(&self.azks_id, location)?;
+                match node_val {
+                    StorageEnum::Node(node) => {
+                        changeset.insert(location, node.clone());
+                        Ok(node)
+                    }
+                    _ => Err(StorageError::WrongMemoryTypeError),
+                }
             }
             Some(node) => Ok(node.clone()),
         }
@@ -611,7 +616,7 @@ impl<H: Hasher, S: Storage<Self>> HistoryTreeNode<H, S> {
 
 /////// Helpers //////
 
-pub fn get_empty_root<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+pub fn get_empty_root<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     azks_id: &[u8],
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
@@ -631,7 +636,7 @@ pub fn get_empty_root<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
     Ok(node)
 }
 
-pub fn get_leaf_node<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+pub fn get_leaf_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -659,7 +664,7 @@ pub fn get_leaf_node<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
     Ok(node)
 }
 
-pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -687,7 +692,7 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>
     Ok(node)
 }
 
-pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -715,7 +720,7 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<HistoryTreeNode<H, S>
     Ok(node)
 }
 
-pub fn get_interior_node<H: Hasher, S: Storage<HistoryTreeNode<H, S>>>(
+pub fn get_interior_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
