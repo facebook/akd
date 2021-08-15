@@ -62,6 +62,7 @@ pub enum HistoryTreeNodeError {
     NodeDidNotExistAtEp(NodeLabel, u64),
     NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
     StorageError(StorageError),
+    SerializationError,
 }
 
 impl fmt::Display for HistoryTreeNodeError {
@@ -130,6 +131,9 @@ impl fmt::Display for HistoryTreeNodeError {
             }
             Self::StorageError(err) => {
                 write!(f, "Encountered a storage error: {:?}", err,)
+            }
+            Self::SerializationError => {
+                write!(f, "Encountered a serialization error")
             }
         }
     }

@@ -10,10 +10,14 @@ use std::{
     fmt::{self, Debug},
 };
 
+use crate::serialization::from_digest;
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
+
 #[cfg(any(test, feature = "bench"))]
 use rand::{CryptoRng, RngCore};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct NodeLabel {
     pub val: u64,
     pub len: u32,
@@ -106,23 +110,24 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     H::merge_with_int(byte_label_len, label.get_val())
 }
 
-#[derive(Debug)]
-pub struct HistoryNodeState<H: Hasher> {
-    pub value: H::Digest,
-    pub child_states: [HistoryChildState<H>; ARITY],
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct HistoryNodeState<H> {
+    pub value: Vec<u8>,
+    pub child_states: Vec<HistoryChildState<H>>,
 }
 
 impl<H: Hasher> HistoryNodeState<H> {
     pub fn new() -> Self {
-        let children = [HistoryChildState::<H>::new_dummy(); ARITY];
+        let children = vec![HistoryChildState::<H>::new_dummy(); ARITY];
         HistoryNodeState {
-            value: H::hash(&[0u8]),
+            value: from_digest::<H>(H::hash(&[0u8])).unwrap(),
             child_states: children,
         }
     }
 
     pub fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H> {
-        self.child_states[dir]
+        self.child_states[dir].clone()
     }
 }
 
@@ -135,8 +140,8 @@ impl<H: Hasher> Default for HistoryNodeState<H> {
 impl<H: Hasher> Clone for HistoryNodeState<H> {
     fn clone(&self) -> Self {
         Self {
-            value: self.value,
-            child_states: self.child_states,
+            value: self.value.clone(),
+            child_states: self.child_states.clone(),
         }
     }
 }
@@ -154,18 +159,19 @@ impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum DummyChildState {
     Dummy,
     Real,
 }
-#[derive(Debug)]
-pub struct HistoryChildState<H: Hasher> {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoryChildState<H> {
     pub dummy_marker: DummyChildState,
     pub location: usize,
     pub label: NodeLabel,
-    pub hash_val: H::Digest,
+    pub hash_val: Vec<u8>,
     pub epoch_version: u64,
+    pub(crate) _h: PhantomData<H>,
 }
 
 impl<H: Hasher> HistoryChildState<H> {
@@ -174,8 +180,9 @@ impl<H: Hasher> HistoryChildState<H> {
             dummy_marker: DummyChildState::Real,
             location: loc,
             label,
-            hash_val,
+            hash_val: from_digest::<H>(hash_val).unwrap(),
             epoch_version: ep,
+            _h: PhantomData,
         }
     }
 
@@ -184,8 +191,9 @@ impl<H: Hasher> HistoryChildState<H> {
             dummy_marker: DummyChildState::Dummy,
             location: 0,
             label: NodeLabel::new(0, 0),
-            hash_val: H::hash(&[0u8]),
+            hash_val: from_digest::<H>(H::hash(&[0u8])).unwrap(),
             epoch_version: 0,
+            _h: PhantomData,
         }
     }
 }
@@ -196,13 +204,12 @@ impl<H: Hasher> Clone for HistoryChildState<H> {
             dummy_marker: self.dummy_marker,
             location: self.location,
             label: self.label,
-            hash_val: self.hash_val,
+            hash_val: self.hash_val.clone(),
             epoch_version: self.epoch_version,
+            _h: PhantomData,
         }
     }
 }
-
-impl<H: Hasher> Copy for HistoryChildState<H> {}
 
 impl<H: Hasher> PartialEq for HistoryChildState<H> {
     fn eq(&self, other: &Self) -> bool {
@@ -226,6 +233,61 @@ impl<H: Hasher> fmt::Display for HistoryChildState<H> {
         )
     }
 }
+
+/*
+
+use serde::{ Serializer, Deserializer};
+use winter_utils::{Serializable, Deserializable, SliceReader};
+
+
+fn hash_digest_serialize<S, H>(input: &H::Digest, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer, H: Hasher
+{
+    let mut output = vec![];
+    input.write_into(&mut output);
+    s.serialize_bytes(&output)
+}
+
+pub fn hash_digest_deserialize<'de, D, H>(deserializer: D) -> Result<H::Digest, D::Error>
+where
+    D: Deserializer<'de>, H: Hasher
+{
+    let input: &[u8] = Deserialize::deserialize(deserializer).unwrap();
+    Ok(H::Digest::read_from(&mut SliceReader {
+        source: &input,
+        pos: 0,
+    }).unwrap()) // FIXME
+}
+
+mod hash_digest_serde {
+
+    use serde::{ Serializer, Deserializer, Deserialize};
+    use crypto::{ Hasher };
+    use winter_utils::{Serializable, Deserializable, SliceReader};
+
+    pub fn serialize<S, H>(input: &H::Digest, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer, H: Hasher
+    {
+        let mut output = vec![];
+        input.write_into(&mut output);
+        s.serialize_bytes(&output)
+    }
+
+    pub fn deserialize<'de, D, H>(deserializer: D) -> Result<H::Digest, D::Error>
+    where
+        D: Deserializer<'de>, H: Hasher
+    {
+        let input: &[u8] = Deserialize::deserialize(deserializer).unwrap();
+        Ok(H::Digest::read_from(&mut SliceReader {
+            source: &input,
+            pos: 0,
+        }).unwrap()) // FIXME
+    }
+}
+
+*/
 
 #[cfg(test)]
 mod tests {

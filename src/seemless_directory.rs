@@ -3,14 +3,11 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
-use crate::append_only_zks::{Azks, MembershipProof};
+use crate::append_only_zks::{Azks, AzksKey, MembershipProof};
 use crate::errors::{SeemlessDirectoryError, SeemlessError};
-
+use crate::history_tree_node::{NodeKey, HistoryTreeNode};
 use crate::node_state::NodeLabel;
-use crate::storage::{
-    IdEnum::{self, *},
-    Storage, StorageEnum,
-};
+use crate::storage::{Storable, Storage};
 use crypto::Hasher;
 use rand::{prelude::ThreadRng, thread_rng};
 use std::collections::HashMap;
@@ -81,7 +78,7 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
-pub struct SeemlessDirectory<S: Storage<StorageEnum<H, S>>, H: Hasher> {
+pub struct SeemlessDirectory<S, H> {
     azks_id: Vec<u8>,
     user_data: HashMap<Username, UserData>,
     current_epoch: u64,
@@ -89,12 +86,12 @@ pub struct SeemlessDirectory<S: Storage<StorageEnum<H, S>>, H: Hasher> {
     _h: PhantomData<H>,
 }
 
-impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
+impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     pub fn new() -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
         let azks = Azks::<H, S>::new(&mut rng)?;
         let azks_id = azks.get_azks_id();
-        StorageEnum::write_data(IdEnum::AzksId(azks_id), StorageEnum::Azks(azks.clone()))?;
+        Azks::store(AzksKey(azks_id.to_vec()), &azks)?;
         Ok(SeemlessDirectory {
             azks_id: azks_id.to_vec(),
             user_data: HashMap::<Username, UserData>::new(),
@@ -147,10 +144,9 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
-        let mut current_azks =
-            StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
+        let mut current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
         let output = current_azks.batch_insert_leaves(insertion_set);
-        StorageEnum::write_data(self.get_azks_id_enum(), StorageEnum::Azks(current_azks))?;
+        Azks::store(AzksKey(self.azks_id.clone()), &current_azks)?;
         // Not sure how to remove clones from here?
         user_data_update_set.iter_mut().for_each(|(x, y)| {
             self.user_data.insert(x.clone(), y.clone());
@@ -183,10 +179,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
-                let current_azks = StorageEnum::<H, S>::to_azks(StorageEnum::read_data(
-                    "azks",
-                    self.get_azks_id_enum(),
-                ))?;
+                let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
                 let existence_proof =
                     current_azks.get_membership_proof(existent_label, self.current_epoch)?;
                 let freshness_proof = current_azks
@@ -214,10 +207,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         proof: LookupProof<H>,
     ) -> Result<(), SeemlessError> {
         let epoch = proof.epoch;
-        let node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(self.get_azks_id(), 0),
-        ))?;
+        let node = HistoryTreeNode::<H, S>::retrieve(NodeKey(self.get_azks_id().to_vec(), 0))?;
         let root_node = node.get_value_at_epoch(epoch)?;
         let plaintext_value = proof.plaintext_value;
         let _curr_value = H::hash(&Self::value_to_bytes(&plaintext_value));
@@ -252,8 +242,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
                 ),
             ));
         }
-        let current_azks =
-            StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
+        let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
         current_azks.verify_membership(root_node, epoch, existence_proof)?;
         current_azks.verify_membership(root_node, epoch, marker_proof)?;
 
@@ -273,7 +262,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
     pub fn key_history(&self, uname: &Username) -> Result<HistoryProof<H>, SeemlessError> {
-        // pub struct UpdateProof<H: Hasher> {
+        // pub struct UpdateProof<H: Hasher + serde::de::DeserializeOwned + serde::Serialize> {
         //     epoch: u64,
         //     plaintext_value: Values,
         //     version: u64,
@@ -284,7 +273,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         //     non_existence_of_future_markers: Vec<NonMembershipProof<H>>, // proof that future markers did not exist
         // }
 
-        // pub struct HistoryProof<H: Hasher> {
+        // pub struct HistoryProof<H: Hasher + serde::de::DeserializeOwned + serde::Serialize> {
         //     proofs: Vec<UpdateProof<H>>,
         // }
         let username = uname.0.to_string();
@@ -330,11 +319,6 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
     }
 
     /// HELPERS ///
-
-    #[allow(unused)]
-    fn get_azks_id_enum(&self) -> IdEnum {
-        IdEnum::AzksId(&self.azks_id)
-    }
 
     #[allow(unused)]
     fn get_azks_id(&self) -> &[u8] {
@@ -387,8 +371,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
         let prev_label_at_ep = Self::get_nodelabel(uname, true, *version);
 
-        let current_azks =
-            StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
+        let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
         let existence_at_ep = current_azks.get_membership_proof(label_at_ep, epoch)?;
         let previous_val_stale_at_ep =
@@ -443,8 +426,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         let existence_at_ep = proof.existence_at_ep;
         let previous_val_stale_at_ep = proof.previous_val_stale_at_ep;
 
-        let current_azks =
-            StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
+        let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
         let non_existence_before_ep = proof.non_existence_before_ep;
         let root_hash = current_azks.get_root_hash_at_epoch(epoch)?;

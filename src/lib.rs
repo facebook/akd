@@ -10,6 +10,7 @@ pub mod errors;
 pub mod history_tree_node;
 pub mod node_state;
 pub mod seemless_directory;
+mod serialization;
 pub mod storage;
 pub use errors::*;
 
