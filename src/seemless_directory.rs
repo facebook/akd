@@ -6,6 +6,8 @@ use crate::append_only_zks::{AppendOnlyProof, NonMembershipProof};
 use crate::append_only_zks::{Azks, MembershipProof};
 use crate::errors::{SeemlessDirectoryError, SeemlessError};
 
+use crate::history_tree_node::HistoryTreeNode;
+
 use crate::node_state::NodeLabel;
 use crate::storage::{
     IdEnum::{self, *},
@@ -81,6 +83,7 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
+
 pub struct SeemlessDirectory<S: Storage<StorageEnum<H, S>>, H: Hasher> {
     azks_id: Vec<u8>,
     user_data: HashMap<Username, UserData>,
@@ -88,6 +91,7 @@ pub struct SeemlessDirectory<S: Storage<StorageEnum<H, S>>, H: Hasher> {
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
+
 
 impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
     pub fn new() -> Result<Self, SeemlessError> {
@@ -183,6 +187,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
+              
                 let current_azks = StorageEnum::<H, S>::to_azks(StorageEnum::read_data(
                     "azks",
                     self.get_azks_id_enum(),
@@ -203,9 +208,6 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
                 })
             }
         }
-        // unimplemented!()
-        // S::get("0".to_string()).unwrap();
-        // Ok(())
     }
 
     pub fn lookup_verify(
@@ -245,6 +247,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
             ));
         }
         let marker_label = Self::get_nodelabel(&uname, false, marker_version);
+
         if marker_label != marker_proof.label {
             return Err(SeemlessError::SeemlessDirectoryErr(
                 SeemlessDirectoryError::LookupVerificationErr(
@@ -263,7 +266,6 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
             epoch,
             freshness_proof,
         )?;
-
         Ok(())
     }
 
@@ -387,6 +389,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
         let prev_label_at_ep = Self::get_nodelabel(uname, true, *version);
 
+
         let current_azks =
             StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
 
@@ -395,6 +398,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
             current_azks.get_membership_proof(prev_label_at_ep, epoch)?;
         let non_existence_before_ep =
             current_azks.get_non_membership_proof(label_at_ep, epoch - 1)?;
+
 
         let next_marker = Self::get_marker_version(*version) + 1;
         let final_marker = Self::get_marker_version(epoch);
@@ -405,6 +409,7 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
+
             non_existence_of_next_few.push(non_existence_of_ver);
         }
 
@@ -413,8 +418,10 @@ impl<S: Storage<StorageEnum<H, S>>, H: Hasher> SeemlessDirectory<S, H> {
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
+          
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
+
             non_existence_of_future_markers.push(non_existence_of_ver);
         }
 
