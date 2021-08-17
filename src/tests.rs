@@ -16,7 +16,7 @@ use crate::{
     history_tree_node::HistoryTreeNode,
     node_state::HistoryChildState,
     node_state::{hash_label, NodeLabel},
-    storage::Storage,
+    storage::{Storage, StorageEnum},
     *,
 };
 
@@ -27,28 +27,28 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref HASHMAP: Mutex<HashMap<String, HistoryTreeNode<Blake3, InMemoryDb>>> = {
+    static ref HASHMAP: Mutex<HashMap<String, StorageEnum<Blake3, InMemoryDb>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, HistoryTreeNode<Blake3, InMemoryDb>>);
+pub(crate) struct InMemoryDb(HashMap<String, StorageEnum<Blake3, InMemoryDb>>);
 
-impl Storage<HistoryTreeNode<Blake3, InMemoryDb>> for InMemoryDb {
-    fn set(pos: String, node: HistoryTreeNode<Blake3, InMemoryDb>) -> Result<(), StorageError> {
+impl Storage<StorageEnum<Blake3, InMemoryDb>> for InMemoryDb {
+    fn set(pos: String, node: StorageEnum<Blake3, InMemoryDb>) -> Result<(), StorageError> {
         let mut hashmap = HASHMAP.lock().unwrap();
         hashmap.insert(pos, node);
         Ok(())
     }
 
-    fn get(pos: String) -> Result<HistoryTreeNode<Blake3, InMemoryDb>, StorageError> {
+    fn get(pos: String) -> Result<StorageEnum<Blake3, InMemoryDb>, StorageError> {
         let hashmap = HASHMAP.lock().unwrap();
-        hashmap
+        Ok(hashmap
             .get(&pos)
             .map(|v| v.clone())
-            .ok_or(StorageError::GetError)
+            .ok_or(StorageError::GetError)?)
     }
 }
 

@@ -157,6 +157,7 @@ impl fmt::Display for AzksError {
 pub enum SeemlessDirectoryError {
     AuditProofStartEpLess(u64, u64),
     LookedUpNonExistentUser(String, u64),
+    LookupVerificationErr(String),
     KeyHistoryVerificationErr(String),
     StorageError,
 }
@@ -181,6 +182,9 @@ impl fmt::Display for SeemlessDirectoryError {
             Self::KeyHistoryVerificationErr(err_string) => {
                 write!(f, "{}", err_string)
             }
+            Self::LookupVerificationErr(err_string) => {
+                write!(f, "{}", err_string)
+            }
         }
     }
 }
@@ -189,4 +193,7 @@ impl fmt::Display for SeemlessDirectoryError {
 pub enum StorageError {
     SetError,
     GetError,
+    WrongMemoryTypeError,
+    WrongIdTypeError,
+    UnsupportedStorageTypeError,
 }
