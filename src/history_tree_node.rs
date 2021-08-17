@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 
-use crate::storage::{get_node, get_state_map, set_state_map, Storage, StorageEnum};
+use crate::serialization::{from_digest, to_digest};
+use crate::storage::{get_state_map, set_state_map, Storable, Storage};
 use crate::{node_state::*, Direction, ARITY};
 use crypto::Hasher;
 
@@ -13,7 +14,9 @@ use crate::errors::{HistoryTreeNodeError, StorageError};
 
 use std::marker::PhantomData;
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
     Leaf,
     Root,
@@ -26,8 +29,9 @@ pub type HistoryNodeHash<H> = Option<H>;
 /**
  * HistoryNode will represent a generic interior node of a compressed history tree
  **/
-#[derive(Debug)]
-pub struct HistoryTreeNode<H: Hasher, S: Storage<StorageEnum<H, S>>> {
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct HistoryTreeNode<H, S> {
     pub(crate) azks_id: Vec<u8>,
     pub label: NodeLabel,
     pub location: usize,
@@ -42,7 +46,19 @@ pub struct HistoryTreeNode<H: Hasher, S: Storage<StorageEnum<H, S>>> {
     _h: PhantomData<H>,
 }
 
-impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for HistoryTreeNode<H, S> {
+// parameters are azks_id and location
+#[derive(Serialize, Deserialize)]
+pub struct NodeKey(pub(crate) Vec<u8>, pub(crate) usize);
+
+impl<H: Hasher, S: Storage> Storable<S> for HistoryTreeNode<H, S> {
+    type Key = NodeKey;
+
+    fn identifier() -> String {
+        String::from("HistoryTreeNode")
+    }
+}
+
+impl<H: Hasher, S: Storage> Clone for HistoryTreeNode<H, S> {
     fn clone(&self) -> Self {
         Self {
             azks_id: self.azks_id.clone(),
@@ -58,7 +74,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for HistoryTreeNode<H, S> {
     }
 }
 
-impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
+impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
     fn new(
         azks_id: Vec<u8>,
         label: NodeLabel,
@@ -86,14 +102,9 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
     ) -> Result<Self, StorageError> {
         match changeset.get(&location) {
             None => {
-                let node_val = get_node(&self.azks_id, location)?;
-                match node_val {
-                    StorageEnum::Node(node) => {
-                        changeset.insert(location, node.clone());
-                        Ok(node)
-                    }
-                    _ => Err(StorageError::WrongMemoryTypeError),
-                }
+                let node = Self::retrieve(NodeKey(self.azks_id.clone(), location))?;
+                changeset.insert(location, node.clone());
+                Ok(node)
             }
             Some(node) => Ok(node.clone()),
         }
@@ -325,7 +336,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
                 let epoch_state = self.get_state_at_epoch(epoch)?;
 
                 let mut updated_state = epoch_state;
-                updated_state.value = hash_digest;
+                updated_state.value = from_digest::<H>(hash_digest).unwrap();
                 set_state_map(self, &epoch, updated_state)?;
 
                 self.tree_repr_set(changeset, self.location, self);
@@ -341,9 +352,12 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
         for child_index in 0..ARITY {
             new_hash = H::merge(&[
                 new_hash,
-                epoch_node_state
-                    .get_child_state_in_dir(child_index)
-                    .hash_val,
+                to_digest::<H>(
+                    &epoch_node_state
+                        .get_child_state_in_dir(child_index)
+                        .hash_val,
+                )
+                .unwrap(),
             ]);
         }
         Ok(new_hash)
@@ -367,7 +381,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
                         let mut parent_updated_state = parent_state;
                         let mut self_child_state =
                             parent_updated_state.get_child_state_in_dir(s_dir);
-                        self_child_state.hash_val = new_hash_val;
+                        self_child_state.hash_val = from_digest::<H>(new_hash_val).unwrap();
                         parent_updated_state.child_states[s_dir] = self_child_state;
                         set_state_map(parent, &epoch, parent_updated_state)?;
                         self.tree_repr_set(changeset, self.parent, parent);
@@ -382,9 +396,9 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
     pub(crate) fn set_child_without_hash(
         &mut self,
         epoch: u64,
-        child: HistoryInsertionNode<H>,
+        child: &HistoryInsertionNode<H>,
     ) -> Result<Self, HistoryTreeNodeError> {
-        let (direction, child_node) = child;
+        let (direction, child_node) = child.clone();
 
         match direction {
             Direction::Some(dir) => match get_state_map(self, &epoch) {
@@ -443,13 +457,13 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
     ) -> Result<Self, HistoryTreeNodeError> {
         let node_as_child_state = child.to_node_unhashed_child_state()?;
         let insertion_node = (dir, node_as_child_state);
-        self.set_child_without_hash(epoch, insertion_node)
+        self.set_child_without_hash(epoch, &insertion_node)
     }
 
     ////// getrs for this node ////
 
     pub(crate) fn get_value_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(self.get_state_at_epoch(epoch)?.value)
+        Ok(to_digest::<H>(&self.get_state_at_epoch(epoch)?.value).unwrap())
     }
 
     pub(crate) fn get_value_without_label_at_epoch(
@@ -462,7 +476,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
         let children = self.get_state_at_epoch(epoch)?.child_states;
         let mut new_hash = H::hash(&[]);
         for child in children.iter().take(ARITY) {
-            new_hash = H::merge(&[new_hash, child.hash_val]);
+            new_hash = H::merge(&[new_hash, to_digest::<H>(&child.hash_val).unwrap()]);
         }
         Ok(new_hash)
     }
@@ -477,7 +491,8 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
 
     // gets value at current epoch
     pub(crate) fn get_value(&self) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(get_state_map(self, &self.get_latest_epoch()?).map(|node_state| node_state.value)?)
+        Ok(get_state_map(self, &self.get_latest_epoch()?)
+            .map(|node_state| to_digest::<H>(&node_state.value).unwrap())?)
     }
 
     pub(crate) fn get_birth_epoch(&self) -> u64 {
@@ -598,8 +613,10 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
             dummy_marker: DummyChildState::Real,
             location: self.location,
             label: self.label,
-            hash_val: H::merge(&[self.get_value()?, hash_label::<H>(self.label)]),
+            hash_val: from_digest::<H>(H::merge(&[self.get_value()?, hash_label::<H>(self.label)]))
+                .unwrap(),
             epoch_version: self.get_latest_epoch()?,
+            _h: PhantomData,
         })
     }
 
@@ -608,15 +625,17 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> HistoryTreeNode<H, S> {
             dummy_marker: DummyChildState::Real,
             location: self.location,
             label: self.label,
-            hash_val: H::merge(&[self.get_value()?, hash_label::<H>(self.label)]),
+            hash_val: from_digest::<H>(H::merge(&[self.get_value()?, hash_label::<H>(self.label)]))
+                .unwrap(),
             epoch_version: self.get_latest_epoch()?,
+            _h: PhantomData,
         })
     }
 }
 
 /////// Helpers //////
 
-pub fn get_empty_root<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub fn get_empty_root<H: Hasher, S: Storage>(
     azks_id: &[u8],
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
@@ -636,7 +655,7 @@ pub fn get_empty_root<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     Ok(node)
 }
 
-pub fn get_leaf_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub fn get_leaf_node<H: Hasher, S: Storage>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -657,14 +676,14 @@ pub fn get_leaf_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     };
 
     let mut new_state = HistoryNodeState::new();
-    new_state.value = H::merge(&[H::hash(&[]), H::hash(value)]);
+    new_state.value = from_digest::<H>(H::merge(&[H::hash(&[]), H::hash(value)])).unwrap();
 
     set_state_map(&mut node, &birth_epoch, new_state)?;
 
     Ok(node)
 }
 
-pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub fn get_leaf_node_without_empty<H: Hasher, S: Storage>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -685,14 +704,14 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     };
 
     let mut new_state = HistoryNodeState::new();
-    new_state.value = H::hash(value);
+    new_state.value = from_digest::<H>(H::hash(value)).unwrap();
 
     set_state_map(&mut node, &birth_epoch, new_state)?;
 
     Ok(node)
 }
 
-pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
@@ -713,21 +732,21 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     };
 
     let mut new_state = HistoryNodeState::new();
-    new_state.value = value;
+    new_state.value = from_digest::<H>(value).unwrap();
 
     set_state_map(&mut node, &birth_epoch, new_state)?;
 
     Ok(node)
 }
 
-pub fn get_interior_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub fn get_interior_node<H: Hasher, S: Storage>(
     azks_id: &[u8],
     label: NodeLabel,
     location: usize,
     value: H::Digest,
     parent: usize,
     birth_epoch: u64,
-    child_states: [HistoryChildState<H>; 2],
+    child_states: &[HistoryChildState<H>],
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
     let mut node = HistoryTreeNode {
         azks_id: azks_id.to_vec(),
@@ -742,8 +761,8 @@ pub fn get_interior_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     };
 
     let new_state = HistoryNodeState {
-        value,
-        child_states,
+        value: from_digest::<H>(value).unwrap(),
+        child_states: child_states.to_vec(),
     };
 
     set_state_map(&mut node, &birth_epoch, new_state)?;

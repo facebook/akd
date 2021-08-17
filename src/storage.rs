@@ -10,7 +10,7 @@ use crate::node_state::HistoryNodeState;
 use crypto::Hasher;
 
 #[derive(Debug)]
-pub enum StorageEnum<H: Hasher, S: Storage<Self>> {
+pub enum StorageEnum<H, S> {
     Node(HistoryTreeNode<H, S>),
     Azks(Azks<H, S>),
 }
@@ -20,82 +20,33 @@ pub enum IdEnum<'a> {
     AzksId(&'a [u8]),
 }
 
-impl<H: Hasher, S: Storage<Self>> StorageEnum<H, S> {
-    pub(crate) fn read_data(data_type: &str, id: IdEnum) -> Result<Self, StorageError> {
-        match data_type {
-            "history_tree_node" => match id {
-                IdEnum::NodeLocation(azks_id, location) => {
-                    let k = format_node_key(azks_id, location);
-                    let retrieved = S::get(k)?;
-                    match retrieved {
-                        Self::Node(retrieved_node) => Ok(Self::Node(retrieved_node)),
-                        _ => Err(StorageError::WrongMemoryTypeError),
-                    }
-                }
-                _ => Err(StorageError::WrongIdTypeError),
-            },
-            "azks" => match id {
-                IdEnum::AzksId(azks_id) => {
-                    let k = format_azks_id_key(azks_id);
-                    let retrieved = S::get(k)?;
-                    match retrieved {
-                        Self::Azks(azks) => Ok(Self::Azks(azks)),
-                        _ => Err(StorageError::WrongMemoryTypeError),
-                    }
-                }
-                _ => Err(StorageError::WrongIdTypeError),
-            },
-            _ => Err(StorageError::UnsupportedStorageTypeError),
-        }
-    }
-    pub(crate) fn write_data(id: IdEnum, data: Self) -> Result<(), StorageError> {
-        match data {
-            Self::Node(node) => match id {
-                IdEnum::NodeLocation(azks_id, location) => {
-                    let k = format_node_key(azks_id, location);
-                    let _retrieved = S::set(k, Self::Node(node))?;
-                    Ok(())
-                }
-                _ => Err(StorageError::WrongIdTypeError),
-            },
-            Self::Azks(azks) => match id {
-                IdEnum::AzksId(azks_id) => {
-                    let k = format_azks_id_key(azks_id);
-                    let _retrieved = S::set(k, Self::Azks(azks))?;
-                    Ok(())
-                }
-                _ => Err(StorageError::WrongIdTypeError),
-            },
-        }
+use serde::{de::DeserializeOwned, Serialize};
+
+pub trait Storable<S: Storage>: Serialize + DeserializeOwned {
+    type Key: Serialize;
+
+    fn identifier() -> String;
+
+    fn retrieve(key: Self::Key) -> Result<Self, StorageError> {
+        let k = format!(
+            "{}:{}",
+            Self::identifier(),
+            hex::encode(bincode::serialize(&key).unwrap())
+        );
+        bincode::deserialize(&hex::decode(S::get(k)?).unwrap()).map_err(|_| StorageError::GetError)
     }
 
-    pub fn to_node(
-        acquired_data: Result<Self, StorageError>,
-    ) -> Result<HistoryTreeNode<H, S>, StorageError> {
-        match acquired_data {
-            Ok(Self::Node(node)) => Ok(node),
-            Err(e) => Err(e),
-            _ => Err(StorageError::WrongMemoryTypeError),
-        }
-    }
-
-    pub fn to_azks(acquired_data: Result<Self, StorageError>) -> Result<Azks<H, S>, StorageError> {
-        match acquired_data {
-            Ok(Self::Azks(azks)) => Ok(azks),
-            Err(e) => Err(e),
-            _ => Err(StorageError::WrongMemoryTypeError),
-        }
+    fn store(key: Self::Key, value: &Self) -> Result<(), StorageError> {
+        let k = format!(
+            "{}:{}",
+            Self::identifier(),
+            hex::encode(bincode::serialize(&key).unwrap())
+        );
+        S::set(k, hex::encode(&bincode::serialize(&value).unwrap()))
     }
 }
 
-// impl<H: Hasher, S: Storage<StorageEnum<H, S>>> From<StorageEnum<H, S>> for HistoryTreeNode<H, S> {
-//     fn from(node: StorageEnum<H, S>) -> Self {
-//         StorageEnum::Node(node_val)
-
-//     }
-// }
-
-impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for StorageEnum<H, S> {
+impl<H: Hasher, S: Storage> Clone for StorageEnum<H, S> {
     fn clone(&self) -> Self {
         match self {
             Self::Node(history_tree_node) => Self::Node(history_tree_node.clone()),
@@ -104,45 +55,12 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for StorageEnum<H, S> {
     }
 }
 
-pub trait Storage<N> {
-    fn set(pos: String, node: N) -> Result<(), StorageError>;
-    fn get(pos: String) -> Result<N, StorageError>;
+pub trait Storage {
+    fn set(pos: String, val: String) -> Result<(), StorageError>;
+    fn get(pos: String) -> Result<String, StorageError>;
 }
 
-// #[allow(unused)]
-// pub(crate) fn set_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
-//     azks_id: &[u8],
-//     location: usize,
-//     val: StorageEnum<H, S>,
-// ) -> Result<(), StorageError> {
-//     // let k = format!("azks_id: {}, location: {}", hex::encode(azks_id), location);
-//     let k = format_node_key(azks_id, location);
-//     S::set(k, val)
-// }
-
-#[allow(unused)]
-pub(crate) fn get_node<H: Hasher, S: Storage<StorageEnum<H, S>>>(
-    azks_id: &[u8],
-    location: usize,
-) -> Result<StorageEnum<H, S>, StorageError> {
-    // let k = format!("azks_id: {}, location: {}", hex::encode(azks_id), location);
-    let k = format_node_key(azks_id, location);
-    S::get(k)
-}
-
-pub(crate) fn format_node_key(azks_id: &[u8], location: usize) -> String {
-    format!(
-        "HistoryTreeNode: azks_id: {}, location: {}",
-        hex::encode(azks_id),
-        location
-    )
-}
-
-pub(crate) fn format_azks_id_key(azks_id: &[u8]) -> String {
-    format!("AzksId: {}", hex::encode(azks_id))
-}
-
-pub(crate) fn set_state_map<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub(crate) fn set_state_map<H: Hasher, S: Storage>(
     node: &mut HistoryTreeNode<H, S>,
     key: &u64,
     val: HistoryNodeState<H>,
@@ -151,7 +69,7 @@ pub(crate) fn set_state_map<H: Hasher, S: Storage<StorageEnum<H, S>>>(
     Ok(())
 }
 
-pub(crate) fn get_state_map<H: Hasher, S: Storage<StorageEnum<H, S>>>(
+pub(crate) fn get_state_map<H: Hasher, S: Storage>(
     node: &HistoryTreeNode<H, S>,
     key: &u64,
 ) -> Result<HistoryNodeState<H>, StorageError> {

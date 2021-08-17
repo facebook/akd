@@ -6,20 +6,24 @@
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
-    storage::{IdEnum::*, Storage, StorageEnum, StorageEnum::*},
+    storage::{Storable, Storage},
 };
 
 use std::collections::HashMap;
 
+use crate::serialization::to_digest;
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use crypto::Hasher;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
+
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
-#[derive(Debug)]
-pub struct Azks<H: Hasher, S: Storage<StorageEnum<H, S>>> {
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct Azks<H, S> {
     /// Random identifier for the AZKS instance
     azks_id: Vec<u8>,
     root: usize,
@@ -29,7 +33,19 @@ pub struct Azks<H: Hasher, S: Storage<StorageEnum<H, S>>> {
     _h: PhantomData<H>,
 }
 
-impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Clone for Azks<H, S> {
+// parameter is azks_id
+#[derive(Serialize, Deserialize)]
+pub struct AzksKey(pub(crate) Vec<u8>);
+
+impl<H: Hasher, S: Storage> Storable<S> for Azks<H, S> {
+    type Key = AzksKey;
+
+    fn identifier() -> String {
+        String::from("Azks")
+    }
+}
+
+impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     fn clone(&self) -> Self {
         Self {
             azks_id: self.azks_id.clone(),
@@ -67,7 +83,7 @@ pub struct AppendOnlyProof<H: Hasher> {
     unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
 }
 
-impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
+impl<H: Hasher, S: Storage> Azks<H, S> {
     pub fn new<R: CryptoRng + RngCore>(rng: &mut R) -> Result<Self, SeemlessError> {
         let mut azks_id = vec![0u8; 32];
         rng.fill_bytes(&mut azks_id);
@@ -105,11 +121,8 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
             0,
             self.latest_epoch,
         )?;
-        let mut root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(&self.azks_id, self.root),
-        ))?;
 
+        let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
         let mut changeset = HashMap::new();
         root_node.insert_single_leaf(
             new_leaf,
@@ -129,7 +142,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
         changeset: &HashMap<usize, HistoryTreeNode<H, S>>,
     ) -> Result<(), SeemlessError> {
         for (location, node) in changeset {
-            StorageEnum::write_data(NodeLocation(&self.azks_id, *location), Node(node.clone()))?;
+            HistoryTreeNode::store(NodeKey(self.azks_id.clone(), *location), node)?;
         }
         Ok(())
     }
@@ -177,10 +190,8 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
             }
             // let Node(mut root_node) = get_node(&self.azks_id, self.root)?;
 
-            let mut root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-                "history_tree_node",
-                NodeLocation(&self.azks_id, self.root),
-            ))?;
+            let mut root_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
 
             root_node.insert_single_leaf_without_hash(
                 new_leaf,
@@ -201,10 +212,8 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
             // let Node(mut next_node) = StorageEnum::read_data("date_type: &str", id: IdEnum)(&self.azks_id, next_node_loc)?;
 
-            let mut next_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-                "history_tree_node",
-                NodeLocation(&self.azks_id, next_node_loc),
-            ))?;
+            let mut next_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
 
             next_node.update_hash(self.latest_epoch, &mut changeset)?;
             self.commit_changeset(&changeset)?;
@@ -249,10 +258,9 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
 
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch)?;
-        let lcp_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(&self.azks_id, lcp_node_id),
-        ))?;
+
+        let lcp_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
@@ -261,8 +269,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
             .child_states
             .iter()
             .map(|x: &node_state::HistoryChildState<H>| -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
-                // let Node(node) = get_node::<H, S>(&self.azks_id, x.location)?;
-                let node = StorageEnum::<H, S>::to_node(StorageEnum::read_data("history_tree_node", NodeLocation(&self.azks_id, x.location)))?;
+                let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), x.location))?;
                 Ok(node)
             });
         for (i, child) in children.enumerate() {
@@ -288,10 +295,7 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(&self.azks_id, self.root),
-        ))?;
+        let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
         let (unchanged, leaves) =
             self.get_append_only_proof_helper(node, start_epoch, end_epoch)?;
         Ok(AppendOnlyProof {
@@ -334,14 +338,14 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
                 .get_state_at_epoch(end_epoch)?
                 .child_states
                 .iter()
-                .map(|x| *x)
+                .map(|x| x.clone())
             {
                 if child_node_state.dummy_marker == DummyChildState::Dummy {
                     continue;
                 } else {
-                    let child_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-                        "history_tree_node",
-                        NodeLocation(&self.azks_id, child_node_state.location),
+                    let child_node = HistoryTreeNode::retrieve(NodeKey(
+                        self.azks_id.clone(),
+                        child_node_state.location,
                     ))?;
                     let mut rec_output =
                         self.get_append_only_proof_helper(child_node, start_epoch, end_epoch)?;
@@ -367,10 +371,8 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
     }
 
     pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        let root_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(&self.azks_id, self.root),
-        ))?;
+        let root_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
         root_node.get_value_at_epoch(epoch)
     }
 
@@ -461,10 +463,10 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
-        let mut curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-            "history_tree_node",
-            NodeLocation(&self.azks_id, self.root),
-        ))?;
+
+        let mut curr_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
+
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
@@ -479,28 +481,24 @@ impl<H: Hasher, S: Storage<StorageEnum<H, S>>> Azks<H, S> {
             for i in 0..ARITY {
                 if i != dir.ok_or(SeemlessError::NoDirectionError)? {
                     labels[count] = curr_state.child_states[i].label;
-                    hashes[count] = curr_state.child_states[i].hash_val;
+                    hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
                     count += 1;
                 }
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-            let new_curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-                "history_tree_node",
-                NodeLocation(
-                    &self.azks_id,
-                    curr_node.get_child_location_at_epoch(epoch, dir)?,
-                ),
+
+            let new_curr_node = HistoryTreeNode::retrieve(NodeKey(
+                self.azks_id.clone(),
+                curr_node.get_child_location_at_epoch(epoch, dir)?,
             ))?;
             curr_node = new_curr_node;
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
         if !equal {
-            let new_curr_node = StorageEnum::<H, S>::to_node(StorageEnum::read_data(
-                "history_tree_node",
-                NodeLocation(&self.azks_id, prev_node),
-            ))?;
+            let new_curr_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), prev_node))?;
             curr_node = new_curr_node;
 
             parent_labels.pop();
@@ -561,7 +559,7 @@ mod tests {
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 
     type Blake3 = Blake3_256<BaseElement>;
-    type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest; //Blake3_256<BaseElement>::Digest;
+    type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest;
 
     #[test]
     fn test_batch_insert_basic() -> Result<(), SeemlessError> {
@@ -594,7 +592,7 @@ mod tests {
     }
     #[test]
     fn test_insert_permuted() -> Result<(), SeemlessError> {
-        let num_nodes = 100;
+        let num_nodes = 10;
         let mut rng = OsRng;
 
         let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
@@ -627,7 +625,7 @@ mod tests {
 
     #[test]
     fn test_membership_proof_permuted() -> Result<(), SeemlessError> {
-        let num_nodes = 100;
+        let num_nodes = 10;
         let mut rng = OsRng;
 
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -658,7 +656,7 @@ mod tests {
 
     #[test]
     fn test_membership_proof_failing() -> Result<(), SeemlessError> {
-        let num_nodes = 100;
+        let num_nodes = 10;
         let mut rng = OsRng;
 
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -717,7 +715,7 @@ mod tests {
 
     #[test]
     fn test_nonmembership_proof() -> Result<(), SeemlessError> {
-        let num_nodes = 100;
+        let num_nodes = 10;
         let mut rng = OsRng;
 
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];

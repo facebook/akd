@@ -10,11 +10,7 @@ use criterion::Criterion;
 use crypto::{hashers::Blake3_256, Hasher};
 use math::fields::f128::BaseElement;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
-use seemless::{
-    append_only_zks::Azks,
-    node_state::NodeLabel,
-    storage::{Storage, StorageEnum},
-};
+use seemless::{append_only_zks::Azks, node_state::NodeLabel, storage::Storage};
 use std::time::{Duration, Instant};
 
 type Blake3 = Blake3_256<BaseElement>;
@@ -25,23 +21,23 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref HASHMAP: Mutex<HashMap<String, StorageEnum<Blake3, InMemoryDb>>> = {
+    static ref HASHMAP: Mutex<HashMap<String, String>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, StorageEnum<Blake3, InMemoryDb>>);
+pub(crate) struct InMemoryDb(HashMap<String, String>);
 
-impl Storage<StorageEnum<Blake3, InMemoryDb>> for InMemoryDb {
-    fn set(pos: String, node: StorageEnum<Blake3, InMemoryDb>) -> Result<(), StorageError> {
+impl Storage for InMemoryDb {
+    fn set(pos: String, value: String) -> Result<(), StorageError> {
         let mut hashmap = HASHMAP.lock().unwrap();
-        hashmap.insert(pos, node);
+        hashmap.insert(pos, value);
         Ok(())
     }
 
-    fn get(pos: String) -> Result<StorageEnum<Blake3, InMemoryDb>, StorageError> {
+    fn get(pos: String) -> Result<String, StorageError> {
         let hashmap = HASHMAP.lock().unwrap();
         hashmap
             .get(&pos)
