@@ -78,6 +78,7 @@ pub struct HistoryProof<H: Hasher> {
     proofs: Vec<UpdateProof<H>>,
 }
 
+
 pub struct SeemlessDirectory<S, H> {
     azks_id: Vec<u8>,
     user_data: HashMap<Username, UserData>,
@@ -86,11 +87,13 @@ pub struct SeemlessDirectory<S, H> {
     _h: PhantomData<H>,
 }
 
+
 impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     pub fn new() -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
         let azks = Azks::<H, S>::new(&mut rng)?;
         let azks_id = azks.get_azks_id();
+
         Azks::store(AzksKey(azks_id.to_vec()), &azks)?;
         Ok(SeemlessDirectory {
             azks_id: azks_id.to_vec(),
@@ -196,9 +199,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 })
             }
         }
-        // unimplemented!()
-        // S::get("0".to_string()).unwrap();
-        // Ok(())
     }
 
     pub fn lookup_verify(
@@ -207,6 +207,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         proof: LookupProof<H>,
     ) -> Result<(), SeemlessError> {
         let epoch = proof.epoch;
+
         let node = HistoryTreeNode::<H, S>::retrieve(NodeKey(self.get_azks_id().to_vec(), 0))?;
         let root_node = node.get_value_at_epoch(epoch)?;
         let plaintext_value = proof.plaintext_value;
@@ -253,6 +254,25 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             freshness_proof,
         )?;
 
+
+        if marker_label != marker_proof.label {
+            return Err(SeemlessError::SeemlessDirectoryErr(
+                SeemlessDirectoryError::LookupVerificationErr(
+                    "Marker proof label does not match computed label".to_string(),
+                ),
+            ));
+        }
+        let current_azks =
+            StorageEnum::<H, S>::to_azks(StorageEnum::read_data("azks", self.get_azks_id_enum()))?;
+        current_azks.verify_membership(root_node, epoch, existence_proof)?;
+        current_azks.verify_membership(root_node, epoch, marker_proof)?;
+
+        current_azks.verify_nonmembership(
+            non_existence_label,
+            root_node,
+            epoch,
+            freshness_proof,
+        )?;
         Ok(())
     }
 
@@ -371,6 +391,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
         let prev_label_at_ep = Self::get_nodelabel(uname, true, *version);
 
+
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
         let existence_at_ep = current_azks.get_membership_proof(label_at_ep, epoch)?;
@@ -388,6 +409,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
+          
             non_existence_of_next_few.push(non_existence_of_ver);
         }
 
@@ -425,6 +447,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let _prev_label_at_ep = Self::get_nodelabel(uname, true, version);
         let existence_at_ep = proof.existence_at_ep;
         let previous_val_stale_at_ep = proof.previous_val_stale_at_ep;
+
 
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
