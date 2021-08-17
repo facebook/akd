@@ -37,14 +37,12 @@ lazy_static! {
 #[derive(Debug)]
 pub(crate) struct InMemoryDb(HashMap<String, StorageEnum<Blake3, InMemoryDb>>);
 
-
 impl Storage for InMemoryDb {
     fn set(pos: String, value: String) -> Result<(), StorageError> {
         let mut hashmap = HASHMAP.lock().unwrap();
         hashmap.insert(pos, value);
         Ok(())
     }
-
 
     fn get(pos: String) -> Result<String, StorageError> {
         let hashmap = HASHMAP.lock().unwrap();

@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 
-
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::{get_state_map, set_state_map, Storable, Storage};
 use crate::{node_state::*, Direction, ARITY};
@@ -47,7 +46,6 @@ pub struct HistoryTreeNode<H, S> {
     _h: PhantomData<H>,
 }
 
-
 // parameters are azks_id and location
 #[derive(Serialize, Deserialize)]
 pub struct NodeKey(pub(crate) Vec<u8>, pub(crate) usize);
@@ -75,7 +73,6 @@ impl<H: Hasher, S: Storage> Clone for HistoryTreeNode<H, S> {
         }
     }
 }
-
 
 impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
     fn new(
@@ -658,7 +655,6 @@ pub fn get_empty_root<H: Hasher, S: Storage>(
     Ok(node)
 }
 
-
 pub fn get_leaf_node<H: Hasher, S: Storage>(
     azks_id: &[u8],
     label: NodeLabel,
@@ -686,7 +682,6 @@ pub fn get_leaf_node<H: Hasher, S: Storage>(
 
     Ok(node)
 }
-
 
 pub fn get_leaf_node_without_empty<H: Hasher, S: Storage>(
     azks_id: &[u8],

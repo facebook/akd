@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H, S> {
@@ -33,7 +32,6 @@ pub struct Azks<H, S> {
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
-
 
 // parameter is azks_id
 #[derive(Serialize, Deserialize)]
@@ -192,7 +190,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
             // let Node(mut root_node) = get_node(&self.azks_id, self.root)?;
 
-            let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
+            let mut root_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
 
             root_node.insert_single_leaf_without_hash(
                 new_leaf,
@@ -213,8 +212,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
             // let Node(mut next_node) = StorageEnum::read_data("date_type: &str", id: IdEnum)(&self.azks_id, next_node_loc)?;
 
-
-            let mut next_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
+            let mut next_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
 
             next_node.update_hash(self.latest_epoch, &mut changeset)?;
             self.commit_changeset(&changeset)?;
@@ -260,7 +259,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch)?;
 
-        let lcp_node = HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
+        let lcp_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
@@ -371,7 +371,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
     }
 
     pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        let root_node = HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
+        let root_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
         root_node.get_value_at_epoch(epoch)
     }
 
@@ -463,7 +464,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
 
-        let mut curr_node = HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
+        let mut curr_node =
+            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
 
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
@@ -495,8 +497,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             equal = label == curr_node.label;
         }
         if !equal {
-
-            let new_curr_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), prev_node))?;
+            let new_curr_node =
+                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), prev_node))?;
             curr_node = new_curr_node;
 
             parent_labels.pop();

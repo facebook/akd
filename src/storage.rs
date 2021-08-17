@@ -69,7 +69,6 @@ pub(crate) fn set_state_map<H: Hasher, S: Storage>(
     Ok(())
 }
 
-
 pub(crate) fn get_state_map<H: Hasher, S: Storage>(
     node: &HistoryTreeNode<H, S>,
     key: &u64,
