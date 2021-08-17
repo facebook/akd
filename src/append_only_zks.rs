@@ -13,9 +13,9 @@ use std::collections::HashMap;
 
 use crate::serialization::to_digest;
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
-use crypto::Hasher;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 use std::marker::PhantomData;
+use winter_crypto::Hasher;
 
 use serde::{Deserialize, Serialize};
 
@@ -258,7 +258,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
         let (longest_prefix_membership_proof, lcp_node_id) =
             self.get_membership_proof_and_node(label, epoch)?;
-
         let lcp_node =
             HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
         let longest_prefix = lcp_node.label;
@@ -268,7 +267,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let children = state
             .child_states
             .iter()
-            .map(|x: &node_state::HistoryChildState<H>| -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
+            .map(|x: &node_state::HistoryChildState<H, S>| -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
                 let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), x.location))?;
                 Ok(node)
             });
@@ -554,12 +553,12 @@ type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 mod tests {
     use super::*;
     use crate::tests::InMemoryDb;
-    use crypto::hashers::Blake3_256;
-    use math::fields::f128::BaseElement;
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+    use winter_crypto::hashers::Blake3_256;
+    use winter_math::fields::f128::BaseElement;
 
     type Blake3 = Blake3_256<BaseElement>;
-    type Blake3Digest = <Blake3_256<math::fields::f128::BaseElement> as Hasher>::Digest;
+    type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
     #[test]
     fn test_batch_insert_basic() -> Result<(), SeemlessError> {

@@ -8,10 +8,10 @@ use crate::errors::{SeemlessDirectoryError, SeemlessError};
 use crate::history_tree_node::{HistoryTreeNode, NodeKey};
 use crate::node_state::NodeLabel;
 use crate::storage::{Storable, Storage};
-use crypto::Hasher;
 use rand::{prelude::ThreadRng, thread_rng};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use winter_crypto::Hasher;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Username(String);
@@ -507,8 +507,8 @@ fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
 mod tests {
     use super::*;
     use crate::tests::InMemoryDb;
-    use crypto::hashers::Blake3_256;
-    use math::fields::f128::BaseElement;
+    use winter_crypto::hashers::Blake3_256;
+    use winter_math::fields::f128::BaseElement;
 
     // FIXME: #[test]
     #[allow(unused)]

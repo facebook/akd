@@ -7,11 +7,11 @@
 extern crate criterion;
 
 use criterion::Criterion;
-use crypto::{hashers::Blake3_256, Hasher};
-use math::fields::f128::BaseElement;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use seemless::{append_only_zks::Azks, node_state::NodeLabel, storage::Storage};
 use std::time::{Duration, Instant};
+use winter_crypto::{hashers::Blake3_256, Hasher};
+use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
 

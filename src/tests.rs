@@ -5,8 +5,8 @@
 
 use std::convert::TryInto;
 
-use crypto::{hashers::Blake3_256, Hasher};
-use math::fields::f128::BaseElement;
+use winter_crypto::{hashers::Blake3_256, Hasher};
+use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
 
@@ -17,7 +17,7 @@ use crate::{
     history_tree_node::HistoryTreeNode,
     node_state::HistoryChildState,
     node_state::{hash_label, NodeLabel},
-    storage::{Storage, StorageEnum},
+    storage::Storage,
     *,
 };
 
@@ -35,7 +35,7 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, StorageEnum<Blake3, InMemoryDb>>);
+pub(crate) struct InMemoryDb(HashMap<String, String>);
 
 impl Storage for InMemoryDb {
     fn set(pos: String, value: String) -> Result<(), StorageError> {
@@ -97,7 +97,7 @@ fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> 
     let ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3> =
+    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1.clone()))
@@ -142,7 +142,7 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3> =
+    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1))
@@ -157,9 +157,9 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
 
     ep = 2;
 
-    let child_hist_node_3: HistoryChildState<Blake3> =
+    let child_hist_node_3: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_4: HistoryChildState<Blake3> =
+    let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_3.clone()))
@@ -204,7 +204,7 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
     let mut ep = 1;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3> =
+    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1.clone()))
@@ -219,9 +219,9 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
 
     ep = 2;
 
-    let child_hist_node_3: HistoryChildState<Blake3> =
+    let child_hist_node_3: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_4: HistoryChildState<Blake3> =
+    let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_3.clone()))
@@ -272,7 +272,7 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
             Blake3::hash(&[0u8]),
             2 * ep,
         );
-        let child_hist_node_2: HistoryChildState<Blake3> = HistoryChildState::new(
+        let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> = HistoryChildState::new(
             ep.try_into().unwrap(),
             NodeLabel::new(0, ep.clone().try_into().unwrap()),
             Blake3::hash(&[0u8]),
@@ -301,7 +301,7 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
         Blake3::hash(&[0u8]),
         2 * ep_existing,
     );
-    let child_hist_node_2: HistoryChildState<Blake3> = HistoryChildState::new(
+    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> = HistoryChildState::new(
         0,
         NodeLabel::new(0, ep_existing.clone().try_into().unwrap()),
         Blake3::hash(&[0u8]),
