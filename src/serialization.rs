@@ -4,7 +4,7 @@
 // LICENSE file in the root directory of this source tree.
 
 use crate::errors::HistoryTreeNodeError;
-use crypto::Hasher;
+use winter_crypto::Hasher;
 use winter_utils::{Deserializable, Serializable, SliceReader};
 
 /// Converts from &[u8] to H::Digest
