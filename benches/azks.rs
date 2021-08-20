@@ -14,6 +14,7 @@ use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
+type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
 use lazy_static::lazy_static;
 use seemless::errors::StorageError;
@@ -52,15 +53,15 @@ fn single_insertion(c: &mut Criterion) {
     let mut rng: ThreadRng = thread_rng();
 
     let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng).unwrap();
-
+    let mut insertion_set = Vec::<(NodeLabel, Blake3Digest)>::new();
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let val = Blake3::hash(&input);
+        insertion_set.push((node, val));
         azks1.insert_leaf(node, val).unwrap();
     }
-
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
         b.iter_custom(|iters| {
             let mut total_elapsed = Duration::ZERO;

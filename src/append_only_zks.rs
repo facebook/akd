@@ -162,6 +162,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
+        let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
         for insertion_elt in insertion_set {
             let new_leaf_loc = self.num_nodes;
 
@@ -183,9 +184,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                     self.latest_epoch,
                 )?;
             }
-
-            let mut root_node =
-                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
 
             root_node.insert_single_leaf_without_hash(
                 new_leaf,
@@ -815,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_append_only_proof() -> Result<(), SeemlessError> {
-        let num_nodes = 50;
+        let num_nodes = 10;
         let mut rng = OsRng;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
