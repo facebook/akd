@@ -170,15 +170,13 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 self.tree_repr_set(changeset, *num_nodes, &new_node);
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
-                new_node = self
-                    .tree_repr_get(changeset, new_node.location)?
-                    .set_node_child_without_hash(epoch, dir_leaf, &new_leaf)?;
+                new_node = self.tree_repr_get(changeset, new_node.location)?;
+                new_node.set_node_child_without_hash(epoch, dir_leaf, &new_leaf)?;
                 new_node.set_node_child_without_hash(epoch, dir_self, self)?;
                 self.tree_repr_set(changeset, new_node.location, &new_node);
                 new_node = self.tree_repr_get(changeset, new_node.location)?;
-                let parent = self
-                    .tree_repr_get(changeset, self.parent)?
-                    .set_node_child_without_hash(epoch, self_dir_in_parent, &new_node)?;
+                let mut parent = self.tree_repr_get(changeset, self.parent)?;
+                parent.set_node_child_without_hash(epoch, self_dir_in_parent, &new_node)?;
                 self.tree_repr_set(changeset, self.parent, &parent);
 
                 new_leaf.parent = new_node.location;
@@ -397,7 +395,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
         &mut self,
         epoch: u64,
         child: &HistoryInsertionNode<H, S>,
-    ) -> Result<Self, HistoryTreeNodeError> {
+    ) -> Result<(), HistoryTreeNodeError> {
         let (direction, child_node) = child.clone();
 
         match direction {
@@ -415,7 +413,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                             child_states,
                         },
                     )?;
-                    Ok(self.clone())
+                    Ok(())
                 }
                 Err(_) => {
                     set_state_map(
@@ -454,7 +452,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
         epoch: u64,
         dir: Direction,
         child: &Self,
-    ) -> Result<Self, HistoryTreeNodeError> {
+    ) -> Result<(), HistoryTreeNodeError> {
         let node_as_child_state = child.to_node_unhashed_child_state()?;
         let insertion_node = (dir, node_as_child_state);
         self.set_child_without_hash(epoch, &insertion_node)
