@@ -9,6 +9,7 @@ use crate::history_tree_node::{HistoryTreeNode, NodeKey};
 use crate::node_state::NodeLabel;
 use crate::storage::{Storable, Storage};
 use rand::{prelude::ThreadRng, thread_rng};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use winter_crypto::Hasher;
@@ -16,10 +17,12 @@ use winter_crypto::Hasher;
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Username(String);
 
-#[derive(Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(bound = "")]
 pub struct Values(String);
 
-#[derive(Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(bound = "")]
 pub struct UserState {
     plaintext_val: Values, // This needs to be the plaintext value, to discuss
     version: u64,          // to discuss
@@ -38,7 +41,8 @@ impl UserState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(bound = "")]
 pub struct UserData {
     states: Vec<UserState>,
 }
@@ -60,13 +64,14 @@ pub struct LookupProof<H: Hasher> {
     freshness_proof: NonMembershipProof<H>,
 }
 
+#[derive(Debug)]
 pub struct UpdateProof<H: Hasher> {
     epoch: u64,
     plaintext_value: Values,
     version: u64,
     existence_at_ep: MembershipProof<H>, // membership proof to show that the key was included in this epoch
-    previous_val_stale_at_ep: MembershipProof<H>, // proof that previous value was set to old at this epoch
-    non_existence_before_ep: NonMembershipProof<H>, // proof that this value didn't exist prior to this ep
+    previous_val_stale_at_ep: Option<MembershipProof<H>>, // proof that previous value was set to old at this epoch
+    non_existence_before_ep: Option<NonMembershipProof<H>>, // proof that this value didn't exist prior to this ep
     #[allow(unused)]
     non_existence_of_next_few: Vec<NonMembershipProof<H>>, // proof that the next few values did not exist at this time
     #[allow(unused)]
@@ -242,14 +247,14 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             ));
         }
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
-        current_azks.verify_membership(root_node, epoch, existence_proof)?;
-        current_azks.verify_membership(root_node, epoch, marker_proof)?;
+        current_azks.verify_membership(root_node, epoch, &existence_proof)?;
+        current_azks.verify_membership(root_node, epoch, &marker_proof)?;
 
         current_azks.verify_nonmembership(
             non_existence_label,
             root_node,
             epoch,
-            freshness_proof,
+            &freshness_proof,
         )?;
 
         Ok(())
@@ -294,10 +299,13 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     pub fn key_history_verify(
         &self,
-        _uname: Username,
-        _proof: HistoryProof<H>,
-    ) -> Result<(), SeemlessDirectoryError> {
-        unimplemented!()
+        uname: Username,
+        proof: HistoryProof<H>,
+    ) -> Result<(), SeemlessError> {
+        for update_proof in proof.proofs {
+            self.verify_single_update_proof(update_proof, &uname)?;
+        }
+        Ok(())
     }
 
     pub fn audit(
@@ -358,6 +366,21 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         (64 - version.leading_zeros() - 1).into()
     }
 
+    // fn create_initial_update_proof(
+    //     &self,
+    //     uname: &Username,
+    //     user_state: &UserState,
+    // ) -> Result<UpdateProof<H>, SeemlessError> {
+    //     let epoch = user_state.epoch;
+    //     let plaintext_value = &user_state.plaintext_val;
+    //     let version = &user_state.version;
+    //     if *version != 1u64 {
+    //         return Err(SeemlessError::SeemlessDirectoryErr(SeemlessDirectoryError::KeyHistoryProofErr("Called initial update proof on version not 1.".to_string())));
+    //     }
+    //     let label_at_ep = Self::get_nodelabel(uname, false, *version);
+    //     unimplemented!()
+    // }
+
     fn create_single_update_proof(
         &self,
         uname: &Username,
@@ -368,15 +391,21 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let version = &user_state.version;
 
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
-        let prev_label_at_ep = Self::get_nodelabel(uname, true, *version);
 
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
         let existence_at_ep = current_azks.get_membership_proof(label_at_ep, epoch)?;
-        let previous_val_stale_at_ep =
-            current_azks.get_membership_proof(prev_label_at_ep, epoch)?;
-        let non_existence_before_ep =
-            current_azks.get_non_membership_proof(label_at_ep, epoch - 1)?;
+        let mut previous_val_stale_at_ep = Option::None;
+        if *version > 1 {
+            let prev_label_at_ep = Self::get_nodelabel(uname, true, *version - 1);
+            previous_val_stale_at_ep =
+                Option::Some(current_azks.get_membership_proof(prev_label_at_ep, epoch)?);
+        }
+        let mut non_existence_before_ep = Option::None;
+        if epoch != 0 {
+            non_existence_before_ep =
+                Option::Some(current_azks.get_non_membership_proof(label_at_ep, epoch - 1)?);
+        }
 
         let next_marker = Self::get_marker_version(*version) + 1;
         let final_marker = Self::get_marker_version(epoch);
@@ -387,7 +416,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             let label_for_ver = Self::get_nodelabel(uname, false, ver);
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
-
             non_existence_of_next_few.push(non_existence_of_ver);
         }
 
@@ -413,73 +441,94 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         })
     }
 
-    pub fn _verify_single_update_proof(
+    pub fn verify_single_update_proof(
         &self,
         proof: UpdateProof<H>,
         uname: &Username,
     ) -> Result<(), SeemlessError> {
         let epoch = proof.epoch;
-        let _plaintext_value = proof.plaintext_value;
+        let _plaintext_value = &proof.plaintext_value;
         let version = proof.version;
         let label_at_ep = Self::get_nodelabel(uname, false, version);
-        let _prev_label_at_ep = Self::get_nodelabel(uname, true, version);
-        let existence_at_ep = proof.existence_at_ep;
-        let previous_val_stale_at_ep = proof.previous_val_stale_at_ep;
+        let _prev_label_at_ep = Self::get_nodelabel(uname, true, version - 1);
+        let existence_at_ep_ref = &proof.existence_at_ep;
+        let existence_at_ep = existence_at_ep_ref;
+        let existence_at_ep_label = existence_at_ep_ref.label;
+        let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
 
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
-        let non_existence_before_ep = proof.non_existence_before_ep;
+        let non_existence_before_ep = &proof.non_existence_before_ep;
         let root_hash = current_azks.get_root_hash_at_epoch(epoch)?;
 
-        if label_at_ep != existence_at_ep.label {
+        if label_at_ep != existence_at_ep_label {
             return Err(SeemlessError::SeemlessDirectoryErr(
                 SeemlessDirectoryError::KeyHistoryVerificationErr(
                     format!("Label of user {:?}'s version {:?} at epoch {:?} does not match the one in the proof",
                     uname, version, epoch))));
         }
-        if !current_azks.verify_membership(root_hash, epoch, existence_at_ep)? {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
-                    "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, version, epoch
-                )),
-            ));
-        }
+        current_azks.verify_membership(root_hash, epoch, existence_at_ep)?;
+        //     return Err(SeemlessError::SeemlessDirectoryErr(
+        //         SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+        //             "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+        //             uname, version, epoch
+        //         )),
+        //     ));
+        // }
+
         // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
-        if !current_azks.verify_membership(root_hash, epoch, previous_val_stale_at_ep)? {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
-                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname,
-                    version - 1,
-                    epoch
-                )),
-            ));
-        }
-        if !current_azks.verify_nonmembership(
-            label_at_ep,
-            root_hash,
-            epoch - 1,
-            non_existence_before_ep,
-        )? {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, version, epoch-1))));
+        if version > 1 {
+            let err_str = format!(
+                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+                uname,
+                (version - 1),
+                epoch
+            );
+            let previous_null_err = SeemlessError::SeemlessDirectoryErr(
+                SeemlessDirectoryError::KeyHistoryVerificationErr(err_str),
+            );
+            let previous_val_stale_at_ep =
+                previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
+            current_azks.verify_membership(root_hash, epoch, previous_val_stale_at_ep)?;
+            // {
+            //     return Err(SeemlessError::SeemlessDirectoryErr(
+            //         SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+            //             "Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+            //             uname,
+            //             version - 1,
+            //             epoch
+            //         )),
+            //     ));
+            // }
         }
 
-        let _next_marker = Self::get_marker_version(version) + 1;
+        if epoch > 1 {
+            let root_hash = current_azks.get_root_hash_at_epoch(epoch - 1)?;
+            current_azks.verify_nonmembership(
+                label_at_ep,
+                root_hash,
+                epoch - 1,
+                non_existence_before_ep.as_ref().ok_or_else(|| SeemlessError::SeemlessDirectoryErr(SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+                    "Non-existence before this epoch proof of user {:?}'s version {:?} at epoch {:?} is None",
+                    uname,
+                    version,
+                    epoch
+                ))))?
+            )?;
+        }
+
+        let next_marker = Self::get_marker_version(version) + 1;
         let _final_marker = Self::get_marker_version(epoch);
-        // for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
-        //     let label_for_ver = Self::get_nodelabel(uname, false, ver);
-        //     let pf = proof.non_existence_of_next_few[i];
-        //     if !self.azks.verify_nonmembership(label_at_ep, root_hash, epoch - 1, pf) {
-        //         return Err(SeemlessError::SeemlessDirectoryErr(
-        //             SeemlessDirectoryError::KeyHistoryVerificationErr(
-        //                 format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-        //                 uname, version, epoch-1))));
-        //     }
-        // }
+        for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
+            let _label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let pf = &proof.non_existence_of_next_few[i];
+            if !current_azks.verify_nonmembership(label_at_ep, root_hash, epoch - 1, pf)? {
+                return Err(SeemlessError::SeemlessDirectoryErr(
+                    SeemlessDirectoryError::KeyHistoryVerificationErr(
+                        format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                        uname, version, epoch-1))));
+            }
+        }
 
         Ok(())
         // unimplemented!()
@@ -500,7 +549,6 @@ fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
         }
     }
     out_arr
-    // unimplemented!()
 }
 
 #[cfg(test)]
@@ -536,6 +584,53 @@ mod tests {
 
         let lookup_proof = seemless.lookup(Username("hello".to_string()))?;
         seemless.lookup_verify(Username("hello".to_string()), lookup_proof)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_simple_key_history() -> Result<(), SeemlessError> {
+        let mut seemless = SeemlessDirectory::<InMemoryDb, Blake3_256<BaseElement>>::new()?;
+
+        seemless.publish(vec![
+            (Username("hello".to_string()), Values("world".to_string())),
+            (Username("hello2".to_string()), Values("world2".to_string())),
+        ])?;
+
+        seemless.publish(vec![
+            (Username("hello".to_string()), Values("world3".to_string())),
+            (Username("hello2".to_string()), Values("world4".to_string())),
+        ])?;
+
+        seemless.publish(vec![
+            (Username("hello3".to_string()), Values("world".to_string())),
+            (Username("hello4".to_string()), Values("world2".to_string())),
+        ])?;
+
+        seemless.publish(vec![(
+            Username("hello".to_string()),
+            Values("world_updated".to_string()),
+        )])?;
+
+        seemless.publish(vec![
+            (Username("hello3".to_string()), Values("world6".to_string())),
+            (
+                Username("hello4".to_string()),
+                Values("world12".to_string()),
+            ),
+        ])?;
+
+        let history_proof = seemless.key_history(&Username("hello".to_string()))?;
+        seemless.key_history_verify(Username("hello".to_string()), history_proof)?;
+
+        let history_proof = seemless.key_history(&Username("hello2".to_string()))?;
+        seemless.key_history_verify(Username("hello2".to_string()), history_proof)?;
+
+        let history_proof = seemless.key_history(&Username("hello3".to_string()))?;
+        seemless.key_history_verify(Username("hello3".to_string()), history_proof)?;
+
+        let history_proof = seemless.key_history(&Username("hello4".to_string()))?;
+        seemless.key_history_verify(Username("hello4".to_string()), history_proof)?;
+
         Ok(())
     }
 }

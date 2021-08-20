@@ -142,6 +142,7 @@ impl fmt::Display for HistoryTreeNodeError {
 #[derive(Debug)]
 pub enum AzksError {
     PopFromEmptyPriorityQueue(u64),
+    MembershipProofDidNotVerify(String),
 }
 
 impl fmt::Display for AzksError {
@@ -154,6 +155,9 @@ impl fmt::Display for AzksError {
                     epoch
                 )
             }
+            Self::MembershipProofDidNotVerify(error_string) => {
+                write!(f, "{}", error_string)
+            }
         }
     }
 }
@@ -163,6 +167,7 @@ pub enum SeemlessDirectoryError {
     LookedUpNonExistentUser(String, u64),
     LookupVerificationErr(String),
     KeyHistoryVerificationErr(String),
+    KeyHistoryProofErr(String),
     StorageError,
 }
 
@@ -187,6 +192,9 @@ impl fmt::Display for SeemlessDirectoryError {
                 write!(f, "{}", err_string)
             }
             Self::LookupVerificationErr(err_string) => {
+                write!(f, "{}", err_string)
+            }
+            Self::KeyHistoryProofErr(err_string) => {
                 write!(f, "{}", err_string)
             }
         }

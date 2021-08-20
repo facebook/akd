@@ -58,7 +58,7 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     pub(crate) hash_val: H::Digest,
@@ -68,7 +68,20 @@ pub struct MembershipProof<H: Hasher> {
     dirs: Vec<Direction>,
 }
 
-#[derive(Debug, Clone)]
+// impl<H: Hasher> Clone for MembershipProof<H> {
+//     fn clone(&self) -> Self {
+//         Self {
+//             label: self.label.clone(),
+//             hash_val: self.hash_val,
+//             parent_labels: self.parent_labels,
+//             sibling_labels: self.sibling_labels,
+//             sibling_hashes: self.sibling_hashes,
+//             dirs: self.dirs
+//         }
+//     }
+// }
+
+#[derive(Debug)]
 pub struct NonMembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     longest_prefix: NodeLabel,
@@ -264,6 +277,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
         let state = lcp_node.get_state_at_epoch(epoch)?;
+
         let children = state
             .child_states
             .iter()
@@ -271,6 +285,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), x.location))?;
                 Ok(node)
             });
+
         for (i, child) in children.enumerate() {
             let unwrapped_child = child?;
             longest_prefix_children_labels[i] = unwrapped_child.label;
@@ -383,8 +398,20 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         &self,
         root_hash: H::Digest,
         _epoch: u64,
-        proof: MembershipProof<H>,
-    ) -> Result<bool, SeemlessError> {
+        proof: &MembershipProof<H>,
+    ) -> Result<(), SeemlessError> {
+        if proof.label.len == 0 {
+            let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
+            if final_hash == root_hash {
+                return Ok(());
+            } else {
+                return Err(SeemlessError::AzksErr(
+                    AzksError::MembershipProofDidNotVerify(
+                        "Membership proof for root did not verify".to_string(),
+                    ),
+                ));
+            }
+        }
         let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
         for i in (0..proof.dirs.len()).rev() {
             final_hash = build_and_hash_layer::<H>(
@@ -395,19 +422,28 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             )?;
         }
 
-        Ok(final_hash == root_hash)
+        if final_hash == root_hash {
+            Ok(())
+        } else {
+            return Err(SeemlessError::AzksErr(
+                AzksError::MembershipProofDidNotVerify(format!(
+                    "Membership proof for label {:?} did not verify",
+                    proof.label
+                )),
+            ));
+        }
     }
 
     pub fn verify_nonmembership(
         &self,
-        label: NodeLabel,
+        _label: NodeLabel,
         root_hash: H::Digest,
         epoch: u64,
-        proof: NonMembershipProof<H>,
+        proof: &NonMembershipProof<H>,
     ) -> Result<bool, SeemlessError> {
         let mut verified = true;
         let mut lcp_hash = H::hash(&[]);
-        let mut lcp_real = label;
+        let mut lcp_real = proof.longest_prefix_children_labels[0];
         for i in 0..ARITY {
             let child_hash = H::merge(&[
                 proof.longest_prefix_children_values[i],
@@ -419,9 +455,14 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
         verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
         assert!(verified, "lcp_hash != longest_prefix_hash");
-        verified = verified
-            && self.verify_membership(root_hash, epoch, proof.longest_prefix_membership_proof)?;
-        assert!(verified, "membership_proof did not verify");
+        let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
+        let _longest_prefix_verified =
+            self.verify_membership(root_hash, epoch, &proof.longest_prefix_membership_proof)?;
+        // assert!(
+        //     verified,
+        //     "membership_proof did not verify, label = {:?}",
+        //     proof.longest_prefix
+        // );
         // The audit must have checked that this node is indeed the lcp of its children.
         // So we can just check that one of the children's lcp is = the proof.longest_prefix
         verified = verified && (proof.longest_prefix == lcp_real);
@@ -462,10 +503,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
-
         let mut curr_node =
             HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
@@ -477,6 +516,12 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
+            let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
+            let next_state = curr_node.get_state_at_epoch(epoch);
+            let next_state = next_state.map(|curr| curr.get_child_state_in_dir(direction))?;
+            if next_state.dummy_marker == DummyChildState::Dummy {
+                break;
+            }
             for i in 0..ARITY {
                 if i != dir.ok_or(SeemlessError::NoDirectionError)? {
                     labels[count] = curr_state.child_states[i].label;
@@ -486,7 +531,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-
             let new_curr_node = HistoryTreeNode::retrieve(NodeKey(
                 self.azks_id.clone(),
                 curr_node.get_child_location_at_epoch(epoch, dir)?,
@@ -645,10 +689,7 @@ mod tests {
 
         let proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
 
-        assert!(
-            azks.verify_membership(azks.get_root_hash()?, 1, proof)?,
-            "Membership proof does not verify"
-        );
+        azks.verify_membership(azks.get_root_hash()?, 1, &proof)?;
 
         Ok(())
     }
@@ -685,7 +726,9 @@ mod tests {
             dirs: proof.dirs,
         };
         assert!(
-            !azks.verify_membership(azks.get_root_hash()?, 1, proof)?,
+            !azks
+                .verify_membership(azks.get_root_hash()?, 1, &proof)
+                .is_ok(),
             "Membership proof does verifies, despite being wrong"
         );
 
@@ -706,7 +749,7 @@ mod tests {
         let search_label = NodeLabel::new(0b1111 << 60, 64);
         let proof = azks.get_non_membership_proof(search_label, 1)?;
         assert!(
-            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, proof)?,
+            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, &proof)?,
             "Nonmembership proof does not verify"
         );
         Ok(())
@@ -733,7 +776,7 @@ mod tests {
         let proof = azks.get_non_membership_proof(search_label, 1)?;
 
         assert!(
-            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, proof)?,
+            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, &proof)?,
             "Nonmembership proof does not verify"
         );
 
