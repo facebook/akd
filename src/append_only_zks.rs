@@ -68,19 +68,6 @@ pub struct MembershipProof<H: Hasher> {
     dirs: Vec<Direction>,
 }
 
-// impl<H: Hasher> Clone for MembershipProof<H> {
-//     fn clone(&self) -> Self {
-//         Self {
-//             label: self.label.clone(),
-//             hash_val: self.hash_val,
-//             parent_labels: self.parent_labels,
-//             sibling_labels: self.sibling_labels,
-//             sibling_hashes: self.sibling_hashes,
-//             dirs: self.dirs
-//         }
-//     }
-// }
-
 #[derive(Debug)]
 pub struct NonMembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
@@ -122,9 +109,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
     pub fn insert_leaf(&mut self, label: NodeLabel, value: H::Digest) -> Result<(), SeemlessError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
-        // if self.latest_epoch != 0 {
         self.increment_epoch();
-        // }
 
         let new_leaf = get_leaf_node::<H, S>(
             &self.azks_id,
@@ -173,11 +158,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         append_only_usage: bool,
     ) -> Result<(), SeemlessError> {
         let mut changeset = HashMap::new();
-
-        // let original_len = self.num_nodes;
-        // if self.latest_epoch != 0 {
         self.increment_epoch();
-        // }
+
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         for insertion_elt in insertion_set {
@@ -201,7 +183,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                     self.latest_epoch,
                 )?;
             }
-            // let Node(mut root_node) = get_node(&self.azks_id, self.root)?;
 
             let mut root_node =
                 HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
@@ -223,7 +204,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             let (next_node_loc, _) = hash_q
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
-            // let Node(mut next_node) = StorageEnum::read_data("date_type: &str", id: IdEnum)(&self.azks_id, next_node_loc)?;
 
             let mut next_node =
                 HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
@@ -371,11 +351,14 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         Ok((unchanged, leaves))
     }
 
-    pub fn get_consecutive_append_only_proof(&self, _start_epoch: u64) -> AppendOnlyProof<H> {
+    pub fn get_consecutive_append_only_proof(
+        &self,
+        start_epoch: u64,
+    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
         // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        unimplemented!()
+        self.get_append_only_proof(start_epoch, start_epoch + 1)
     }
 
     // FIXME: these functions below should be moved into higher-level API
@@ -458,11 +441,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
         let _longest_prefix_verified =
             self.verify_membership(root_hash, epoch, &proof.longest_prefix_membership_proof)?;
-        // assert!(
-        //     verified,
-        //     "membership_proof did not verify, label = {:?}",
-        //     proof.longest_prefix
-        // );
         // The audit must have checked that this node is indeed the lcp of its children.
         // So we can just check that one of the children's lcp is = the proof.longest_prefix
         verified = verified && (proof.longest_prefix == lcp_real);

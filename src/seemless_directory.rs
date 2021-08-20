@@ -165,8 +165,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     // Provides proof for correctness of latest version
     pub fn lookup(&self, uname: Username) -> Result<LookupProof<H>, SeemlessError> {
-        // FIXME: restore with: LookupProof<H> {
-        // FIXME: this code won't work
         let data = &self.user_data.get(&uname);
         match data {
             None => {
@@ -266,20 +264,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
     pub fn key_history(&self, uname: &Username) -> Result<HistoryProof<H>, SeemlessError> {
-        // pub struct UpdateProof<H: Hasher + serde::de::DeserializeOwned + serde::Serialize> {
-        //     epoch: u64,
-        //     plaintext_value: Values,
-        //     version: u64,
-        //     existence_at_ep: MembershipProof<H>, // membership proof to show that the key was included in this epoch
-        //     previous_val_stale_at_ep: MembershipProof<H>, // proof that previous value was set to old at this epoch
-        //     non_existence_before_ep: NonMembershipProof<H>, // proof that this value didn't exist prior to this ep
-        //     non_existence_of_next_few: Vec<NonMembershipProof<H>>, // proof that the next few values did not exist at this time
-        //     non_existence_of_future_markers: Vec<NonMembershipProof<H>>, // proof that future markers did not exist
-        // }
-
-        // pub struct HistoryProof<H: Hasher + serde::de::DeserializeOwned + serde::Serialize> {
-        //     proofs: Vec<UpdateProof<H>>,
-        // }
         let username = uname.0.to_string();
         let this_user_data =
             self.user_data
@@ -351,10 +335,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
         let label_slice = hashed_label.as_ref();
-        // let (hashed_label_bytes_ref, _) = label_slice.split_at(std::mem::size_of::<u64>());
         let hashed_label_bytes = convert_byte_slice_to_array(label_slice);
         NodeLabel::new(u64::from_ne_bytes(hashed_label_bytes), 64u32)
-        // unimplemented!()
     }
 
     fn value_to_bytes(_value: &Values) -> [u8; 64] {
@@ -365,21 +347,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     fn get_marker_version(version: u64) -> u64 {
         (64 - version.leading_zeros() - 1).into()
     }
-
-    // fn create_initial_update_proof(
-    //     &self,
-    //     uname: &Username,
-    //     user_state: &UserState,
-    // ) -> Result<UpdateProof<H>, SeemlessError> {
-    //     let epoch = user_state.epoch;
-    //     let plaintext_value = &user_state.plaintext_val;
-    //     let version = &user_state.version;
-    //     if *version != 1u64 {
-    //         return Err(SeemlessError::SeemlessDirectoryErr(SeemlessDirectoryError::KeyHistoryProofErr("Called initial update proof on version not 1.".to_string())));
-    //     }
-    //     let label_at_ep = Self::get_nodelabel(uname, false, *version);
-    //     unimplemented!()
-    // }
 
     fn create_single_update_proof(
         &self,
@@ -490,16 +457,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             let previous_val_stale_at_ep =
                 previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
             current_azks.verify_membership(root_hash, epoch, previous_val_stale_at_ep)?;
-            // {
-            //     return Err(SeemlessError::SeemlessDirectoryErr(
-            //         SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
-            //             "Staleness proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-            //             uname,
-            //             version - 1,
-            //             epoch
-            //         )),
-            //     ));
-            // }
         }
 
         if epoch > 1 {
@@ -518,7 +475,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         }
 
         let next_marker = Self::get_marker_version(version) + 1;
-        let _final_marker = Self::get_marker_version(epoch);
+        let final_marker = Self::get_marker_version(epoch);
         for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
             let _label_for_ver = Self::get_nodelabel(uname, false, ver);
             let pf = &proof.non_existence_of_next_few[i];
@@ -530,8 +487,19 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             }
         }
 
+        for (i, pow) in (next_marker + 1..final_marker).enumerate() {
+            let ver = 1 << pow;
+            let _label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let pf = &proof.non_existence_of_future_markers[i];
+            if !current_azks.verify_nonmembership(label_at_ep, root_hash, epoch - 1, pf)? {
+                return Err(SeemlessError::SeemlessDirectoryErr(
+                    SeemlessDirectoryError::KeyHistoryVerificationErr(
+                        format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                        uname, version, epoch-1))));
+            }
+        }
+
         Ok(())
-        // unimplemented!()
     }
 }
 
@@ -568,7 +536,6 @@ mod tests {
             Username("hello".to_string()),
             Values("world".to_string()),
         )])?;
-        // seemless.lookup(Username("hello".to_string()))?;
 
         Ok(())
     }
