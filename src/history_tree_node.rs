@@ -39,7 +39,6 @@ pub struct HistoryTreeNode<H, S> {
     pub parent: usize,
     // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
     pub node_type: NodeType,
-    pub(crate) state_map: HashMap<u64, HistoryNodeState<H, S>>,
     // Note that the NodeType along with the parent/children being options
     // allows us to use this struct to represent child and parent nodes as well.
     _s: PhantomData<S>,
@@ -67,7 +66,6 @@ impl<H: Hasher, S: Storage> Clone for HistoryTreeNode<H, S> {
             epochs: self.epochs.clone(),
             parent: self.parent,
             node_type: self.node_type,
-            state_map: self.state_map.clone(),
             _s: PhantomData,
             _h: PhantomData,
         }
@@ -89,7 +87,6 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
             epochs: vec![],
             parent, // Root node is its own parent
             node_type,
-            state_map: HashMap::new(),
             _s: PhantomData,
             _h: PhantomData,
         }
@@ -128,7 +125,6 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
             .get_longest_common_prefix_and_dirs(new_leaf.get_label());
 
         if self.is_root() {
-            // let new_leaf_loc = *num_nodes;
             new_leaf.location = *num_nodes;
             self.tree_repr_set(changeset, *num_nodes, &new_leaf);
             *num_nodes += 1;
@@ -173,10 +169,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 self.parent = new_node.location;
                 new_node.set_node_child_without_hash(epoch, dir_leaf, &new_leaf, changeset)?;
                 new_node.set_node_child_without_hash(epoch, dir_self, self, changeset)?;
-                // self.tree_repr_set(changeset, self.location, self);
-                // self.tree_repr_set(changeset, new_leaf.location, &new_leaf);
                 self.tree_repr_set(changeset, new_node.location, &new_node);
-                // new_node = self.tree_repr_get(changeset, new_node.location)?;
 
                 parent.set_node_child_without_hash(
                     epoch,
@@ -197,7 +190,6 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 new_node = self.tree_repr_get(changeset, new_node.location)?;
                 new_node.update_hash(epoch, changeset)?;
                 self.tree_repr_set(changeset, new_node_location, &new_node);
-                // parent.update_hash(epoch, changeset)?;
                 self.tree_repr_set(changeset, parent.location, &parent);
                 *self = self.tree_repr_get(changeset, self.location)?;
                 Ok(())
@@ -354,7 +346,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
 
     fn hash_node(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
         let epoch_node_state = self.get_state_at_epoch(epoch)?;
-        let mut new_hash = H::hash(&[]); //hash_label::<H>(self.label);
+        let mut new_hash = H::hash(&[]);
         for child_index in 0..ARITY {
             new_hash = H::merge(&[
                 new_hash,
@@ -690,7 +682,6 @@ pub fn get_leaf_node<H: Hasher, S: Storage>(
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Leaf,
-        state_map: HashMap::new(),
         _s: PhantomData,
         _h: PhantomData,
     };
@@ -718,7 +709,6 @@ pub fn get_leaf_node_without_empty<H: Hasher, S: Storage>(
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Leaf,
-        state_map: HashMap::new(),
         _s: PhantomData,
         _h: PhantomData,
     };
@@ -746,7 +736,7 @@ pub fn get_leaf_node_without_hashing<H: Hasher, S: Storage>(
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Leaf,
-        state_map: HashMap::new(),
+        // state_map: HashMap::new(),
         _s: PhantomData,
         _h: PhantomData,
     };
@@ -775,7 +765,6 @@ pub fn get_interior_node<H: Hasher, S: Storage>(
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Interior,
-        state_map: HashMap::new(),
         _s: PhantomData,
         _h: PhantomData,
     };
@@ -799,7 +788,6 @@ pub(crate) fn set_state_map<H: Hasher, S: Storage>(
         NodeStateKey(node.azks_id.clone(), node.label, *key as usize),
         &val,
     )?;
-    // node.state_map.insert(*key, val);
     Ok(())
 }
 
@@ -812,10 +800,4 @@ pub(crate) fn get_state_map<H: Hasher, S: Storage>(
         node.label,
         *key as usize,
     ))
-    // let val = node.state_map.get(key);
-
-    // match val {
-    //     Some(v) => Ok(v.clone()),
-    //     None => Err(StorageError::GetError),
-    // }
 }
