@@ -161,12 +161,13 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 self.set_node_child_without_hash(epoch, dir_leaf, &new_leaf, changeset)?;
                 self.tree_repr_set(changeset, self.location, self);
                 self.tree_repr_set(changeset, new_leaf.location, &new_leaf);
+
                 if hashing {
                     new_leaf.update_hash(epoch, changeset)?;
                     let mut new_self = self.tree_repr_get(changeset, self.location)?;
                     new_self.update_hash(epoch, changeset)?;
                 }
-
+              
                 *self = self.tree_repr_get(changeset, self.location)?;
                 return Ok(());
             }
@@ -208,7 +209,6 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                     &new_node,
                     changeset,
                 )?;
-                // self.tree_repr_set(changeset, parent.location, &parent);
                 if hashing {
                     new_leaf.update_hash(epoch, changeset)?;
                     self.update_hash(epoch, changeset)?;
@@ -246,7 +246,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
         }
     }
 
-    /// Updates the hash of this node as stored in its parent,
+  /// Updates the hash of this node as stored in its parent,
     /// provided the children of this node have already updated their own versions
     /// in this node and epoch is contained in the state_map
     /// Also assumes that `set_child_without_hash` has already been called
