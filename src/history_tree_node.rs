@@ -135,7 +135,6 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 self.set_node_child_without_hash(epoch, dir_leaf, &new_leaf, changeset)?;
                 self.tree_repr_set(changeset, self.location, self);
                 self.tree_repr_set(changeset, new_leaf.location, &new_leaf);
-                let mut new_leaf = self.tree_repr_get(changeset, new_leaf.location)?;
                 new_leaf.update_hash(epoch, changeset)?;
                 let mut new_self = self.tree_repr_get(changeset, self.location)?;
                 new_self.update_hash(epoch, changeset)?;
@@ -166,10 +165,14 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
                 new_leaf.parent = new_node.location;
+                self.tree_repr_set(changeset, new_leaf.location, &new_leaf);
+
                 self.parent = new_node.location;
+                self.tree_repr_set(changeset, self.location, self);
+
                 new_node.set_node_child_without_hash(epoch, dir_leaf, &new_leaf, changeset)?;
                 new_node.set_node_child_without_hash(epoch, dir_self, self, changeset)?;
-                self.tree_repr_set(changeset, new_node.location, &new_node);
+                // self.tree_repr_set(changeset, new_node.location, &new_node);
 
                 parent.set_node_child_without_hash(
                     epoch,
@@ -177,14 +180,8 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                     &new_node,
                     changeset,
                 )?;
-                self.tree_repr_set(changeset, parent.location, &parent);
-                self.tree_repr_set(changeset, new_node.location, &new_node);
+                // self.tree_repr_set(changeset, parent.location, &parent);
 
-                // jasleen1: This copying currently occurs because the nodes
-                // in tree_repr need to include the correct parent values for update_hash>
-                // If we change this to include storage, we probably won't need this extra cloning.
-                self.tree_repr_set(changeset, new_leaf.location, &new_leaf);
-                self.tree_repr_set(changeset, self.location, self);
                 new_leaf.update_hash(epoch, changeset)?;
                 self.update_hash(epoch, changeset)?;
                 new_node = self.tree_repr_get(changeset, new_node.location)?;
