@@ -16,7 +16,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref HASHMAP: Mutex<HashMap<String, String>> = {
+    static ref DB: Mutex<HashMap<String, String>> = {
+        let m = HashMap::new();
+        Mutex::new(m)
+    };
+    static ref CACHE: Mutex<HashMap<String, String>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
@@ -27,34 +31,58 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, String>);
+pub(crate) struct InMemoryDbWithCache(HashMap<String, String>);
 
-impl Storage for InMemoryDb {
+impl Storage for InMemoryDbWithCache {
     fn set(pos: String, value: String) -> Result<(), StorageError> {
         let mut stats = STATS.lock().unwrap();
-        let calls_to_set = stats.entry(String::from("calls_to_set")).or_insert(0);
-        *calls_to_set += 1;
+        let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
+        *calls_to_cache_set += 1;
 
-        let mut hashmap = HASHMAP.lock().unwrap();
-        hashmap.insert(pos, value);
+        let mut cache = CACHE.lock().unwrap();
+        cache.insert(pos.clone(), value.clone());
 
         Ok(())
     }
 
     fn get(pos: String) -> Result<String, StorageError> {
         let mut stats = STATS.lock().unwrap();
-        let calls_to_get = stats.entry(String::from("calls_to_get")).or_insert(0);
-        *calls_to_get += 1;
 
-        let hashmap = HASHMAP.lock().unwrap();
-        hashmap
-            .get(&pos)
-            .map(|v| v.clone())
-            .ok_or(StorageError::GetError)
+        let cache = &mut CACHE.lock().unwrap();
+        let calls_to_cache_get = stats.entry(String::from("calls_to_cache_get")).or_insert(0);
+        *calls_to_cache_get += 1;
+
+        match cache.get(&pos) {
+            Some(value) => Ok(value.clone()),
+            None => {
+                let calls_to_db_get = stats.entry(String::from("calls_to_db_get")).or_insert(0);
+                *calls_to_db_get += 1;
+
+                let db = DB.lock().unwrap();
+                let value = db
+                    .get(&pos)
+                    .map(|v| v.clone())
+                    .ok_or(StorageError::GetError)?;
+
+                cache.insert(pos, value.clone());
+                Ok(value)
+            }
+        }
     }
 }
 
 fn clear_stats() {
+    // Flush cache to db
+
+    let mut cache = CACHE.lock().unwrap();
+
+    let mut db = DB.lock().unwrap();
+    for (key, val) in cache.iter() {
+        db.insert(key.clone(), val.clone());
+    }
+
+    cache.clear();
+
     let mut stats = STATS.lock().unwrap();
     stats.clear();
 }
@@ -72,14 +100,14 @@ fn print_stats() {
 }
 
 fn print_hashmap_distribution() {
-    println!("Hashmap distrubtion of length of entries (in bytes):");
+    println!("Cache distribution of length of entries (in bytes):");
     println!("---------------------");
 
-    let hashmap = HASHMAP.lock().unwrap();
+    let cache = CACHE.lock().unwrap();
 
     let mut distribution: HashMap<usize, usize> = HashMap::new();
 
-    for (_, val) in hashmap.iter() {
+    for (_, val) in cache.iter() {
         let len = val.len();
 
         let counter = distribution.entry(len).or_insert(0);
@@ -93,7 +121,7 @@ fn print_hashmap_distribution() {
         println!("{}: {}", key, distribution[&key]);
     }
     println!("---------------------");
-    println!("HashMap number of elements: {}", hashmap.len());
+    println!("Cache number of elements: {}", cache.len());
     println!("---------------------");
 }
 
@@ -102,7 +130,7 @@ fn main() {
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng).unwrap();
+    let mut azks1 = Azks::<Blake3, InMemoryDbWithCache>::new(&mut rng).unwrap();
 
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);

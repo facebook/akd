@@ -9,8 +9,6 @@ use crate::{
     storage::{Storable, Storage},
 };
 
-use std::collections::HashMap;
-
 use crate::serialization::to_digest;
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use rand::{rngs::OsRng, CryptoRng, RngCore};
@@ -90,9 +88,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
         let root = get_empty_root::<H, S>(&azks_id, Option::Some(0))?;
 
-        let mut changeset = HashMap::new();
-        changeset.insert(NodeKey(azks_id.clone(), 0), root);
-
         let azks = Azks {
             azks_id,
             root: 0,
@@ -102,7 +97,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             _h: PhantomData,
         };
 
-        HistoryTreeNode::commit_cache(&changeset)?;
+        root.write_to_storage()?;
 
         Ok(azks)
     }
@@ -121,16 +116,12 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         )?;
 
         let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        let mut changeset = HashMap::new();
         root_node.insert_single_leaf(
             new_leaf,
             &self.azks_id,
             self.latest_epoch,
             &mut self.num_nodes,
-            &mut changeset,
         )?;
-
-        HistoryTreeNode::commit_cache(&changeset)?;
 
         Ok(())
     }
@@ -147,7 +138,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
     ) -> Result<(), SeemlessError> {
-        let mut changeset = HashMap::new();
         self.increment_epoch();
 
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
@@ -180,9 +170,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 &self.azks_id,
                 self.latest_epoch,
                 &mut self.num_nodes,
-                &mut changeset,
             )?;
-            HistoryTreeNode::commit_cache(&changeset)?;
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -194,10 +182,9 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
 
             let mut next_node =
-                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
+                HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
 
-            next_node.update_hash(self.latest_epoch, &mut changeset)?;
-            HistoryTreeNode::commit_cache(&changeset)?;
+            next_node.update_hash(self.latest_epoch)?;
 
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
@@ -212,8 +199,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 priorities -= 1;
             }
         }
-
-        HistoryTreeNode::commit_cache(&changeset)?;
         Ok(())
     }
 
