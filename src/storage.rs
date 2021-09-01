@@ -5,9 +5,10 @@
 
 use crate::errors::StorageError;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 
-pub trait Storable<S: Storage>: Serialize + DeserializeOwned {
-    type Key: Serialize;
+pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
+    type Key: Clone + Serialize + Eq + std::hash::Hash;
 
     /// Must return a unique String identifier for this struct
     fn identifier() -> String;
@@ -28,6 +29,37 @@ pub trait Storable<S: Storage>: Serialize + DeserializeOwned {
             hex::encode(bincode::serialize(&key).unwrap())
         );
         S::set(k, hex::encode(&bincode::serialize(&value).unwrap()))
+    }
+
+    fn retrieve_cache(
+        cache: &mut HashMap<Self::Key, Self>,
+        key: Self::Key,
+    ) -> Result<Self, StorageError> {
+        match cache.get(&key) {
+            None => {
+                let value = Self::retrieve(key.clone())?;
+                cache.insert(key, value.clone());
+                Ok(value)
+            }
+            Some(value) => Ok(value.clone()),
+        }
+    }
+
+    fn store_cache(
+        cache: &mut HashMap<Self::Key, Self>,
+        key: Self::Key,
+        value: &Self,
+    ) -> Result<(), StorageError> {
+        cache.insert(key, value.clone());
+        Ok(())
+    }
+
+    fn commit_cache(cache: &HashMap<Self::Key, Self>) -> Result<(), StorageError> {
+        // FIXME: introduce a batch API for Storage
+        for (key, value) in cache {
+            Self::store(key.clone(), value)?;
+        }
+        Ok(())
     }
 }
 

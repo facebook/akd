@@ -34,7 +34,7 @@ pub struct Azks<H, S> {
 }
 
 // parameter is azks_id
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct AzksKey(pub(crate) Vec<u8>);
 
 impl<H: Hasher, S: Storage> Storable<S> for Azks<H, S> {
@@ -91,7 +91,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let root = get_empty_root::<H, S>(&azks_id, Option::Some(0))?;
 
         let mut changeset = HashMap::new();
-        changeset.insert(0, root);
+        changeset.insert(NodeKey(azks_id.clone(), 0), root);
 
         let azks = Azks {
             azks_id,
@@ -102,7 +102,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             _h: PhantomData,
         };
 
-        azks.commit_changeset(&changeset)?;
+        HistoryTreeNode::commit_cache(&changeset)?;
 
         Ok(azks)
     }
@@ -130,18 +130,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             &mut changeset,
         )?;
 
-        self.commit_changeset(&changeset)?;
+        HistoryTreeNode::commit_cache(&changeset)?;
 
-        Ok(())
-    }
-
-    fn commit_changeset(
-        &self,
-        changeset: &HashMap<usize, HistoryTreeNode<H, S>>,
-    ) -> Result<(), SeemlessError> {
-        for (location, node) in changeset {
-            HistoryTreeNode::store(NodeKey(self.azks_id.clone(), *location), node)?;
-        }
         Ok(())
     }
 
@@ -192,7 +182,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 &mut self.num_nodes,
                 &mut changeset,
             )?;
-            self.commit_changeset(&changeset)?;
+            HistoryTreeNode::commit_cache(&changeset)?;
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -207,7 +197,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
 
             next_node.update_hash(self.latest_epoch, &mut changeset)?;
-            self.commit_changeset(&changeset)?;
+            HistoryTreeNode::commit_cache(&changeset)?;
 
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
@@ -223,7 +213,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
         }
 
-        self.commit_changeset(&changeset)?;
+        HistoryTreeNode::commit_cache(&changeset)?;
         Ok(())
     }
 

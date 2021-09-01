@@ -16,7 +16,7 @@ use winter_crypto::Hasher;
 
 use rand::{CryptoRng, RngCore};
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeLabel {
     pub val: u64,
     pub len: u32,
@@ -97,12 +97,6 @@ impl NodeLabel {
     }
 }
 
-impl PartialEq for NodeLabel {
-    fn eq(&self, other: &Self) -> bool {
-        self.val == other.val && self.len == other.len
-    }
-}
-
 pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     let byte_label_len = H::hash(&label.get_len().to_ne_bytes());
     H::merge_with_int(byte_label_len, label.get_val())
@@ -116,7 +110,7 @@ pub struct HistoryNodeState<H, S> {
 }
 
 // parameters are azks_id, node location, and epoch
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeStateKey(pub(crate) Vec<u8>, pub(crate) NodeLabel, pub(crate) usize);
 
 impl<H: Hasher, S: Storage> Storable<S> for HistoryNodeState<H, S> {
@@ -186,7 +180,7 @@ pub struct HistoryChildState<H, S> {
 }
 
 // parameters are azks_id, node location, epoch, child index
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ChildStateKey(
     pub(crate) Vec<u8>,
     pub(crate) usize,
