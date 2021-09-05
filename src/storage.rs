@@ -6,8 +6,8 @@
 use crate::errors::StorageError;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub trait Storable<S: Storage>: Serialize + DeserializeOwned {
-    type Key: Serialize;
+pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
+    type Key: Clone + Serialize + Eq + std::hash::Hash;
 
     /// Must return a unique String identifier for this struct
     fn identifier() -> String;
