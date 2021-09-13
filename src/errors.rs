@@ -143,6 +143,7 @@ impl fmt::Display for HistoryTreeNodeError {
 pub enum AzksError {
     PopFromEmptyPriorityQueue(u64),
     MembershipProofDidNotVerify(String),
+    AppendOnlyProofDidNotVerify,
 }
 
 impl fmt::Display for AzksError {
@@ -157,6 +158,9 @@ impl fmt::Display for AzksError {
             }
             Self::MembershipProofDidNotVerify(error_string) => {
                 write!(f, "{}", error_string)
+            }
+            Self::AppendOnlyProofDidNotVerify => {
+                write!(f, "Append only proof did not verify!")
             }
         }
     }

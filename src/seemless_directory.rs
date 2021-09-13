@@ -294,19 +294,25 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     pub fn audit(
         &self,
-        _audit_start_ep: u64,
-        _audit_end_ep: u64,
-    ) -> Result<Vec<AppendOnlyProof<H>>, SeemlessDirectoryError> {
-        unimplemented!()
+        audit_start_ep: u64,
+        audit_end_ep: u64,
+    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+        // unimplemented!()
+        let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
+        current_azks.get_append_only_proof(audit_start_ep, audit_end_ep)
     }
 
     pub fn audit_verify(
         &self,
-        _audit_start_ep: u64,
-        _audit_end_ep: u64,
-        _proof: HistoryProof<H>,
-    ) -> Result<(), SeemlessDirectoryError> {
-        unimplemented!()
+        audit_start_ep: u64,
+        audit_end_ep: u64,
+        proof: AppendOnlyProof<H>,
+    ) -> Result<(), SeemlessError> {
+        // unimplemented!()
+        let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
+        let start_hash = current_azks.get_root_hash_at_epoch(audit_start_ep)?;
+        let end_hash = current_azks.get_root_hash_at_epoch(audit_end_ep)?;
+        current_azks.verify_append_only(proof, start_hash, end_hash)
     }
 
     /// HELPERS ///
