@@ -638,7 +638,6 @@ mod tests {
             ),
         ])?;
 
-
         let audit_proof_1 = seemless.audit(1, 2)?;
         seemless.audit_verify(1, 2, audit_proof_1)?;
 
@@ -651,7 +650,6 @@ mod tests {
         let audit_proof_4 = seemless.audit(1, 5)?;
         seemless.audit_verify(1, 5, audit_proof_4)?;
 
-
         let audit_proof_5 = seemless.audit(2, 3)?;
         seemless.audit_verify(2, 3, audit_proof_5)?;
 
@@ -660,5 +658,4 @@ mod tests {
 
         Ok(())
     }
-
 }
