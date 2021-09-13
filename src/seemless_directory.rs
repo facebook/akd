@@ -297,7 +297,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         audit_start_ep: u64,
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, SeemlessError> {
-        // unimplemented!()
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
         current_azks.get_append_only_proof(audit_start_ep, audit_end_ep)
     }
@@ -308,7 +307,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         audit_end_ep: u64,
         proof: AppendOnlyProof<H>,
     ) -> Result<(), SeemlessError> {
-        // unimplemented!()
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
         let start_hash = current_azks.get_root_hash_at_epoch(audit_start_ep)?;
         let end_hash = current_azks.get_root_hash_at_epoch(audit_end_ep)?;
@@ -606,4 +604,61 @@ mod tests {
 
         Ok(())
     }
+
+    #[allow(unused)]
+    #[test]
+    fn test_simple_audit() -> Result<(), SeemlessError> {
+        let mut seemless = SeemlessDirectory::<InMemoryDb, Blake3_256<BaseElement>>::new()?;
+
+        seemless.publish(vec![
+            (Username("hello".to_string()), Values("world".to_string())),
+            (Username("hello2".to_string()), Values("world2".to_string())),
+        ])?;
+
+        seemless.publish(vec![
+            (Username("hello".to_string()), Values("world3".to_string())),
+            (Username("hello2".to_string()), Values("world4".to_string())),
+        ])?;
+
+        seemless.publish(vec![
+            (Username("hello3".to_string()), Values("world".to_string())),
+            (Username("hello4".to_string()), Values("world2".to_string())),
+        ])?;
+
+        seemless.publish(vec![(
+            Username("hello".to_string()),
+            Values("world_updated".to_string()),
+        )])?;
+
+        seemless.publish(vec![
+            (Username("hello3".to_string()), Values("world6".to_string())),
+            (
+                Username("hello4".to_string()),
+                Values("world12".to_string()),
+            ),
+        ])?;
+
+
+        let audit_proof_1 = seemless.audit(1, 2)?;
+        seemless.audit_verify(1, 2, audit_proof_1)?;
+
+        let audit_proof_2 = seemless.audit(1, 3)?;
+        seemless.audit_verify(1, 3, audit_proof_2)?;
+
+        let audit_proof_3 = seemless.audit(1, 4)?;
+        seemless.audit_verify(1, 4, audit_proof_3)?;
+
+        let audit_proof_4 = seemless.audit(1, 5)?;
+        seemless.audit_verify(1, 5, audit_proof_4)?;
+
+
+        let audit_proof_5 = seemless.audit(2, 3)?;
+        seemless.audit_verify(2, 3, audit_proof_5)?;
+
+        let audit_proof_6 = seemless.audit(2, 4)?;
+        seemless.audit_verify(2, 4, audit_proof_6)?;
+
+        Ok(())
+    }
+
 }
