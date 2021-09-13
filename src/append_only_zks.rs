@@ -426,7 +426,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         proof: AppendOnlyProof<H>,
         start_hash: H::Digest,
         end_hash: H::Digest,
-    ) -> Result<bool, SeemlessError> {
+    ) -> Result<(), SeemlessError> {
         let unchanged_nodes = proof.unchanged_nodes;
         let inserted = proof.inserted;
         let mut rng = OsRng;
@@ -437,7 +437,12 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         azks.batch_insert_leaves_helper(inserted, true)?;
 
         verified = verified && (azks.get_root_hash()? == end_hash);
-        Ok(verified)
+        if !verified {
+            return Err(SeemlessError::AzksErr(
+                AzksError::AppendOnlyProofDidNotVerify,
+            ));
+        }
+        Ok(())
     }
 
     fn increment_epoch(&mut self) {
@@ -752,10 +757,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        assert!(
-            azks.verify_append_only(proof, start_hash, end_hash)?,
-            "Append only proof did not verify!"
-        );
+        azks.verify_append_only(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -779,10 +781,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        assert!(
-            azks.verify_append_only(proof, start_hash, end_hash)?,
-            "Append only proof did not verify!"
-        );
+        azks.verify_append_only(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -834,10 +833,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 3)?;
 
-        assert!(
-            azks.verify_append_only(proof, start_hash, end_hash)?,
-            "Append only proof did not verify!"
-        );
+        azks.verify_append_only(proof, start_hash, end_hash)?;
         Ok(())
     }
 }
