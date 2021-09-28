@@ -8,18 +8,33 @@ use crate::errors::{SeemlessDirectoryError, SeemlessError};
 use crate::history_tree_node::{HistoryTreeNode, NodeKey};
 use crate::node_state::NodeLabel;
 use crate::storage::{Storable, Storage};
+
 use rand::{prelude::ThreadRng, thread_rng};
+use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::usize;
 use winter_crypto::Hasher;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Username(String);
 
+impl Username {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self(get_random_str(rng))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct Values(String);
+
+impl Values {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self(get_random_str(rng))
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
@@ -54,7 +69,7 @@ impl UserData {
         }
     }
 }
-
+#[derive(Debug, Clone)]
 pub struct LookupProof<H: Hasher> {
     epoch: u64,
     plaintext_value: Values,
@@ -64,7 +79,7 @@ pub struct LookupProof<H: Hasher> {
     freshness_proof: NonMembershipProof<H>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpdateProof<H: Hasher> {
     epoch: u64,
     plaintext_value: Values,
@@ -78,6 +93,7 @@ pub struct UpdateProof<H: Hasher> {
     non_existence_of_future_markers: Vec<NonMembershipProof<H>>, // proof that future markers did not exist
 }
 
+#[derive(Debug, Clone)]
 pub struct HistoryProof<H: Hasher> {
     #[allow(unused)]
     proofs: Vec<UpdateProof<H>>,
@@ -521,6 +537,12 @@ fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
         }
     }
     out_arr
+}
+
+fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
+    let mut byte_str = [0u8; 32];
+    rng.fill_bytes(&mut byte_str);
+    format!("{:?}", &byte_str)
 }
 
 #[cfg(test)]

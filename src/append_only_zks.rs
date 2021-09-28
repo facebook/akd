@@ -56,7 +56,7 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     pub(crate) hash_val: H::Digest,
@@ -66,7 +66,7 @@ pub struct MembershipProof<H: Hasher> {
     dirs: Vec<Direction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NonMembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     longest_prefix: NodeLabel,
@@ -75,7 +75,7 @@ pub struct NonMembershipProof<H: Hasher> {
     longest_prefix_membership_proof: MembershipProof<H>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AppendOnlyProof<H: Hasher> {
     inserted: Vec<(NodeLabel, H::Digest)>,
     unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
