@@ -308,6 +308,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         Ok(())
     }
 
+    // Needs error handling in case the epochs are invalid
     pub fn audit(
         &self,
         audit_start_ep: u64,

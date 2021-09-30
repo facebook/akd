@@ -168,8 +168,8 @@ fn main() {
         SeemlessDirectory::<InMemoryDbWithCache, Blake3_256<BaseElement>>::new().unwrap();
 
     // Populating the updates
-    let rng_1: ThreadRng = thread_rng();
-    let mut updates = create_usernames_and_values(num_init_insertions, rng_1);
+    let rng: ThreadRng = thread_rng();
+    let mut updates = create_usernames_and_values(num_init_insertions, rng);
 
     // Publishing updated set with an initial set of users
     seemless_dir.publish(updates.clone()).unwrap();
@@ -180,11 +180,10 @@ fn main() {
         .map(|x| x.0.clone())
         .collect::<Vec<Username>>();
     existing_usernames.append(&mut new_usernames);
-    println!("Number of new users = {}", updates.len());
 
     let num_new_insertions = 10;
-    let rng_2: ThreadRng = thread_rng();
-    updates = create_usernames_and_values(num_new_insertions, rng_2);
+    let rng: ThreadRng = thread_rng();
+    updates = create_usernames_and_values(num_new_insertions, rng);
     println!("*********************************************************************************");
     println!(
         "* Measurements for inserting {} new users into a directory of {} existing users *",
@@ -204,10 +203,30 @@ fn main() {
         .collect::<Vec<Username>>();
     existing_usernames.append(&mut new_usernames);
 
+    let new_epochs = 5;
+    // Adding a few new epochs and updating keys for some users
+    for _ in 0..new_epochs {
+        let num_new_insertions = 10;
+        let num_updates = 10;
+        let rng: ThreadRng = thread_rng();
+        let mut new_users = create_usernames_and_values(num_new_insertions, rng);
+        let rng: ThreadRng = thread_rng();
+        updates = create_random_subset_of_existing_users(existing_usernames.clone(), num_updates, rng);
+        updates.append(&mut new_users);
+        seemless_dir.publish(updates.clone()).unwrap();
+        new_usernames = new_users
+        .clone()
+        .iter()
+        .map(|x| x.0.clone())
+        .collect::<Vec<Username>>();
+        existing_usernames.append(&mut new_usernames);
+
+    }
+
     let num_lookups = 10;
-    let rng_3: ThreadRng = thread_rng();
+    let rng: ThreadRng = thread_rng();
     let lookup_set =
-        create_random_subset_of_existing_users(existing_usernames.clone(), num_lookups, rng_3);
+        create_random_subset_of_existing_users(existing_usernames.clone(), num_lookups, rng);
     println!("******************************************************************************************************");
     println!("* Measurements for looking up and verifying lookups for {} users in a directory of {} existing users *", num_lookups, existing_usernames.len());
     println!("*****************************************************************************************************");
@@ -227,9 +246,9 @@ fn main() {
     print_stats();
 
     let num_key_history = 10;
-    let rng_4: ThreadRng = thread_rng();
+    let rng: ThreadRng = thread_rng();
     let key_history_set =
-        create_random_subset_of_existing_users(existing_usernames.clone(), num_key_history, rng_4);
+        create_random_subset_of_existing_users(existing_usernames.clone(), num_key_history, rng);
     println!("******************************************************************************************************");
     println!("* Measurements for running and verifying key history of {} users in a directory of {} existing users *", num_key_history, existing_usernames.len());
     println!("******************************************************************************************************");
@@ -247,4 +266,27 @@ fn main() {
 
     print_hashmap_distribution();
     print_stats();
+
+    let total_ep = new_epochs + 2;
+    println!("*************************************************************************************************");
+    println!("* Measurements for running and verifying audit of {} epochs in a directory of {} existing users *", total_ep, existing_usernames.len());
+    println!("*************************************************************************************************");
+    // Key history and verification measurement
+    clear_stats();
+
+    for i in 1..total_ep {
+        for j in i..total_ep {
+            // Get a new lookup proof for the current user
+            let audit_proof = seemless_dir.audit(i, j).unwrap();
+            // Verify this lookup proof
+            seemless_dir
+                .audit_verify(i, j, audit_proof)
+                .unwrap();
+        }
+    }
+
+    print_hashmap_distribution();
+    print_stats();
+
+
 }
