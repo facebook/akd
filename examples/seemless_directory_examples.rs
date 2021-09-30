@@ -6,124 +6,12 @@
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
 use seemless::seemless_directory::{SeemlessDirectory, Username, Values};
-use seemless::storage::Storage;
+
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
-use lazy_static::lazy_static;
-use seemless::errors::StorageError;
-use std::collections::HashMap;
-use std::sync::Mutex;
-
-lazy_static! {
-    static ref DB: Mutex<HashMap<String, String>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-    static ref CACHE: Mutex<HashMap<String, String>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-    static ref STATS: Mutex<HashMap<String, usize>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-}
-
-#[derive(Debug)]
-pub(crate) struct InMemoryDbWithCache(HashMap<String, String>);
-
-impl Storage for InMemoryDbWithCache {
-    fn set(pos: String, value: String) -> Result<(), StorageError> {
-        let mut stats = STATS.lock().unwrap();
-        let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
-        *calls_to_cache_set += 1;
-
-        let mut cache = CACHE.lock().unwrap();
-        cache.insert(pos.clone(), value.clone());
-
-        Ok(())
-    }
-
-    fn get(pos: String) -> Result<String, StorageError> {
-        let mut stats = STATS.lock().unwrap();
-
-        let cache = &mut CACHE.lock().unwrap();
-        let calls_to_cache_get = stats.entry(String::from("calls_to_cache_get")).or_insert(0);
-        *calls_to_cache_get += 1;
-
-        match cache.get(&pos) {
-            Some(value) => Ok(value.clone()),
-            None => {
-                let calls_to_db_get = stats.entry(String::from("calls_to_db_get")).or_insert(0);
-                *calls_to_db_get += 1;
-
-                let db = DB.lock().unwrap();
-                let value = db
-                    .get(&pos)
-                    .map(|v| v.clone())
-                    .ok_or(StorageError::GetError)?;
-
-                cache.insert(pos, value.clone());
-                Ok(value)
-            }
-        }
-    }
-}
-
-fn clear_stats() {
-    // Flush cache to db
-
-    let mut cache = CACHE.lock().unwrap();
-
-    let mut db = DB.lock().unwrap();
-    for (key, val) in cache.iter() {
-        db.insert(key.clone(), val.clone());
-    }
-
-    cache.clear();
-
-    let mut stats = STATS.lock().unwrap();
-    stats.clear();
-}
-
-fn print_stats() {
-    println!("Statistics collected:");
-    println!("---------------------");
-
-    let stats = STATS.lock().unwrap();
-    for (key, val) in stats.iter() {
-        println!("{}: {}", key, val);
-    }
-
-    println!("---------------------");
-}
-
-fn print_hashmap_distribution() {
-    println!("Cache distribution of length of entries (in bytes):");
-    println!("---------------------");
-
-    let cache = CACHE.lock().unwrap();
-
-    let mut distribution: HashMap<usize, usize> = HashMap::new();
-
-    for (_, val) in cache.iter() {
-        let len = val.len();
-
-        let counter = distribution.entry(len).or_insert(0);
-        *counter += 1;
-    }
-
-    let mut sorted_keys: Vec<usize> = distribution.keys().cloned().collect();
-    sorted_keys.sort();
-
-    for key in sorted_keys {
-        println!("{}: {}", key, distribution[&key]);
-    }
-    println!("---------------------");
-    println!("Cache number of elements: {}", cache.len());
-    println!("---------------------");
-}
+pub mod measurements;
+use measurements::*;
 
 fn create_usernames_and_values(
     num_insertions: usize,
@@ -211,16 +99,16 @@ fn main() {
         let rng: ThreadRng = thread_rng();
         let mut new_users = create_usernames_and_values(num_new_insertions, rng);
         let rng: ThreadRng = thread_rng();
-        updates = create_random_subset_of_existing_users(existing_usernames.clone(), num_updates, rng);
+        updates =
+            create_random_subset_of_existing_users(existing_usernames.clone(), num_updates, rng);
         updates.append(&mut new_users);
         seemless_dir.publish(updates.clone()).unwrap();
         new_usernames = new_users
-        .clone()
-        .iter()
-        .map(|x| x.0.clone())
-        .collect::<Vec<Username>>();
+            .clone()
+            .iter()
+            .map(|x| x.0.clone())
+            .collect::<Vec<Username>>();
         existing_usernames.append(&mut new_usernames);
-
     }
 
     let num_lookups = 10;
@@ -279,14 +167,10 @@ fn main() {
             // Get a new lookup proof for the current user
             let audit_proof = seemless_dir.audit(i, j).unwrap();
             // Verify this lookup proof
-            seemless_dir
-                .audit_verify(i, j, audit_proof)
-                .unwrap();
+            seemless_dir.audit_verify(i, j, audit_proof).unwrap();
         }
     }
 
     print_hashmap_distribution();
     print_stats();
-
-
 }
