@@ -31,7 +31,7 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDbWithCache(HashMap<String, String>);
+pub struct InMemoryDbWithCache(HashMap<String, String>);
 
 impl Storage for InMemoryDbWithCache {
     fn set(pos: String, value: String) -> Result<(), StorageError> {
@@ -71,7 +71,7 @@ impl Storage for InMemoryDbWithCache {
     }
 }
 
-fn clear_stats() {
+pub fn clear_stats() {
     // Flush cache to db
 
     let mut cache = CACHE.lock().unwrap();
@@ -87,7 +87,7 @@ fn clear_stats() {
     stats.clear();
 }
 
-fn print_stats() {
+pub fn print_stats() {
     println!("Statistics collected:");
     println!("---------------------");
 
@@ -99,7 +99,7 @@ fn print_stats() {
     println!("---------------------");
 }
 
-fn print_hashmap_distribution() {
+pub fn print_hashmap_distribution() {
     println!("Cache distribution of length of entries (in bytes):");
     println!("---------------------");
 
