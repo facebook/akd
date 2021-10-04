@@ -69,35 +69,6 @@ impl UserData {
         }
     }
 }
-// #[derive(Debug, Clone)]
-// pub struct LookupProof<H: Hasher> {
-//     epoch: u64,
-//     plaintext_value: Values,
-//     version: u64,
-//     existence_proof: MembershipProof<H>,
-//     marker_proof: MembershipProof<H>,
-//     freshness_proof: NonMembershipProof<H>,
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct UpdateProof<H: Hasher> {
-//     epoch: u64,
-//     plaintext_value: Values,
-//     version: u64,
-//     existence_at_ep: MembershipProof<H>, // membership proof to show that the key was included in this epoch
-//     previous_val_stale_at_ep: Option<MembershipProof<H>>, // proof that previous value was set to old at this epoch
-//     non_existence_before_ep: Option<NonMembershipProof<H>>, // proof that this value didn't exist prior to this ep
-//     #[allow(unused)]
-//     non_existence_of_next_few: Vec<NonMembershipProof<H>>, // proof that the next few values did not exist at this time
-//     #[allow(unused)]
-//     non_existence_of_future_markers: Vec<NonMembershipProof<H>>, // proof that future markers did not exist
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct HistoryProof<H: Hasher> {
-//     #[allow(unused)]
-//     proofs: Vec<UpdateProof<H>>,
-// }
 
 pub struct SeemlessDirectory<S, H> {
     azks_id: Vec<u8>,
@@ -297,16 +268,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         Ok(HistoryProof { proofs })
     }
 
-    // pub fn key_history_verify(
-    //     &self,
-    //     uname: Username,
-    //     proof: HistoryProof<H>,
-    // ) -> Result<(), SeemlessError> {
-    //     for update_proof in proof.proofs {
-    //         self.verify_single_update_proof(update_proof, &uname)?;
-    //     }
-    //     Ok(())
-    // }
 
     // Needs error handling in case the epochs are invalid
     pub fn audit(
@@ -317,18 +278,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
         current_azks.get_append_only_proof(audit_start_ep, audit_end_ep)
     }
-
-    // pub fn audit_verify(
-    //     &self,
-    //     audit_start_ep: u64,
-    //     audit_end_ep: u64,
-    //     proof: AppendOnlyProof<H>,
-    // ) -> Result<(), SeemlessError> {
-    //     let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
-    //     let start_hash = current_azks.get_root_hash_at_epoch(audit_start_ep)?;
-    //     let end_hash = current_azks.get_root_hash_at_epoch(audit_end_ep)?;
-    //     current_azks.verify_append_only(proof, start_hash, end_hash)
-    // }
 
     /// HELPERS ///
 
@@ -557,6 +506,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
     format!("{:?}", &byte_str)
 }
 
+
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 pub fn get_key_history_hashes<S: Storage, H: Hasher>(
@@ -575,6 +525,7 @@ pub fn get_key_history_hashes<S: Storage, H: Hasher>(
     }
     Ok((root_hashes, previous_root_hashes))
 }
+
 
 #[cfg(test)]
 mod tests {

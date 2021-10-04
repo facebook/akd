@@ -55,33 +55,6 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
         }
     }
 }
-/*
-#[derive(Debug, Clone)]
-pub struct MembershipProof<H: Hasher> {
-    pub(crate) label: NodeLabel,
-    pub(crate) hash_val: H::Digest,
-    parent_labels: Vec<NodeLabel>,
-    sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
-    sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
-    dirs: Vec<Direction>,
-}
-
-#[derive(Debug, Clone)]
-pub struct NonMembershipProof<H: Hasher> {
-    pub(crate) label: NodeLabel,
-    longest_prefix: NodeLabel,
-    longest_prefix_children_labels: [NodeLabel; ARITY],
-    longest_prefix_children_values: [H::Digest; ARITY],
-    longest_prefix_membership_proof: MembershipProof<H>,
-}
-
-
-#[derive(Debug, Clone)]
-pub struct AppendOnlyProof<H: Hasher> {
-    inserted: Vec<(NodeLabel, H::Digest)>,
-    unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
-}
-*/
 
 impl<H: Hasher, S: Storage> Azks<H, S> {
     pub fn new<R: CryptoRng + RngCore>(rng: &mut R) -> Result<Self, SeemlessError> {
