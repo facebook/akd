@@ -268,7 +268,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         Ok(HistoryProof { proofs })
     }
 
-
     // Needs error handling in case the epochs are invalid
     pub fn audit(
         &self,
@@ -506,7 +505,6 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
     format!("{:?}", &byte_str)
 }
 
-
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 pub fn get_key_history_hashes<S: Storage, H: Hasher>(
@@ -525,7 +523,6 @@ pub fn get_key_history_hashes<S: Storage, H: Hasher>(
     }
     Ok((root_hashes, previous_root_hashes))
 }
-
 
 #[cfg(test)]
 mod tests {

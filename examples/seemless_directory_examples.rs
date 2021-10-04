@@ -9,7 +9,6 @@ use rand::{prelude::ThreadRng, thread_rng};
 use seemless::seemless_client::{audit_verify, key_history_verify, lookup_verify};
 use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory, Username, Values};
 
-
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
@@ -162,7 +161,6 @@ fn main() {
             new_history_proof,
         )
         .unwrap();
-
     }
 
     print_hashmap_distribution();
@@ -186,7 +184,6 @@ fn main() {
                 audit_proof,
             )
             .unwrap();
-
         }
     }
 
