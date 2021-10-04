@@ -20,7 +20,7 @@ pub use proof_structs::*;
 pub mod seemless_client;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 pub const ARITY: usize = 2;
 

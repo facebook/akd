@@ -4,7 +4,7 @@ use winter_crypto::Hasher;
 use crate::{
     append_only_zks::Azks,
     node_state::{hash_label, NodeLabel},
-    seemless_directory::{SeemlessDirectory, Username},
+    seemless_directory::{get_marker_version, Username},
     storage::Storage,
     AppendOnlyProof, AzksError, Direction, HistoryProof, LookupProof, MembershipProof,
     NonMembershipProof, SeemlessDirectoryError, SeemlessError, UpdateProof, ARITY,
@@ -76,9 +76,9 @@ pub fn verify_nonmembership<H: Hasher>(
     Ok(verified)
 }
 
-pub fn lookup_verify<H: Hasher, S: Storage>(
+pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
-    uname: Username,
+    _uname: Username,
     proof: LookupProof<H>,
 ) -> Result<(), SeemlessError> {
     let _epoch = proof.epoch;
@@ -86,11 +86,12 @@ pub fn lookup_verify<H: Hasher, S: Storage>(
     let _plaintext_value = proof.plaintext_value;
     let version = proof.version;
 
-    let marker_version = 1 << SeemlessDirectory::<S, H>::get_marker_version(version);
+    let _marker_version = 1 << get_marker_version(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
-
+    /*
+    // These need to be changed to VRF verifications later.
     let existence_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, false, version);
     if existence_label != existence_proof.label {
         return Err(SeemlessError::SeemlessDirectoryErr(
@@ -115,7 +116,7 @@ pub fn lookup_verify<H: Hasher, S: Storage>(
             ),
         ));
     }
-
+    */
     verify_membership::<H>(root_hash, &existence_proof)?;
     verify_membership::<H>(root_hash, &marker_proof)?;
 
@@ -156,7 +157,7 @@ pub fn verify_append_only<H: Hasher, S: Storage>(
     Ok(())
 }
 
-pub fn key_history_verify<H: Hasher, S: Storage>(
+pub fn key_history_verify<H: Hasher>(
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
     uname: Username,
@@ -165,12 +166,12 @@ pub fn key_history_verify<H: Hasher, S: Storage>(
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof::<H, S>(root_hash, previous_root_hash, update_proof, &uname)?;
+        verify_single_update_proof::<H>(root_hash, previous_root_hash, update_proof, &uname)?;
     }
     Ok(())
 }
 
-pub fn verify_single_update_proof<H: Hasher, S: Storage>(
+pub fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
@@ -231,8 +232,8 @@ pub fn verify_single_update_proof<H: Hasher, S: Storage>(
         )?;
     }
 
-    let next_marker = SeemlessDirectory::<S, H>::get_marker_version(version) + 1;
-    let final_marker = SeemlessDirectory::<S, H>::get_marker_version(epoch);
+    let next_marker = get_marker_version(version) + 1;
+    let final_marker = get_marker_version(epoch);
     for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
         let pf = &proof.non_existence_of_next_few[i];
         if !verify_nonmembership(root_hash, pf)? {

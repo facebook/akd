@@ -127,7 +127,7 @@ fn main() {
         // Get a new lookup proof for the current user
         let new_lookup_proof = seemless_dir.lookup(lookup_set[i].0.clone()).unwrap();
         // Verify this lookup proof
-        lookup_verify::<Blake3_256<BaseElement>, InMemoryDbWithCache>(
+        lookup_verify::<Blake3_256<BaseElement>>(
             seemless_dir.get_root_hash().unwrap(),
             lookup_set[i].0.clone(),
             new_lookup_proof,
@@ -154,7 +154,7 @@ fn main() {
         // Verify this lookup proof
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless_dir, &new_history_proof).unwrap();
-        key_history_verify::<Blake3_256<BaseElement>, InMemoryDbWithCache>(
+        key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
             key_history_set[i].0.clone(),

@@ -166,7 +166,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 let latest_st = user_data_val.states.last().unwrap();
                 let plaintext_value = latest_st.plaintext_val.clone();
                 let current_version = latest_st.version;
-                let marker_version = 1 << Self::get_marker_version(current_version);
+                let marker_version = 1 << get_marker_version(current_version);
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
@@ -259,10 +259,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         // unimplemented!()
     }
 
-    pub(crate) fn get_marker_version(version: u64) -> u64 {
-        (64 - version.leading_zeros() - 1).into()
-    }
-
     fn create_single_update_proof(
         &self,
         uname: &Username,
@@ -289,8 +285,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 Option::Some(current_azks.get_non_membership_proof(label_at_ep, epoch - 1)?);
         }
 
-        let next_marker = Self::get_marker_version(*version) + 1;
-        let final_marker = Self::get_marker_version(epoch);
+        let next_marker = get_marker_version(*version) + 1;
+        let final_marker = get_marker_version(epoch);
 
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
@@ -334,6 +330,10 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 }
 
 /// Helpers
+
+pub(crate) fn get_marker_version(version: u64) -> u64 {
+    (64 - version.leading_zeros() - 1).into()
+}
 
 /// Converts a slice of u8 to an array of length 8. If the
 /// slice is not long enough, just pads with zeros.
@@ -409,7 +409,7 @@ mod tests {
 
         let lookup_proof = seemless.lookup(Username("hello".to_string()))?;
         let root_hash = seemless.get_root_hash()?;
-        lookup_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
             Username("hello".to_string()),
             lookup_proof,
@@ -452,7 +452,7 @@ mod tests {
         let history_proof = seemless.key_history(&Username("hello".to_string()))?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof)?;
-        key_history_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
             Username("hello".to_string()),
@@ -462,7 +462,7 @@ mod tests {
         let history_proof = seemless.key_history(&Username("hello2".to_string()))?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof)?;
-        key_history_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
             Username("hello2".to_string()),
@@ -472,7 +472,7 @@ mod tests {
         let history_proof = seemless.key_history(&Username("hello3".to_string()))?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof)?;
-        key_history_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
             Username("hello3".to_string()),
@@ -482,7 +482,7 @@ mod tests {
         let history_proof = seemless.key_history(&Username("hello4".to_string()))?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof)?;
-        key_history_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
             Username("hello4".to_string()),
