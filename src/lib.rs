@@ -14,6 +14,11 @@ mod serialization;
 pub mod storage;
 pub use errors::*;
 
+pub mod proof_structs;
+pub use proof_structs::*;
+
+pub mod seemless_client;
+
 #[cfg(test)]
 mod tests;
 
