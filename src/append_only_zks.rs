@@ -618,7 +618,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        verify_append_only::<Blake3, InMemoryDb>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -642,7 +642,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        verify_append_only::<Blake3, InMemoryDb>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -694,7 +694,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 3)?;
 
-        verify_append_only::<Blake3, InMemoryDb>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 }

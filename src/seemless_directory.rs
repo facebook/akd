@@ -527,42 +527,42 @@ mod tests {
         ])?;
 
         let audit_proof_1 = seemless.audit(1, 2)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(1)?,
             seemless.get_root_hash_at_epoch(2)?,
             audit_proof_1,
         )?;
 
         let audit_proof_2 = seemless.audit(1, 3)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(1)?,
             seemless.get_root_hash_at_epoch(3)?,
             audit_proof_2,
         )?;
 
         let audit_proof_3 = seemless.audit(1, 4)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(1)?,
             seemless.get_root_hash_at_epoch(4)?,
             audit_proof_3,
         )?;
 
         let audit_proof_4 = seemless.audit(1, 5)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(1)?,
             seemless.get_root_hash_at_epoch(5)?,
             audit_proof_4,
         )?;
 
         let audit_proof_5 = seemless.audit(2, 3)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(2)?,
             seemless.get_root_hash_at_epoch(3)?,
             audit_proof_5,
         )?;
 
         let audit_proof_6 = seemless.audit(2, 4)?;
-        audit_verify::<Blake3_256<BaseElement>, InMemoryDb>(
+        audit_verify::<Blake3_256<BaseElement>>(
             seemless.get_root_hash_at_epoch(2)?,
             seemless.get_root_hash_at_epoch(4)?,
             audit_proof_6,

@@ -179,7 +179,7 @@ fn main() {
             // Get a new lookup proof for the current user
             let audit_proof = seemless_dir.audit(i, j).unwrap();
             // Verify this lookup proof
-            audit_verify::<Blake3_256<BaseElement>, InMemoryDbWithCache>(
+            audit_verify::<Blake3_256<BaseElement>>(
                 seemless_dir.get_root_hash_at_epoch(i).unwrap(),
                 seemless_dir.get_root_hash_at_epoch(j).unwrap(),
                 audit_proof,
