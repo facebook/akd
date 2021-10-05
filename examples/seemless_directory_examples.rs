@@ -7,7 +7,9 @@ use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
 use seemless::seemless_directory::{SeemlessDirectory, Username, Values};
 
+#[allow(unused_imports)]
 use winter_crypto::hashers::Blake3_256;
+#[allow(unused_imports)]
 use winter_math::fields::f128::BaseElement;
 
 pub mod measurements;
@@ -53,7 +55,7 @@ fn main() {
     let mut existing_usernames = Vec::<Username>::new();
 
     let mut seemless_dir =
-        SeemlessDirectory::<InMemoryDbWithCache, Blake3_256<BaseElement>>::new().unwrap();
+        SeemlessDirectory::<InMemoryDbWithCache, Blake3_256_WithCounter>::new().unwrap();
 
     // Populating the updates
     let rng: ThreadRng = thread_rng();

@@ -8,7 +8,9 @@ use seemless::{append_only_zks::Azks, node_state::NodeLabel, storage::Storage};
 use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;
 
+#[allow(dead_code)]
 type Blake3 = Blake3_256<BaseElement>;
+
 
 use lazy_static::lazy_static;
 use seemless::errors::StorageError;
@@ -28,6 +30,34 @@ lazy_static! {
         let m = HashMap::new();
         Mutex::new(m)
     };
+}
+
+#[allow(non_camel_case_types)]
+pub struct Blake3_256_WithCounter;
+
+impl Hasher for Blake3_256_WithCounter {
+    type Digest = <Blake3_256<BaseElement> as Hasher>::Digest;
+
+fn hash(bytes: &[u8]) -> Self::Digest {
+    let mut stats = STATS.lock().unwrap();
+    let calls_to_hash = stats.entry(String::from("calls_to_hash")).or_insert(0);
+    *calls_to_hash += 1;
+    Blake3_256::<BaseElement>::hash(bytes)
+}
+
+fn merge(values: &[Self::Digest; 2]) -> Self::Digest {
+    let mut stats = STATS.lock().unwrap();
+    let calls_to_hash_merge = stats.entry(String::from("calls_to_hash(merge)")).or_insert(0);
+    *calls_to_hash_merge += 1;
+    Blake3_256::<BaseElement>::merge(values)
+}
+
+fn merge_with_int(seed: Self::Digest, value: u64) -> Self::Digest {
+    let mut stats = STATS.lock().unwrap();
+    let calls_to_hash_merge_with_int = stats.entry(String::from("calls_to_hash(merge_with_int)")).or_insert(0);
+    *calls_to_hash_merge_with_int += 1;
+    Blake3_256::<BaseElement>::merge_with_int(seed, value)
+}
 }
 
 #[derive(Debug)]
@@ -125,12 +155,13 @@ pub fn print_hashmap_distribution() {
     println!("---------------------");
 }
 
+#[allow(dead_code)]
 fn main() {
     let num_nodes = 200;
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut azks1 = Azks::<Blake3, InMemoryDbWithCache>::new(&mut rng).unwrap();
+    let mut azks1 = Azks::<Blake3_256_WithCounter, InMemoryDbWithCache>::new(&mut rng).unwrap();
 
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);

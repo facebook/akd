@@ -25,3 +25,8 @@ lazy_static = "1.4.0"
 name = "azks"
 harness = false
 required-features = ["bench"]
+
+[[bench]]
+name = "seemless"
+harness = false
+required-features = ["bench"]

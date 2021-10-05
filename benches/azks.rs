@@ -73,7 +73,7 @@ fn single_insertion(c: &mut Criterion) {
 
                 let start = Instant::now();
                 azks1.insert_leaf(node, val).unwrap();
-                total_elapsed = start.elapsed();
+                total_elapsed += start.elapsed();
             }
             total_elapsed
         })

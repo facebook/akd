@@ -107,6 +107,18 @@ pub struct SeemlessDirectory<S, H> {
     _h: PhantomData<H>,
 }
 
+impl<S, H> Clone for SeemlessDirectory<S, H> {
+    fn clone(&self) -> Self {
+        Self {
+            azks_id: self.azks_id.clone(),
+            user_data: self.user_data.clone(),
+            current_epoch: self.current_epoch,
+            _s: PhantomData,
+            _h: PhantomData,
+        }
+    }
+}
+
 impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     pub fn new() -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
@@ -568,7 +580,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simiple_lookup() -> Result<(), SeemlessError> {
+    fn test_simple_lookup() -> Result<(), SeemlessError> {
         let mut seemless = SeemlessDirectory::<InMemoryDb, Blake3_256<BaseElement>>::new()?;
 
         seemless.publish(vec![
