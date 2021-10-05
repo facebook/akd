@@ -1,13 +1,10 @@
-use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
 use crate::{
-    append_only_zks::Azks,
     node_state::{hash_label, NodeLabel},
     seemless_directory::{get_marker_version, Username},
-    storage::Storage,
-    AppendOnlyProof, AzksError, Direction, HistoryProof, LookupProof, MembershipProof,
-    NonMembershipProof, SeemlessDirectoryError, SeemlessError, UpdateProof, ARITY,
+    AzksError, Direction, HistoryProof, LookupProof, MembershipProof, NonMembershipProof,
+    SeemlessDirectoryError, SeemlessError, UpdateProof, ARITY,
 };
 
 pub fn verify_membership<H: Hasher>(
@@ -124,7 +121,7 @@ pub fn lookup_verify<H: Hasher>(
 
     Ok(())
 }
-
+/*
 pub fn audit_verify<H: Hasher, S: Storage>(
     start_hash: H::Digest,
     end_hash: H::Digest,
@@ -142,8 +139,8 @@ pub fn verify_append_only<H: Hasher, S: Storage>(
     let inserted = proof.inserted;
     let mut rng = OsRng;
 
-    use std::collections::HashMap;
     use crate::errors::StorageError;
+    use std::collections::HashMap;
     use std::sync::Mutex;
 
     lazy_static::lazy_static! {
@@ -184,7 +181,7 @@ pub fn verify_append_only<H: Hasher, S: Storage>(
     }
     Ok(())
 }
-
+*/
 pub fn key_history_verify<H: Hasher>(
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,

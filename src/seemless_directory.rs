@@ -378,7 +378,8 @@ pub fn get_key_history_hashes<S: Storage, H: Hasher>(
 mod tests {
     use super::*;
     use crate::{
-        seemless_client::{audit_verify, key_history_verify, lookup_verify},
+        seemless_auditor::audit_verify,
+        seemless_client::{key_history_verify, lookup_verify},
         tests::InMemoryDb,
     };
     use winter_crypto::hashers::Blake3_256;

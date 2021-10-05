@@ -17,6 +17,7 @@ pub use errors::*;
 pub mod proof_structs;
 pub use proof_structs::*;
 
+pub mod seemless_auditor;
 pub mod seemless_client;
 
 #[cfg(test)]

@@ -6,7 +6,8 @@
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
 
-use seemless::seemless_client::{audit_verify, key_history_verify, lookup_verify};
+use seemless::seemless_auditor::audit_verify;
+use seemless::seemless_client::{key_history_verify, lookup_verify};
 use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory, Username, Values};
 
 use winter_crypto::hashers::Blake3_256;
