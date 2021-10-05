@@ -142,7 +142,35 @@ pub fn verify_append_only<H: Hasher, S: Storage>(
     let inserted = proof.inserted;
     let mut rng = OsRng;
 
-    let mut azks = Azks::<H, S>::new(&mut rng)?;
+    use std::collections::HashMap;
+    use crate::errors::StorageError;
+    use std::sync::Mutex;
+
+    lazy_static::lazy_static! {
+        static ref HASHMAP: Mutex<HashMap<String, String>> = {
+            let m = HashMap::new();
+            Mutex::new(m)
+        };
+    }
+
+    struct TempDb;
+    impl Storage for TempDb {
+        fn set(pos: String, value: String) -> Result<(), StorageError> {
+            let mut hashmap = HASHMAP.lock().unwrap();
+            hashmap.insert(pos, value);
+            Ok(())
+        }
+
+        fn get(pos: String) -> Result<String, StorageError> {
+            let hashmap = HASHMAP.lock().unwrap();
+            Ok(hashmap
+                .get(&pos)
+                .map(|v| v.clone())
+                .ok_or(StorageError::GetError)?)
+        }
+    }
+
+    let mut azks = Azks::<H, TempDb>::new(&mut rng)?;
     azks.batch_insert_leaves_helper(unchanged_nodes, true)?;
     let computed_start_root_hash: H::Digest = azks.get_root_hash()?;
     let mut verified = computed_start_root_hash == start_hash;

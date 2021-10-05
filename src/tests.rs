@@ -35,7 +35,7 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDb(HashMap<String, String>);
+pub(crate) struct InMemoryDb;
 
 impl Storage for InMemoryDb {
     fn set(pos: String, value: String) -> Result<(), StorageError> {
