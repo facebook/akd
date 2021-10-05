@@ -11,7 +11,7 @@ use crate::{
 
 use crate::serialization::to_digest;
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
-use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand::{CryptoRng, RngCore};
 use std::marker::PhantomData;
 use winter_crypto::Hasher;
 
@@ -54,31 +54,6 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
             _h: PhantomData,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct MembershipProof<H: Hasher> {
-    pub(crate) label: NodeLabel,
-    pub(crate) hash_val: H::Digest,
-    parent_labels: Vec<NodeLabel>,
-    sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
-    sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
-    dirs: Vec<Direction>,
-}
-
-#[derive(Debug, Clone)]
-pub struct NonMembershipProof<H: Hasher> {
-    pub(crate) label: NodeLabel,
-    longest_prefix: NodeLabel,
-    longest_prefix_children_labels: [NodeLabel; ARITY],
-    longest_prefix_children_values: [H::Digest; ARITY],
-    longest_prefix_membership_proof: MembershipProof<H>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AppendOnlyProof<H: Hasher> {
-    inserted: Vec<(NodeLabel, H::Digest)>,
-    unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
 }
 
 impl<H: Hasher, S: Storage> Azks<H, S> {
@@ -350,101 +325,6 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         self.latest_epoch
     }
 
-    pub fn verify_membership(
-        &self,
-        root_hash: H::Digest,
-        _epoch: u64,
-        proof: &MembershipProof<H>,
-    ) -> Result<(), SeemlessError> {
-        if proof.label.len == 0 {
-            let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
-            if final_hash == root_hash {
-                return Ok(());
-            } else {
-                return Err(SeemlessError::AzksErr(
-                    AzksError::MembershipProofDidNotVerify(
-                        "Membership proof for root did not verify".to_string(),
-                    ),
-                ));
-            }
-        }
-        let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
-        for i in (0..proof.dirs.len()).rev() {
-            final_hash = build_and_hash_layer::<H>(
-                proof.sibling_hashes[i],
-                proof.dirs[i],
-                final_hash,
-                proof.parent_labels[i],
-            )?;
-        }
-
-        if final_hash == root_hash {
-            Ok(())
-        } else {
-            return Err(SeemlessError::AzksErr(
-                AzksError::MembershipProofDidNotVerify(format!(
-                    "Membership proof for label {:?} did not verify",
-                    proof.label
-                )),
-            ));
-        }
-    }
-
-    pub fn verify_nonmembership(
-        &self,
-        _label: NodeLabel,
-        root_hash: H::Digest,
-        epoch: u64,
-        proof: &NonMembershipProof<H>,
-    ) -> Result<bool, SeemlessError> {
-        let mut verified = true;
-        let mut lcp_hash = H::hash(&[]);
-        let mut lcp_real = proof.longest_prefix_children_labels[0];
-        for i in 0..ARITY {
-            let child_hash = H::merge(&[
-                proof.longest_prefix_children_values[i],
-                hash_label::<H>(proof.longest_prefix_children_labels[i]),
-            ]);
-            lcp_hash = H::merge(&[lcp_hash, child_hash]);
-            lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children_labels[i]);
-        }
-        // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
-        verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
-        assert!(verified, "lcp_hash != longest_prefix_hash");
-        let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
-        let _longest_prefix_verified =
-            self.verify_membership(root_hash, epoch, &proof.longest_prefix_membership_proof)?;
-        // The audit must have checked that this node is indeed the lcp of its children.
-        // So we can just check that one of the children's lcp is = the proof.longest_prefix
-        verified = verified && (proof.longest_prefix == lcp_real);
-        assert!(verified, "longest_prefix != lcp");
-        Ok(verified)
-    }
-
-    pub fn verify_append_only(
-        &self,
-        proof: AppendOnlyProof<H>,
-        start_hash: H::Digest,
-        end_hash: H::Digest,
-    ) -> Result<(), SeemlessError> {
-        let unchanged_nodes = proof.unchanged_nodes;
-        let inserted = proof.inserted;
-        let mut rng = OsRng;
-
-        let mut azks = Self::new(&mut rng)?;
-        azks.batch_insert_leaves_helper(unchanged_nodes, true)?;
-        let mut verified = azks.get_root_hash()? == start_hash;
-        azks.batch_insert_leaves_helper(inserted, true)?;
-
-        verified = verified && (azks.get_root_hash()? == end_hash);
-        if !verified {
-            return Err(SeemlessError::AzksErr(
-                AzksError::AppendOnlyProofDidNotVerify,
-            ));
-        }
-        Ok(())
-    }
-
     fn increment_epoch(&mut self) {
         let epoch = self.latest_epoch + 1;
         self.latest_epoch = epoch;
@@ -526,33 +406,16 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
     }
 }
 
-fn build_and_hash_layer<H: Hasher>(
-    hashes: [H::Digest; ARITY - 1],
-    dir: Direction,
-    ancestor_hash: H::Digest,
-    parent_label: NodeLabel,
-) -> Result<H::Digest, SeemlessError> {
-    let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
-    let mut hashes_as_vec = hashes.to_vec();
-    hashes_as_vec.insert(direction, ancestor_hash);
-    Ok(hash_layer::<H>(hashes_as_vec, parent_label))
-}
-
-fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::Digest {
-    let mut new_hash = H::hash(&[]); //hash_label::<H>(parent_label);
-    for child_hash in hashes.iter().take(ARITY) {
-        new_hash = H::merge(&[new_hash, *child_hash]);
-    }
-    new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
-    new_hash
-}
-
 type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::InMemoryDb;
+    use crate::{
+        seemless_auditor::verify_append_only,
+        seemless_client::{verify_membership, verify_nonmembership},
+        tests::InMemoryDb,
+    };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
     use winter_crypto::hashers::Blake3_256;
     use winter_math::fields::f128::BaseElement;
@@ -645,7 +508,7 @@ mod tests {
 
         let proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
 
-        azks.verify_membership(azks.get_root_hash()?, 1, &proof)?;
+        verify_membership::<Blake3>(azks.get_root_hash()?, &proof)?;
 
         Ok(())
     }
@@ -682,9 +545,7 @@ mod tests {
             dirs: proof.dirs,
         };
         assert!(
-            !azks
-                .verify_membership(azks.get_root_hash()?, 1, &proof)
-                .is_ok(),
+            !verify_membership::<Blake3>(azks.get_root_hash()?, &proof).is_ok(),
             "Membership proof does verifies, despite being wrong"
         );
 
@@ -705,7 +566,7 @@ mod tests {
         let search_label = NodeLabel::new(0b1111 << 60, 64);
         let proof = azks.get_non_membership_proof(search_label, 1)?;
         assert!(
-            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, &proof)?,
+            verify_nonmembership::<Blake3>(azks.get_root_hash()?, &proof)?,
             "Nonmembership proof does not verify"
         );
         Ok(())
@@ -732,7 +593,7 @@ mod tests {
         let proof = azks.get_non_membership_proof(search_label, 1)?;
 
         assert!(
-            azks.verify_nonmembership(search_label, azks.get_root_hash()?, 1, &proof)?,
+            verify_nonmembership::<Blake3>(azks.get_root_hash()?, &proof)?,
             "Nonmembership proof does not verify"
         );
 
@@ -757,7 +618,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        azks.verify_append_only(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -781,7 +642,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 2)?;
 
-        azks.verify_append_only(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 
@@ -833,7 +694,7 @@ mod tests {
 
         let proof = azks.get_append_only_proof(1, 3)?;
 
-        azks.verify_append_only(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
         Ok(())
     }
 }

@@ -5,7 +5,10 @@
 
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
-use seemless::seemless_directory::{SeemlessDirectory, Username, Values};
+
+use seemless::seemless_auditor::audit_verify;
+use seemless::seemless_client::{key_history_verify, lookup_verify};
+use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory, Username, Values};
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
@@ -125,9 +128,12 @@ fn main() {
         // Get a new lookup proof for the current user
         let new_lookup_proof = seemless_dir.lookup(lookup_set[i].0.clone()).unwrap();
         // Verify this lookup proof
-        seemless_dir
-            .lookup_verify(lookup_set[i].0.clone(), new_lookup_proof)
-            .unwrap();
+        lookup_verify::<Blake3_256<BaseElement>>(
+            seemless_dir.get_root_hash().unwrap(),
+            lookup_set[i].0.clone(),
+            new_lookup_proof,
+        )
+        .unwrap();
     }
 
     print_hashmap_distribution();
@@ -147,9 +153,15 @@ fn main() {
         // Get a new lookup proof for the current user
         let new_history_proof = seemless_dir.key_history(&key_history_set[i].0).unwrap();
         // Verify this lookup proof
-        seemless_dir
-            .key_history_verify(key_history_set[i].0.clone(), new_history_proof)
-            .unwrap();
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&seemless_dir, &new_history_proof).unwrap();
+        key_history_verify::<Blake3_256<BaseElement>>(
+            root_hashes,
+            previous_root_hashes,
+            key_history_set[i].0.clone(),
+            new_history_proof,
+        )
+        .unwrap();
     }
 
     print_hashmap_distribution();
@@ -167,7 +179,12 @@ fn main() {
             // Get a new lookup proof for the current user
             let audit_proof = seemless_dir.audit(i, j).unwrap();
             // Verify this lookup proof
-            seemless_dir.audit_verify(i, j, audit_proof).unwrap();
+            audit_verify::<Blake3_256<BaseElement>>(
+                seemless_dir.get_root_hash_at_epoch(i).unwrap(),
+                seemless_dir.get_root_hash_at_epoch(j).unwrap(),
+                audit_proof,
+            )
+            .unwrap();
         }
     }
 
