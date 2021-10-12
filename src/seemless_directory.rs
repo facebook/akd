@@ -13,8 +13,11 @@ use rand::{prelude::ThreadRng, thread_rng};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::marker::PhantomData;
 use std::usize;
+use vrf::openssl::{CipherSuite, ECVRF};
+use vrf::VRF;
 use winter_crypto::Hasher;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -74,6 +77,8 @@ pub struct SeemlessDirectory<S, H> {
     azks_id: Vec<u8>,
     user_data: HashMap<Username, UserData>,
     current_epoch: u64,
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
@@ -83,12 +88,20 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut rng: ThreadRng = thread_rng();
         let azks = Azks::<H, S>::new(&mut rng)?;
         let azks_id = azks.get_azks_id();
-
+        // Initialization of VRF context by providing a curve
+        let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+        // Inputs: Secret Key, Public Key (derived) & Message
+        let secret_key =
+            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .unwrap();
+        let public_key = vrf.derive_public_key(&secret_key).unwrap();
         Azks::store(AzksKey(azks_id.to_vec()), &azks)?;
         Ok(SeemlessDirectory {
             azks_id: azks_id.to_vec(),
             user_data: HashMap::<Username, UserData>::new(),
             current_epoch: 0,
+            secret_key,
+            public_key,
             _s: PhantomData::<S>,
             _h: PhantomData::<H>,
         })
@@ -104,7 +117,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
             match data {
                 None => {
                     let latest_version = 1;
-                    let label = Self::get_nodelabel(&uname, false, latest_version);
+                    let label = self.get_nodelabel(&uname, false, latest_version);
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
@@ -116,8 +129,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     let latest_st = user_data_val.states.last().unwrap();
                     let previous_version = latest_st.version;
                     let latest_version = previous_version + 1;
-                    let stale_label = Self::get_nodelabel(&uname, true, previous_version);
-                    let fresh_label = Self::get_nodelabel(&uname, false, latest_version);
+                    let stale_label = self.get_nodelabel(&uname, true, previous_version);
+                    let fresh_label = self.get_nodelabel(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((stale_label, stale_value_to_add));
@@ -167,9 +180,9 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 let plaintext_value = latest_st.plaintext_val.clone();
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
-                let existent_label = Self::get_nodelabel(&uname, false, current_version);
-                let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
-                let marker_label = Self::get_nodelabel(&uname, false, marker_version);
+                let existent_label = self.get_nodelabel(&uname, false, current_version);
+                let non_existent_label = self.get_nodelabel(&uname, true, current_version);
+                let marker_label = self.get_nodelabel(&uname, false, marker_version);
                 let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
                 let existence_proof =
                     current_azks.get_membership_proof(existent_label, self.current_epoch)?;
@@ -237,21 +250,31 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     // TODO: we need to make this only work on the server and have another function
     // that verifies nodelabel.
-    pub(crate) fn get_nodelabel(uname: &Username, stale: bool, version: u64) -> NodeLabel {
+    pub(crate) fn get_nodelabel(&self, uname: &Username, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
         if stale {
             stale_bytes = &[0u8];
         }
-
         let hashed_label = H::merge(&[
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        let label_slice = hashed_label.as_ref();
-        let hashed_label_bytes = convert_byte_slice_to_array(label_slice);
-        NodeLabel::new(u64::from_ne_bytes(hashed_label_bytes), 64u32)
+        // Initialization of VRF context by providing a curve
+        let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+        // VRF proof and hash output
+        let pi = vrf.prove(&self.secret_key, hashed_label.as_ref()).unwrap();
+        let hash = vrf.proof_to_hash(&pi).unwrap().clone();
+        let (hashed_label_bytes, _) = hash.as_slice().split_at(8);
+        // let hashed_label = H::merge(&[
+        //     name_hash_bytes,
+        //     H::merge_with_int(H::hash(stale_bytes), version),
+        // ]);
+        // let label_slice = hashed_label.as_ref();
+        // let hashed_label_bytes = convert_byte_slice_to_array(label_slice);
+        let small_hash: Result<[u8; 8], _> = hashed_label_bytes.try_into();
+        NodeLabel::new(u64::from_ne_bytes(small_hash.unwrap()), 64u32)
     }
 
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
@@ -268,14 +291,14 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let plaintext_value = &user_state.plaintext_val;
         let version = &user_state.version;
 
-        let label_at_ep = Self::get_nodelabel(uname, false, *version);
+        let label_at_ep = self.get_nodelabel(uname, false, *version);
 
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
         let existence_at_ep = current_azks.get_membership_proof(label_at_ep, epoch)?;
         let mut previous_val_stale_at_ep = Option::None;
         if *version > 1 {
-            let prev_label_at_ep = Self::get_nodelabel(uname, true, *version - 1);
+            let prev_label_at_ep = self.get_nodelabel(uname, true, *version - 1);
             previous_val_stale_at_ep =
                 Option::Some(current_azks.get_membership_proof(prev_label_at_ep, epoch)?);
         }
@@ -291,7 +314,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
         for ver in version + 1..(1 << next_marker) {
-            let label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let label_for_ver = self.get_nodelabel(uname, false, ver);
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
             non_existence_of_next_few.push(non_existence_of_ver);
@@ -301,7 +324,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
-            let label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let label_for_ver = self.get_nodelabel(uname, false, ver);
             let non_existence_of_ver =
                 current_azks.get_non_membership_proof(label_for_ver, epoch)?;
             non_existence_of_future_markers.push(non_existence_of_ver);
@@ -326,6 +349,10 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     pub fn get_root_hash(&self) -> Result<H::Digest, SeemlessError> {
         self.get_root_hash_at_epoch(self.current_epoch)
+    }
+
+    pub fn get_public_key(&self) -> Result<Vec<u8>, SeemlessError> {
+        Ok(self.public_key.clone())
     }
 }
 
