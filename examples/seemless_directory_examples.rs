@@ -1,7 +1,9 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
@@ -51,7 +53,7 @@ fn create_random_subset_of_existing_users(
 }
 
 fn main() {
-    let num_init_insertions = 50;
+    let num_init_insertions = 1000;
 
     let mut existing_usernames = Vec::<Username>::new();
 
