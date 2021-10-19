@@ -1,7 +1,9 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 
 #[macro_use]
 extern crate criterion;
@@ -63,19 +65,14 @@ fn single_insertion(c: &mut Criterion) {
         azks1.insert_leaf(node, val).unwrap();
     }
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
-        b.iter_custom(|iters| {
-            let mut total_elapsed = Duration::ZERO;
-            for _ in 0..iters {
-                let node = NodeLabel::random(&mut rng);
-                let mut input = [0u8; 32];
-                rng.fill_bytes(&mut input);
-                let val = Blake3::hash(&input);
+        b.iter(|| {
+            let node = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let val = Blake3::hash(&input);
 
-                let start = Instant::now();
-                azks1.insert_leaf(node, val).unwrap();
-                total_elapsed = start.elapsed();
-            }
-            total_elapsed
+            let start = Instant::now();
+            azks1.insert_leaf(node, val).unwrap();
         })
     });
 }
