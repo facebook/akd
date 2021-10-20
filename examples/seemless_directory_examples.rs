@@ -11,12 +11,12 @@ use rand::{prelude::ThreadRng, thread_rng};
 use seemless::seemless_auditor::audit_verify;
 use seemless::seemless_client::{key_history_verify, lookup_verify};
 use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory, Username, Values};
+use seemless::storage::memory::InMemoryDbWithCache;
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
 pub mod measurements;
-use measurements::*;
 
 fn create_usernames_and_values(
     num_insertions: usize,
@@ -57,8 +57,9 @@ fn main() {
 
     let mut existing_usernames = Vec::<Username>::new();
 
+    let db = InMemoryDbWithCache::new();
     let mut seemless_dir =
-        SeemlessDirectory::<InMemoryDbWithCache, Blake3_256<BaseElement>>::new().unwrap();
+        SeemlessDirectory::<InMemoryDbWithCache, Blake3_256<BaseElement>>::new(&db).unwrap();
 
     // Populating the updates
     let rng: ThreadRng = thread_rng();
@@ -84,11 +85,11 @@ fn main() {
     );
     println!("*********************************************************************************");
     // Publish measurement
-    clear_stats();
+    db.clear_stats();
     seemless_dir.publish(updates.clone()).unwrap();
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
     new_usernames = updates
         .clone()
         .iter()
@@ -124,7 +125,7 @@ fn main() {
     println!("* Measurements for looking up and verifying lookups for {} users in a directory of {} existing users *", num_lookups, existing_usernames.len());
     println!("*****************************************************************************************************");
     // Lookup and verification of lookup measurement
-    clear_stats();
+    db.clear_stats();
 
     for i in 0..num_lookups {
         // Get a new lookup proof for the current user
@@ -138,8 +139,8 @@ fn main() {
         .unwrap();
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 
     let num_key_history = 10;
     let rng: ThreadRng = thread_rng();
@@ -149,7 +150,7 @@ fn main() {
     println!("* Measurements for running and verifying key history of {} users in a directory of {} existing users *", num_key_history, existing_usernames.len());
     println!("******************************************************************************************************");
     // Key history and verification measurement
-    clear_stats();
+    db.clear_stats();
 
     for i in 0..num_key_history {
         // Get a new lookup proof for the current user
@@ -166,15 +167,15 @@ fn main() {
         .unwrap();
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 
     let total_ep = new_epochs + 2;
     println!("*************************************************************************************************");
     println!("* Measurements for running and verifying audit of {} epochs in a directory of {} existing users *", total_ep, existing_usernames.len());
     println!("*************************************************************************************************");
     // Key history and verification measurement
-    clear_stats();
+    db.clear_stats();
 
     for i in 1..total_ep {
         for j in i..total_ep {
@@ -190,6 +191,6 @@ fn main() {
         }
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 }
