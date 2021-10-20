@@ -120,23 +120,23 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        for insertion_elt in insertion_set {
+        for (label, value) in insertion_set {
             let new_leaf_loc = self.num_nodes;
 
             let mut new_leaf = get_leaf_node::<H, S>(
                 &self.azks_id,
-                insertion_elt.0,
+                label,
                 0,
-                insertion_elt.1.as_ref(),
+                value.as_ref(),
                 0,
                 self.latest_epoch,
             )?;
             if append_only_usage {
                 new_leaf = get_leaf_node_without_hashing::<H, S>(
                     &self.azks_id,
-                    insertion_elt.0,
+                    label,
                     0,
-                    insertion_elt.1,
+                    value,
                     0,
                     self.latest_epoch,
                 )?;
@@ -454,6 +454,7 @@ mod tests {
 
         Ok(())
     }
+
     #[test]
     fn test_insert_permuted() -> Result<(), SeemlessError> {
         let num_nodes = 10;

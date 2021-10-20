@@ -1,7 +1,10 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
+
 use crate::append_only_zks::{Azks, AzksKey};
 use crate::errors::{SeemlessDirectoryError, SeemlessError};
 
@@ -98,10 +101,9 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
         let mut user_data_update_set = Vec::<(Username, UserData)>::new();
         let next_epoch = self.current_epoch + 1;
-        for update in updates {
-            let (uname, val) = update;
-            let data = &self.user_data.get(&uname);
-            match data {
+        for (uname, val) in updates {
+            match self.user_data.get(&uname) {
+                // No data found for this user
                 None => {
                     let latest_version = 1;
                     let label = Self::get_nodelabel(&uname, false, latest_version);
@@ -112,6 +114,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     let latest_state = UserState::new(val, latest_version, label, next_epoch);
                     user_data_update_set.push((uname, UserData::new(latest_state)));
                 }
+                // Found existing data for this user
                 Some(user_data_val) => {
                     let latest_st = user_data_val.states.last().unwrap();
                     let previous_version = latest_st.version;
@@ -164,26 +167,22 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 // Need to account for the case where the latest state is
                 // added but the database is in the middle of an update
                 let latest_st = user_data_val.states.last().unwrap();
-                let plaintext_value = latest_st.plaintext_val.clone();
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
                 let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
-                let existence_proof =
-                    current_azks.get_membership_proof(existent_label, self.current_epoch)?;
-                let freshness_proof = current_azks
-                    .get_non_membership_proof(non_existent_label, self.current_epoch)?;
-                let marker_proof =
-                    current_azks.get_membership_proof(marker_label, self.current_epoch)?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
-                    plaintext_value,
+                    plaintext_value: latest_st.plaintext_val.clone(),
                     version: current_version,
-                    existence_proof,
-                    marker_proof,
-                    freshness_proof,
+                    existence_proof: current_azks
+                        .get_membership_proof(existent_label, self.current_epoch)?,
+                    marker_proof: current_azks
+                        .get_membership_proof(marker_label, self.current_epoch)?,
+                    freshness_proof: current_azks
+                        .get_non_membership_proof(non_existent_label, self.current_epoch)?,
                 })
             }
         }
@@ -206,7 +205,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut proofs = Vec::<UpdateProof<H>>::new();
         for user_state in &this_user_data.states {
             let proof = self.create_single_update_proof(uname, user_state)?;
-
             proofs.push(proof);
         }
         Ok(HistoryProof { proofs })
@@ -237,6 +235,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     // TODO: we need to make this only work on the server and have another function
     // that verifies nodelabel.
+    /// FIXME: Add a comment here for what the stale parameter is used for
     pub(crate) fn get_nodelabel(uname: &Username, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
@@ -400,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simiple_lookup() -> Result<(), SeemlessError> {
+    fn test_simple_lookup() -> Result<(), SeemlessError> {
         let mut seemless = SeemlessDirectory::<InMemoryDb, Blake3_256<BaseElement>>::new()?;
 
         seemless.publish(vec![

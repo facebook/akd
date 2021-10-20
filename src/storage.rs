@@ -1,12 +1,14 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 
 use crate::errors::StorageError;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
+pub(crate) trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
     type Key: Clone + Serialize + Eq + std::hash::Hash;
 
     /// Must return a unique String identifier for this struct
