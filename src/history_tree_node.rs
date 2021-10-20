@@ -42,7 +42,7 @@ pub(crate) struct HistoryTreeNode<H, S> {
     // Note that the NodeType along with the parent/children being options
     // allows us to use this struct to represent child and parent nodes as well.
     _s: PhantomData<S>,
-    _h: PhantomData<H>
+    _h: PhantomData<H>,
 }
 
 // parameters are azks_id and location
@@ -140,7 +140,8 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
             new_leaf.write_to_storage(storage)?;
             *num_nodes += 1;
             // the root should always be instantiated with dummy children in the beginning
-            let child_state = self.get_child_at_epoch(storage, self.get_latest_epoch()?, dir_leaf)?;
+            let child_state =
+                self.get_child_at_epoch(storage, self.get_latest_epoch()?, dir_leaf)?;
             if child_state.dummy_marker == DummyChildState::Dummy {
                 new_leaf.parent = self.location;
                 self.set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)?;
@@ -165,7 +166,8 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
-                let mut parent = Self::retrieve(storage, NodeKey(self.azks_id.clone(), self.parent))?;
+                let mut parent =
+                    Self::retrieve(storage, NodeKey(self.azks_id.clone(), self.parent))?;
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch)?;
                 let new_node_location = *num_nodes;
                 let mut new_node = HistoryTreeNode::new(
@@ -188,11 +190,17 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
                 new_node.set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)?;
                 new_node.set_node_child_without_hash(storage, epoch, dir_self, self)?;
 
-                parent.set_node_child_without_hash(storage, epoch, self_dir_in_parent, &new_node)?;
+                parent.set_node_child_without_hash(
+                    storage,
+                    epoch,
+                    self_dir_in_parent,
+                    &new_node,
+                )?;
                 if hashing {
                     new_leaf.update_hash(storage, epoch)?;
                     self.update_hash(storage, epoch)?;
-                    new_node = Self::retrieve(storage, NodeKey(self.azks_id.clone(), new_node.location))?;
+                    new_node =
+                        Self::retrieve(storage, NodeKey(self.azks_id.clone(), new_node.location))?;
                     new_node.update_hash(storage, epoch)?;
                 }
                 new_node.write_to_storage(storage)?;
@@ -202,24 +210,31 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
             }
             None => {
                 // case where the current node is equal to the lcs
-                let child_st = self.get_child_at_epoch(storage, self.get_latest_epoch()?, dir_leaf)?;
+                let child_st =
+                    self.get_child_at_epoch(storage, self.get_latest_epoch()?, dir_leaf)?;
 
                 match child_st.dummy_marker {
                     DummyChildState::Dummy => {
                         Err(HistoryTreeNodeError::CompressionError(self.label))
                     }
                     DummyChildState::Real => {
-                        let mut child_node =
-                            Self::retrieve(storage, NodeKey(self.azks_id.clone(), child_st.location))?;
+                        let mut child_node = Self::retrieve(
+                            storage,
+                            NodeKey(self.azks_id.clone(), child_st.location),
+                        )?;
                         child_node.insert_single_leaf_helper(
                             storage, new_leaf, azks_id, epoch, num_nodes, hashing,
                         )?;
                         if hashing {
-                            *self = Self::retrieve(storage, NodeKey(self.azks_id.clone(), self.location))?;
+                            *self = Self::retrieve(
+                                storage,
+                                NodeKey(self.azks_id.clone(), self.location),
+                            )?;
                             self.update_hash(storage, epoch)?;
                             self.write_to_storage(storage)?;
                         }
-                        *self = Self::retrieve(storage, NodeKey(self.azks_id.clone(), self.location))?;
+                        *self =
+                            Self::retrieve(storage, NodeKey(self.azks_id.clone(), self.location))?;
                         Ok(())
                     }
                 }
@@ -231,11 +246,16 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
     /// provided the children of this node have already updated their own versions
     /// in this node and epoch is contained in the state_map
     /// Also assumes that `set_child_without_hash` has already been called
-    pub(crate) fn update_hash(&mut self, storage: &S, epoch: u64) -> Result<(), HistoryTreeNodeError> {
+    pub(crate) fn update_hash(
+        &mut self,
+        storage: &S,
+        epoch: u64,
+    ) -> Result<(), HistoryTreeNodeError> {
         match self.node_type {
             NodeType::Leaf => {
                 // the hash of this is just the value, simply place in parent
-                let leaf_hash_val = H::merge(&[self.get_value(storage)?, hash_label::<H>(self.label)]);
+                let leaf_hash_val =
+                    H::merge(&[self.get_value(storage)?, hash_label::<H>(self.label)]);
                 self.update_hash_at_parent(storage, epoch, leaf_hash_val)
             }
             _ => {
@@ -383,7 +403,11 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
 
     ////// getrs for this node ////
 
-    pub(crate) fn get_value_at_epoch(&self, storage: &S, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+    pub(crate) fn get_value_at_epoch(
+        &self,
+        storage: &S,
+        epoch: u64,
+    ) -> Result<H::Digest, HistoryTreeNodeError> {
         Ok(to_digest::<H>(&self.get_state_at_epoch(storage, epoch)?.value).unwrap())
     }
 
@@ -428,7 +452,12 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
 
     // gets the direction of node, i.e. if it's a left
     // child or right. If not found, return None
-    fn get_direction_at_ep(&self, storage: &S,  node: &Self, ep: u64) -> Result<Direction, HistoryTreeNodeError> {
+    fn get_direction_at_ep(
+        &self,
+        storage: &S,
+        node: &Self,
+        ep: u64,
+    ) -> Result<Direction, HistoryTreeNodeError> {
         let mut outcome: Direction = None;
         let state_at_ep = self.get_state_at_epoch(storage, ep)?;
         for node_index in 0..ARITY {
@@ -483,9 +512,8 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
     ) -> Result<HistoryChildState<H, S>, HistoryTreeNodeError> {
         match direction {
             Direction::None => Err(HistoryTreeNodeError::DirectionIsNone),
-            Direction::Some(dir) => {
-                Ok(get_state_map(storage, self, &epoch).map(|curr| curr.get_child_state_in_dir(dir))?)
-            }
+            Direction::Some(dir) => Ok(get_state_map(storage, self, &epoch)
+                .map(|curr| curr.get_child_state_in_dir(dir))?),
         }
     }
 
@@ -531,7 +559,7 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
 
     fn to_node_unhashed_child_state(
         &self,
-        storage: &S
+        storage: &S,
     ) -> Result<HistoryChildState<H, S>, HistoryTreeNodeError> {
         Ok(HistoryChildState {
             dummy_marker: DummyChildState::Real,
@@ -548,7 +576,10 @@ impl<H: Hasher, S: Storage> HistoryTreeNode<H, S> {
     }
 
     #[cfg(test)]
-    pub fn to_node_child_state(&self, storage: &S) -> Result<HistoryChildState<H, S>, HistoryTreeNodeError> {
+    pub fn to_node_child_state(
+        &self,
+        storage: &S,
+    ) -> Result<HistoryChildState<H, S>, HistoryTreeNodeError> {
         Ok(HistoryChildState {
             dummy_marker: DummyChildState::Real,
             location: self.location,
@@ -662,9 +693,8 @@ pub(crate) fn get_state_map<H: Hasher, S: Storage>(
     node: &HistoryTreeNode<H, S>,
     key: &u64,
 ) -> Result<HistoryNodeState<H, S>, StorageError> {
-    HistoryNodeState::<H, S>::retrieve(storage, NodeStateKey(
-        node.azks_id.clone(),
-        node.label,
-        *key as usize,
-    ))
+    HistoryNodeState::<H, S>::retrieve(
+        storage,
+        NodeStateKey(node.azks_id.clone(), node.label, *key as usize),
+    )
 }

@@ -5,13 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use crate::errors::StorageError;
 use crate::storage::Storage;
-use lazy_static::lazy_static;
 use evmap::{ReadHandle, WriteHandle};
-
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 // ===== Basic In-Memory database ==== //
 
@@ -22,9 +21,12 @@ pub(crate) struct InMemoryDatabase {
 }
 
 impl InMemoryDatabase {
-    pub fn new () -> InMemoryDatabase {
+    pub fn new() -> InMemoryDatabase {
         let (reader, writer) = evmap::new();
-        InMemoryDatabase{ read_handle: reader, write_handle: Arc::new(Mutex::new(writer)) }
+        InMemoryDatabase {
+            read_handle: reader,
+            write_handle: Arc::new(Mutex::new(writer)),
+        }
     }
 }
 
@@ -50,7 +52,10 @@ impl Storage for InMemoryDatabase {
 
 impl Clone for InMemoryDatabase {
     fn clone(&self) -> InMemoryDatabase {
-        InMemoryDatabase { read_handle: self.read_handle.clone(), write_handle: self.write_handle.clone() }
+        InMemoryDatabase {
+            read_handle: self.read_handle.clone(),
+            write_handle: self.write_handle.clone(),
+        }
     }
 }
 
@@ -132,7 +137,6 @@ impl InMemoryDbWithCache {
         println!("Cache number of elements: {}", cache.len());
         println!("---------------------");
     }
-
 }
 
 impl Storage for InMemoryDbWithCache {

@@ -21,13 +21,15 @@ pub(crate) struct XdbDatabase {
 
 impl XdbDatabase {
     pub fn new(conn: String, table: String) -> XdbDatabase {
-        XdbDatabase { connection_string: conn, table: table }
+        XdbDatabase {
+            connection_string: conn,
+            table: table,
+        }
     }
 }
 
 impl Storage for XdbDatabase {
     fn set(&self, _pos: String, _val: String) -> core::result::Result<(), StorageError> {
-
         // let pool = Pool::new(self.connection_string.to_string())?;
         // let mut conn = pool.get_conn()?;
         // let result = conn.query_first(r"SELECT value from {table}")?;
@@ -41,6 +43,9 @@ impl Storage for XdbDatabase {
 
 impl Clone for XdbDatabase {
     fn clone(&self) -> XdbDatabase {
-        XdbDatabase { connection_string: self.connection_string.clone(), table: self.table.clone() }
+        XdbDatabase {
+            connection_string: self.connection_string.clone(),
+            table: self.table.clone(),
+        }
     }
 }

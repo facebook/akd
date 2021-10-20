@@ -79,7 +79,12 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         Ok(azks)
     }
 
-    pub fn insert_leaf(&mut self, storage: &S, label: NodeLabel, value: H::Digest) -> Result<(), SeemlessError> {
+    pub fn insert_leaf(
+        &mut self,
+        storage: &S,
+        label: NodeLabel,
+        value: H::Digest,
+    ) -> Result<(), SeemlessError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
@@ -93,7 +98,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             self.latest_epoch,
         )?;
 
-        let mut root_node = HistoryTreeNode::retrieve(storage, NodeKey(self.azks_id.clone(), self.root))?;
+        let mut root_node =
+            HistoryTreeNode::retrieve(storage, NodeKey(self.azks_id.clone(), self.root))?;
         root_node.insert_single_leaf(
             storage,
             new_leaf,
@@ -123,7 +129,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
-        let mut root_node = HistoryTreeNode::retrieve(storage, NodeKey(self.azks_id.clone(), self.root))?;
+        let mut root_node =
+            HistoryTreeNode::retrieve(storage, NodeKey(self.azks_id.clone(), self.root))?;
         for (label, value) in insertion_set {
             let new_leaf_loc = self.num_nodes;
 
@@ -165,8 +172,10 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
 
-            let mut next_node =
-                HistoryTreeNode::<H, S>::retrieve(storage, NodeKey(self.azks_id.clone(), next_node_loc))?;
+            let mut next_node = HistoryTreeNode::<H, S>::retrieve(
+                storage,
+                NodeKey(self.azks_id.clone(), next_node_loc),
+            )?;
 
             next_node.update_hash(storage, self.latest_epoch)?;
 
@@ -298,12 +307,16 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 if child_node_state.dummy_marker == DummyChildState::Dummy {
                     continue;
                 } else {
-                    let child_node = HistoryTreeNode::retrieve(storage, NodeKey(
-                        self.azks_id.clone(),
-                        child_node_state.location,
-                    ))?;
-                    let mut rec_output =
-                        self.get_append_only_proof_helper(storage, child_node, start_epoch, end_epoch)?;
+                    let child_node = HistoryTreeNode::retrieve(
+                        storage,
+                        NodeKey(self.azks_id.clone(), child_node_state.location),
+                    )?;
+                    let mut rec_output = self.get_append_only_proof_helper(
+                        storage,
+                        child_node,
+                        start_epoch,
+                        end_epoch,
+                    )?;
                     unchanged.append(&mut rec_output.0);
                     leaves.append(&mut rec_output.1);
                 }
@@ -329,7 +342,11 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         self.get_root_hash_at_epoch(storage, self.get_latest_epoch())
     }
 
-    pub fn get_root_hash_at_epoch(&self, storage: &S, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
+    pub fn get_root_hash_at_epoch(
+        &self,
+        storage: &S,
+        epoch: u64,
+    ) -> Result<H::Digest, HistoryTreeNodeError> {
         let root_node =
             HistoryTreeNode::<H, S>::retrieve(storage, NodeKey(self.azks_id.clone(), self.root))?;
         root_node.get_value_at_epoch(storage, epoch)
@@ -382,10 +399,13 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-            let new_curr_node = HistoryTreeNode::retrieve(storage, NodeKey(
-                self.azks_id.clone(),
-                curr_node.get_child_location_at_epoch(storage, epoch, dir)?,
-            ))?;
+            let new_curr_node = HistoryTreeNode::retrieve(
+                storage,
+                NodeKey(
+                    self.azks_id.clone(),
+                    curr_node.get_child_location_at_epoch(storage, epoch, dir)?,
+                ),
+            )?;
             curr_node = new_curr_node;
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;

@@ -6,7 +6,9 @@
 // of this source tree.
 
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
-use seemless::{append_only_zks::Azks, node_state::NodeLabel, storage::memory::InMemoryDbWithCache};
+use seemless::{
+    append_only_zks::Azks, node_state::NodeLabel, storage::memory::InMemoryDbWithCache,
+};
 use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;
 

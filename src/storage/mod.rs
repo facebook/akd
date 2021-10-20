@@ -42,7 +42,7 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
 }
 
 /// Represents the storage layer for SEEMless (with associated configuration if necessary)
-pub trait Storage : Clone {
+pub trait Storage: Clone {
     /// Set a key/value pair in the storage layer
     fn set(&self, pos: String, val: String) -> Result<(), StorageError>;
     /// Retrieve a value given a key from the storage layer
@@ -52,8 +52,8 @@ pub trait Storage : Clone {
 // ========= Database Tests ========== //
 #[cfg(test)]
 mod tests {
-    use crate::storage::Storage;
     use crate::storage::memory::*;
+    use crate::storage::Storage;
 
     #[test]
     fn test_get_and_set_item() {
@@ -66,11 +66,9 @@ mod tests {
     }
 
     fn test_get_and_set_item_helper<S: Storage>(storage: &S) {
-
         let set_result = storage.set("key".to_string(), "value".to_string());
         assert_eq!(Ok(()), set_result);
 
         assert_eq!(Ok("value".to_string()), storage.get("key".to_string()));
     }
-
 }

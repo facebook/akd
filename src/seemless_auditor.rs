@@ -8,7 +8,10 @@
 use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
-use crate::{append_only_zks::Azks, storage::memory::InMemoryDatabase, AppendOnlyProof, AzksError, SeemlessError};
+use crate::{
+    append_only_zks::Azks, storage::memory::InMemoryDatabase, AppendOnlyProof, AzksError,
+    SeemlessError,
+};
 
 pub fn audit_verify<H: Hasher>(
     start_hash: H::Digest,

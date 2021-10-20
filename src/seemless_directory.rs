@@ -142,7 +142,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
-        let mut current_azks = Azks::<H, S>::retrieve(&self._storage, AzksKey(self.azks_id.clone()))?;
+        let mut current_azks =
+            Azks::<H, S>::retrieve(&self._storage, AzksKey(self.azks_id.clone()))?;
         let output = current_azks.batch_insert_leaves(&self._storage, insertion_set);
         Azks::store(&self._storage, AzksKey(self.azks_id.clone()), &current_azks)?;
         // Not sure how to remove clones from here?
@@ -174,17 +175,27 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
-                let current_azks = Azks::<H, S>::retrieve(&self._storage, AzksKey(self.azks_id.clone()))?;
+                let current_azks =
+                    Azks::<H, S>::retrieve(&self._storage, AzksKey(self.azks_id.clone()))?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
                     plaintext_value: latest_st.plaintext_val.clone(),
                     version: current_version,
-                    existence_proof: current_azks
-                        .get_membership_proof(&self._storage, existent_label, self.current_epoch)?,
-                    marker_proof: current_azks
-                        .get_membership_proof(&self._storage, marker_label, self.current_epoch)?,
-                    freshness_proof: current_azks
-                        .get_non_membership_proof(&self._storage, non_existent_label, self.current_epoch)?,
+                    existence_proof: current_azks.get_membership_proof(
+                        &self._storage,
+                        existent_label,
+                        self.current_epoch,
+                    )?,
+                    marker_proof: current_azks.get_membership_proof(
+                        &self._storage,
+                        marker_label,
+                        self.current_epoch,
+                    )?,
+                    freshness_proof: current_azks.get_non_membership_proof(
+                        &self._storage,
+                        non_existent_label,
+                        self.current_epoch,
+                    )?,
                 })
             }
         }
@@ -273,17 +284,24 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
         let current_azks = Azks::<H, S>::retrieve(&self._storage, AzksKey(self.azks_id.clone()))?;
 
-        let existence_at_ep = current_azks.get_membership_proof(&self._storage, label_at_ep, epoch)?;
+        let existence_at_ep =
+            current_azks.get_membership_proof(&self._storage, label_at_ep, epoch)?;
         let mut previous_val_stale_at_ep = Option::None;
         if *version > 1 {
             let prev_label_at_ep = Self::get_nodelabel(uname, true, *version - 1);
-            previous_val_stale_at_ep =
-                Option::Some(current_azks.get_membership_proof(&self._storage, prev_label_at_ep, epoch)?);
+            previous_val_stale_at_ep = Option::Some(current_azks.get_membership_proof(
+                &self._storage,
+                prev_label_at_ep,
+                epoch,
+            )?);
         }
         let mut non_existence_before_ep = Option::None;
         if epoch != 0 {
-            non_existence_before_ep =
-                Option::Some(current_azks.get_non_membership_proof(&self._storage, label_at_ep, epoch - 1)?);
+            non_existence_before_ep = Option::Some(current_azks.get_non_membership_proof(
+                &self._storage,
+                label_at_ep,
+                epoch - 1,
+            )?);
         }
 
         let next_marker = get_marker_version(*version) + 1;
@@ -391,7 +409,8 @@ mod tests {
     #[test]
     fn test_simple_publish() -> Result<(), SeemlessError> {
         let db = InMemoryDatabase::new();
-        let mut seemless = SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
+        let mut seemless =
+            SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
 
         seemless.publish(vec![(
             Username("hello".to_string()),
@@ -404,7 +423,8 @@ mod tests {
     #[test]
     fn test_simiple_lookup() -> Result<(), SeemlessError> {
         let db = InMemoryDatabase::new();
-        let mut seemless = SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
+        let mut seemless =
+            SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
 
         seemless.publish(vec![
             (Username("hello".to_string()), Values("world".to_string())),
@@ -424,7 +444,8 @@ mod tests {
     #[test]
     fn test_simple_key_history() -> Result<(), SeemlessError> {
         let db = InMemoryDatabase::new();
-        let mut seemless = SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
+        let mut seemless =
+            SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
 
         seemless.publish(vec![
             (Username("hello".to_string()), Values("world".to_string())),
@@ -501,7 +522,8 @@ mod tests {
     #[test]
     fn test_simple_audit() -> Result<(), SeemlessError> {
         let db = InMemoryDatabase::new();
-        let mut seemless = SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
+        let mut seemless =
+            SeemlessDirectory::<InMemoryDatabase, Blake3_256<BaseElement>>::new(&db)?;
 
         seemless.publish(vec![
             (Username("hello".to_string()), Values("world".to_string())),
