@@ -208,6 +208,7 @@ impl fmt::Display for SeemlessDirectoryError {
     }
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum StorageError {
     SetError,
