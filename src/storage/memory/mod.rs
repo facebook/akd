@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 // ===== Basic In-Memory database ==== //
 
 #[derive(Debug)]
-pub(crate) struct InMemoryDatabase {
+pub struct InMemoryDatabase {
     read_handle: ReadHandle<String, String>,
     write_handle: Arc<Mutex<WriteHandle<String, String>>>,
 }
@@ -26,6 +26,15 @@ impl InMemoryDatabase {
         InMemoryDatabase {
             read_handle: reader,
             write_handle: Arc::new(Mutex::new(writer)),
+        }
+    }
+}
+
+impl Clone for InMemoryDatabase {
+    fn clone(&self) -> InMemoryDatabase {
+        InMemoryDatabase {
+            read_handle: self.read_handle.clone(),
+            write_handle: self.write_handle.clone(),
         }
     }
 }
@@ -47,15 +56,6 @@ impl Storage for InMemoryDatabase {
             }
         }
         Result::Err(StorageError::GetError)
-    }
-}
-
-impl Clone for InMemoryDatabase {
-    fn clone(&self) -> InMemoryDatabase {
-        InMemoryDatabase {
-            read_handle: self.read_handle.clone(),
-            write_handle: self.write_handle.clone(),
-        }
     }
 }
 
