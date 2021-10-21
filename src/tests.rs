@@ -19,41 +19,12 @@ use crate::{
     history_tree_node::HistoryTreeNode,
     node_state::HistoryChildState,
     node_state::{hash_label, NodeLabel},
-    storage::Storage,
     *,
 };
 
-use crate::errors::StorageError;
-use lazy_static::lazy_static;
 use rand::{rngs::OsRng, RngCore};
-use std::collections::HashMap;
-use std::sync::Mutex;
 
-lazy_static! {
-    static ref HASHMAP: Mutex<HashMap<String, String>> = {
-        let m = HashMap::new();
-        Mutex::new(m)
-    };
-}
-
-#[derive(Debug)]
-pub(crate) struct InMemoryDb;
-
-impl Storage for InMemoryDb {
-    fn set(pos: String, value: String) -> Result<(), StorageError> {
-        let mut hashmap = HASHMAP.lock().unwrap();
-        hashmap.insert(pos, value);
-        Ok(())
-    }
-
-    fn get(pos: String) -> Result<String, StorageError> {
-        let hashmap = HASHMAP.lock().unwrap();
-        Ok(hashmap
-            .get(&pos)
-            .map(|v| v.clone())
-            .ok_or(StorageError::GetError)?)
-    }
-}
+type InMemoryDb = storage::memory::InMemoryDatabase;
 
 ////////// history_tree_node tests //////
 //  Test set_child_without_hash and get_child_at_existing_epoch
@@ -64,14 +35,15 @@ fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let ep = 1;
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(ep))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep))?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    root.write_to_storage()?;
-    root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1.clone()))?;
+    root.write_to_storage(&db)?;
+    root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()))?;
 
     let set_child = root
-        .get_child_at_existing_epoch(ep, Direction::Some(1))
+        .get_child_at_existing_epoch(&db, ep, Direction::Some(1))
         .map_err(|_| panic!("Child not set in test_set_child_without_hash_at_root"))
         .unwrap();
     assert!(
@@ -93,23 +65,24 @@ fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> 
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let ep = 1;
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(ep))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep))?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
     let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(0), child_hist_node_2.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
-    let set_child_1 = root.get_child_at_existing_epoch(ep, Direction::Some(1));
+    let set_child_1 = root.get_child_at_existing_epoch(&db, ep, Direction::Some(1));
     match set_child_1 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_1,
@@ -118,7 +91,7 @@ fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> 
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
 
-    let set_child_2 = root.get_child_at_existing_epoch(ep, Direction::Some(0));
+    let set_child_2 = root.get_child_at_existing_epoch(&db, ep, Direction::Some(0));
     match set_child_2 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_2,
@@ -139,19 +112,20 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(ep))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep))?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
     let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1))
+        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1))
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(0), child_hist_node_2))
+        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2))
             .is_ok(),
         "Setting the child without hash threw an error"
     );
@@ -162,18 +136,18 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
     let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_3.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(0), child_hist_node_4.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
-    let set_child_1 = root.get_child_at_existing_epoch(ep, Direction::Some(1));
+    let set_child_1 = root.get_child_at_existing_epoch(&db, ep, Direction::Some(1));
     match set_child_1 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_3,
@@ -182,7 +156,7 @@ fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNo
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
 
-    let set_child_2 = root.get_child_at_existing_epoch(ep, Direction::Some(0));
+    let set_child_2 = root.get_child_at_existing_epoch(&db, ep, Direction::Some(0));
     match set_child_2 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_4,
@@ -203,19 +177,20 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(ep))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep))?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
     let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_1.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(0), child_hist_node_2.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
@@ -227,16 +202,16 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
     let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(1), child_hist_node_3.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(ep, &(Direction::Some(0), child_hist_node_4.clone()),)
+        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
             .is_ok(),
         "Setting the child without hash threw an error"
     );
-    let set_child_1 = root.get_child_at_existing_epoch(1, Direction::Some(1));
+    let set_child_1 = root.get_child_at_existing_epoch(&db, 1, Direction::Some(1));
     match set_child_1 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_1,
@@ -245,7 +220,7 @@ fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTree
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
 
-    let set_child_2 = root.get_child_at_existing_epoch(1, Direction::Some(0));
+    let set_child_2 = root.get_child_at_existing_epoch(&db, 1, Direction::Some(0));
     match set_child_2 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_2,
@@ -267,7 +242,8 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let init_ep = 0;
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(init_ep))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(init_ep))?;
 
     for ep in 0u64..3u64 {
         let child_hist_node_1 = HistoryChildState::new(
@@ -282,9 +258,9 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
             Blake3::hash(&[0u8]),
             2 * ep,
         );
-        root.write_to_storage()?;
-        root.set_child_without_hash(2 * ep, &(Direction::Some(1), child_hist_node_1))?;
-        root.set_child_without_hash(2 * ep, &(Direction::Some(0), child_hist_node_2))?;
+        root.write_to_storage(&db)?;
+        root.set_child_without_hash(&db, 2 * ep, &(Direction::Some(1), child_hist_node_1))?;
+        root.set_child_without_hash(&db, 2 * ep, &(Direction::Some(0), child_hist_node_2))?;
     }
 
     let ep_existing = 0u64;
@@ -305,7 +281,7 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
         2 * ep_existing,
     );
 
-    let set_child_1 = root.get_child_at_epoch(1, Direction::Some(1));
+    let set_child_1 = root.get_child_at_epoch(&db, 1, Direction::Some(1));
     match set_child_1 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_1,
@@ -315,7 +291,7 @@ pub fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
 
-    let set_child_2 = root.get_child_at_epoch(1, Direction::Some(0));
+    let set_child_2 = root.get_child_at_epoch(&db, 1, Direction::Some(0));
     match set_child_2 {
         Ok(child_st) => assert!(
             child_st == child_hist_node_2,
@@ -337,8 +313,10 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b0u64, 1u32),
         1,
@@ -348,6 +326,7 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     )?;
 
     let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b1u64, 1u32),
         2,
@@ -355,14 +334,14 @@ fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
         0,
         0,
     )?;
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
 
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(new_leaf.clone(), &azks_id, 0, &mut num_nodes)?;
-    root.insert_single_leaf(leaf_1.clone(), &azks_id, 0, &mut num_nodes)?;
+    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 0, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 0, &mut num_nodes)?;
 
-    let root_val = root.get_value()?;
+    let root_val = root.get_value(&db)?;
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -391,8 +370,10 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b00u64, 2u32),
         1,
@@ -402,6 +383,7 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     )?;
 
     let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b11u64, 2u32),
         2,
@@ -411,6 +393,7 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     )?;
 
     let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b10u64, 2u32),
         3,
@@ -448,16 +431,16 @@ fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     // let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
     // leaf_2_as_child.hash_val = from_digest::<Blake3>(leaf_2_hash)?;
 
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(new_leaf.clone(), &azks_id, 1, &mut num_nodes)?;
+    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)?;
 
-    root.insert_single_leaf(leaf_1.clone(), &azks_id, 2, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)?;
 
-    root.insert_single_leaf(leaf_2.clone(), &azks_id, 3, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)?;
 
-    let root_val = root.get_value()?;
+    let root_val = root.get_value(&db)?;
 
     let expected = Blake3::merge(&[
         Blake3::merge(&[
@@ -475,8 +458,10 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64))?;
     let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b000u64, 3u32),
         1,
@@ -486,6 +471,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     )?;
 
     let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b111u64, 3u32),
         2,
@@ -495,6 +481,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     )?;
 
     let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b100u64, 3u32),
         3,
@@ -504,6 +491,7 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
     )?;
 
     let leaf_3 = get_leaf_node::<Blake3, InMemoryDb>(
+        &db,
         &azks_id,
         NodeLabel::new(0b010u64, 3u32),
         4,
@@ -547,19 +535,19 @@ fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNode
         hash_label::<Blake3>(NodeLabel::new(0b0u64, 1u32)),
     ]);
 
-    let mut leaf_0_as_child = new_leaf.to_node_child_state()?;
+    let mut leaf_0_as_child = new_leaf.to_node_child_state(&db)?;
     leaf_0_as_child.hash_val = from_digest::<Blake3>(leaf_0_hash).unwrap();
 
-    let mut leaf_3_as_child = leaf_3.to_node_child_state()?;
+    let mut leaf_3_as_child = leaf_3.to_node_child_state(&db)?;
     leaf_3_as_child.hash_val = from_digest::<Blake3>(leaf_3_hash).unwrap();
 
-    root.write_to_storage()?;
+    root.write_to_storage(&db)?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(new_leaf.clone(), &azks_id, 1, &mut num_nodes)?;
-    root.insert_single_leaf(leaf_1.clone(), &azks_id, 2, &mut num_nodes)?;
-    root.insert_single_leaf(leaf_2.clone(), &azks_id, 3, &mut num_nodes)?;
-    root.insert_single_leaf(leaf_3.clone(), &azks_id, 4, &mut num_nodes)?;
+    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)?;
+    root.insert_single_leaf(&db, leaf_3.clone(), &azks_id, 4, &mut num_nodes)?;
 
     // let root_val = root.get_value()?;
 
@@ -579,13 +567,15 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&azks_id, Option::Some(0u64))?;
-    root.write_to_storage()?;
+    let db = InMemoryDb::new();
+    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64))?;
+    root.write_to_storage(&db)?;
     let mut num_nodes = 1;
     let mut leaves = Vec::<HistoryTreeNode<Blake3, InMemoryDb>>::new();
     let mut leaf_hashes = Vec::new();
     for i in 0u64..8u64 {
         let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             &azks_id,
             NodeLabel::new(i.clone(), 3u32),
             leaves.len(),
@@ -640,10 +630,10 @@ fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
 
     for i in 0..8 {
         let ep: u64 = i.try_into().unwrap();
-        root.insert_single_leaf(leaves[7 - i].clone(), &azks_id, ep + 1, &mut num_nodes)?;
+        root.insert_single_leaf(&db, leaves[7 - i].clone(), &azks_id, ep + 1, &mut num_nodes)?;
     }
 
-    let root_val = root.get_value()?;
+    let root_val = root.get_value(&db)?;
 
     assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
