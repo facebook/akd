@@ -12,7 +12,7 @@ use serde::{de::DeserializeOwned, Serialize};
 Various implementations supported by the library are imported here and usable at various checkpoints
 */
 pub mod memory;
-pub mod xdb;
+pub mod mysql;
 
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
@@ -53,6 +53,7 @@ pub trait Storage: Clone {
 #[cfg(test)]
 mod tests {
     use crate::storage::memory::*;
+    // use crate::storage::xdb::*;
     use crate::storage::Storage;
 
     #[test]
@@ -63,6 +64,9 @@ mod tests {
 
         let db = InMemoryDbWithCache::new();
         test_get_and_set_item_helper(&db);
+
+        // let xdb = XdbDatabase::new("127.0.0.1", "", Option::from("scriptrw"), Option::from(""), Option::from(65301));
+        // test_get_and_set_item_helper(&xdb);
     }
 
     fn test_get_and_set_item_helper<S: Storage>(storage: &S) {

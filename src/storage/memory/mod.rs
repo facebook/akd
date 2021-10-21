@@ -30,6 +30,12 @@ impl InMemoryDatabase {
     }
 }
 
+impl Default for InMemoryDatabase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Clone for InMemoryDatabase {
     fn clone(&self) -> InMemoryDatabase {
         InMemoryDatabase {
@@ -80,8 +86,8 @@ lazy_static! {
 pub struct InMemoryDbWithCache(());
 
 impl InMemoryDbWithCache {
-    pub fn new() -> InMemoryDbWithCache {
-        InMemoryDbWithCache(())
+    pub fn new() -> Self {
+        Self(())
     }
 
     pub fn clear_stats(&self) {
@@ -128,7 +134,7 @@ impl InMemoryDbWithCache {
         }
 
         let mut sorted_keys: Vec<usize> = distribution.keys().cloned().collect();
-        sorted_keys.sort();
+        sorted_keys.sort_unstable();
 
         for key in sorted_keys {
             println!("{}: {}", key, distribution[&key]);
@@ -139,6 +145,12 @@ impl InMemoryDbWithCache {
     }
 }
 
+impl Default for InMemoryDbWithCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Storage for InMemoryDbWithCache {
     fn set(&self, pos: String, value: String) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
@@ -146,7 +158,7 @@ impl Storage for InMemoryDbWithCache {
         *calls_to_cache_set += 1;
 
         let mut cache = CACHE_CACHE.lock().unwrap();
-        cache.insert(pos.clone(), value.clone());
+        cache.insert(pos, value);
 
         Ok(())
     }
@@ -165,10 +177,7 @@ impl Storage for InMemoryDbWithCache {
                 *calls_to_db_get += 1;
 
                 let db = CACHE_DB.lock().unwrap();
-                let value = db
-                    .get(&pos)
-                    .map(|v| v.clone())
-                    .ok_or(StorageError::GetError)?;
+                let value = db.get(&pos).cloned().ok_or(StorageError::GetError)?;
 
                 cache.insert(pos, value.clone());
                 Ok(value)
