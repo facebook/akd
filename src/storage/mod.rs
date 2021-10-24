@@ -52,8 +52,11 @@ pub trait Storage: Clone {
 // ========= Database Tests ========== //
 #[cfg(test)]
 mod tests {
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+
     use crate::storage::memory::*;
-    // use crate::storage::xdb::*;
+    use crate::storage::mysql::*;
     use crate::storage::Storage;
 
     #[test]
@@ -65,14 +68,35 @@ mod tests {
         let db = InMemoryDbWithCache::new();
         test_get_and_set_item_helper(&db);
 
-        // let xdb = XdbDatabase::new("127.0.0.1", "", Option::from("scriptrw"), Option::from(""), Option::from(65301));
-        // test_get_and_set_item_helper(&xdb);
+        if MySqlDatabase::test_guard() {
+            let xdb = MySqlDatabase::new(
+                "localhost",
+                "default",
+                Option::from("root"),
+                Option::from("example"),
+                Option::from(8001),
+            );
+            test_get_and_set_item_helper(&xdb);
+        } else {
+            println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        }
     }
 
     fn test_get_and_set_item_helper<S: Storage>(storage: &S) {
-        let set_result = storage.set("key".to_string(), "value".to_string());
+        let rand_string: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(30)
+            .map(char::from)
+            .collect();
+        let value: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(30)
+            .map(char::from)
+            .collect();
+
+        let set_result = storage.set(rand_string.clone(), value.clone());
         assert_eq!(Ok(()), set_result);
 
-        assert_eq!(Ok("value".to_string()), storage.get("key".to_string()));
+        assert_eq!(Ok(value), storage.get(rand_string));
     }
 }
