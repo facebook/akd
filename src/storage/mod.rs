@@ -27,8 +27,8 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
             Self::identifier(),
             hex::encode(bincode::serialize(&key).unwrap())
         );
-        let got = storage.get(k);
-        bincode::deserialize(&hex::decode(got?).unwrap()).map_err(|_| StorageError::GetError)
+        let got: Vec<u8> = storage.get(k)?;
+        bincode::deserialize(&got).map_err(|_| StorageError::GetError)
     }
 
     fn store(storage: &S, key: Self::Key, value: &Self) -> Result<(), StorageError> {
@@ -37,16 +37,16 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
             Self::identifier(),
             hex::encode(bincode::serialize(&key).unwrap())
         );
-        storage.set(k, hex::encode(&bincode::serialize(&value).unwrap()))
+        storage.set(k, &bincode::serialize(&value).unwrap())
     }
 }
 
 /// Represents the storage layer for SEEMless (with associated configuration if necessary)
 pub trait Storage: Clone {
     /// Set a key/value pair in the storage layer
-    fn set(&self, pos: String, val: String) -> Result<(), StorageError>;
+    fn set(&self, pos: String, val: &[u8]) -> Result<(), StorageError>;
     /// Retrieve a value given a key from the storage layer
-    fn get(&self, pos: String) -> Result<String, StorageError>;
+    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError>;
 }
 
 // ========= Database Tests ========== //
@@ -77,6 +77,11 @@ mod tests {
                 Option::from(8001),
             );
             test_get_and_set_item_helper(&xdb);
+
+            // clean the test infra
+            if let Err(mysql::Error::MySqlError(error)) = xdb.test_cleanup() {
+                println!("ERROR: Failed to clean MySQL test database with error {}", error);
+            }
         } else {
             println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
         }
@@ -88,15 +93,18 @@ mod tests {
             .take(30)
             .map(char::from)
             .collect();
-        let value: String = thread_rng()
+        let value: Vec<u8> = thread_rng()
             .sample_iter(&Alphanumeric)
             .take(30)
             .map(char::from)
-            .collect();
+            .collect::<String>()
+            .as_bytes()
+            .to_vec();
 
-        let set_result = storage.set(rand_string.clone(), value.clone());
+        let set_result = storage.set(rand_string.clone(), &value);
         assert_eq!(Ok(()), set_result);
 
-        assert_eq!(Ok(value), storage.get(rand_string));
+        let storage_bytes = storage.get(rand_string);
+        assert_eq!(Ok(value), storage_bytes);
     }
 }

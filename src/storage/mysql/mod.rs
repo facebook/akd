@@ -45,7 +45,7 @@ impl MySqlDatabase {
 
             let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
                 + TABLE
-                + "` (`key` VARCHAR(64) NOT NULL, `value` VARCHAR(2000), PRIMARY KEY (`key`)"
+                + "` (`key` VARCHAR(64) NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`)"
                 + ")";
             conn.query_drop(command)?;
 
@@ -55,6 +55,21 @@ impl MySqlDatabase {
         let _output = result(opts.clone());
 
         Self { opts }
+    }
+
+    /// Cleanup the test data table
+    #[allow(dead_code)]
+    pub(crate) fn test_cleanup(&self) -> core::result::Result<(), mysql::Error> {
+        let options = self.opts.clone();
+        let pool = Pool::new(options)?;
+        let mut conn = pool.get_conn()?;
+
+        let command = "DROP TABLE IF EXISTS `".to_owned()
+            + TABLE
+            + "`";
+        conn.query_drop(command)?;
+
+        Ok(())
     }
 
     /// Determine if the MySQL environment is available for execution (i.e. docker container is running)
@@ -96,7 +111,7 @@ impl std::convert::From<mysql::Error> for StorageError {
 }
 
 impl Storage for MySqlDatabase {
-    fn set(&self, pos: String, val: String) -> core::result::Result<(), StorageError> {
+    fn set(&self, pos: String, val: &[u8]) -> core::result::Result<(), StorageError> {
         let result = || -> core::result::Result<(), StorageError> {
             let pool = Pool::new(self.opts.clone())?;
             let mut conn = pool.get_conn()?;
@@ -117,14 +132,14 @@ impl Storage for MySqlDatabase {
             code => code,
         }
     }
-    fn get(&self, pos: String) -> core::result::Result<String, StorageError> {
+    fn get(&self, pos: String) -> core::result::Result<Vec<u8>, StorageError> {
         let pool = Pool::new(self.opts.clone())?;
         let mut conn = pool.get_conn()?;
 
         let statement_text =
             "SELECT `key`, `value` FROM `".to_owned() + TABLE + "` WHERE `key` = :the_key LIMIT 1";
         let statement = conn.prep(statement_text)?;
-        let result: Option<(String, String)> =
+        let result: Option<(String, Vec<u8>)> =
             conn.exec_first(statement, params! { "the_key" => pos })?;
 
         if let Some((_key, value)) = result {

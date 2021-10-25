@@ -16,8 +16,8 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct InMemoryDatabase {
-    read_handle: ReadHandle<String, String>,
-    write_handle: Arc<Mutex<WriteHandle<String, String>>>,
+    read_handle: ReadHandle<String, Vec<u8>>,
+    write_handle: Arc<Mutex<WriteHandle<String, Vec<u8>>>>,
 }
 
 impl InMemoryDatabase {
@@ -46,16 +46,16 @@ impl Clone for InMemoryDatabase {
 }
 
 impl Storage for InMemoryDatabase {
-    fn set(&self, pos: String, value: String) -> Result<(), StorageError> {
+    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut hashmap = self.write_handle.lock().unwrap();
         // evmap supports multi-values, so we need to clear the value if it's present and then set the new value
         hashmap.clear(pos.clone());
-        hashmap.insert(pos, value);
+        hashmap.insert(pos, value.to_vec());
         hashmap.refresh();
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<String, StorageError> {
+    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
         if let Some(intermediate) = self.read_handle.get(&pos) {
             if let Some(output) = intermediate.get_one() {
                 return Ok(output.clone());
@@ -68,11 +68,11 @@ impl Storage for InMemoryDatabase {
 // ===== In-Memory database w/caching ==== //
 
 lazy_static! {
-    static ref CACHE_DB: Mutex<HashMap<String, String>> = {
+    static ref CACHE_DB: Mutex<HashMap<String, Vec<u8>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
-    static ref CACHE_CACHE: Mutex<HashMap<String, String>> = {
+    static ref CACHE_CACHE: Mutex<HashMap<String, Vec<u8>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
@@ -152,18 +152,18 @@ impl Default for InMemoryDbWithCache {
 }
 
 impl Storage for InMemoryDbWithCache {
-    fn set(&self, pos: String, value: String) -> Result<(), StorageError> {
+    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
         let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
         *calls_to_cache_set += 1;
 
         let mut cache = CACHE_CACHE.lock().unwrap();
-        cache.insert(pos, value);
+        cache.insert(pos, value.to_vec());
 
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<String, StorageError> {
+    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
 
         let cache = &mut CACHE_CACHE.lock().unwrap();
