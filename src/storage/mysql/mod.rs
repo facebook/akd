@@ -57,6 +57,22 @@ impl MySqlDatabase {
         Self { opts }
     }
 
+    /// Cleanup the test data table
+    #[allow(dead_code)]
+    pub(crate) fn test_cleanup(&self) -> core::result::Result<(), mysql::Error> {
+        let options = self.opts.clone();
+        let pool = Pool::new(options)?;
+        let mut conn = pool.get_conn()?;
+
+        let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+            + TABLE
+            + "` (`key` VARCHAR(64) NOT NULL, `value` VARCHAR(2000), PRIMARY KEY (`key`)"
+            + ")";
+        conn.query_drop(command)?;
+
+        Ok(())
+    }
+
     /// Determine if the MySQL environment is available for execution (i.e. docker container is running)
     #[allow(dead_code)]
     pub(crate) fn test_guard() -> bool {

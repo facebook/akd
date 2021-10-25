@@ -77,6 +77,11 @@ mod tests {
                 Option::from(8001),
             );
             test_get_and_set_item_helper(&xdb);
+
+            // clean the test infra
+            if let Err(mysql::Error::MySqlError(error)) = xdb.test_cleanup() {
+                println!("ERROR: Failed to clean MySQL test database with error {}", error);
+            }
         } else {
             println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
         }
