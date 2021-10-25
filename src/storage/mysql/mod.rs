@@ -64,9 +64,7 @@ impl MySqlDatabase {
         let pool = Pool::new(options)?;
         let mut conn = pool.get_conn()?;
 
-        let command = "DROP TABLE IF EXISTS `".to_owned()
-            + TABLE
-            + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE + "`";
         conn.query_drop(command)?;
 
         Ok(())
