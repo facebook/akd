@@ -127,12 +127,14 @@ fn main() {
     // Lookup and verification of lookup measurement
     db.clear_stats();
 
+    let current_azks = seemless_dir.retrieve_current_azks().unwrap();
+
     for i in 0..num_lookups {
         // Get a new lookup proof for the current user
         let new_lookup_proof = seemless_dir.lookup(lookup_set[i].0.clone()).unwrap();
         // Verify this lookup proof
         lookup_verify::<Blake3_256<BaseElement>>(
-            seemless_dir.get_root_hash().unwrap(),
+            seemless_dir.get_root_hash(&current_azks).unwrap(),
             lookup_set[i].0.clone(),
             new_lookup_proof,
         )
@@ -177,14 +179,20 @@ fn main() {
     // Key history and verification measurement
     db.clear_stats();
 
+    let current_azks = seemless_dir.retrieve_current_azks().unwrap();
+
     for i in 1..total_ep {
         for j in i..total_ep {
             // Get a new lookup proof for the current user
             let audit_proof = seemless_dir.audit(i, j).unwrap();
             // Verify this lookup proof
             audit_verify::<Blake3_256<BaseElement>>(
-                seemless_dir.get_root_hash_at_epoch(i).unwrap(),
-                seemless_dir.get_root_hash_at_epoch(j).unwrap(),
+                seemless_dir
+                    .get_root_hash_at_epoch(&current_azks, i)
+                    .unwrap(),
+                seemless_dir
+                    .get_root_hash_at_epoch(&current_azks, j)
+                    .unwrap(),
                 audit_proof,
             )
             .unwrap();

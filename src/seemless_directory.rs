@@ -142,8 +142,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
-        let mut current_azks =
-            Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))?;
+        let mut current_azks = self.retrieve_current_azks()?;
         let output = current_azks.batch_insert_leaves(&self.storage, insertion_set);
         Azks::store(&self.storage, AzksKey(self.azks_id.clone()), &current_azks)?;
         // Not sure how to remove clones from here?
@@ -175,8 +174,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
                 let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel(&uname, false, marker_version);
-                let current_azks =
-                    Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))?;
+                let current_azks = self.retrieve_current_azks()?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
                     plaintext_value: latest_st.plaintext_val.clone(),
@@ -229,8 +227,12 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         audit_start_ep: u64,
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, SeemlessError> {
-        let current_azks = Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))?;
+        let current_azks = self.retrieve_current_azks()?;
         current_azks.get_append_only_proof(&self.storage, audit_start_ep, audit_end_ep)
+    }
+
+    pub fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
+        Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))
     }
 
     /// HELPERS ///
@@ -282,7 +284,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
         let label_at_ep = Self::get_nodelabel(uname, false, *version);
 
-        let current_azks = Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))?;
+        let current_azks = self.retrieve_current_azks()?;
 
         let existence_at_ep =
             current_azks.get_membership_proof(&self.storage, label_at_ep, epoch)?;
@@ -338,13 +340,16 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         })
     }
 
-    pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, SeemlessError> {
-        let current_azks = Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))?;
+    pub fn get_root_hash_at_epoch(
+        &self,
+        current_azks: &Azks<H, S>,
+        epoch: u64,
+    ) -> Result<H::Digest, SeemlessError> {
         Ok(current_azks.get_root_hash_at_epoch(&self.storage, epoch)?)
     }
 
-    pub fn get_root_hash(&self) -> Result<H::Digest, SeemlessError> {
-        self.get_root_hash_at_epoch(self.current_epoch)
+    pub fn get_root_hash(&self, current_azks: &Azks<H, S>) -> Result<H::Digest, SeemlessError> {
+        self.get_root_hash_at_epoch(current_azks, self.current_epoch)
     }
 }
 
@@ -380,16 +385,32 @@ pub fn get_key_history_hashes<S: Storage, H: Hasher>(
     seemless_dir: &SeemlessDirectory<S, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, SeemlessError> {
+    let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
+
     let mut root_hashes = Vec::<H::Digest>::new();
     let mut previous_root_hashes = Vec::<Option<H::Digest>>::new();
+    let current_azks = seemless_dir.retrieve_current_azks()?;
     for proof in &history_proof.proofs {
-        if proof.epoch == 1 {
-            previous_root_hashes.push(None);
-        } else {
-            previous_root_hashes.push(Some(seemless_dir.get_root_hash_at_epoch(proof.epoch - 1)?));
-        }
-        root_hashes.push(seemless_dir.get_root_hash_at_epoch(proof.epoch)?)
+        let hash = seemless_dir.get_root_hash_at_epoch(&current_azks, proof.epoch)?;
+        epoch_hash_map.insert(proof.epoch, hash);
+        root_hashes.push(hash);
     }
+
+    for proof in &history_proof.proofs {
+        let epoch_in_question = proof.epoch - 1;
+        if epoch_in_question == 0 {
+            // edge condition
+            previous_root_hashes.push(None);
+        } else if let Some(hash) = epoch_hash_map.get(&epoch_in_question) {
+            // cache hit
+            previous_root_hashes.push(Some(*hash));
+        } else {
+            // cache miss, fetch it
+            let hash = seemless_dir.get_root_hash_at_epoch(&current_azks, proof.epoch - 1)?;
+            previous_root_hashes.push(Some(hash));
+        }
+    }
+
     Ok((root_hashes, previous_root_hashes))
 }
 
@@ -432,7 +453,8 @@ mod tests {
         ])?;
 
         let lookup_proof = seemless.lookup(Username("hello".to_string()))?;
-        let root_hash = seemless.get_root_hash()?;
+        let current_azks = seemless.retrieve_current_azks()?;
+        let root_hash = seemless.get_root_hash(&current_azks)?;
         lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
             Username("hello".to_string()),
@@ -553,45 +575,47 @@ mod tests {
             ),
         ])?;
 
+        let current_azks = seemless.retrieve_current_azks()?;
+
         let audit_proof_1 = seemless.audit(1, 2)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(1)?,
-            seemless.get_root_hash_at_epoch(2)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 1)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 2)?,
             audit_proof_1,
         )?;
 
         let audit_proof_2 = seemless.audit(1, 3)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(1)?,
-            seemless.get_root_hash_at_epoch(3)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 1)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 3)?,
             audit_proof_2,
         )?;
 
         let audit_proof_3 = seemless.audit(1, 4)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(1)?,
-            seemless.get_root_hash_at_epoch(4)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 1)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 4)?,
             audit_proof_3,
         )?;
 
         let audit_proof_4 = seemless.audit(1, 5)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(1)?,
-            seemless.get_root_hash_at_epoch(5)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 1)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 5)?,
             audit_proof_4,
         )?;
 
         let audit_proof_5 = seemless.audit(2, 3)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(2)?,
-            seemless.get_root_hash_at_epoch(3)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 2)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 3)?,
             audit_proof_5,
         )?;
 
         let audit_proof_6 = seemless.audit(2, 4)?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(2)?,
-            seemless.get_root_hash_at_epoch(4)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 2)?,
+            seemless.get_root_hash_at_epoch(&current_azks, 4)?,
             audit_proof_6,
         )?;
 
