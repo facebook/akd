@@ -208,11 +208,13 @@ impl fmt::Display for SeemlessDirectoryError {
     }
 }
 
+/// Represents a storage-layer error
 #[derive(PartialEq, Debug)]
 pub enum StorageError {
-    SetError,
-    GetError,
-    WrongMemoryTypeError,
-    WrongIdTypeError,
-    UnsupportedStorageTypeError,
+    /// An error occurred setting data in the storage layer
+    SetError(String),
+    /// An error occurred getting data from the storage layer
+    GetError(String),
+    /// An error occurred serializing or deserializing data
+    SerializationError,
 }

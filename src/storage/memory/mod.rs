@@ -69,7 +69,7 @@ impl Storage for InMemoryDatabase {
                 return Ok(output.clone());
             }
         }
-        Result::Err(StorageError::GetError)
+        Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
     fn append_user_state(
@@ -84,9 +84,11 @@ impl Storage for InMemoryDatabase {
     }
 
     fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+        let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
-            self.append_user_state(&kvp.0, &kvp.1)?;
+            hashmap.insert(kvp.0.clone(), kvp.1.clone());
         }
+        hashmap.refresh();
         Ok(())
     }
 
@@ -98,7 +100,7 @@ impl Storage for InMemoryDatabase {
             }
             return Ok(UserData { states: results });
         }
-        Result::Err(StorageError::GetError)
+        Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
     fn get_user_state(
@@ -159,7 +161,7 @@ impl Storage for InMemoryDatabase {
                 }
             }
         }
-        Result::Err(StorageError::GetError)
+        Result::Err(StorageError::GetError(String::from("Not found")))
     }
 }
 
@@ -282,7 +284,10 @@ impl Storage for InMemoryDbWithCache {
                 *calls_to_db_get += 1;
 
                 let db = CACHE_DB.lock().unwrap();
-                let value = db.get(&pos).cloned().ok_or(StorageError::GetError)?;
+                let value = db
+                    .get(&pos)
+                    .cloned()
+                    .ok_or_else(|| StorageError::GetError(String::from("Not found")))?;
 
                 cache.insert(pos, value.clone());
                 Ok(value)
@@ -302,9 +307,11 @@ impl Storage for InMemoryDbWithCache {
     }
 
     fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+        let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
-            self.append_user_state(&kvp.0, &kvp.1)?;
+            hashmap.insert(kvp.0.clone(), kvp.1.clone());
         }
+        hashmap.refresh();
         Ok(())
     }
 
@@ -316,7 +323,7 @@ impl Storage for InMemoryDbWithCache {
             }
             return Ok(UserData { states: results });
         }
-        Result::Err(StorageError::GetError)
+        Result::Err(StorageError::GetError(String::from("Not found")))
     }
     fn get_user_state(
         &self,
@@ -376,7 +383,7 @@ impl Storage for InMemoryDbWithCache {
                 }
             }
         }
-        Result::Err(StorageError::GetError)
+        Result::Err(StorageError::GetError(String::from("Not found")))
     }
 }
 

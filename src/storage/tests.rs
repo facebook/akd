@@ -80,7 +80,10 @@ fn test_get_and_set_item<S: Storage>(storage: &S) {
 
     let fake_key = "abc123".to_owned();
     let missing = storage.get(fake_key);
-    assert_eq!(Err(StorageError::GetError), missing);
+    assert_eq!(
+        Err(StorageError::GetError(String::from("Not found"))),
+        missing
+    );
 }
 
 fn test_user_data<S: Storage>(storage: &S) {
@@ -171,7 +174,10 @@ fn test_user_data<S: Storage>(storage: &S) {
 
     let missing_result =
         storage.get_user_state(&username, UserStateRetrievalFlag::SpecificVersion(100));
-    assert_eq!(Err(StorageError::GetError), missing_result);
+    assert_eq!(
+        Err(StorageError::GetError(String::from("Not found"))),
+        missing_result
+    );
 
     let specific_result =
         storage.get_user_state(&username, UserStateRetrievalFlag::SpecificEpoch(123));

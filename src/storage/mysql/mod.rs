@@ -54,10 +54,11 @@ impl MySqlDatabase {
             conn.query_drop(command)?;
 
             // user data table
-            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
-                + USER_TABLE
-                + "` (`username` VARCHAR(64) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL, `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000), PRIMARY KEY(`username`, `epoch`)"
-                + ")";
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned() + USER_TABLE + "`"
+                + " (`username` VARCHAR(64) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
+                + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+                + " PRIMARY KEY(`username`, `epoch`)"
+                + " )";
             conn.query_drop(command)?;
 
             Ok(())
@@ -115,13 +116,6 @@ impl MySqlDatabase {
     }
 }
 
-// === Storage error conversion from mysql error
-impl std::convert::From<mysql::Error> for StorageError {
-    fn from(_error: mysql::Error) -> Self {
-        StorageError::GetError
-    }
-}
-
 impl Storage for MySqlDatabase {
     fn set(&self, pos: String, val: &[u8]) -> core::result::Result<(), StorageError> {
         let result = || -> core::result::Result<(), mysql::Error> {
@@ -139,24 +133,32 @@ impl Storage for MySqlDatabase {
 
         match result() {
             Ok(()) => Ok(()),
-            _code => Err(StorageError::SetError),
+            Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
     fn get(&self, pos: String) -> core::result::Result<Vec<u8>, StorageError> {
-        let pool = Pool::new(self.opts.clone())?;
-        let mut conn = pool.get_conn()?;
+        let result = || -> core::result::Result<Option<Vec<u8>>, mysql::Error> {
+            let pool = Pool::new(self.opts.clone())?;
+            let mut conn = pool.get_conn()?;
 
-        let statement_text =
-            "SELECT `key`, `value` FROM `".to_owned() + TABLE + "` WHERE `key` = :the_key LIMIT 1";
-        let statement = conn.prep(statement_text)?;
-        let result: Option<(String, Vec<u8>)> =
-            conn.exec_first(statement, params! { "the_key" => pos })?;
+            let statement_text = "SELECT `key`, `value` FROM `".to_owned()
+                + TABLE
+                + "` WHERE `key` = :the_key LIMIT 1";
+            let statement = conn.prep(statement_text)?;
+            let result: Option<(String, Vec<u8>)> =
+                conn.exec_first(statement, params! { "the_key" => pos })?;
 
-        if let Some((_key, value)) = result {
-            return Ok(value);
+            if let Some((_key, value)) = result {
+                return Ok(Some(value));
+            }
+            Ok(None)
+        };
+
+        match result() {
+            Ok(Some(result)) => Ok(result),
+            Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
+            Err(other) => Err(StorageError::GetError(other.to_string())),
         }
-
-        core::result::Result::Err(StorageError::GetError)
     }
 
     fn append_user_state(
@@ -169,52 +171,62 @@ impl Storage for MySqlDatabase {
             let mut conn = pool.get_conn()?;
             let statement_text = "INSERT INTO `".to_owned()
                 + USER_TABLE
-                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
+                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
+                + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
             conn.exec_drop(
                 statement_text,
-                params! { "username" => username.0.clone(), "epoch" => value.epoch, "version" => value.version, "node_label_val" => value.label.val, "node_label_len" => value.label.len, "data" => value.plaintext_val.0.clone() },
+                params! {
+                    "username" => username.0.clone(),
+                    "epoch" => value.epoch,
+                    "version" => value.version,
+                    "node_label_val" => value.label.val,
+                    "node_label_len" => value.label.len,
+                    "data" => value.plaintext_val.0.clone()
+                },
             )?;
             Ok(())
         };
 
         match result() {
             Ok(()) => Ok(()),
-            _code => Err(StorageError::SetError),
+            Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
 
-    // TODO: modify this
     fn append_user_states(
         &self,
         values: Vec<(Username, UserState)>,
     ) -> core::result::Result<(), StorageError> {
-        // for kvp in values {
-        //     self.append_user_state(&kvp.0, &kvp.1)?;
-        // }
-        // Ok(())
-
         let result = || -> core::result::Result<(), mysql::Error> {
             let pool = Pool::new(self.opts.clone())?;
             let mut conn = pool.get_conn()?;
 
             let statement_text = "INSERT INTO `".to_owned()
                 + USER_TABLE
-                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
-
+                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
+                + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
+            // create a transaction to perform the operations on
             let mut tx = conn.start_transaction(TxOpts::default())?;
-
             let mut steps = || -> core::result::Result<(), mysql::Error> {
                 for chunk in values.chunks(100) {
                     tx.exec_batch(
                         statement_text.clone(),
                         chunk.iter().map(|(name, value)| {
-                            params! { "username" => name.0.clone(), "epoch" => value.epoch, "version" => value.version, "node_label_val" => value.label.val, "node_label_len" => value.label.len, "data" => value.plaintext_val.0.clone() }
-                        })
+                            params! {
+                                "username" => name.0.clone(),
+                                "epoch" => value.epoch,
+                                "version" => value.version,
+                                "node_label_val" => value.label.val,
+                                "node_label_len" => value.label.len,
+                                "data" => value.plaintext_val.0.clone()
+                            }
+                        }),
                     )?;
                 }
                 Ok(())
             };
 
+            // if any of the steps returns an error, fail the entire transaction to in an atomic state
             if steps().is_err() {
                 tx.rollback()?;
             } else {
@@ -225,7 +237,7 @@ impl Storage for MySqlDatabase {
 
         match result() {
             Ok(()) => Ok(()),
-            _code => Err(StorageError::SetError),
+            Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
 
@@ -258,7 +270,7 @@ impl Storage for MySqlDatabase {
 
         match result() {
             Ok(output) => Ok(output),
-            _ => Err(StorageError::GetError),
+            Err(code) => Err(StorageError::GetError(code.to_string())),
         }
     }
     fn get_user_state(
@@ -312,7 +324,8 @@ impl Storage for MySqlDatabase {
 
         match result() {
             Ok(Some(result)) => Ok(result),
-            _ => Err(StorageError::GetError),
+            Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
+            Err(code) => Err(StorageError::GetError(code.to_string())),
         }
     }
 }

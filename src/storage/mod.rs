@@ -32,7 +32,7 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
             hex::encode(bincode::serialize(&key).unwrap())
         );
         let got: Vec<u8> = storage.get(k)?;
-        bincode::deserialize(&got).map_err(|_| StorageError::GetError)
+        bincode::deserialize(&got).map_err(|_| StorageError::SerializationError)
     }
 
     fn store(storage: &S, key: Self::Key, value: &Self) -> Result<(), StorageError> {
@@ -46,6 +46,9 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
 }
 
 /// Represents the storage layer for SEEMless (with associated configuration if necessary)
+///
+/// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
+/// partial state pending)
 pub trait Storage: Clone {
     /// Set a key/value pair in the storage layer
     fn set(&self, pos: String, val: &[u8]) -> Result<(), StorageError>;
