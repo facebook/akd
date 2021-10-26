@@ -103,7 +103,9 @@ fn test_user_data<S: Storage>(storage: &S) {
         },
         epoch: 1u64,
     };
+    let mut sample_state_2 = sample_state.clone();
     let username = Username(rand_user);
+    let username_2 = Username("test_user".to_string());
 
     let result = storage.append_user_state(&username, &sample_state);
     assert_eq!(Ok(()), result);
@@ -224,4 +226,24 @@ fn test_user_data<S: Storage>(storage: &S) {
         }),
         specific_result
     );
+
+    // Vector operations
+
+    let mut vector_of_states = vec![(username_2.clone(), sample_state_2.clone())];
+    sample_state_2.version = 2;
+    sample_state_2.epoch = 234;
+    vector_of_states.push((username_2.clone(), sample_state_2.clone()));
+
+    sample_state_2.version = 3;
+    sample_state_2.epoch = 345;
+    vector_of_states.push((username_2.clone(), sample_state_2.clone()));
+    sample_state_2.version = 4;
+    sample_state_2.epoch = 456;
+    vector_of_states.push((username_2.clone(), sample_state_2.clone()));
+
+    let result = storage.append_user_states(vector_of_states);
+    assert_eq!(Ok(()), result);
+
+    let data = storage.get_user_data(&username_2).unwrap();
+    assert_eq!(4, data.states.len());
 }
