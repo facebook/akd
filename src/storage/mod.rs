@@ -8,6 +8,10 @@
 use crate::errors::StorageError;
 use serde::{de::DeserializeOwned, Serialize};
 
+// This holds the types used in the storage layer
+pub mod tests;
+pub mod types;
+
 /*
 Various implementations supported by the library are imported here and usable at various checkpoints
 */
@@ -45,69 +49,29 @@ pub trait Storable<S: Storage>: Clone + Serialize + DeserializeOwned {
 pub trait Storage: Clone {
     /// Set a key/value pair in the storage layer
     fn set(&self, pos: String, val: &[u8]) -> Result<(), StorageError>;
+
     /// Retrieve a value given a key from the storage layer
     fn get(&self, pos: String) -> Result<Vec<u8>, StorageError>;
-}
 
-// ========= Database Tests ========== //
-#[cfg(test)]
-mod tests {
-    use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
+    /// Add a user state element to the associated user
+    fn append_user_state(
+        &self,
+        username: &types::Username,
+        value: &types::UserState,
+    ) -> Result<(), StorageError>;
 
-    use crate::storage::memory::*;
-    use crate::storage::mysql::*;
-    use crate::storage::Storage;
+    fn append_user_states(
+        &self,
+        values: Vec<(types::Username, types::UserState)>,
+    ) -> Result<(), StorageError>;
 
-    #[test]
-    fn test_get_and_set_item() {
-        // Test the various DB implementations
-        let db = InMemoryDatabase::new();
-        test_get_and_set_item_helper(&db);
+    /// Retrieve the user data for a given user
+    fn get_user_data(&self, username: &types::Username) -> Result<types::UserData, StorageError>;
 
-        let db = InMemoryDbWithCache::new();
-        test_get_and_set_item_helper(&db);
-
-        if MySqlDatabase::test_guard() {
-            let xdb = MySqlDatabase::new(
-                "localhost",
-                "default",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-            );
-            test_get_and_set_item_helper(&xdb);
-
-            // clean the test infra
-            if let Err(mysql::Error::MySqlError(error)) = xdb.test_cleanup() {
-                println!(
-                    "ERROR: Failed to clean MySQL test database with error {}",
-                    error
-                );
-            }
-        } else {
-            println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
-        }
-    }
-
-    fn test_get_and_set_item_helper<S: Storage>(storage: &S) {
-        let rand_string: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(30)
-            .map(char::from)
-            .collect();
-        let value: Vec<u8> = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(30)
-            .map(char::from)
-            .collect::<String>()
-            .as_bytes()
-            .to_vec();
-
-        let set_result = storage.set(rand_string.clone(), &value);
-        assert_eq!(Ok(()), set_result);
-
-        let storage_bytes = storage.get(rand_string);
-        assert_eq!(Ok(value), storage_bytes);
-    }
+    /// Retrieve a specific state for a given user
+    fn get_user_state(
+        &self,
+        username: &types::Username,
+        flag: types::UserStateRetrievalFlag,
+    ) -> Result<types::UserState, StorageError>;
 }

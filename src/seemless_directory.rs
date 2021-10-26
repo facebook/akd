@@ -10,28 +10,15 @@ use crate::errors::{SeemlessDirectoryError, SeemlessError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
+use crate::storage::types::{UserState, UserStateRetrievalFlag, Username, Values};
 use crate::storage::{Storable, Storage};
 
 use rand::{prelude::ThreadRng, thread_rng};
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::usize;
 use winter_crypto::Hasher;
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Username(String);
-
-impl Username {
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(get_random_str(rng))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(bound = "")]
-pub struct Values(String);
 
 impl Values {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -39,43 +26,14 @@ impl Values {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(bound = "")]
-pub struct UserState {
-    plaintext_val: Values, // This needs to be the plaintext value, to discuss
-    version: u64,          // to discuss
-    label: NodeLabel,
-    epoch: u64,
-}
-
-impl UserState {
-    pub fn new(plaintext_val: Values, version: u64, label: NodeLabel, epoch: u64) -> Self {
-        UserState {
-            plaintext_val,
-            version,
-            label,
-            epoch,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(bound = "")]
-pub struct UserData {
-    states: Vec<UserState>,
-}
-
-impl UserData {
-    pub fn new(state: UserState) -> Self {
-        UserData {
-            states: vec![state],
-        }
+impl Username {
+    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+        Self(get_random_str(rng))
     }
 }
 
 pub struct SeemlessDirectory<S, H> {
     azks_id: Vec<u8>,
-    user_data: HashMap<Username, UserData>,
     current_epoch: u64,
     storage: S,
     _s: PhantomData<S>,
@@ -91,7 +49,6 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         Azks::store(storage, AzksKey(azks_id.to_vec()), &azks)?;
         Ok(SeemlessDirectory {
             azks_id: azks_id.to_vec(),
-            user_data: HashMap::<Username, UserData>::new(),
             current_epoch: 0,
             _s: PhantomData::<S>,
             _h: PhantomData::<H>,
@@ -101,12 +58,15 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     pub fn publish(&mut self, updates: Vec<(Username, Values)>) -> Result<(), SeemlessError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<(Username, UserData)>::new();
+        let mut user_data_update_set = Vec::<(Username, UserState)>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
-            match self.user_data.get(&uname) {
-                // No data found for this user
-                None => {
+            match self
+                .storage
+                .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+            {
+                Err(_) => {
+                    // No data found for the user
                     let latest_version = 1;
                     let label = Self::get_nodelabel(&uname, false, latest_version);
                     // Currently there's no blinding factor for the commitment.
@@ -114,11 +74,11 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((label, value_to_add));
                     let latest_state = UserState::new(val, latest_version, label, next_epoch);
-                    user_data_update_set.push((uname, UserData::new(latest_state)));
+                    user_data_update_set.push((uname, latest_state));
                 }
-                // Found existing data for this user
-                Some(user_data_val) => {
-                    let latest_st = user_data_val.states.last().unwrap();
+                Ok(max_user_state) => {
+                    // Data found for the given user
+                    let latest_st = max_user_state;
                     let previous_version = latest_st.version;
                     let latest_version = previous_version + 1;
                     let stale_label = Self::get_nodelabel(&uname, true, previous_version);
@@ -128,14 +88,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     update_set.push((stale_label, stale_value_to_add));
                     update_set.push((fresh_label, fresh_value_to_add));
                     let new_state = UserState::new(val, latest_version, fresh_label, next_epoch);
-                    let mut updatable_states = user_data_val.states.clone();
-                    updatable_states.push(new_state);
-                    user_data_update_set.push((
-                        uname,
-                        UserData {
-                            states: updatable_states,
-                        },
-                    ));
+                    user_data_update_set.push((uname, new_state));
                 }
             }
         }
@@ -145,10 +98,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut current_azks = self.retrieve_current_azks()?;
         let output = current_azks.batch_insert_leaves(&self.storage, insertion_set);
         Azks::store(&self.storage, AzksKey(self.azks_id.clone()), &current_azks)?;
-        // Not sure how to remove clones from here?
-        user_data_update_set.iter_mut().for_each(|(x, y)| {
-            self.user_data.insert(x.clone(), y.clone());
-        });
+        self.storage.append_user_states(user_data_update_set)?;
         self.current_epoch = next_epoch;
         output
         // At the moment the tree root is not being written anywhere. Eventually we
@@ -157,18 +107,19 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
     // Provides proof for correctness of latest version
     pub fn lookup(&self, uname: Username) -> Result<LookupProof<H>, SeemlessError> {
-        let data = &self.user_data.get(&uname);
-        match data {
-            None => {
+        match self
+            .storage
+            .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+        {
+            Err(_) => {
                 // Need to throw an error
                 Err(SeemlessError::SeemlessDirectoryErr(
                     SeemlessDirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
                 ))
             }
-            Some(user_data_val) => {
+            Ok(latest_st) => {
                 // Need to account for the case where the latest state is
                 // added but the database is in the middle of an update
-                let latest_st = user_data_val.states.last().unwrap();
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
                 let existent_label = Self::get_nodelabel(&uname, false, current_version);
@@ -177,7 +128,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 let current_azks = self.retrieve_current_azks()?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
-                    plaintext_value: latest_st.plaintext_val.clone(),
+                    plaintext_value: latest_st.plaintext_val,
                     version: current_version,
                     existence_proof: current_azks.get_membership_proof(
                         &self.storage,
@@ -206,19 +157,18 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     /// It also returns the proof of the latest version being served at all times.
     pub fn key_history(&self, uname: &Username) -> Result<HistoryProof<H>, SeemlessError> {
         let username = uname.0.to_string();
-        let this_user_data =
-            self.user_data
-                .get(uname)
-                .ok_or(SeemlessDirectoryError::LookedUpNonExistentUser(
-                    username,
-                    self.current_epoch,
-                ))?;
-        let mut proofs = Vec::<UpdateProof<H>>::new();
-        for user_state in &this_user_data.states {
-            let proof = self.create_single_update_proof(uname, user_state)?;
-            proofs.push(proof);
+        if let Ok(this_user_data) = self.storage.get_user_data(uname) {
+            let mut proofs = Vec::<UpdateProof<H>>::new();
+            for user_state in &this_user_data.states {
+                let proof = self.create_single_update_proof(uname, user_state)?;
+                proofs.push(proof);
+            }
+            Ok(HistoryProof { proofs })
+        } else {
+            Err(SeemlessError::SeemlessDirectoryErr(
+                SeemlessDirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
+            ))
         }
-        Ok(HistoryProof { proofs })
     }
 
     // Needs error handling in case the epochs are invalid

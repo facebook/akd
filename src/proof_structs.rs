@@ -7,7 +7,7 @@
 
 use winter_crypto::Hasher;
 
-use crate::{node_state::NodeLabel, seemless_directory::Values, Direction, ARITY};
+use crate::{node_state::NodeLabel, storage::types::Values, Direction, ARITY};
 
 #[derive(Debug, Clone)]
 pub struct MembershipProof<H: Hasher> {
