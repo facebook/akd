@@ -215,7 +215,7 @@ impl Storage for MySqlDatabase {
                 Ok(())
             };
 
-            if let Err(_) = steps() {
+            if steps().is_err() {
                 tx.rollback()?;
             } else {
                 tx.commit()?;
