@@ -9,7 +9,8 @@ use winter_crypto::Hasher;
 
 use crate::{
     node_state::{hash_label, NodeLabel},
-    seemless_directory::{get_marker_version, Username},
+    seemless_directory::get_marker_version,
+    storage::types::Username,
     AzksError, Direction, HistoryProof, LookupProof, MembershipProof, NonMembershipProof,
     SeemlessDirectoryError, SeemlessError, UpdateProof, ARITY,
 };
