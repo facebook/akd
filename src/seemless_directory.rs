@@ -11,7 +11,7 @@ use crate::errors::{SeemlessDirectoryError, SeemlessError};
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
 use crate::storage::types::{UserState, UserStateRetrievalFlag, Username, Values};
-use crate::storage::{Storable, Storage};
+use crate::storage::Storage;
 
 use rand::{prelude::ThreadRng, thread_rng};
 use rand::{CryptoRng, RngCore};
@@ -46,7 +46,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let azks = Azks::<H, S>::new(storage, &mut rng)?;
         let azks_id = azks.get_azks_id();
 
-        Azks::store(storage, AzksKey(azks_id.to_vec()), &azks)?;
+        storage.store(AzksKey(azks_id.to_vec()), &azks)?;
         Ok(SeemlessDirectory {
             azks_id: azks_id.to_vec(),
             current_epoch: 0,
@@ -97,7 +97,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks()?;
         let output = current_azks.batch_insert_leaves(&self.storage, insertion_set);
-        Azks::store(&self.storage, AzksKey(self.azks_id.clone()), &current_azks)?;
+        self.storage
+            .store(AzksKey(self.azks_id.clone()), &current_azks)?;
         self.storage.append_user_states(user_data_update_set)?;
         self.current_epoch = next_epoch;
         output
@@ -182,7 +183,8 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
     }
 
     pub fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
-        Azks::<H, S>::retrieve(&self.storage, AzksKey(self.azks_id.clone()))
+        self.storage
+            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id.clone()))
     }
 
     /// HELPERS ///

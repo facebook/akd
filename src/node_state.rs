@@ -115,7 +115,7 @@ pub struct HistoryNodeState<H, S> {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeStateKey(pub(crate) Vec<u8>, pub(crate) NodeLabel, pub(crate) usize);
 
-impl<H: Hasher, S: Storage> Storable<S> for HistoryNodeState<H, S> {
+impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
     type Key = NodeStateKey;
 
     fn identifier() -> String {
@@ -190,7 +190,7 @@ pub struct ChildStateKey(
     pub(crate) usize,
 );
 
-impl<H: Hasher, S: Storage> Storable<S> for HistoryChildState<H, S> {
+impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
     type Key = ChildStateKey;
 
     fn identifier() -> String {
