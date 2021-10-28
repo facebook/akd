@@ -217,4 +217,6 @@ pub enum StorageError {
     GetError(String),
     /// An error occurred serializing or deserializing data
     SerializationError,
+    /// Some kind of storage connection error occurred
+    Connection(String),
 }
