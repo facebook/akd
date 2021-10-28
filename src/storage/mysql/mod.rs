@@ -17,11 +17,10 @@ use tokio::time::Instant;
 
 const TABLE: &str = "data";
 const USER_TABLE: &str = "user_data";
-
-pub mod r#async;
-
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
+
+pub mod r#async;
 
 /*
     MySql documentation: https://docs.rs/mysql/21.0.2/mysql/
