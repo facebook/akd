@@ -12,11 +12,12 @@ use serial_test::serial;
 
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
+use crate::storage::memory::r#async::{AsyncInMemoryDatabase, AsyncInMemoryDbWithCache};
 use crate::storage::memory::{InMemoryDatabase, InMemoryDbWithCache};
 use crate::storage::mysql::r#async::AsyncMySqlDatabase;
 use crate::storage::mysql::MySqlDatabase;
 use crate::storage::types::*;
-use crate::storage::{AsyncStorage, Storage};
+use crate::storage::{Storage, SyncStorage};
 
 // *** Tests *** //
 
@@ -60,6 +61,17 @@ fn test_mysql_database() {
 }
 
 #[actix_rt::test]
+async fn async_test_basic_database() {
+    let db = AsyncInMemoryDatabase::new();
+    async_test_get_and_set_item(&db).await;
+    async_test_user_data(&db).await;
+
+    let db = AsyncInMemoryDbWithCache::new();
+    async_test_get_and_set_item(&db).await;
+    async_test_user_data(&db).await;
+}
+
+#[actix_rt::test]
 #[serial]
 async fn test_async_mysql_database() {
     if AsyncMySqlDatabase::test_guard() {
@@ -90,7 +102,7 @@ async fn test_async_mysql_database() {
 
 // *** Helper Functions *** //
 
-fn test_get_and_set_item<S: Storage>(storage: &S) {
+fn test_get_and_set_item<S: SyncStorage>(storage: &S) {
     let rand_string: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -118,7 +130,7 @@ fn test_get_and_set_item<S: Storage>(storage: &S) {
     );
 }
 
-fn test_user_data<S: Storage>(storage: &S) {
+fn test_user_data<S: SyncStorage>(storage: &S) {
     let rand_user: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -286,7 +298,7 @@ fn test_user_data<S: Storage>(storage: &S) {
     assert_eq!(4, data.states.len());
 }
 
-async fn async_test_get_and_set_item<S: AsyncStorage>(storage: &S) {
+async fn async_test_get_and_set_item<S: Storage>(storage: &S) {
     let rand_string: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -314,7 +326,7 @@ async fn async_test_get_and_set_item<S: AsyncStorage>(storage: &S) {
     );
 }
 
-async fn async_test_user_data<S: AsyncStorage>(storage: &S) {
+async fn async_test_user_data<S: Storage>(storage: &S) {
     let rand_user: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)

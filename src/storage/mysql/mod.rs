@@ -8,7 +8,7 @@
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
 use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::Storage;
+use crate::storage::SyncStorage;
 use mysql::prelude::*;
 use mysql::*;
 use std::process::Command;
@@ -276,7 +276,7 @@ impl MySqlDatabase {
     }
 }
 
-impl Storage for MySqlDatabase {
+impl SyncStorage for MySqlDatabase {
     fn set(&self, pos: String, val: &[u8]) -> core::result::Result<(), StorageError> {
         let result = || -> core::result::Result<(), mysql::Error> {
             let mut conn = self.get_connection()?;

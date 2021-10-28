@@ -7,7 +7,7 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::Storage;
+use crate::storage::SyncStorage;
 use evmap::{ReadHandle, WriteHandle};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ impl Clone for InMemoryDatabase {
     }
 }
 
-impl Storage for InMemoryDatabase {
+impl SyncStorage for InMemoryDatabase {
     fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut hashmap = self.write_handle.lock().unwrap();
         // evmap supports multi-values, so we need to clear the value if it's present and then set the new value
@@ -260,7 +260,7 @@ impl Default for InMemoryDbWithCache {
     }
 }
 
-impl Storage for InMemoryDbWithCache {
+impl SyncStorage for InMemoryDbWithCache {
     fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
         let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);

@@ -32,7 +32,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 ///
 /// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
 /// partial state pending)
-pub trait Storage: Clone {
+pub trait SyncStorage: Clone {
     // ======= Abstract Functions ======= //
 
     /// Set a key/value pair in the storage layer
@@ -94,7 +94,7 @@ pub trait Storage: Clone {
 /// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
 /// partial state pending)
 #[async_trait]
-pub trait AsyncStorage: Clone {
+pub trait Storage: Clone {
     // ======= Abstract Functions ======= //
 
     /// Set a key/value pair in the storage layer
@@ -164,7 +164,7 @@ pub struct SynchronousStorageWrapper<S> {
     runtime: Runtime,
 }
 
-impl<S: AsyncStorage> SynchronousStorageWrapper<S> {
+impl<S: Storage> SynchronousStorageWrapper<S> {
     pub fn new(s: &S) -> Self {
         Self {
             storage: s.clone(),
@@ -173,7 +173,7 @@ impl<S: AsyncStorage> SynchronousStorageWrapper<S> {
     }
 }
 
-impl<S: AsyncStorage> Clone for SynchronousStorageWrapper<S> {
+impl<S: Storage> Clone for SynchronousStorageWrapper<S> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -182,7 +182,7 @@ impl<S: AsyncStorage> Clone for SynchronousStorageWrapper<S> {
     }
 }
 
-impl<S: AsyncStorage> Storage for SynchronousStorageWrapper<S> {
+impl<S: Storage> SyncStorage for SynchronousStorageWrapper<S> {
     /// Set a key/value pair in the storage layer
     fn set(&self, pos: String, val: &[u8]) -> Result<(), StorageError> {
         self.runtime.block_on(self.storage.set(pos, val))

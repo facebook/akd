@@ -8,7 +8,7 @@
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
 use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::AsyncStorage;
+use crate::storage::Storage;
 use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
@@ -273,7 +273,7 @@ impl AsyncMySqlDatabase {
 }
 
 #[async_trait]
-impl AsyncStorage for AsyncMySqlDatabase {
+impl Storage for AsyncMySqlDatabase {
     async fn set(&self, pos: String, val: &[u8]) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;

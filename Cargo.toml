@@ -22,6 +22,7 @@ evmap = "10.0.2"
 mysql_async = "0.28.1"
 async-trait = "0.1.51"
 tokio = { version = "1", features = ["full"] }
+async-recursion = "0.3.2"
 
 [dev-dependencies]
 criterion = "0.3.3"

@@ -7,7 +7,7 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::AsyncStorage;
+use crate::storage::Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
 use lazy_static::lazy_static;
@@ -58,7 +58,7 @@ impl Clone for AsyncInMemoryDatabase {
 }
 
 #[async_trait]
-impl AsyncStorage for AsyncInMemoryDatabase {
+impl Storage for AsyncInMemoryDatabase {
     async fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut hashmap = self.write_handle.lock().unwrap();
         // evmap supports multi-values, so we need to clear the value if it's present and then set the new value
@@ -270,7 +270,7 @@ impl Default for AsyncInMemoryDbWithCache {
 }
 
 #[async_trait]
-impl AsyncStorage for AsyncInMemoryDbWithCache {
+impl Storage for AsyncInMemoryDbWithCache {
     async fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
         let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
