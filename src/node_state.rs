@@ -123,6 +123,8 @@ impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
     }
 }
 
+unsafe impl<H: Hasher, S: Storage> Sync for HistoryNodeState<H, S> {}
+
 impl<H: Hasher, S: Storage> HistoryNodeState<H, S> {
     pub fn new() -> Self {
         let children = vec![HistoryChildState::<H, S>::new_dummy(); ARITY];
@@ -197,6 +199,8 @@ impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
         String::from("HistoryChildState")
     }
 }
+
+unsafe impl<H: Hasher, S: Storage> Sync for HistoryChildState<H, S> {}
 
 impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
     pub fn new(loc: usize, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {

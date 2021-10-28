@@ -45,6 +45,8 @@ impl<H: Hasher, S: Storage> Storable for Azks<H, S> {
     }
 }
 
+unsafe impl<H: Hasher, S: Storage> Sync for Azks<H, S> {}
+
 impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     fn clone(&self) -> Self {
         Self {

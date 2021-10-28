@@ -57,6 +57,8 @@ impl<H: Hasher, S: Storage> Storable for HistoryTreeNode<H, S> {
     }
 }
 
+unsafe impl<H: Hasher, S: Storage> Sync for HistoryTreeNode<H, S> {}
+
 impl<H: Hasher, S: Storage> Clone for HistoryTreeNode<H, S> {
     fn clone(&self) -> Self {
         Self {

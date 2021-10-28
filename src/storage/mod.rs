@@ -21,7 +21,7 @@ pub mod memory;
 pub mod mysql;
 
 /// Storable represents an _item_ which can be stored in the storage layer
-pub trait Storable: Clone + Serialize + DeserializeOwned {
+pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     type Key: Clone + Serialize + Eq + std::hash::Hash + std::marker::Send;
 
     /// Must return a unique String identifier for this struct
@@ -131,41 +131,30 @@ pub trait AsyncStorage: Clone {
     // ========= Defined logic ========= //
 
     /// Store a "Storable" instance in the storage layer
-    // fn store<T: Storable>(&self, key: T::Key, value: &T) -> Result<(), StorageError> {
-    fn store<T: Storable>(
-        &self,
-        key: T::Key,
-        value: &T,
-    ) -> Box<dyn std::future::Future<Output = Result<(), StorageError>> + '_> {
+    async fn store<T: Storable>(&self, key: T::Key, value: &T) -> Result<(), StorageError> {
         let k: String = format!(
             "{}:{}",
             T::identifier(),
             hex::encode(bincode::serialize(&key).unwrap())
         );
-
-        let serialized = bincode::serialize(&value).map_err(|_| StorageError::SerializationError);
-        Box::new(async move {
-            match serialized {
-                Ok(value) => self.set(k, &value).await,
-                Err(other) => Err(other),
-            }
-        })
+        match bincode::serialize(&value) {
+            Err(_) => Err(StorageError::SerializationError),
+            Ok(serialized) => self.set(k, &serialized).await,
+        }
     }
 
     /// Retrieve a "Storable" instance from the storage layer
-    fn retrieve<T: Storable>(
-        &self,
-        key: T::Key,
-    ) -> Box<dyn std::future::Future<Output = Result<T, StorageError>> + '_> {
+    async fn retrieve<T: Storable>(&self, key: T::Key) -> Result<T, StorageError> {
         let k: String = format!(
             "{}:{}",
             T::identifier(),
             hex::encode(bincode::serialize(&key).unwrap())
         );
-        Box::new(async move {
-            let got = self.get(k).await?;
-            bincode::deserialize(&got).map_err(|_| StorageError::SerializationError)
-        })
+        let got = self.get(k).await?;
+        match bincode::deserialize(&got) {
+            Err(_) => Err(StorageError::SerializationError),
+            Ok(result) => Ok(result),
+        }
     }
 }
 
