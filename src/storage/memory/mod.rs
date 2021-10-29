@@ -85,13 +85,16 @@ impl Storage for AsyncInMemoryDatabase {
         num: Option<usize>,
     ) -> Result<Vec<Vec<u8>>, StorageError> {
         let mut results = Vec::new();
-        for ((dt, _pos), v) in &self.read_handle.read().unwrap() {
-            if *dt == data_type {
-                if let Some(output) = v.get_one() {
-                    results.push(output.clone());
-                    if let Some(limit) = num {
-                        if results.len() >= limit {
-                            break;
+        if let Some(handle) = &self.read_handle.read() {
+            for item in handle {
+                let ((dt, _pos), v) = item;
+                if *dt == data_type {
+                    if let Some(output) = v.get_one() {
+                        results.push(output.clone());
+                        if let Some(limit) = num {
+                            if results.len() >= limit {
+                                break;
+                            }
                         }
                     }
                 }
@@ -147,7 +150,7 @@ impl Storage for AsyncInMemoryDatabase {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
@@ -156,14 +159,14 @@ impl Storage for AsyncInMemoryDatabase {
                     {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
@@ -172,24 +175,47 @@ impl Storage for AsyncInMemoryDatabase {
                     {
                         return Ok(value.clone());
                     }
-                }
+                },
                 _ =>
                 // search for specific property
                 {
+                    let mut tracked_epoch = 0u64;
+                    let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
                             UserStateRetrievalFlag::SpecificVersion(version)
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
+                            },
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                                return Ok(kvp.clone());
+                            },
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                                match tracked_epoch {
+                                    0u64 => {
+                                        tracked_epoch = kvp.epoch;
+                                        tracker = Some(kvp.clone());
+                                    },
+                                    other_epoch => {
+                                        if kvp.epoch > other_epoch {
+                                            tracker = Some(kvp.clone());
+                                            tracked_epoch = kvp.epoch;
+                                        }
+                                    }
+                                }
                             }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
-                            }
+                            },
                             _ => continue,
                         }
                     }
-                }
+
+                    if let Some(r) = tracker {
+                        return Ok(r.clone());
+                    }
+                },
             }
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
@@ -410,7 +436,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
@@ -419,14 +445,14 @@ impl Storage for AsyncInMemoryDbWithCache {
                     {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                }
+                },
                 UserStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
@@ -435,24 +461,47 @@ impl Storage for AsyncInMemoryDbWithCache {
                     {
                         return Ok(value.clone());
                     }
-                }
+                },
                 _ =>
                 // search for specific property
                 {
+                    let mut tracked_epoch = 0u64;
+                    let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
                             UserStateRetrievalFlag::SpecificVersion(version)
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
+                            },
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                                return Ok(kvp.clone());
+                            },
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                                match tracked_epoch {
+                                    0u64 => {
+                                        tracked_epoch = kvp.epoch;
+                                        tracker = Some(kvp.clone());
+                                    },
+                                    other_epoch => {
+                                        if kvp.epoch > other_epoch {
+                                            tracker = Some(kvp.clone());
+                                            tracked_epoch = kvp.epoch;
+                                        }
+                                    }
+                                }
                             }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
-                            }
+                            },
                             _ => continue,
                         }
                     }
-                }
+
+                    if let Some(r) = tracker {
+                        return Ok(r.clone());
+                    }
+                },
             }
         }
         Result::Err(StorageError::GetError(String::from("Not found")))

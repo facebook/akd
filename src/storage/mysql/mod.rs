@@ -532,6 +532,10 @@ impl Storage for AsyncMySqlDatabase {
                 UserStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
                 UserStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
                 UserStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
+                UserStateRetrievalFlag::LeqEpoch(epoch) => {
+                    params_map.push(("the_epoch", Value::from(epoch)));
+                    statement_text += " AND `epoch` <= :the_epoch";
+                },
             }
 
             // add limit to retrieve only 1 record

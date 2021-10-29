@@ -410,8 +410,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
             let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
-            let next_state = curr_node.get_state_at_epoch(storage, epoch).await;
-            let next_state = next_state.map(|curr| curr.get_child_state_in_dir(direction))?;
+            let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state.dummy_marker == DummyChildState::Dummy {
                 break;
             }

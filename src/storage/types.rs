@@ -58,6 +58,7 @@ pub struct UserData {
 pub enum UserStateRetrievalFlag {
     SpecificVersion(u64),
     SpecificEpoch(u64),
+    LeqEpoch(u64),
     MaxEpoch,
     MaxVersion,
     MinEpoch,
