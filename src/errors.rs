@@ -50,7 +50,7 @@ impl From<StorageError> for HistoryTreeNodeError {
 
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
-    NoDirectionInSettingChild(u64, u64),
+    NoDirectionInSettingChild(NodeLabel, NodeLabel),
     DirectionIsNone,
     NoChildInTreeAtEpoch(u64, usize),
     NoChildrenInTreeAtEpoch(u64),
@@ -59,7 +59,7 @@ pub enum HistoryTreeNodeError {
     ParentNextEpochInvalid(u64),
     HashUpdateOnlyAllowedAfterNodeInsertion,
     TriedToHashLeafChildren,
-    NodeCreatedWithoutEpochs(u64),
+    NodeCreatedWithoutEpochs(NodeLabel),
     LeafNodeLabelLenLessThanInterior(NodeLabel),
     CompressionError(NodeLabel),
     NodeDidNotExistAtEp(NodeLabel, u64),
@@ -74,7 +74,7 @@ impl fmt::Display for HistoryTreeNodeError {
             Self::NoDirectionInSettingChild(node_label, child_label) => {
                 write!(
                     f,
-                    "no direction provided to set the child {} of this node {}",
+                    "no direction provided to set the child {:?} of this node {:?}",
                     node_label, child_label
                 )
             }
@@ -106,7 +106,7 @@ impl fmt::Display for HistoryTreeNodeError {
                 write!(f, "Tried to hash the children of a leaf")
             }
             Self::NodeCreatedWithoutEpochs(label) => {
-                write!(f, "A node exists which has no epochs. Nodes should always have epochs, labelled: {}", label)
+                write!(f, "A node exists which has no epochs. Nodes should always have epochs, labelled: {:?}", label)
             }
             Self::LeafNodeLabelLenLessThanInterior(label) => {
                 write!(f, "A leaf was inserted with lable length shorter than an interior node, labelled: {:?}", label)

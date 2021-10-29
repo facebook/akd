@@ -23,7 +23,7 @@ pub struct MembershipProof<H: Hasher> {
 pub struct NonMembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     pub(crate) longest_prefix: NodeLabel,
-    pub(crate) longest_prefix_children_labels: [NodeLabel; ARITY],
+    pub(crate) longest_prefix_children_labels: Vec<NodeLabel>,
     pub(crate) longest_prefix_children_values: [H::Digest; ARITY],
     pub(crate) longest_prefix_membership_proof: MembershipProof<H>,
 }

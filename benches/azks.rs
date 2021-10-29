@@ -11,7 +11,7 @@ extern crate criterion;
 use criterion::Criterion;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use seemless::{append_only_zks::Azks, node_state::NodeLabel, storage::Storage};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;
 
@@ -61,7 +61,7 @@ fn single_insertion(c: &mut Criterion) {
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let val = Blake3::hash(&input);
-        insertion_set.push((node, val));
+        insertion_set.push((node.clone(), val));
         azks1.insert_leaf(node, val).unwrap();
     }
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
@@ -71,7 +71,7 @@ fn single_insertion(c: &mut Criterion) {
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
 
-            let start = Instant::now();
+            let _start = Instant::now();
             azks1.insert_leaf(node, val).unwrap();
         })
     });

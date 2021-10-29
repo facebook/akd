@@ -125,7 +125,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
             let mut new_leaf = get_leaf_node::<H, S>(
                 &self.azks_id,
-                insertion_elt.0,
+                insertion_elt.0.clone(),
                 0,
                 insertion_elt.1.as_ref(),
                 0,
@@ -200,11 +200,11 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         // none of the children is equal to the given label.
 
         let (longest_prefix_membership_proof, lcp_node_id) =
-            self.get_membership_proof_and_node(label, epoch)?;
+            self.get_membership_proof_and_node(label.clone(), epoch)?;
         let lcp_node =
             HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
-        let longest_prefix = lcp_node.label;
-        let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
+        let longest_prefix = lcp_node.label.clone();
+        let mut longest_prefix_children_labels = Vec::<NodeLabel>::new();
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
         let state = lcp_node.get_state_at_epoch(epoch)?;
 
@@ -218,10 +218,11 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
         for (i, child) in children.enumerate() {
             let unwrapped_child = child?;
-            longest_prefix_children_labels[i] = unwrapped_child.label;
+            longest_prefix_children_labels[i] = unwrapped_child.label.clone();
             longest_prefix_children_values[i] =
                 unwrapped_child.get_value_without_label_at_epoch(epoch)?;
         }
+
         Ok(NonMembershipProof {
             label,
             longest_prefix,
@@ -263,7 +264,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
 
             unchanged.push((
-                node.label,
+                node.label.clone(),
                 node.get_value_without_label_at_epoch(node.get_latest_epoch()?)?,
             ));
             return Ok((unchanged, leaves));
@@ -274,7 +275,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         }
         if node.is_leaf() {
             leaves.push((
-                node.label,
+                node.label.clone(),
                 node.get_value_without_label_at_epoch(node.get_latest_epoch()?)?,
             ));
         } else {
@@ -343,15 +344,15 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         let mut dirs = Vec::<Direction>::new();
         let mut curr_node =
             HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        let mut dir = curr_node.label.get_dir(label);
+        let mut dir = curr_node.label.get_dir(&label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
         while !equal && dir.is_some() {
             dirs.push(dir);
-            parent_labels.push(curr_node.label);
+            parent_labels.push(curr_node.label.clone());
             prev_node = curr_node.location;
             let curr_state = curr_node.get_state_at_epoch(epoch)?;
-            let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
+            let mut labels = [NodeLabel::new(&mut Vec::<u8>::new(), 0); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
             let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
@@ -362,7 +363,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
             for i in 0..ARITY {
                 if i != dir.ok_or(SeemlessError::NoDirectionError)? {
-                    labels[count] = curr_state.child_states[i].label;
+                    labels[count] = curr_state.child_states[i].label.clone();
                     hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
                     count += 1;
                 }
@@ -374,7 +375,7 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 curr_node.get_child_location_at_epoch(epoch, dir)?,
             ))?;
             curr_node = new_curr_node;
-            dir = curr_node.label.get_dir(label);
+            dir = curr_node.label.get_dir(&label);
             equal = label == curr_node.label;
         }
         if !equal {
@@ -438,7 +439,7 @@ mod tests {
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
-            insertion_set.push((node, val));
+            insertion_set.push((node.clone(), val));
             azks1.insert_leaf(node, val)?;
         }
 
@@ -467,7 +468,7 @@ mod tests {
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
             let input = Blake3Digest::new(input);
-            insertion_set.push((node, input));
+            insertion_set.push((node.clone(), input));
             azks1.insert_leaf(node, input)?;
         }
 
@@ -508,7 +509,7 @@ mod tests {
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
         azks.batch_insert_leaves(insertion_set.clone())?;
 
-        let proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
+        let proof = azks.get_membership_proof(insertion_set[0].0.clone(), 1)?;
 
         verify_membership::<Blake3>(azks.get_root_hash()?, &proof)?;
 
@@ -536,7 +537,7 @@ mod tests {
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
         azks.batch_insert_leaves(insertion_set.clone())?;
 
-        let mut proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
+        let mut proof = azks.get_membership_proof(insertion_set[0].0.clone(), 1)?;
         let hash_val = Blake3::hash(&[0u8]);
         proof = MembershipProof::<Blake3> {
             label: proof.label,
@@ -558,14 +559,29 @@ mod tests {
     fn test_membership_proof_intermediate() -> Result<(), SeemlessError> {
         let mut rng = OsRng;
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
-        insertion_set.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
-        insertion_set.push((NodeLabel::new(0b11 << 62, 64), Blake3::hash(&[])));
-        insertion_set.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
-        insertion_set.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
+        insertion_set.push((
+            NodeLabel::new(&mut (0b0u64 as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set.push((
+            NodeLabel::new(&mut ((0b1u64 << 63) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set.push((
+            NodeLabel::new(&mut ((0b11u64 << 62) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set.push((
+            NodeLabel::new(&mut ((0b01u64 << 62) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set.push((
+            NodeLabel::new(&mut ((0b111u64 << 61) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
         azks.batch_insert_leaves(insertion_set)?;
-        let search_label = NodeLabel::new(0b1111 << 60, 64);
+        let search_label = NodeLabel::new(&mut ((0b1111u64 << 60) as u64).to_le_bytes().to_vec(), 64);
         let proof = azks.get_non_membership_proof(search_label, 1)?;
         assert!(
             verify_nonmembership::<Blake3>(azks.get_root_hash()?, &proof)?,
@@ -590,7 +606,7 @@ mod tests {
         }
 
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        let search_label = insertion_set[num_nodes - 1].0;
+        let search_label = insertion_set[num_nodes - 1].0.clone();
         azks.batch_insert_leaves(insertion_set.clone()[0..num_nodes - 1].to_vec())?;
         let proof = azks.get_non_membership_proof(search_label, 1)?;
 
@@ -608,12 +624,18 @@ mod tests {
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_1.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
+        insertion_set_1.push((
+            NodeLabel::new(&mut (0b0 as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
         azks.batch_insert_leaves(insertion_set_1)?;
         let start_hash = azks.get_root_hash()?;
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_2.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
+        insertion_set_2.push((
+            NodeLabel::new(&mut ((0b01u64 << 62) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
 
         azks.batch_insert_leaves(insertion_set_2)?;
         let end_hash = azks.get_root_hash()?;
@@ -630,14 +652,26 @@ mod tests {
         let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_1.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
-        insertion_set_1.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
+        insertion_set_1.push((
+            NodeLabel::new(&mut (0b0 as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set_1.push((
+            NodeLabel::new(&mut ((0b1u64 << 63) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
         azks.batch_insert_leaves(insertion_set_1)?;
         let start_hash = azks.get_root_hash()?;
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_2.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
-        insertion_set_2.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
+        insertion_set_2.push((
+            NodeLabel::new(&mut ((0b01u64 << 62) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
+        insertion_set_2.push((
+            NodeLabel::new(&mut ((0b111u64 << 61) as u64).to_le_bytes().to_vec(), 64),
+            Blake3::hash(&[]),
+        ));
 
         azks.batch_insert_leaves(insertion_set_2)?;
         let end_hash = azks.get_root_hash()?;

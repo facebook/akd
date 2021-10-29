@@ -13,7 +13,7 @@ use rand::{prelude::ThreadRng, thread_rng};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::convert::TryInto;
+
 use std::marker::PhantomData;
 use std::usize;
 use vrf::openssl::{CipherSuite, ECVRF};
@@ -121,7 +121,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
-                    update_set.push((label, value_to_add));
+                    update_set.push((label.clone(), value_to_add));
                     let latest_state = UserState::new(val, latest_version, label, next_epoch);
                     user_data_update_set.push((uname, UserData::new(latest_state)));
                 }
@@ -134,7 +134,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((stale_label, stale_value_to_add));
-                    update_set.push((fresh_label, fresh_value_to_add));
+                    update_set.push((fresh_label.clone(), fresh_value_to_add));
                     let new_state = UserState::new(val, latest_version, fresh_label, next_epoch);
                     let mut updatable_states = user_data_val.states.clone();
                     updatable_states.push(new_state);
@@ -147,7 +147,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
                 }
             }
         }
-        let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
+        let insertion_set = update_set.iter().map(|(x, y)| (x.clone(), *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
@@ -265,16 +265,17 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
         let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
         // VRF proof and hash output
         let pi = vrf.prove(&self.secret_key, hashed_label.as_ref()).unwrap();
-        let hash = vrf.proof_to_hash(&pi).unwrap().clone();
-        let (hashed_label_bytes, _) = hash.as_slice().split_at(8);
+        let mut hash = vrf.proof_to_hash(&pi).unwrap();
+        // let (hashed_label_bytes, _) = hash.as_slice().split_at(8);
         // let hashed_label = H::merge(&[
         //     name_hash_bytes,
         //     H::merge_with_int(H::hash(stale_bytes), version),
         // ]);
         // let label_slice = hashed_label.as_ref();
         // let hashed_label_bytes = convert_byte_slice_to_array(label_slice);
-        let small_hash: Result<[u8; 8], _> = hashed_label_bytes.try_into();
-        NodeLabel::new(u64::from_ne_bytes(small_hash.unwrap()), 64u32)
+        // let small_hash: Result<[u8; 8], _> = hashed_label_bytes.try_into();
+        let hash_len = hash.len();
+        NodeLabel::new(&mut hash, hash_len)
     }
 
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
@@ -295,7 +296,7 @@ impl<S: Storage, H: Hasher> SeemlessDirectory<S, H> {
 
         let current_azks = Azks::<H, S>::retrieve(AzksKey(self.azks_id.clone()))?;
 
-        let existence_at_ep = current_azks.get_membership_proof(label_at_ep, epoch)?;
+        let existence_at_ep = current_azks.get_membership_proof(label_at_ep.clone(), epoch)?;
         let mut previous_val_stale_at_ep = Option::None;
         if *version > 1 {
             let prev_label_at_ep = self.get_nodelabel(uname, true, *version - 1);

@@ -19,7 +19,7 @@ pub fn verify_membership<H: Hasher>(
     proof: &MembershipProof<H>,
 ) -> Result<(), SeemlessError> {
     if proof.label.len == 0 {
-        let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
+        let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label.clone())]);
         if final_hash == root_hash {
             return Ok(());
         } else {
@@ -30,13 +30,13 @@ pub fn verify_membership<H: Hasher>(
             ));
         }
     }
-    let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
+    let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label.clone())]);
     for i in (0..proof.dirs.len()).rev() {
         final_hash = build_and_hash_layer::<H>(
             proof.sibling_hashes[i],
             proof.dirs[i],
             final_hash,
-            proof.parent_labels[i],
+            proof.parent_labels[i].clone(),
         )?;
     }
 
@@ -58,14 +58,15 @@ pub fn verify_nonmembership<H: Hasher>(
 ) -> Result<bool, SeemlessError> {
     let mut verified = true;
     let mut lcp_hash = H::hash(&[]);
-    let mut lcp_real = proof.longest_prefix_children_labels[0];
+    let mut lcp_real = proof.longest_prefix_children_labels[0].clone();
     for i in 0..ARITY {
         let child_hash = H::merge(&[
             proof.longest_prefix_children_values[i],
-            hash_label::<H>(proof.longest_prefix_children_labels[i]),
+            hash_label::<H>(proof.longest_prefix_children_labels[i].clone()),
         ]);
         lcp_hash = H::merge(&[lcp_hash, child_hash]);
-        lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children_labels[i]);
+        lcp_real =
+            lcp_real.get_longest_common_prefix(proof.longest_prefix_children_labels[i].clone());
     }
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
