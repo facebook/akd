@@ -7,25 +7,27 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::SyncStorage;
+use crate::storage::Storage;
+use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub mod r#async;
-
 // ===== Basic In-Memory database ==== //
 
 #[derive(Debug)]
-pub struct InMemoryDatabase {
+pub struct AsyncInMemoryDatabase {
     read_handle: ReadHandle<String, Vec<u8>>,
     write_handle: Arc<Mutex<WriteHandle<String, Vec<u8>>>>,
     user_data_read_handle: ReadHandle<Username, UserState>,
     user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
 }
 
-impl InMemoryDatabase {
+unsafe impl Send for AsyncInMemoryDatabase {}
+unsafe impl Sync for AsyncInMemoryDatabase {}
+
+impl AsyncInMemoryDatabase {
     pub fn new() -> Self {
         let (reader, writer) = evmap::new();
         let (user_read, user_write) = evmap::new();
@@ -38,13 +40,13 @@ impl InMemoryDatabase {
     }
 }
 
-impl Default for InMemoryDatabase {
+impl Default for AsyncInMemoryDatabase {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for InMemoryDatabase {
+impl Clone for AsyncInMemoryDatabase {
     fn clone(&self) -> Self {
         Self {
             read_handle: self.read_handle.clone(),
@@ -55,8 +57,9 @@ impl Clone for InMemoryDatabase {
     }
 }
 
-impl SyncStorage for InMemoryDatabase {
-    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
+#[async_trait]
+impl Storage for AsyncInMemoryDatabase {
+    async fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut hashmap = self.write_handle.lock().unwrap();
         // evmap supports multi-values, so we need to clear the value if it's present and then set the new value
         hashmap.clear(pos.clone());
@@ -65,7 +68,7 @@ impl SyncStorage for InMemoryDatabase {
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
+    async fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
         if let Some(intermediate) = self.read_handle.get(&pos) {
             if let Some(output) = intermediate.get_one() {
                 return Ok(output.clone());
@@ -74,7 +77,7 @@ impl SyncStorage for InMemoryDatabase {
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
-    fn append_user_state(
+    async fn append_user_state(
         &self,
         username: &Username,
         value: &UserState,
@@ -85,7 +88,10 @@ impl SyncStorage for InMemoryDatabase {
         Ok(())
     }
 
-    fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+    async fn append_user_states(
+        &self,
+        values: Vec<(Username, UserState)>,
+    ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
             hashmap.insert(kvp.0.clone(), kvp.1.clone());
@@ -94,7 +100,7 @@ impl SyncStorage for InMemoryDatabase {
         Ok(())
     }
 
-    fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -105,7 +111,7 @@ impl SyncStorage for InMemoryDatabase {
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
-    fn get_user_state(
+    async fn get_user_state(
         &self,
         username: &Username,
         flag: UserStateRetrievalFlag,
@@ -185,12 +191,15 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub struct InMemoryDbWithCache {
+pub struct AsyncInMemoryDbWithCache {
     user_data_read_handle: ReadHandle<Username, UserState>,
     user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
 }
 
-impl InMemoryDbWithCache {
+unsafe impl Send for AsyncInMemoryDbWithCache {}
+unsafe impl Sync for AsyncInMemoryDbWithCache {}
+
+impl AsyncInMemoryDbWithCache {
     pub fn new() -> Self {
         let (user_read, user_write) = evmap::new();
         Self {
@@ -254,14 +263,15 @@ impl InMemoryDbWithCache {
     }
 }
 
-impl Default for InMemoryDbWithCache {
+impl Default for AsyncInMemoryDbWithCache {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SyncStorage for InMemoryDbWithCache {
-    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
+#[async_trait]
+impl Storage for AsyncInMemoryDbWithCache {
+    async fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
         let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
         *calls_to_cache_set += 1;
@@ -272,7 +282,7 @@ impl SyncStorage for InMemoryDbWithCache {
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
+    async fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
 
         let cache = &mut CACHE_CACHE.lock().unwrap();
@@ -297,7 +307,7 @@ impl SyncStorage for InMemoryDbWithCache {
         }
     }
 
-    fn append_user_state(
+    async fn append_user_state(
         &self,
         username: &Username,
         value: &UserState,
@@ -308,7 +318,10 @@ impl SyncStorage for InMemoryDbWithCache {
         Ok(())
     }
 
-    fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+    async fn append_user_states(
+        &self,
+        values: Vec<(Username, UserState)>,
+    ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
             hashmap.insert(kvp.0.clone(), kvp.1.clone());
@@ -317,7 +330,7 @@ impl SyncStorage for InMemoryDbWithCache {
         Ok(())
     }
 
-    fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -327,7 +340,7 @@ impl SyncStorage for InMemoryDbWithCache {
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
-    fn get_user_state(
+    async fn get_user_state(
         &self,
         username: &Username,
         flag: UserStateRetrievalFlag,
@@ -389,7 +402,7 @@ impl SyncStorage for InMemoryDbWithCache {
     }
 }
 
-impl Clone for InMemoryDbWithCache {
+impl Clone for AsyncInMemoryDbWithCache {
     fn clone(&self) -> Self {
         Self::new()
     }

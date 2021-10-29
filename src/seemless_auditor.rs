@@ -9,19 +9,19 @@ use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
 use crate::{
-    append_only_zks::Azks, storage::memory::InMemoryDatabase, AppendOnlyProof, AzksError,
-    SeemlessError,
+    append_only_zks::Azks, storage::memory::r#async::AsyncInMemoryDatabase, AppendOnlyProof,
+    AzksError, SeemlessError,
 };
 
-pub fn audit_verify<H: Hasher>(
+pub async fn audit_verify<H: Hasher + std::marker::Send>(
     start_hash: H::Digest,
     end_hash: H::Digest,
     proof: AppendOnlyProof<H>,
 ) -> Result<(), SeemlessError> {
-    verify_append_only::<H>(proof, start_hash, end_hash)
+    verify_append_only::<H>(proof, start_hash, end_hash).await
 }
 
-pub fn verify_append_only<H: Hasher>(
+pub async fn verify_append_only<H: Hasher + std::marker::Send>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,
     end_hash: H::Digest,
@@ -30,13 +30,14 @@ pub fn verify_append_only<H: Hasher>(
     let inserted = proof.inserted;
     let mut rng = OsRng;
 
-    let db = InMemoryDatabase::new();
-    let mut azks = Azks::<H, InMemoryDatabase>::new(&db, &mut rng)?;
-    azks.batch_insert_leaves_helper(&db, unchanged_nodes, true)?;
-    let computed_start_root_hash: H::Digest = azks.get_root_hash(&db)?;
+    let db = AsyncInMemoryDatabase::new();
+    let mut azks = Azks::<H, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+    azks.batch_insert_leaves_helper(&db, unchanged_nodes, true)
+        .await?;
+    let computed_start_root_hash: H::Digest = azks.get_root_hash(&db).await?;
     let mut verified = computed_start_root_hash == start_hash;
-    azks.batch_insert_leaves_helper(&db, inserted, true)?;
-    let computed_end_root_hash: H::Digest = azks.get_root_hash(&db)?;
+    azks.batch_insert_leaves_helper(&db, inserted, true).await?;
+    let computed_end_root_hash: H::Digest = azks.get_root_hash(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
         return Err(SeemlessError::AzksErr(
