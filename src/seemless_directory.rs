@@ -45,6 +45,10 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 {
     pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
+
+        // try and load the previous
+        // if we can't, then create new one
+
         let azks = Azks::<H, S>::new(storage, &mut rng).await?;
         let azks_id = azks.get_azks_id();
 
@@ -398,7 +402,7 @@ mod tests {
     use crate::{
         seemless_auditor::audit_verify,
         seemless_client::{key_history_verify, lookup_verify},
-        storage::memory::r#async::AsyncInMemoryDatabase,
+        storage::memory::AsyncInMemoryDatabase,
     };
     use winter_crypto::hashers::Blake3_256;
     use winter_math::fields::f128::BaseElement;

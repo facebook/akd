@@ -12,6 +12,7 @@ use crate::{
 };
 
 use crate::serialization::to_digest;
+use crate::storage::types::StorageType;
 use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use rand::{CryptoRng, RngCore};
@@ -41,8 +42,8 @@ pub struct AzksKey(pub(crate) Vec<u8>);
 impl<H: Hasher, S: Storage> Storable for Azks<H, S> {
     type Key = AzksKey;
 
-    fn identifier() -> String {
-        String::from("Azks")
+    fn data_type() -> StorageType {
+        StorageType::Azks
     }
 }
 
@@ -477,7 +478,7 @@ mod tests {
     use crate::{
         seemless_auditor::verify_append_only,
         seemless_client::{verify_membership, verify_nonmembership},
-        storage::memory::r#async::AsyncInMemoryDatabase,
+        storage::memory::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
     use winter_crypto::hashers::Blake3_256;

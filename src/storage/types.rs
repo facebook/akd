@@ -8,6 +8,14 @@
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
 
+#[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
+pub enum StorageType {
+    Azks = 1,
+    HistoryTreeNode = 2,
+    HistoryNodeState = 3,
+    HistoryChildState = 4,
+}
+
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Username(pub String);
 

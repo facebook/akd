@@ -6,6 +6,7 @@
 // of this source tree.
 
 use crate::serialization::{from_digest, to_digest};
+use crate::storage::types::StorageType;
 use crate::storage::{Storable, Storage};
 use crate::{node_state::*, Direction, ARITY};
 use async_recursion::async_recursion;
@@ -53,8 +54,8 @@ pub struct NodeKey(pub(crate) Vec<u8>, pub(crate) usize);
 impl<H: Hasher, S: Storage> Storable for HistoryTreeNode<H, S> {
     type Key = NodeKey;
 
-    fn identifier() -> String {
-        String::from("HistoryTreeNode")
+    fn data_type() -> StorageType {
+        StorageType::HistoryTreeNode
     }
 }
 
