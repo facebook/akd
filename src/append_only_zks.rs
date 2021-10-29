@@ -27,7 +27,7 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 #[serde(bound = "")]
 pub struct Azks<H, S> {
     /// Random identifier for the AZKS instance
-    azks_id: Vec<u8>,
+    azks_id: [u8; 32],
     root: usize,
     latest_epoch: u64,
     num_nodes: usize, // The size of the tree
@@ -67,7 +67,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         rng: &mut R,
     ) -> Result<Self, SeemlessError> {
-        let mut azks_id = vec![0u8; 32];
+        let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
 
         let root = get_empty_root::<H, S>(storage, &azks_id, Option::Some(0)).await?;

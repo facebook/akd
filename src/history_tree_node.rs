@@ -34,7 +34,7 @@ pub type HistoryNodeHash<H> = Option<H>;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct HistoryTreeNode<H, S> {
-    pub(crate) azks_id: Vec<u8>,
+    pub(crate) azks_id: [u8; 32],
     pub label: NodeLabel,
     pub location: usize,
     pub epochs: Vec<u64>,
@@ -49,7 +49,7 @@ pub(crate) struct HistoryTreeNode<H, S> {
 
 // parameters are azks_id and location
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeKey(pub(crate) Vec<u8>, pub(crate) usize);
+pub struct NodeKey(pub(crate) [u8; 32], pub(crate) usize);
 
 impl<H: Hasher, S: Storage> Storable for HistoryTreeNode<H, S> {
     type Key = NodeKey;
@@ -80,7 +80,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     HistoryTreeNode<H, S>
 {
     fn new(
-        azks_id: Vec<u8>,
+        azks_id: [u8; 32],
         label: NodeLabel,
         location: usize,
         parent: usize,
@@ -190,8 +190,11 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     .await?;
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
                 let new_node_location = *num_nodes;
+
+                let mut a: [u8; 32] = Default::default();
+                a.copy_from_slice(&azks_id[0..32]);
                 let mut new_node = HistoryTreeNode::new(
-                    azks_id.to_vec(),
+                    a,
                     lcs_label,
                     new_node_location,
                     parent.location,
@@ -653,8 +656,11 @@ pub(crate) async fn get_empty_root<
     azks_id: &[u8],
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
+    let mut a: [u8; 32] = Default::default();
+    a.copy_from_slice(&azks_id[0..32]);
+
     let mut node = HistoryTreeNode::new(
-        azks_id.to_vec(),
+        a,
         NodeLabel::new(0u64, 0u32),
         0,
         0,
@@ -678,8 +684,10 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + std::marker::Sync>(
     parent: usize,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
+    let mut a: [u8; 32] = Default::default();
+    a.copy_from_slice(&azks_id[0..32]);
     let mut node = HistoryTreeNode {
-        azks_id: azks_id.to_vec(),
+        azks_id: a,
         label,
         location,
         epochs: vec![birth_epoch],
@@ -706,8 +714,11 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + std::m
     parent: usize,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
+    let mut a: [u8; 32] = Default::default();
+    a.copy_from_slice(&azks_id[0..32]);
+
     let mut node = HistoryTreeNode {
-        azks_id: azks_id.to_vec(),
+        azks_id: a,
         label,
         location,
         epochs: vec![birth_epoch],
@@ -733,7 +744,7 @@ pub(crate) async fn set_state_map<H: Hasher, S: Storage + std::marker::Sync>(
 ) -> Result<(), StorageError> {
     storage
         .store(
-            NodeStateKey(node.azks_id.clone(), node.label, *key as usize),
+            NodeStateKey(node.azks_id, node.label, *key as usize),
             &val,
         )
         .await?;
@@ -747,7 +758,7 @@ pub(crate) async fn get_state_map<H: Hasher, S: Storage + std::marker::Sync>(
 ) -> Result<HistoryNodeState<H, S>, StorageError> {
     storage
         .retrieve::<HistoryNodeState<H, S>>(NodeStateKey(
-            node.azks_id.clone(),
+            node.azks_id,
             node.label,
             *key as usize,
         ))

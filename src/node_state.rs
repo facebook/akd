@@ -114,13 +114,13 @@ pub struct HistoryNodeState<H, S> {
 
 // parameters are azks_id, node location, and epoch
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub(crate) Vec<u8>, pub(crate) NodeLabel, pub(crate) usize);
+pub struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
 
 impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
     type Key = NodeStateKey;
 
     fn data_type() -> StorageType {
-        StorageType::Azks
+        StorageType::HistoryNodeState
     }
 }
 

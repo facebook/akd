@@ -48,6 +48,13 @@ pub trait Storage: Clone {
     /// Retrieve a value given a key from the storage layer
     async fn get(&self, pos: String, data_type: StorageType) -> Result<Vec<u8>, StorageError>;
 
+    /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> Result<Vec<Vec<u8>>, StorageError>;
+
     /// Add a user state element to the associated user
     async fn append_user_state(
         &self,
@@ -92,5 +99,24 @@ pub trait Storage: Clone {
             Err(_) => Err(StorageError::SerializationError),
             Ok(result) => Ok(result),
         }
+    }
+
+    /// Retrieve all the "Storables" in the database. (optional) Limit to "num" results
+    async fn retrieve_all<T: Storable>(&self, num: Option<usize>) -> Result<Vec<T>, StorageError> {
+        let got = self.get_all(T::data_type(), num).await?;
+        let mut results = Vec::new();
+
+        for item in got.into_iter() {
+            match bincode::deserialize(&item) {
+                Err(_) => {
+                    return Err(StorageError::SerializationError);
+                }
+                Ok(result) => {
+                    results.push(result);
+                }
+            }
+        }
+
+        Ok(results)
     }
 }

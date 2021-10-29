@@ -135,7 +135,7 @@ impl AsyncMySqlDatabase {
             // main data table (for all tree nodes, etc)
             let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
                 + TABLE
-                + "` (`key` VARCHAR(512) NOT NULL, `type` SMALLINT UNSIGNED NOT NULL `value` VARBINARY(2000), PRIMARY KEY (`key`, `type`)"
+                + "` (`key` VARCHAR(512) NOT NULL, `type` SMALLINT UNSIGNED NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`, `type`)"
                 + ")";
 
             tx.query_drop(command).await?;
@@ -196,7 +196,9 @@ impl AsyncMySqlDatabase {
             let ip = opts.ip_or_hostname();
             let pool_options = opts.clone();
             let pool = Pool::new(pool_options);
-            if let Ok(mut _conn) = pool.get_conn().await {
+            let conn = pool.get_conn().await;
+
+            if let Ok(mut _conn) = conn {
                 if let Ok(()) = Self::setup_database(&mut _conn).await {
                     // set the healthy flag to true
                     let mut is_healthy_guard = is_healthy.lock().unwrap();
@@ -225,6 +227,20 @@ impl AsyncMySqlDatabase {
 
             attempts += 1
         }
+    }
+
+    /// Delete all the data in the tables
+    #[allow(dead_code)]
+    pub async fn delete_data(&self) -> core::result::Result<(), mysql_async::Error> {
+        let mut conn = self.get_connection().await?;
+
+        let command = "DELETE FROM `".to_owned() + TABLE + "`";
+        conn.query_drop(command).await?;
+
+        let command = "DELETE FROM `".to_owned() + USER_TABLE + "`";
+        conn.query_drop(command).await?;
+
+        Ok(())
     }
 
     /// Cleanup the test data table
@@ -318,9 +334,9 @@ impl Storage for AsyncMySqlDatabase {
                     params! { "the_key" => pos, "the_type" => dt as u16 },
                 )
                 .await;
-            let result: Option<(String, Vec<u8>)> = self.check_for_infra_error(out)?;
+            let result: Option<(String, u16, Vec<u8>)> = self.check_for_infra_error(out)?;
 
-            if let Some((_key, value)) = result {
+            if let Some((_key, _type, value)) = result {
                 return Ok(Some(value));
             }
             Ok::<Option<Vec<u8>>, mysql_async::Error>(None)
@@ -329,6 +345,37 @@ impl Storage for AsyncMySqlDatabase {
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
+            Err(other) => Err(StorageError::GetError(other.to_string())),
+        }
+    }
+
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> core::result::Result<Vec<Vec<u8>>, StorageError> {
+        let result = async {
+            let mut conn = self.get_connection().await?;
+
+            let mut statement_text =
+                "SELECT `value` FROM `".to_owned() + TABLE + "` WHERE `type` = :the_type";
+            let mut params_map = vec![("the_type", Value::from(data_type as u16))];
+            if let Some(limit) = num {
+                statement_text += " LIMIT :the_limit";
+                params_map.push(("the_limit", Value::from(limit)));
+            }
+            let statement = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_map(statement, mysql_async::Params::from(params_map), |value| {
+                    value
+                })
+                .await;
+            let result = self.check_for_infra_error(out)?;
+            Ok::<Vec<Vec<u8>>, mysql_async::Error>(result)
+        };
+
+        match result.await {
+            Ok(result) => Ok(result),
             Err(other) => Err(StorageError::GetError(other.to_string())),
         }
     }

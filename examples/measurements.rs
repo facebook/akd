@@ -7,8 +7,7 @@
 
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use seemless::{
-    append_only_zks::Azks, node_state::NodeLabel,
-    storage::memory::r#async::AsyncInMemoryDbWithCache,
+    append_only_zks::Azks, node_state::NodeLabel, storage::memory::AsyncInMemoryDbWithCache,
 };
 use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;

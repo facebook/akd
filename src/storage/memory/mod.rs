@@ -79,6 +79,27 @@ impl Storage for AsyncInMemoryDatabase {
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> Result<Vec<Vec<u8>>, StorageError> {
+        let mut results = Vec::new();
+        for ((dt, _pos), v) in &self.read_handle.read().unwrap() {
+            if *dt == data_type {
+                if let Some(output) = v.get_one() {
+                    results.push(output.clone());
+                    if let Some(limit) = num {
+                        if results.len() >= limit {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(results)
+    }
+
     async fn append_user_state(
         &self,
         username: &Username,
@@ -307,6 +328,40 @@ impl Storage for AsyncInMemoryDbWithCache {
                 Ok(value)
             }
         }
+    }
+
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> Result<Vec<Vec<u8>>, StorageError> {
+        let cache = CACHE_CACHE.lock().unwrap();
+        let db = CACHE_DB.lock().unwrap();
+
+        let mut hashmap: HashMap<String, Vec<u8>> = HashMap::new();
+        // go through the cache first
+        for (key, v) in &*cache {
+            if key.0 == data_type && !hashmap.contains_key(&key.1) {
+                hashmap.insert(key.1.clone(), v.clone());
+                if let Some(limit) = num {
+                    if hashmap.keys().len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+        for (key, v) in &*db {
+            if key.0 == data_type && !hashmap.contains_key(&key.1) {
+                hashmap.insert(key.1.clone(), v.clone());
+                if let Some(limit) = num {
+                    if hashmap.keys().len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(hashmap.values().cloned().collect())
     }
 
     async fn append_user_state(

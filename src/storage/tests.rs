@@ -89,6 +89,9 @@ async fn async_test_get_and_set_item<S: Storage>(storage: &S) {
         Err(StorageError::GetError(String::from("Not found"))),
         missing
     );
+
+    let all_azks = storage.get_all(StorageType::Azks, None).await;
+    assert_eq!(1, all_azks.unwrap().len());
 }
 
 async fn async_test_user_data<S: Storage>(storage: &S) {

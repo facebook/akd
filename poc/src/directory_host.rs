@@ -77,7 +77,7 @@ where
                         match hash {
                             Some(Ok(root_hash)) => {
                                 let verification = seemless::seemless_client::lookup_verify(root_hash, Username(a.clone()), proof);
-                                if let Err(_) = verification {
+                                if verification.is_err() {
                                     let msg = format!("WARN: Lookup proof failed verification for '{}'", a);
                                     response.send(Ok(msg)).unwrap();
                                 } else {
