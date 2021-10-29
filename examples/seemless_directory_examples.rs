@@ -17,8 +17,6 @@ use seemless::storage::types::{Username, Values};
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
-pub mod measurements;
-
 fn create_usernames_and_values(
     num_insertions: usize,
     mut rng: ThreadRng,

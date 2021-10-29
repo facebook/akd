@@ -104,7 +104,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     }
 
     // Inserts a single leaf node and updates the required hashes
-    pub(crate) async fn insert_single_leaf(
+    #[cfg(test)]
+    pub(crate) async fn insert_single_leaf_for_testing(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -116,8 +117,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    // Inserts a single leaf node
-    pub(crate) async fn insert_single_leaf_without_hash(
+    // Inserts a single leaf node, without hashing
+    pub(crate) async fn insert_single_leaf(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -132,7 +133,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     // Inserts a single leaf node and updates the required hashes,
     // if hashing is true
     #[async_recursion]
-    pub(crate) async fn insert_single_leaf_helper(
+    async fn insert_single_leaf_helper(
         &mut self,
         storage: &S,
         mut new_leaf: Self,
@@ -623,7 +624,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     }
 
     #[cfg(test)]
-    pub async fn to_node_child_state(
+    pub(crate) async fn to_node_child_state(
         &self,
         storage: &S,
     ) -> Result<HistoryChildState<H, S>, HistoryTreeNodeError> {

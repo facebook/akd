@@ -85,7 +85,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(azks)
     }
 
-    pub async fn insert_leaf(
+    #[cfg(test)]
+    pub(crate) async fn insert_leaf_for_testing(
         &mut self,
         storage: &S,
         label: NodeLabel,
@@ -109,7 +110,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.root))
             .await?;
         root_node
-            .insert_single_leaf(
+            .insert_single_leaf_for_testing(
                 storage,
                 new_leaf,
                 &self.azks_id,
@@ -130,7 +131,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    pub async fn batch_insert_leaves_helper(
+    pub(crate) async fn batch_insert_leaves_helper(
         &mut self,
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
@@ -170,7 +171,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             }
 
             root_node
-                .insert_single_leaf_without_hash(
+                .insert_single_leaf(
                     storage,
                     new_leaf,
                     &self.azks_id,
@@ -210,7 +211,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(())
     }
 
-    pub async fn get_membership_proof(
+    pub(crate) async fn get_membership_proof(
         &self,
         storage: &S,
         label: NodeLabel,
@@ -224,7 +225,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(pf)
     }
 
-    pub async fn get_non_membership_proof(
+    pub(crate) async fn get_non_membership_proof(
         &self,
         storage: &S,
         label: NodeLabel,
@@ -263,7 +264,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         })
     }
 
-    pub async fn get_append_only_proof(
+    pub(crate) async fn get_append_only_proof(
         &self,
         storage: &S,
         start_epoch: u64,
@@ -345,7 +346,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok((unchanged, leaves))
     }
 
-    pub async fn get_consecutive_append_only_proof(
+    #[allow(dead_code)]
+    pub(crate) async fn get_consecutive_append_only_proof(
         &self,
         storage: &S,
         start_epoch: u64,
@@ -359,12 +361,15 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
 
     // FIXME: these functions below should be moved into higher-level API
 
-    pub async fn get_root_hash(&self, storage: &S) -> Result<H::Digest, HistoryTreeNodeError> {
+    pub(crate) async fn get_root_hash(
+        &self,
+        storage: &S,
+    ) -> Result<H::Digest, HistoryTreeNodeError> {
         self.get_root_hash_at_epoch(storage, self.get_latest_epoch())
             .await
     }
 
-    pub async fn get_root_hash_at_epoch(
+    pub(crate) async fn get_root_hash_at_epoch(
         &self,
         storage: &S,
         epoch: u64,
@@ -375,7 +380,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         root_node.get_value_at_epoch(storage, epoch).await
     }
 
-    pub fn get_latest_epoch(&self) -> u64 {
+    pub(crate) fn get_latest_epoch(&self) -> u64 {
         self.latest_epoch
     }
 
@@ -384,7 +389,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         self.latest_epoch = epoch;
     }
 
-    pub async fn get_membership_proof_and_node(
+    pub(crate) async fn get_membership_proof_and_node(
         &self,
         storage: &S,
         label: NodeLabel,
@@ -464,7 +469,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         ))
     }
 
-    pub fn get_azks_id(&self) -> &[u8] {
+    pub(crate) fn get_azks_id(&self) -> &[u8] {
         &self.azks_id
     }
 }
@@ -501,7 +506,7 @@ mod tests {
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
             insertion_set.push((node, val));
-            azks1.insert_leaf(&db, node, val).await?;
+            azks1.insert_leaf_for_testing(&db, node, val).await?;
         }
 
         let mut azks2 = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
@@ -531,7 +536,7 @@ mod tests {
             rng.fill_bytes(&mut input);
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
-            azks1.insert_leaf(&db, node, input).await?;
+            azks1.insert_leaf_for_testing(&db, node, input).await?;
         }
 
         // Try randomly permuting

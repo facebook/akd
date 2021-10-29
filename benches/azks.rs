@@ -38,7 +38,9 @@ fn single_insertion(c: &mut Criterion) {
         rng.fill_bytes(&mut input);
         let val = Blake3::hash(&input);
         insertion_set.push((node, val));
-        runtime.block_on(azks1.insert_leaf(&db, node, val)).unwrap();
+        runtime
+            .block_on(azks1.batch_insert_leaves(&db, vec![(node, val)]))
+            .unwrap();
     }
 
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
@@ -49,7 +51,9 @@ fn single_insertion(c: &mut Criterion) {
             let val = Blake3::hash(&input);
 
             let _start = Instant::now();
-            runtime.block_on(azks1.insert_leaf(&db, node, val)).unwrap();
+            runtime
+                .block_on(azks1.batch_insert_leaves(&db, vec![(node, val)]))
+                .unwrap();
         })
     });
 }
