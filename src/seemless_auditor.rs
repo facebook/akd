@@ -1,8 +1,16 @@
 use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
-use crate::{append_only_zks::Azks, storage::Storage, AppendOnlyProof, AzksError, SeemlessError};
+use crate::{
+    append_only_zks::Azks,
+    errors::{AzksError, SeemlessError},
+    proof_structs::AppendOnlyProof,
+    storage::Storage,
+};
 
+/// This function is simply a wrapper around the function [`verify_append_only`],
+/// to audit the transition from the starting epoch to the ending epoch, to ensure that
+/// no previously committed items were removed from the tree.
 pub fn audit_verify<H: Hasher>(
     start_hash: H::Digest,
     end_hash: H::Digest,
@@ -11,6 +19,12 @@ pub fn audit_verify<H: Hasher>(
     verify_append_only::<H>(proof, start_hash, end_hash)
 }
 
+/// This function verifies an append only proof by constructing,
+/// first, an [`Azks`], using the roots of unchanged trees from the starting epoch
+/// and then inserting the leaves that were purportedly inserted up until the ending epoch.
+/// The `start_hash` and `end_hash` are the root hashes for `start_epoch` and `end_epoch`
+/// respectively. The `start_hash` must equal the root of the purported initial tree and
+/// the `end_hash` the root of the final tree.
 pub fn verify_append_only<H: Hasher>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,

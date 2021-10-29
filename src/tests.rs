@@ -12,6 +12,7 @@ type Blake3 = Blake3_256<BaseElement>;
 
 use crate::serialization::from_digest;
 use crate::{
+    errors::*,
     history_tree_node::get_empty_root,
     history_tree_node::get_leaf_node,
     history_tree_node::HistoryTreeNode,
