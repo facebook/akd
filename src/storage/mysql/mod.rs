@@ -284,7 +284,7 @@ impl SyncStorage for MySqlDatabase {
                 |conn| {
                     let statement_text = "INSERT INTO `".to_owned()
                         + TABLE
-                        + "` (`key`, `value`) VALUES (:the_key, :the_value)";
+                        + "` (`key`, `value`) VALUES (:the_key, :the_value) ON DUPLICATE KEY UPDATE `value` = :the_value";
                     let prepared = conn.prep(statement_text)?;
                     conn.exec_drop(
                         prepared,

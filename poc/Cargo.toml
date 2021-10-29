@@ -1,0 +1,18 @@
+[package]
+name = "vkr"
+default-run = "vkr"
+version = "0.1.0"
+authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+edition = "2018"
+
+[dependencies]
+winter-crypto = "0.1"
+winter-math = "0.1"
+tokio = { version = "1", features = ["full"] }
+seemless = { path = "../." }
+colored = "2.0.0"
+hex = "0.4.3"
+
+[dev-dependencies]
+actix-rt = "*"
+serial_test = "*"

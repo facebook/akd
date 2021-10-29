@@ -4,3 +4,6 @@ src/.DS_Store
 /target
 Cargo.lock
 **/*.rs.bk
+
+/poc/src/.DS_Store
+/poc/target

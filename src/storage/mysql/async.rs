@@ -26,7 +26,7 @@ const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
 */
 
 /// Represents an _asynchronous_ connection to a MySQL database
-pub(crate) struct AsyncMySqlDatabase {
+pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<Mutex<bool>>,
@@ -135,14 +135,14 @@ impl AsyncMySqlDatabase {
             // main data table (for all tree nodes, etc)
             let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
                 + TABLE
-                + "` (`key` VARCHAR(64) NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`)"
+                + "` (`key` VARCHAR(512) NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`)"
                 + ")";
 
             tx.query_drop(command).await?;
 
             // user data table
             let command = "CREATE TABLE IF NOT EXISTS `".to_owned() + USER_TABLE + "`"
-                + " (`username` VARCHAR(64) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
+                + " (`username` VARCHAR(512) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
                 + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
                 + " PRIMARY KEY(`username`, `epoch`)"
                 + " )";
@@ -279,7 +279,7 @@ impl Storage for AsyncMySqlDatabase {
             let mut conn = self.get_connection().await?;
             let statement_text = "INSERT INTO `".to_owned()
                 + TABLE
-                + "` (`key`, `value`) VALUES (:the_key, :the_value)";
+                + "` (`key`, `value`) VALUES (:the_key, :the_value) ON DUPLICATE KEY UPDATE `value` = :the_value";
             let out = conn
                 .exec_drop(
                     statement_text,

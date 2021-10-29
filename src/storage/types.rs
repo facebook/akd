@@ -9,11 +9,11 @@ use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Username(pub(crate) String);
+pub struct Username(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
-pub struct Values(pub(crate) String);
+pub struct Values(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
