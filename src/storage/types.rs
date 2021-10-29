@@ -64,3 +64,12 @@ pub enum UserStateRetrievalFlag {
     MinEpoch,
     MinVersion,
 }
+
+// == New Data Retrieval Logic == //
+
+// pub(crate) enum DbRecord<H, S> {
+//     Azks(crate::append_only_zks::Azks<H, S>),
+//     HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H, S>),
+//     HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),
+//     HistoryChildState(crate::node_state::HistoryChildState<H, S>),
+// }

@@ -13,6 +13,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub mod tests;
 pub mod types;
 
+// use types::{DbRecord, StorageType};
 use types::StorageType;
 
 /*
@@ -120,3 +121,10 @@ pub trait Storage: Clone {
         Ok(results)
     }
 }
+
+// #[async_trait]
+// pub(crate) trait NewStorage: Clone {
+//     async fn set<H, S>(&self, record: DbRecord<H, S>) -> Result<(), StorageError>;
+
+//     async fn get<H, S>(&self, record_type: StorageType) -> Result<DbRecord<H, S>, StorageError>;
+// }

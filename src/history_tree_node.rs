@@ -64,7 +64,7 @@ unsafe impl<H: Hasher, S: Storage> Sync for HistoryTreeNode<H, S> {}
 impl<H: Hasher, S: Storage> Clone for HistoryTreeNode<H, S> {
     fn clone(&self) -> Self {
         Self {
-            azks_id: self.azks_id.clone(),
+            azks_id: self.azks_id,
             label: self.label,
             location: self.location,
             epochs: self.epochs.clone(),
@@ -100,7 +100,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
 
     pub(crate) async fn write_to_storage(&self, storage: &S) -> Result<(), StorageError> {
         storage
-            .store(NodeKey(self.azks_id.clone(), self.location), self)
+            .store(NodeKey(self.azks_id, self.location), self)
             .await
     }
 
@@ -165,7 +165,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     new_leaf.update_hash(storage, epoch).await?;
                     let mut new_self = storage
                         .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
-                            self.azks_id.clone(),
+                            self.azks_id,
                             self.location,
                         ))
                         .await?;
@@ -173,7 +173,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 }
 
                 *self = storage
-                    .retrieve(NodeKey(self.azks_id.clone(), self.location))
+                    .retrieve(NodeKey(self.azks_id, self.location))
                     .await?;
                 return Ok(());
             }
@@ -186,7 +186,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
                 let mut parent = storage
-                    .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.parent))
+                    .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.parent))
                     .await?;
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
                 let new_node_location = *num_nodes;
@@ -224,14 +224,14 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     new_leaf.update_hash(storage, epoch).await?;
                     self.update_hash(storage, epoch).await?;
                     new_node = storage
-                        .retrieve(NodeKey(self.azks_id.clone(), new_node.location))
+                        .retrieve(NodeKey(self.azks_id, new_node.location))
                         .await?;
                     new_node.update_hash(storage, epoch).await?;
                 }
                 new_node.write_to_storage(storage).await?;
                 parent.write_to_storage(storage).await?;
                 *self = storage
-                    .retrieve(NodeKey(self.azks_id.clone(), self.location))
+                    .retrieve(NodeKey(self.azks_id, self.location))
                     .await?;
                 Ok(())
             }
@@ -248,7 +248,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     DummyChildState::Real => {
                         let mut child_node = storage
                             .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
-                                self.azks_id.clone(),
+                                self.azks_id,
                                 child_st.location,
                             ))
                             .await?;
@@ -259,13 +259,13 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                             .await?;
                         if hashing {
                             *self = storage
-                                .retrieve(NodeKey(self.azks_id.clone(), self.location))
+                                .retrieve(NodeKey(self.azks_id, self.location))
                                 .await?;
                             self.update_hash(storage, epoch).await?;
                             self.write_to_storage(storage).await?;
                         }
                         *self = storage
-                            .retrieve(NodeKey(self.azks_id.clone(), self.location))
+                            .retrieve(NodeKey(self.azks_id, self.location))
                             .await?;
                         Ok(())
                     }
@@ -338,7 +338,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             Ok(())
         } else {
             let parent = &mut storage
-                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.parent))
+                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.parent))
                 .await?;
             if parent.get_latest_epoch()? < epoch {
                 let (_, dir_self, _) = parent
@@ -349,7 +349,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     .await?;
                 parent.write_to_storage(storage).await?;
                 *parent = storage
-                    .retrieve(NodeKey(self.azks_id.clone(), self.parent))
+                    .retrieve(NodeKey(self.azks_id, self.parent))
                     .await?;
             }
             match get_state_map(storage, parent, &epoch).await {
@@ -659,13 +659,7 @@ pub(crate) async fn get_empty_root<
     let mut a: [u8; 32] = Default::default();
     a.copy_from_slice(&azks_id[0..32]);
 
-    let mut node = HistoryTreeNode::new(
-        a,
-        NodeLabel::new(0u64, 0u32),
-        0,
-        0,
-        NodeType::Root,
-    );
+    let mut node = HistoryTreeNode::new(a, NodeLabel::new(0u64, 0u32), 0, 0, NodeType::Root);
     if let Some(epoch) = ep {
         node.epochs.push(epoch);
         let new_state = HistoryNodeState::new();
@@ -743,10 +737,7 @@ pub(crate) async fn set_state_map<H: Hasher, S: Storage + std::marker::Sync>(
     val: HistoryNodeState<H, S>,
 ) -> Result<(), StorageError> {
     storage
-        .store(
-            NodeStateKey(node.azks_id, node.label, *key as usize),
-            &val,
-        )
+        .store(NodeStateKey(node.azks_id, node.label, *key as usize), &val)
         .await?;
     Ok(())
 }
@@ -757,10 +748,6 @@ pub(crate) async fn get_state_map<H: Hasher, S: Storage + std::marker::Sync>(
     key: &u64,
 ) -> Result<HistoryNodeState<H, S>, StorageError> {
     storage
-        .retrieve::<HistoryNodeState<H, S>>(NodeStateKey(
-            node.azks_id,
-            node.label,
-            *key as usize,
-        ))
+        .retrieve::<HistoryNodeState<H, S>>(NodeStateKey(node.azks_id, node.label, *key as usize))
         .await
 }

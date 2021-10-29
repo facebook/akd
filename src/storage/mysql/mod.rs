@@ -535,7 +535,7 @@ impl Storage for AsyncMySqlDatabase {
                 UserStateRetrievalFlag::LeqEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` <= :the_epoch";
-                },
+                }
             }
 
             // add limit to retrieve only 1 record

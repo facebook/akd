@@ -33,7 +33,7 @@ impl Username {
 }
 
 pub struct SeemlessDirectory<S, H> {
-    azks_id: Vec<u8>,
+    azks_id: [u8; 32],
     current_epoch: u64,
     storage: S,
     _s: PhantomData<S>,
@@ -54,14 +54,14 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
                 let azks = Azks::<H, S>::new(storage, &mut rng).await?;
                 // store it
                 storage
-                    .store(AzksKey(azks.get_azks_id().to_vec()), &azks)
+                    .store(AzksKey(azks.get_azks_id()), &azks)
                     .await?;
                 azks
             }
         };
         let azks_id = azks.get_azks_id();
         Ok(SeemlessDirectory {
-            azks_id: azks_id.to_vec(),
+            azks_id,
             current_epoch: azks.get_latest_epoch(),
             _s: PhantomData::<S>,
             _h: PhantomData::<H>,
@@ -114,7 +114,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .batch_insert_leaves(&self.storage, insertion_set)
             .await;
         self.storage
-            .store(AzksKey(self.azks_id.clone()), &current_azks)
+            .store(AzksKey(self.azks_id), &current_azks)
             .await?;
         self.storage
             .append_user_states(user_data_update_set)
@@ -204,7 +204,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     pub async fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
         self.storage
-            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id.clone()))
+            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id))
             .await
     }
 

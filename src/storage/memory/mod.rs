@@ -150,7 +150,7 @@ impl Storage for AsyncInMemoryDatabase {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
@@ -159,14 +159,14 @@ impl Storage for AsyncInMemoryDatabase {
                     {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
@@ -175,7 +175,7 @@ impl Storage for AsyncInMemoryDatabase {
                     {
                         return Ok(value.clone());
                     }
-                },
+                }
                 _ =>
                 // search for specific property
                 {
@@ -187,16 +187,16 @@ impl Storage for AsyncInMemoryDatabase {
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
-                            },
+                            }
                             UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone());
-                            },
+                            }
                             UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
                                 match tracked_epoch {
                                     0u64 => {
                                         tracked_epoch = kvp.epoch;
                                         tracker = Some(kvp.clone());
-                                    },
+                                    }
                                     other_epoch => {
                                         if kvp.epoch > other_epoch {
                                             tracker = Some(kvp.clone());
@@ -207,15 +207,15 @@ impl Storage for AsyncInMemoryDatabase {
                             }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
-                            },
+                            }
                             _ => continue,
                         }
                     }
 
                     if let Some(r) = tracker {
-                        return Ok(r.clone());
+                        return Ok(r);
                     }
-                },
+                }
             }
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
@@ -436,7 +436,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
@@ -445,14 +445,14 @@ impl Storage for AsyncInMemoryDbWithCache {
                     {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
-                },
+                }
                 UserStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
@@ -461,7 +461,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                     {
                         return Ok(value.clone());
                     }
-                },
+                }
                 _ =>
                 // search for specific property
                 {
@@ -473,16 +473,16 @@ impl Storage for AsyncInMemoryDbWithCache {
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
-                            },
+                            }
                             UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone());
-                            },
+                            }
                             UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
                                 match tracked_epoch {
                                     0u64 => {
                                         tracked_epoch = kvp.epoch;
                                         tracker = Some(kvp.clone());
-                                    },
+                                    }
                                     other_epoch => {
                                         if kvp.epoch > other_epoch {
                                             tracker = Some(kvp.clone());
@@ -493,15 +493,15 @@ impl Storage for AsyncInMemoryDbWithCache {
                             }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
-                            },
+                            }
                             _ => continue,
                         }
                     }
 
                     if let Some(r) = tracker {
-                        return Ok(r.clone());
+                        return Ok(r);
                     }
-                },
+                }
             }
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
