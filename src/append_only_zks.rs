@@ -475,8 +475,8 @@ type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 mod tests {
     use super::*;
     use crate::{
-        seemless_auditor::verify_append_only,
-        seemless_client::{verify_membership, verify_nonmembership},
+        auditor::verify_append_only,
+        client::{verify_membership, verify_nonmembership},
         storage::memory::r#async::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
