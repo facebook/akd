@@ -21,7 +21,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-seemless = "0.1.0"
+vkd = "0.1"
 ```
 
 ### Minimum Supported Rust Version
