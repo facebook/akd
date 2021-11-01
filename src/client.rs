@@ -9,10 +9,11 @@ use winter_crypto::Hasher;
 
 use crate::{
     directory::get_marker_version,
+    errors::{AzksError, SeemlessDirectoryError, SeemlessError},
     node_state::{hash_label, NodeLabel},
+    proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::Username,
-    AzksError, Direction, HistoryProof, LookupProof, MembershipProof, NonMembershipProof,
-    SeemlessDirectoryError, SeemlessError, UpdateProof, ARITY,
+    Direction, ARITY,
 };
 
 pub fn verify_membership<H: Hasher>(

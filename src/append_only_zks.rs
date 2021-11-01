@@ -8,12 +8,14 @@
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
+    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof},
     storage::{Storable, Storage},
 };
 
 use crate::serialization::to_digest;
+
 use crate::storage::types::StorageType;
-use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
+use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use rand::{CryptoRng, RngCore};
 use std::marker::PhantomData;
@@ -264,6 +266,15 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         })
     }
 
+    /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
+    /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
+    /// tree after `start_epoch` and  up until `end_epoch`.
+    /// If there is no errors, this function returns an `Ok` result, containing the
+    ///  append-only proof and otherwise, it returns a [`SeemlessError`].
+    ///
+    /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
+    /// * `start_epoch` <= `end_epoch`
+    /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
     pub async fn get_append_only_proof(
         &self,
         storage: &S,
