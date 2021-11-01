@@ -115,8 +115,8 @@ async fn async_test_user_data<S: Storage>(storage: &S) {
         epoch: 1u64,
     };
     let mut sample_state_2 = sample_state.clone();
-    let username = Username(rand_user);
-    let username_2 = Username("test_user".to_string());
+    let username = VkdKey(rand_user);
+    let username_2 = VkdKey("test_user".to_string());
 
     let result = storage.append_user_state(&username, &sample_state).await;
     assert_eq!(Ok(()), result);

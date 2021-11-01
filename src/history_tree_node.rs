@@ -20,17 +20,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
-    Leaf,
-    Root,
-    Interior,
+    Leaf,     // Nodes with this type only have dummy children.
+    Root, // Nodes with this type do not have parents and their value includes a hash of their label.
+    Interior, // Nodes of this type must have non-dummy children and their value is a hash of their children, along with the labels of the children.
 }
 
 pub type HistoryInsertionNode<H, S> = (Direction, HistoryChildState<H, S>);
 pub type HistoryNodeHash<H> = Option<H>;
 
-/**
- * HistoryNode will represent a generic interior node of a compressed history tree
- **/
+/// A HistoryNode represents a generic interior node of a compressed history tree.
+/// The main idea here is that the tree is changing at every epoch and that we do not need
+/// to replicate the state of a node, unless it changes.
+/// However, in order to allow for a user to monitor the state of a key-value pair in
+/// the past, the older states also need to be stored.
+/// While the states themselves can be stored elsewhere,
+/// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub(crate) struct HistoryTreeNode<H, S> {
@@ -38,11 +42,8 @@ pub(crate) struct HistoryTreeNode<H, S> {
     pub label: NodeLabel,
     pub location: usize,
     pub epochs: Vec<u64>,
-    pub parent: usize,
-    // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
-    pub node_type: NodeType,
-    // Note that the NodeType along with the parent/children being options
-    // allows us to use this struct to represent child and parent nodes as well.
+    pub parent: usize,       // The root node is marked its own parent.
+    pub node_type: NodeType, // Leaf, Root or Interior
     _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
@@ -104,7 +105,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    // Inserts a single leaf node and updates the required hashes
+    /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
     pub(crate) async fn insert_single_leaf(
         &mut self,
         storage: &S,
@@ -130,8 +131,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    // Inserts a single leaf node and updates the required hashes,
-    // if hashing is true
+    /// Inserts a single leaf node and updates the required hashes,
+    /// if hashing is true. Creates new nodes where neded.
     #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper(
         &mut self,
@@ -308,6 +309,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         }
     }
 
+    /// Hashes a node by merging the hashes and labels of its children.
     async fn hash_node(&self, storage: &S, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
         let epoch_node_state = self.get_state_at_epoch(storage, epoch).await?;
         let mut new_hash = H::hash(&[]);
@@ -325,6 +327,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(new_hash)
     }
 
+    /// Writes the new_hash_val into the parent's state for this epoch.
+    /// Accounts for the case when considering a root node, which has no parent.
     async fn update_hash_at_parent(
         &mut self,
         storage: &S,
@@ -367,6 +371,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         }
     }
 
+    /// Inserts a child into this node, adding the state to the state at this epoch,
+    /// without updating its own hash.
     #[async_recursion]
     pub(crate) async fn set_child_without_hash(
         &mut self,
@@ -430,6 +436,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         }
     }
 
+    /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
+    /// set_child_without_hash. Just used for type conversion.
     pub(crate) async fn set_node_child_without_hash(
         &mut self,
         storage: &S,

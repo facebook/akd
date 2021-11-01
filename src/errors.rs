@@ -10,33 +10,33 @@ use core::fmt;
 use crate::node_state::NodeLabel;
 
 #[derive(Debug)]
-pub enum SeemlessError {
+pub enum VkdError {
     HistoryTreeNodeErr(HistoryTreeNodeError),
-    SeemlessDirectoryErr(SeemlessDirectoryError),
+    DirectoryErr(DirectoryError),
     AzksErr(AzksError),
     NoDirectionError,
     NoEpochGiven,
 }
 
-impl From<HistoryTreeNodeError> for SeemlessError {
+impl From<HistoryTreeNodeError> for VkdError {
     fn from(error: HistoryTreeNodeError) -> Self {
         Self::HistoryTreeNodeErr(error)
     }
 }
 
-impl From<StorageError> for SeemlessError {
+impl From<StorageError> for VkdError {
     fn from(error: StorageError) -> Self {
         Self::HistoryTreeNodeErr(HistoryTreeNodeError::StorageError(error))
     }
 }
 
-impl From<SeemlessDirectoryError> for SeemlessError {
-    fn from(error: SeemlessDirectoryError) -> Self {
-        Self::SeemlessDirectoryErr(error)
+impl From<DirectoryError> for VkdError {
+    fn from(error: DirectoryError) -> Self {
+        Self::DirectoryErr(error)
     }
 }
 
-impl From<AzksError> for SeemlessError {
+impl From<AzksError> for VkdError {
     fn from(error: AzksError) -> Self {
         Self::AzksErr(error)
     }
@@ -169,7 +169,7 @@ impl fmt::Display for AzksError {
     }
 }
 #[derive(Debug)]
-pub enum SeemlessDirectoryError {
+pub enum DirectoryError {
     AuditProofStartEpLess(u64, u64),
     LookedUpNonExistentUser(String, u64),
     LookupVerificationErr(String),
@@ -178,7 +178,7 @@ pub enum SeemlessDirectoryError {
     StorageError,
 }
 
-impl fmt::Display for SeemlessDirectoryError {
+impl fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AuditProofStartEpLess(start, end) => {

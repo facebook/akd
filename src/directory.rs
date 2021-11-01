@@ -6,11 +6,11 @@
 // of this source tree.
 
 use crate::append_only_zks::{Azks, AzksKey};
-use crate::errors::{SeemlessDirectoryError, SeemlessError};
+use crate::errors::{DirectoryError, VkdError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{UserState, UserStateRetrievalFlag, Username, Values};
+use crate::storage::types::{UserState, UserStateRetrievalFlag, VkdKey, Values};
 use crate::storage::Storage;
 
 use rand::{prelude::ThreadRng, thread_rng};
@@ -26,7 +26,7 @@ impl Values {
     }
 }
 
-impl Username {
+impl VkdKey {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
     }
@@ -43,7 +43,10 @@ pub struct Directory<S, H> {
 impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker::Send>
     Directory<S, H>
 {
-    pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
+    /// Creates a new (stateless) instance of a verifiable key directory.
+    /// Takes as input a pointer to the storage being used for this instance.
+    /// The state is stored in the storage.
+    pub async fn new(storage: &S) -> Result<Self, VkdError> {
         let mut rng: ThreadRng = thread_rng();
 
         let azks = {
@@ -67,9 +70,10 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         })
     }
 
-    pub async fn publish(&mut self, updates: Vec<(Username, Values)>) -> Result<(), SeemlessError> {
+    /// Updates the directory to inclulde the updated key-value pairs.
+    pub async fn publish(&mut self, updates: Vec<(VkdKey, Values)>) -> Result<(), VkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<(Username, UserState)>::new();
+        let mut user_data_update_set = Vec::<(VkdKey, UserState)>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
             match self
@@ -123,8 +127,8 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
 
-    // Provides proof for correctness of latest version
-    pub async fn lookup(&self, uname: Username) -> Result<LookupProof<H>, SeemlessError> {
+    /// Provides proof for correctness of latest version
+    pub async fn lookup(&self, uname: VkdKey) -> Result<LookupProof<H>, VkdError> {
         match self
             .storage
             .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
@@ -132,8 +136,8 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         {
             Err(_) => {
                 // Need to throw an error
-                Err(SeemlessError::SeemlessDirectoryErr(
-                    SeemlessDirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
+                Err(VkdError::DirectoryErr(
+                    DirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
                 ))
             }
             Ok(latest_st) => {
@@ -172,7 +176,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// this function returns all the values ever associated with it,
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
-    pub async fn key_history(&self, uname: &Username) -> Result<HistoryProof<H>, SeemlessError> {
+    pub async fn key_history(&self, uname: &VkdKey) -> Result<HistoryProof<H>, VkdError> {
         let username = uname.0.to_string();
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
@@ -182,18 +186,19 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
+            Err(VkdError::DirectoryErr(
+                DirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
             ))
         }
     }
 
-    // Needs error handling in case the epochs are invalid
+    /// Returns an AppendOnlyProof for the leaves inseted into the underlying tree between
+    /// the epochs audit_start_ep and audit_end_ep.
     pub async fn audit(
         &self,
         audit_start_ep: u64,
         audit_end_ep: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+    ) -> Result<AppendOnlyProof<H>, VkdError> {
         let current_azks = self.retrieve_current_azks().await?;
         current_azks
             .get_append_only_proof(&self.storage, audit_start_ep, audit_end_ep)
@@ -214,7 +219,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     }
 
     #[allow(unused)]
-    fn username_to_nodelabel(_uname: &Username) -> NodeLabel {
+    fn username_to_nodelabel(_uname: &VkdKey) -> NodeLabel {
         // this function will need to read the VRF key off some function
         unimplemented!()
     }
@@ -222,7 +227,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     // TODO: we need to make this only work on the server and have another function
     // that verifies nodelabel.
     /// FIXME: Add a comment here for what the stale parameter is used for
-    pub(crate) fn get_nodelabel(uname: &Username, stale: bool, version: u64) -> NodeLabel {
+    pub(crate) fn get_nodelabel(uname: &VkdKey, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
@@ -257,9 +262,9 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     async fn create_single_update_proof(
         &self,
-        uname: &Username,
+        uname: &VkdKey,
         user_state: &UserState,
-    ) -> Result<UpdateProof<H>, SeemlessError> {
+    ) -> Result<UpdateProof<H>, VkdError> {
         let epoch = user_state.epoch;
         let plaintext_value = &user_state.plaintext_val;
         let version = &user_state.version;
@@ -329,7 +334,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         &self,
         current_azks: &Azks<H, S>,
         epoch: u64,
-    ) -> Result<H::Digest, SeemlessError> {
+    ) -> Result<H::Digest, VkdError> {
         Ok(current_azks
             .get_root_hash_at_epoch(&self.storage, epoch)
             .await?)
@@ -338,7 +343,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     pub async fn get_root_hash(
         &self,
         current_azks: &Azks<H, S>,
-    ) -> Result<H::Digest, SeemlessError> {
+    ) -> Result<H::Digest, VkdError> {
         self.get_root_hash_at_epoch(current_azks, self.current_epoch)
             .await
     }
@@ -378,7 +383,7 @@ pub async fn get_key_history_hashes<
 >(
     seemless_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
-) -> Result<KeyHistoryHelper<H::Digest>, SeemlessError> {
+) -> Result<KeyHistoryHelper<H::Digest>, VkdError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
 
     let mut root_hashes = Vec::<H::Digest>::new();
@@ -426,14 +431,14 @@ mod tests {
     // FIXME: #[test]
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_publish() -> Result<(), SeemlessError> {
+    async fn test_simple_publish() -> Result<(), VkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
             Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![(
-                Username("hello".to_string()),
+                VkdKey("hello".to_string()),
                 Values("world".to_string()),
             )])
             .await?;
@@ -442,116 +447,116 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_simiple_lookup() -> Result<(), SeemlessError> {
+    async fn test_simiple_lookup() -> Result<(), VkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
             Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
+                (VkdKey("hello".to_string()), Values("world".to_string())),
+                (VkdKey("hello2".to_string()), Values("world2".to_string())),
             ])
             .await?;
 
-        let lookup_proof = seemless.lookup(Username("hello".to_string())).await?;
+        let lookup_proof = seemless.lookup(VkdKey("hello".to_string())).await?;
         let current_azks = seemless.retrieve_current_azks().await?;
         let root_hash = seemless.get_root_hash(&current_azks).await?;
         lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
-            Username("hello".to_string()),
+            VkdKey("hello".to_string()),
             lookup_proof,
         )?;
         Ok(())
     }
 
     #[actix_rt::test]
-    async fn test_simple_key_history() -> Result<(), SeemlessError> {
+    async fn test_simple_key_history() -> Result<(), VkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
             Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
+                (VkdKey("hello".to_string()), Values("world".to_string())),
+                (VkdKey("hello2".to_string()), Values("world2".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello".to_string()), Values("world3".to_string())),
-                (Username("hello2".to_string()), Values("world4".to_string())),
+                (VkdKey("hello".to_string()), Values("world3".to_string())),
+                (VkdKey("hello2".to_string()), Values("world4".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello3".to_string()), Values("world".to_string())),
-                (Username("hello4".to_string()), Values("world2".to_string())),
+                (VkdKey("hello3".to_string()), Values("world".to_string())),
+                (VkdKey("hello4".to_string()), Values("world2".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![(
-                Username("hello".to_string()),
+                VkdKey("hello".to_string()),
                 Values("world_updated".to_string()),
             )])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello3".to_string()), Values("world6".to_string())),
+                (VkdKey("hello3".to_string()), Values("world6".to_string())),
                 (
-                    Username("hello4".to_string()),
+                    VkdKey("hello4".to_string()),
                     Values("world12".to_string()),
                 ),
             ])
             .await?;
 
-        let history_proof = seemless.key_history(&Username("hello".to_string())).await?;
+        let history_proof = seemless.key_history(&VkdKey("hello".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            Username("hello".to_string()),
+            VkdKey("hello".to_string()),
             history_proof,
         )?;
 
         let history_proof = seemless
-            .key_history(&Username("hello2".to_string()))
+            .key_history(&VkdKey("hello2".to_string()))
             .await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            Username("hello2".to_string()),
+            VkdKey("hello2".to_string()),
             history_proof,
         )?;
 
         let history_proof = seemless
-            .key_history(&Username("hello3".to_string()))
+            .key_history(&VkdKey("hello3".to_string()))
             .await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            Username("hello3".to_string()),
+            VkdKey("hello3".to_string()),
             history_proof,
         )?;
 
         let history_proof = seemless
-            .key_history(&Username("hello4".to_string()))
+            .key_history(&VkdKey("hello4".to_string()))
             .await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            Username("hello4".to_string()),
+            VkdKey("hello4".to_string()),
             history_proof,
         )?;
 
@@ -560,44 +565,44 @@ mod tests {
 
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_audit() -> Result<(), SeemlessError> {
+    async fn test_simple_audit() -> Result<(), VkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
             Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
+                (VkdKey("hello".to_string()), Values("world".to_string())),
+                (VkdKey("hello2".to_string()), Values("world2".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello".to_string()), Values("world3".to_string())),
-                (Username("hello2".to_string()), Values("world4".to_string())),
+                (VkdKey("hello".to_string()), Values("world3".to_string())),
+                (VkdKey("hello2".to_string()), Values("world4".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello3".to_string()), Values("world".to_string())),
-                (Username("hello4".to_string()), Values("world2".to_string())),
+                (VkdKey("hello3".to_string()), Values("world".to_string())),
+                (VkdKey("hello4".to_string()), Values("world2".to_string())),
             ])
             .await?;
 
         seemless
             .publish(vec![(
-                Username("hello".to_string()),
+                VkdKey("hello".to_string()),
                 Values("world_updated".to_string()),
             )])
             .await?;
 
         seemless
             .publish(vec![
-                (Username("hello3".to_string()), Values("world6".to_string())),
+                (VkdKey("hello3".to_string()), Values("world6".to_string())),
                 (
-                    Username("hello4".to_string()),
+                    VkdKey("hello4".to_string()),
                     Values("world12".to_string()),
                 ),
             ])

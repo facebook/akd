@@ -59,25 +59,25 @@ pub trait Storage: Clone {
     /// Add a user state element to the associated user
     async fn append_user_state(
         &self,
-        username: &types::Username,
+        username: &types::VkdKey,
         value: &types::UserState,
     ) -> Result<(), StorageError>;
 
     async fn append_user_states(
         &self,
-        values: Vec<(types::Username, types::UserState)>,
+        values: Vec<(types::VkdKey, types::UserState)>,
     ) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
     async fn get_user_data(
         &self,
-        username: &types::Username,
+        username: &types::VkdKey,
     ) -> Result<types::UserData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
-        username: &types::Username,
+        username: &types::VkdKey,
         flag: types::UserStateRetrievalFlag,
     ) -> Result<types::UserState, StorageError>;
 

@@ -68,7 +68,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     pub async fn new<R: CryptoRng + RngCore>(
         storage: &S,
         rng: &mut R,
-    ) -> Result<Self, SeemlessError> {
+    ) -> Result<Self, VkdError> {
         let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
 
@@ -93,7 +93,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         label: NodeLabel,
         value: H::Digest,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), VkdError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
@@ -128,7 +128,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         &mut self,
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), VkdError> {
         self.batch_insert_leaves_helper(storage, insertion_set, false)
             .await
     }
@@ -138,7 +138,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), VkdError> {
         self.increment_epoch();
 
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
@@ -218,7 +218,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<MembershipProof<H>, SeemlessError> {
+    ) -> Result<MembershipProof<H>, VkdError> {
         // Regular Merkle membership proof for the trie as it stood at epoch
         // Assumes the verifier as access to the root at epoch
         let (pf, _) = self
@@ -232,7 +232,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<NonMembershipProof<H>, SeemlessError> {
+    ) -> Result<NonMembershipProof<H>, VkdError> {
         // In a compressed trie, the proof consists of the longest prefix
         // of the label that is included in the trie, as well as its children, to show that
         // none of the children is equal to the given label.
@@ -280,7 +280,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+    ) -> Result<AppendOnlyProof<H>, VkdError> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
@@ -301,7 +301,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         node: HistoryTreeNode<H, S>,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyHelper<H::Digest>, SeemlessError> {
+    ) -> Result<AppendOnlyHelper<H::Digest>, VkdError> {
         let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
         let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
         if node.get_latest_epoch()? <= start_epoch {
@@ -359,7 +359,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         &self,
         storage: &S,
         start_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+    ) -> Result<AppendOnlyProof<H>, VkdError> {
         // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
@@ -399,7 +399,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, usize), SeemlessError> {
+    ) -> Result<(MembershipProof<H>, usize), VkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
@@ -418,13 +418,13 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
+            let direction = dir.ok_or(VkdError::NoDirectionError)?;
             let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state.dummy_marker == DummyChildState::Dummy {
                 break;
             }
             for i in 0..ARITY {
-                if i != dir.ok_or(SeemlessError::NoDirectionError)? {
+                if i != dir.ok_or(VkdError::NoDirectionError)? {
                     labels[count] = curr_state.child_states[i].label;
                     hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
                     count += 1;
@@ -494,7 +494,7 @@ mod tests {
     type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
     #[actix_rt::test]
-    async fn test_batch_insert_basic() -> Result<(), SeemlessError> {
+    async fn test_batch_insert_basic() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
@@ -525,7 +525,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_insert_permuted() -> Result<(), SeemlessError> {
+    async fn test_insert_permuted() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
@@ -558,7 +558,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_permuted() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_permuted() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_failing() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_failing() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -629,7 +629,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_intermediate() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_intermediate() -> Result<(), VkdError> {
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -650,7 +650,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_nonmembership_proof() -> Result<(), SeemlessError> {
+    async fn test_nonmembership_proof() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -679,7 +679,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_very_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_very_tiny() -> Result<(), VkdError> {
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
@@ -702,7 +702,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_tiny() -> Result<(), VkdError> {
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
@@ -727,7 +727,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 

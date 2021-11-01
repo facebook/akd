@@ -17,7 +17,7 @@ pub enum StorageType {
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Username(pub String);
+pub struct VkdKey(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]

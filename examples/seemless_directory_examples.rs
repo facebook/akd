@@ -12,7 +12,7 @@ use vkd::auditor::audit_verify;
 use vkd::client::{key_history_verify, lookup_verify};
 use vkd::directory::{get_key_history_hashes, Directory};
 use vkd::storage::memory::AsyncInMemoryDbWithCache;
-use vkd::storage::types::{Username, Values};
+use vkd::storage::types::{VkdKey, Values};
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
@@ -20,10 +20,10 @@ use winter_math::fields::f128::BaseElement;
 fn create_usernames_and_values(
     num_insertions: usize,
     mut rng: ThreadRng,
-) -> Vec<(Username, Values)> {
-    let mut updates = Vec::<(Username, Values)>::new();
+) -> Vec<(VkdKey, Values)> {
+    let mut updates = Vec::<(VkdKey, Values)>::new();
     for _ in 0..num_insertions {
-        let username = Username::random(&mut rng);
+        let username = VkdKey::random(&mut rng);
         let val = Values::random(&mut rng);
         updates.push((username, val));
     }
@@ -31,11 +31,11 @@ fn create_usernames_and_values(
 }
 
 fn create_random_subset_of_existing_users(
-    existing_users: Vec<Username>,
+    existing_users: Vec<VkdKey>,
     subset_size: usize,
     mut rng: ThreadRng,
-) -> Vec<(Username, Values)> {
-    let mut user_subset = Vec::<(Username, Values)>::new();
+) -> Vec<(VkdKey, Values)> {
+    let mut user_subset = Vec::<(VkdKey, Values)>::new();
     let mut actual_subset_size = subset_size;
     if existing_users.len() < subset_size {
         actual_subset_size = existing_users.len();
@@ -55,7 +55,7 @@ fn create_random_subset_of_existing_users(
 async fn main() {
     let num_init_insertions = 1000;
 
-    let mut existing_usernames = Vec::<Username>::new();
+    let mut existing_usernames = Vec::<VkdKey>::new();
 
     let db = AsyncInMemoryDbWithCache::new();
     let mut seemless_dir = Directory::<AsyncInMemoryDbWithCache, Blake3_256<BaseElement>>::new(&db)
@@ -73,7 +73,7 @@ async fn main() {
         .clone()
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<Username>>();
+        .collect::<Vec<VkdKey>>();
     existing_usernames.append(&mut new_usernames);
 
     let num_new_insertions = 10;
@@ -95,7 +95,7 @@ async fn main() {
         .clone()
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<Username>>();
+        .collect::<Vec<VkdKey>>();
     existing_usernames.append(&mut new_usernames);
 
     let new_epochs = 5;
@@ -114,7 +114,7 @@ async fn main() {
             .clone()
             .iter()
             .map(|x| x.0.clone())
-            .collect::<Vec<Username>>();
+            .collect::<Vec<VkdKey>>();
         existing_usernames.append(&mut new_usernames);
     }
 

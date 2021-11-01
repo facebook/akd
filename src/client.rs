@@ -9,23 +9,23 @@ use winter_crypto::Hasher;
 
 use crate::{
     directory::get_marker_version,
-    errors::{AzksError, SeemlessDirectoryError, SeemlessError},
+    errors::{AzksError, DirectoryError, VkdError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
-    storage::types::Username,
+    storage::types::VkdKey,
     Direction, ARITY,
 };
 
 pub fn verify_membership<H: Hasher>(
     root_hash: H::Digest,
     proof: &MembershipProof<H>,
-) -> Result<(), SeemlessError> {
+) -> Result<(), VkdError> {
     if proof.label.len == 0 {
         let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
         if final_hash == root_hash {
             return Ok(());
         } else {
-            return Err(SeemlessError::AzksErr(
+            return Err(VkdError::AzksErr(
                 AzksError::MembershipProofDidNotVerify(
                     "Membership proof for root did not verify".to_string(),
                 ),
@@ -45,7 +45,7 @@ pub fn verify_membership<H: Hasher>(
     if final_hash == root_hash {
         Ok(())
     } else {
-        return Err(SeemlessError::AzksErr(
+        return Err(VkdError::AzksErr(
             AzksError::MembershipProofDidNotVerify(format!(
                 "Membership proof for label {:?} did not verify",
                 proof.label
@@ -57,7 +57,7 @@ pub fn verify_membership<H: Hasher>(
 pub fn verify_nonmembership<H: Hasher>(
     root_hash: H::Digest,
     proof: &NonMembershipProof<H>,
-) -> Result<bool, SeemlessError> {
+) -> Result<bool, VkdError> {
     let mut verified = true;
     let mut lcp_hash = H::hash(&[]);
     let mut lcp_real = proof.longest_prefix_children_labels[0];
@@ -84,9 +84,9 @@ pub fn verify_nonmembership<H: Hasher>(
 
 pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
-    _uname: Username,
+    _uname: VkdKey,
     proof: LookupProof<H>,
-) -> Result<(), SeemlessError> {
+) -> Result<(), VkdError> {
     let _epoch = proof.epoch;
 
     let _plaintext_value = proof.plaintext_value;
@@ -134,9 +134,9 @@ pub fn lookup_verify<H: Hasher>(
 pub fn key_history_verify<H: Hasher>(
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
-    uname: Username,
+    uname: VkdKey,
     proof: HistoryProof<H>,
-) -> Result<(), SeemlessError> {
+) -> Result<(), VkdError> {
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
@@ -149,8 +149,8 @@ pub fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
-    uname: &Username,
-) -> Result<(), SeemlessError> {
+    uname: &VkdKey,
+) -> Result<(), VkdError> {
     let epoch = proof.epoch;
     let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
@@ -185,8 +185,8 @@ pub fn verify_single_update_proof<H: Hasher>(
             (version - 1),
             epoch
         );
-        let previous_null_err = SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::KeyHistoryVerificationErr(err_str),
+        let previous_null_err = VkdError::DirectoryErr(
+            DirectoryError::KeyHistoryVerificationErr(err_str),
         );
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
@@ -194,10 +194,10 @@ pub fn verify_single_update_proof<H: Hasher>(
     }
 
     if epoch > 1 {
-        let root_hash = previous_root_hash.ok_or(SeemlessError::NoEpochGiven)?;
+        let root_hash = previous_root_hash.ok_or(VkdError::NoEpochGiven)?;
         verify_nonmembership(
             root_hash,
-            non_existence_before_ep.as_ref().ok_or_else(|| SeemlessError::SeemlessDirectoryErr(SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+            non_existence_before_ep.as_ref().ok_or_else(|| VkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(format!(
                 "Non-existence before this epoch proof of user {:?}'s version {:?} at epoch {:?} is None",
                 uname,
                 version,
@@ -211,8 +211,8 @@ pub fn verify_single_update_proof<H: Hasher>(
     for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
         let pf = &proof.non_existence_of_next_few[i];
         if !verify_nonmembership(root_hash, pf)? {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(
+            return Err(VkdError::DirectoryErr(
+                DirectoryError::KeyHistoryVerificationErr(
                     format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     uname, ver, epoch-1))));
         }
@@ -222,8 +222,8 @@ pub fn verify_single_update_proof<H: Hasher>(
         let ver = 1 << pow;
         let pf = &proof.non_existence_of_future_markers[i];
         if !verify_nonmembership(root_hash, pf)? {
-            return Err(SeemlessError::SeemlessDirectoryErr(
-                SeemlessDirectoryError::KeyHistoryVerificationErr(
+            return Err(VkdError::DirectoryErr(
+                DirectoryError::KeyHistoryVerificationErr(
                     format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     uname, ver, epoch-1))));
         }
@@ -237,8 +237,8 @@ fn build_and_hash_layer<H: Hasher>(
     dir: Direction,
     ancestor_hash: H::Digest,
     parent_label: NodeLabel,
-) -> Result<H::Digest, SeemlessError> {
-    let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
+) -> Result<H::Digest, VkdError> {
+    let direction = dir.ok_or(VkdError::NoDirectionError)?;
     let mut hashes_as_vec = hashes.to_vec();
     hashes_as_vec.insert(direction, ancestor_hash);
     Ok(hash_layer::<H>(hashes_as_vec, parent_label))

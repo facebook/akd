@@ -5,12 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Note that the proofs [`AppendOnlyProof`], [`MembershipProof`] and [`NonMembershipProof`] are Merkle Patricia tree proofs,
+//! while the proofs [`HistoryProof`] and [`LookupProof`] are VKD proofs.
+
 use winter_crypto::Hasher;
 
 use crate::{node_state::NodeLabel, storage::types::Values, Direction, ARITY};
-
-/// Note that the proofs [`AppendOnlyProof`], [`MembershipProof`] and [`NonMembershipProof`] are Merkle Patricia tree proofs,
-/// while the proofs [`HistoryProof`] and [`LookupProof`] are VKD proofs.
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.

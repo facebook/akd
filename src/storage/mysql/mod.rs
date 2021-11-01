@@ -7,7 +7,7 @@
 
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, VkdKey};
 use crate::storage::Storage;
 use async_trait::async_trait;
 use mysql_async::prelude::*;
@@ -382,7 +382,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn append_user_state(
         &self,
-        username: &Username,
+        username: &VkdKey,
         value: &UserState,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
@@ -417,7 +417,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn append_user_states(
         &self,
-        values: Vec<(Username, UserState)>,
+        values: Vec<(VkdKey, UserState)>,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
@@ -469,7 +469,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_user_data(
         &self,
-        username: &Username,
+        username: &VkdKey,
     ) -> core::result::Result<UserData, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
@@ -507,7 +507,7 @@ impl Storage for AsyncMySqlDatabase {
     }
     async fn get_user_state(
         &self,
-        username: &Username,
+        username: &VkdKey,
         flag: UserStateRetrievalFlag,
     ) -> core::result::Result<UserState, StorageError> {
         let result = async {
