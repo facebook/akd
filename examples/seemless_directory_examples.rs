@@ -1,20 +1,21 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
 
-use seemless::seemless_auditor::audit_verify;
-use seemless::seemless_client::{key_history_verify, lookup_verify};
-use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory, Username, Values};
+use vkd::auditor::audit_verify;
+use vkd::client::{key_history_verify, lookup_verify};
+use vkd::directory::{get_key_history_hashes, Directory};
+use vkd::storage::memory::r#async::AsyncInMemoryDbWithCache;
+use vkd::storage::types::{Username, Values};
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
-
-pub mod measurements;
-use measurements::*;
 
 fn create_usernames_and_values(
     num_insertions: usize,
@@ -50,20 +51,23 @@ fn create_random_subset_of_existing_users(
     user_subset
 }
 
-fn main() {
-    let num_init_insertions = 50;
+#[tokio::main]
+async fn main() {
+    let num_init_insertions = 1000;
 
     let mut existing_usernames = Vec::<Username>::new();
 
-    let mut seemless_dir =
-        SeemlessDirectory::<InMemoryDbWithCache, Blake3_256<BaseElement>>::new().unwrap();
+    let db = AsyncInMemoryDbWithCache::new();
+    let mut seemless_dir = Directory::<AsyncInMemoryDbWithCache, Blake3_256<BaseElement>>::new(&db)
+        .await
+        .unwrap();
 
     // Populating the updates
     let rng: ThreadRng = thread_rng();
     let mut updates = create_usernames_and_values(num_init_insertions, rng);
 
     // Publishing updated set with an initial set of users
-    seemless_dir.publish(updates.clone()).unwrap();
+    seemless_dir.publish(updates.clone()).await.unwrap();
 
     let mut new_usernames = updates
         .clone()
@@ -82,11 +86,11 @@ fn main() {
     );
     println!("*********************************************************************************");
     // Publish measurement
-    clear_stats();
-    seemless_dir.publish(updates.clone()).unwrap();
+    db.clear_stats();
+    seemless_dir.publish(updates.clone()).await.unwrap();
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
     new_usernames = updates
         .clone()
         .iter()
@@ -105,7 +109,7 @@ fn main() {
         updates =
             create_random_subset_of_existing_users(existing_usernames.clone(), num_updates, rng);
         updates.append(&mut new_users);
-        seemless_dir.publish(updates.clone()).unwrap();
+        seemless_dir.publish(updates.clone()).await.unwrap();
         new_usernames = new_users
             .clone()
             .iter()
@@ -122,22 +126,24 @@ fn main() {
     println!("* Measurements for looking up and verifying lookups for {} users in a directory of {} existing users *", num_lookups, existing_usernames.len());
     println!("*****************************************************************************************************");
     // Lookup and verification of lookup measurement
-    clear_stats();
+    db.clear_stats();
+
+    let current_azks = seemless_dir.retrieve_current_azks().await.unwrap();
 
     for i in 0..num_lookups {
         // Get a new lookup proof for the current user
-        let new_lookup_proof = seemless_dir.lookup(lookup_set[i].0.clone()).unwrap();
+        let new_lookup_proof = seemless_dir.lookup(lookup_set[i].0.clone()).await.unwrap();
         // Verify this lookup proof
         lookup_verify::<Blake3_256<BaseElement>>(
-            seemless_dir.get_root_hash().unwrap(),
+            seemless_dir.get_root_hash(&current_azks).await.unwrap(),
             lookup_set[i].0.clone(),
             new_lookup_proof,
         )
         .unwrap();
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 
     let num_key_history = 10;
     let rng: ThreadRng = thread_rng();
@@ -147,14 +153,19 @@ fn main() {
     println!("* Measurements for running and verifying key history of {} users in a directory of {} existing users *", num_key_history, existing_usernames.len());
     println!("******************************************************************************************************");
     // Key history and verification measurement
-    clear_stats();
+    db.clear_stats();
 
     for i in 0..num_key_history {
         // Get a new lookup proof for the current user
-        let new_history_proof = seemless_dir.key_history(&key_history_set[i].0).unwrap();
+        let new_history_proof = seemless_dir
+            .key_history(&key_history_set[i].0)
+            .await
+            .unwrap();
         // Verify this lookup proof
         let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&seemless_dir, &new_history_proof).unwrap();
+            get_key_history_hashes(&seemless_dir, &new_history_proof)
+                .await
+                .unwrap();
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
@@ -164,30 +175,39 @@ fn main() {
         .unwrap();
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 
     let total_ep = new_epochs + 2;
     println!("*************************************************************************************************");
     println!("* Measurements for running and verifying audit of {} epochs in a directory of {} existing users *", total_ep, existing_usernames.len());
     println!("*************************************************************************************************");
     // Key history and verification measurement
-    clear_stats();
+    db.clear_stats();
+
+    let current_azks = seemless_dir.retrieve_current_azks().await.unwrap();
 
     for i in 1..total_ep {
         for j in i..total_ep {
             // Get a new lookup proof for the current user
-            let audit_proof = seemless_dir.audit(i, j).unwrap();
+            let audit_proof = seemless_dir.audit(i, j).await.unwrap();
             // Verify this lookup proof
             audit_verify::<Blake3_256<BaseElement>>(
-                seemless_dir.get_root_hash_at_epoch(i).unwrap(),
-                seemless_dir.get_root_hash_at_epoch(j).unwrap(),
+                seemless_dir
+                    .get_root_hash_at_epoch(&current_azks, i)
+                    .await
+                    .unwrap(),
+                seemless_dir
+                    .get_root_hash_at_epoch(&current_azks, j)
+                    .await
+                    .unwrap(),
                 audit_proof,
             )
+            .await
             .unwrap();
         }
     }
 
-    print_hashmap_distribution();
-    print_stats();
+    db.print_hashmap_distribution();
+    db.print_stats();
 }
