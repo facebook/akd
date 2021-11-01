@@ -5,8 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use seemless::seemless_directory::SeemlessDirectory;
-use seemless::storage::mysql::AsyncMySqlDatabase;
+use vkd::directory::Directory;
+use vkd::storage::mysql::AsyncMySqlDatabase;
 use std::io::*;
 use std::time::Duration;
 use tokio::sync::mpsc::*;
@@ -32,7 +32,7 @@ async fn main() {
     .await;
 
     let mut directory =
-        SeemlessDirectory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
+        Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
             .await
             .unwrap();
     tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });

@@ -5,10 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use seemless::seemless_directory::SeemlessDirectory;
-use seemless::storage::types::*;
-use seemless::storage::Storage;
-use seemless::SeemlessError;
+use vkd::directory::Directory;
+use vkd::storage::types::*;
+use vkd::storage::Storage;
+use vkd::SeemlessError;
 use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
 
@@ -27,7 +27,7 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, H>(directory: &mut SeemlessDirectory<S, H>, o_epoch: Option<u64>)
+async fn get_root_hash<S, H>(directory: &mut Directory<S, H>, o_epoch: Option<u64>)
 -> Option<Result<H::Digest, SeemlessError>>
 where
     S: Storage + Sync + Send,
@@ -43,7 +43,7 @@ where
     }
 }
 
-pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut SeemlessDirectory<S, H>)
+pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, H>)
 where
     S: Storage + Sync + Send,
     H: Hasher + Send,
@@ -76,7 +76,7 @@ where
                         let hash = get_root_hash(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let verification = seemless::seemless_client::lookup_verify(root_hash, Username(a.clone()), proof);
+                                let verification = vkd::client::lookup_verify(root_hash, Username(a.clone()), proof);
                                 if verification.is_err() {
                                     let msg = format!("WARN: Lookup proof failed verification for '{}'", a);
                                     response.send(Ok(msg)).unwrap();
