@@ -17,7 +17,7 @@ use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
 type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-type InMemoryDb = vkd::storage::memory::r#async::AsyncInMemoryDatabase;
+type InMemoryDb = vkd::storage::memory::AsyncInMemoryDatabase;
 
 fn single_insertion(c: &mut Criterion) {
     let num_nodes = 1000;

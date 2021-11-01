@@ -6,6 +6,7 @@
 // of this source tree.
 
 use crate::serialization::from_digest;
+use crate::storage::types::StorageType;
 use crate::storage::{Storable, Storage};
 use crate::{Direction, ARITY};
 use serde::{Deserialize, Serialize};
@@ -113,13 +114,13 @@ pub struct HistoryNodeState<H, S> {
 
 // parameters are azks_id, node location, and epoch
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub(crate) Vec<u8>, pub(crate) NodeLabel, pub(crate) usize);
+pub struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
 
 impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
     type Key = NodeStateKey;
 
-    fn identifier() -> String {
-        String::from("HistoryNodeState")
+    fn data_type() -> StorageType {
+        StorageType::HistoryNodeState
     }
 }
 
@@ -195,8 +196,8 @@ pub struct ChildStateKey(
 impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
     type Key = ChildStateKey;
 
-    fn identifier() -> String {
-        String::from("HistoryChildState")
+    fn data_type() -> StorageType {
+        StorageType::HistoryChildState
     }
 }
 

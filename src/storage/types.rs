@@ -8,12 +8,20 @@
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
 
+#[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
+pub enum StorageType {
+    Azks = 1,
+    HistoryTreeNode = 2,
+    HistoryNodeState = 3,
+    HistoryChildState = 4,
+}
+
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Username(pub(crate) String);
+pub struct Username(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
-pub struct Values(pub(crate) String);
+pub struct Values(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
@@ -50,8 +58,18 @@ pub struct UserData {
 pub enum UserStateRetrievalFlag {
     SpecificVersion(u64),
     SpecificEpoch(u64),
+    LeqEpoch(u64),
     MaxEpoch,
     MaxVersion,
     MinEpoch,
     MinVersion,
 }
+
+// == New Data Retrieval Logic == //
+
+// pub(crate) enum DbRecord<H, S> {
+//     Azks(crate::append_only_zks::Azks<H, S>),
+//     HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H, S>),
+//     HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),
+//     HistoryChildState(crate::node_state::HistoryChildState<H, S>),
+// }

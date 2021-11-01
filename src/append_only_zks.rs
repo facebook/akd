@@ -13,6 +13,8 @@ use crate::{
 };
 
 use crate::serialization::to_digest;
+
+use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use rand::{CryptoRng, RngCore};
@@ -27,7 +29,7 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 #[serde(bound = "")]
 pub struct Azks<H, S> {
     /// Random identifier for the AZKS instance
-    azks_id: Vec<u8>,
+    azks_id: [u8; 32],
     root: usize,
     latest_epoch: u64,
     num_nodes: usize, // The size of the tree
@@ -37,13 +39,13 @@ pub struct Azks<H, S> {
 
 // parameter is azks_id
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct AzksKey(pub(crate) Vec<u8>);
+pub struct AzksKey(pub(crate) [u8; 32]);
 
 impl<H: Hasher, S: Storage> Storable for Azks<H, S> {
     type Key = AzksKey;
 
-    fn identifier() -> String {
-        String::from("Azks")
+    fn data_type() -> StorageType {
+        StorageType::Azks
     }
 }
 
@@ -52,7 +54,7 @@ unsafe impl<H: Hasher, S: Storage> Sync for Azks<H, S> {}
 impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     fn clone(&self) -> Self {
         Self {
-            azks_id: self.azks_id.clone(),
+            azks_id: self.azks_id,
             root: self.root,
             latest_epoch: self.latest_epoch,
             num_nodes: self.num_nodes,
@@ -67,7 +69,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         storage: &S,
         rng: &mut R,
     ) -> Result<Self, SeemlessError> {
-        let mut azks_id = vec![0u8; 32];
+        let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
 
         let root = get_empty_root::<H, S>(storage, &azks_id, Option::Some(0)).await?;
@@ -107,7 +109,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         .await?;
 
         let mut root_node = storage
-            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.root))
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
             .await?;
         root_node
             .insert_single_leaf(
@@ -142,7 +144,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = storage
-            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.root))
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
             .await?;
         for (label, value) in insertion_set {
             let new_leaf_loc = self.num_nodes;
@@ -190,7 +192,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
 
             let mut next_node = storage
-                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), next_node_loc))
+                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, next_node_loc))
                 .await?;
 
             next_node.update_hash(storage, self.latest_epoch).await?;
@@ -239,7 +241,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
         let lcp_node = storage
-            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), lcp_node_id))
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, lcp_node_id))
             .await?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
@@ -248,7 +250,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
 
         for (i, child) in state.child_states.iter().enumerate() {
             let unwrapped_child: HistoryTreeNode<H, S> = storage
-                .retrieve(NodeKey(self.azks_id.clone(), child.location))
+                .retrieve(NodeKey(self.azks_id, child.location))
                 .await?;
             longest_prefix_children_labels[i] = unwrapped_child.label;
             longest_prefix_children_values[i] = unwrapped_child
@@ -282,9 +284,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = storage
-            .retrieve(NodeKey(self.azks_id.clone(), self.root))
-            .await?;
+        let node = storage.retrieve(NodeKey(self.azks_id, self.root)).await?;
         let (unchanged, leaves) = self
             .get_append_only_proof_helper(storage, node, start_epoch, end_epoch)
             .await?;
@@ -340,7 +340,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 } else {
                     let child_node = storage
                         .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
-                            self.azks_id.clone(),
+                            self.azks_id,
                             child_node_state.location,
                         ))
                         .await?;
@@ -380,7 +380,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
         let root_node = storage
-            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.root))
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
             .await?;
         root_node.get_value_at_epoch(storage, epoch).await
     }
@@ -405,7 +405,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
         let mut curr_node = storage
-            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id.clone(), self.root))
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
             .await?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
@@ -419,8 +419,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
             let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
-            let next_state = curr_node.get_state_at_epoch(storage, epoch).await;
-            let next_state = next_state.map(|curr| curr.get_child_state_in_dir(direction))?;
+            let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state.dummy_marker == DummyChildState::Dummy {
                 break;
             }
@@ -435,7 +434,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             sibling_hashes.push(hashes);
             let new_curr_node = storage
                 .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
-                    self.azks_id.clone(),
+                    self.azks_id,
                     curr_node
                         .get_child_location_at_epoch(storage, epoch, dir)
                         .await?,
@@ -446,9 +445,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             equal = label == curr_node.label;
         }
         if !equal {
-            let new_curr_node = storage
-                .retrieve(NodeKey(self.azks_id.clone(), prev_node))
-                .await?;
+            let new_curr_node = storage.retrieve(NodeKey(self.azks_id, prev_node)).await?;
             curr_node = new_curr_node;
 
             parent_labels.pop();
@@ -474,8 +471,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         ))
     }
 
-    pub fn get_azks_id(&self) -> &[u8] {
-        &self.azks_id
+    pub fn get_azks_id(&self) -> [u8; 32] {
+        self.azks_id
     }
 }
 
@@ -487,7 +484,7 @@ mod tests {
     use crate::{
         auditor::verify_append_only,
         client::{verify_membership, verify_nonmembership},
-        storage::memory::r#async::AsyncInMemoryDatabase,
+        storage::memory::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
     use winter_crypto::hashers::Blake3_256;
