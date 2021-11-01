@@ -7,10 +7,11 @@
 
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
-use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::SyncStorage;
-use mysql::prelude::*;
-use mysql::*;
+use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::Storage;
+use async_trait::async_trait;
+use mysql_async::prelude::*;
+use mysql_async::*;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
@@ -20,21 +21,20 @@ const USER_TABLE: &str = "user_data";
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
 
-pub mod r#async;
-
 /*
-    MySql documentation: https://docs.rs/mysql/21.0.2/mysql/
+    MySql documentation: https://docs.rs/mysql_async/0.28.1/mysql_async/
 */
 
-pub(crate) struct MySqlDatabase {
+/// Represents an _asynchronous_ connection to a MySQL database
+pub struct AsyncMySqlDatabase {
     opts: Opts,
-    pool: Arc<Mutex<Pool>>,
+    pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<Mutex<bool>>,
 }
 
-impl MySqlDatabase {
+impl AsyncMySqlDatabase {
     #[allow(unused)]
-    pub fn new<T: Into<String>>(
+    pub async fn new<T: Into<String>>(
         endpoint: T,
         database: T,
         user: Option<T>,
@@ -42,38 +42,78 @@ impl MySqlDatabase {
         port: Option<u16>,
     ) -> Self {
         let dport = port.unwrap_or(1u16);
-        let opts: Opts = OptsBuilder::new()
-            .ip_or_hostname(Option::from(endpoint))
+        let opts: Opts = OptsBuilder::default()
+            .ip_or_hostname(endpoint)
             .db_name(Option::from(database))
             .user(user)
             .pass(password)
             .tcp_port(dport)
             .into();
+
         #[allow(clippy::mutex_atomic)]
         let healthy = Arc::new(Mutex::new(false));
-        let pool = Self::new_connection_pool(&opts, &healthy).unwrap();
+        let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
         Self {
             opts,
-            pool: Arc::new(Mutex::new(pool)),
+            pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
         }
     }
 
-    /// Get a connection to the database
-    fn get_connection(&self) -> core::result::Result<mysql::PooledConn, mysql::Error> {
+    /// Determine if the db connection is healthy at present
+    pub fn is_healthy(&self) -> bool {
+        let is_healthy_guard = self.is_healthy.lock().unwrap();
+        *is_healthy_guard
+    }
+
+    fn check_for_infra_error<T>(
+        &self,
+        result: core::result::Result<T, mysql_async::Error>,
+    ) -> core::result::Result<T, mysql_async::Error> {
+        match result {
+            Err(err) => {
+                let is_connection_infra_error: bool = match &err {
+                    mysql_async::Error::Other(_) | mysql_async::Error::Url(_) => false,
+
+                    mysql_async::Error::Driver(_)
+                    | mysql_async::Error::Io(_)
+                    | mysql_async::Error::Server(_) => true,
+                };
+
+                // If error is due to infra error (e.g bad connection) refresh
+                // connection pool in background. This allows current request to
+                // finish (with err) while blocking subsequent requests until a
+                // healthy connection is restored.
+                if is_connection_infra_error {
+                    let db = self.clone();
+                    tokio::task::spawn(async move {
+                        if let Err(err) = db.refresh_connection_pool().await {
+                            println!("Error: Error refreshing MySql connection pool: {:?}", err);
+                        }
+                    });
+                }
+
+                Err::<T, mysql_async::Error>(err)
+            }
+            Ok(t) => Ok(t),
+        }
+    }
+
+    async fn get_connection(&self) -> Result<mysql_async::Conn> {
         let /*mut*/ connection = {
             if self.is_healthy() {
-                let connection_pool_guard = self.pool.lock().unwrap();
+                let connection_pool_guard = self.pool.read().await;
                 let connection_pool: &Pool = &*connection_pool_guard;
-                connection_pool.get_conn()?
+
+                connection_pool.get_conn().await?
             } else {
                 // Connection pool is currently unhealthy and queries are
                 // disallowed. Connection pool is being async refreshed in
                 // background and will soon become healthy, so no action required
 
                 // fail the connection
-                return Err(mysql::Error::DriverError(mysql::DriverError::SetupError));
+                return Err(mysql_async::Error::Driver(mysql_async::DriverError::PoolDisconnected));
             }
         };
 
@@ -82,16 +122,49 @@ impl MySqlDatabase {
         // // large blob entries instead of truncating them with a warning.
         // // This is essential for our system, since SEE relies on all data in our
         // // XDB being exactly what it wrote.
-        // connection.query("SET SESSION sql_mode = 'TRADITIONAL'")?;
+        // connection.query("SET SESSION sql_mode = 'TRADITIONAL'").await?;
 
         Ok(connection)
+    }
+
+    async fn setup_database(
+        conn: &mut mysql_async::Conn,
+    ) -> core::result::Result<(), mysql_async::Error> {
+        let mut tx = conn.start_transaction(TxOpts::default()).await?;
+        let result = async {
+            // main data table (for all tree nodes, etc)
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+                + TABLE
+                + "` (`key` VARCHAR(512) NOT NULL, `type` SMALLINT UNSIGNED NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`, `type`)"
+                + ")";
+
+            tx.query_drop(command).await?;
+
+            // user data table
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned() + USER_TABLE + "`"
+                + " (`username` VARCHAR(512) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
+                + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+                + " PRIMARY KEY(`username`, `epoch`)"
+                + " )";
+            tx.query_drop(command).await?;
+
+            Ok::<(), mysql_async::Error>(())
+        };
+
+        if let Err(err) = result.await {
+            tx.rollback().await?;
+            return Err(err);
+        }
+
+        tx.commit().await?;
+        Ok(())
     }
 
     // Occasionally our connection pool will become stale. This happens
     // e.g on DB master promotions during mysql upgrades. In these scenarios our
     // queries will begin to fail, and we will need to call this method to
     // "refresh" the pool.
-    fn refresh_connection_pool(&self) -> core::result::Result<(), StorageError> {
+    async fn refresh_connection_pool(&self) -> core::result::Result<(), StorageError> {
         {
             let mut is_healthy_guard = self.is_healthy.lock().unwrap();
             if !*is_healthy_guard {
@@ -105,52 +178,33 @@ impl MySqlDatabase {
 
         // Grab early write lock so no new queries can be initiated before
         // connection pool is refreshed.
-        let mut connection_pool_guard = self.pool.lock().unwrap();
-        let connection_pool: &mut Pool = &mut *connection_pool_guard;
-        *connection_pool = Self::new_connection_pool(&self.opts, &self.is_healthy)?;
+        let mut connection_pool_guard = self.pool.write().await;
+        let pool = Self::new_connection_pool(&self.opts, &self.is_healthy).await?;
+        *connection_pool_guard = pool;
 
         Ok(())
     }
 
-    fn setup_database(conn: &mut mysql::PooledConn) -> core::result::Result<(), mysql::Error> {
-        // main data table (for all tree nodes, etc)
-        let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
-            + TABLE
-            + "` (`key` VARCHAR(64) NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`)"
-            + ")";
-
-        conn.query_drop(command)?;
-
-        // user data table
-        let command = "CREATE TABLE IF NOT EXISTS `".to_owned() + USER_TABLE + "`"
-            + " (`username` VARCHAR(64) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-            + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
-            + " PRIMARY KEY(`username`, `epoch`)"
-            + " )";
-        conn.query_drop(command)?;
-
-        Ok(())
-    }
-
-    fn new_connection_pool(
-        opts: &mysql::Opts,
+    async fn new_connection_pool(
+        opts: &mysql_async::Opts,
         is_healthy: &Arc<Mutex<bool>>,
-    ) -> core::result::Result<mysql::Pool, StorageError> {
+    ) -> core::result::Result<mysql_async::Pool, StorageError> {
         let start = Instant::now();
         let mut attempts = 1;
 
         loop {
-            let ip = opts.get_ip_or_hostname();
+            let ip = opts.ip_or_hostname();
             let pool_options = opts.clone();
-            if let Ok(pool) = Pool::new(pool_options) {
-                if let Ok(mut _conn) = pool.get_conn() {
-                    if let Ok(()) = Self::setup_database(&mut _conn) {
-                        // set the healthy flag to true
-                        let mut is_healthy_guard = is_healthy.lock().unwrap();
-                        *is_healthy_guard = true;
+            let pool = Pool::new(pool_options);
+            let conn = pool.get_conn().await;
 
-                        return Ok(pool);
-                    }
+            if let Ok(mut _conn) = conn {
+                if let Ok(()) = Self::setup_database(&mut _conn).await {
+                    // set the healthy flag to true
+                    let mut is_healthy_guard = is_healthy.lock().unwrap();
+                    *is_healthy_guard = true;
+
+                    return Ok(pool);
                 }
             }
 
@@ -166,81 +220,39 @@ impl MySqlDatabase {
 
             println!("Warning: Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds", attempts, SQL_RECONNECTION_DELAY_SECS);
 
-            std::thread::sleep(std::time::Duration::from_millis(
-                SQL_RECONNECTION_DELAY_SECS * 1000u64,
-            ));
+            tokio::time::sleep(tokio::time::Duration::from_secs(
+                SQL_RECONNECTION_DELAY_SECS,
+            ))
+            .await;
 
             attempts += 1
         }
     }
 
-    /// Determine if the db connection is healthy at present
-    pub fn is_healthy(&self) -> bool {
-        let is_healthy_guard = self.is_healthy.lock().unwrap();
-        *is_healthy_guard
-    }
+    /// Delete all the data in the tables
+    #[allow(dead_code)]
+    pub async fn delete_data(&self) -> core::result::Result<(), mysql_async::Error> {
+        let mut conn = self.get_connection().await?;
 
-    fn query_with_guard<T, F>(
-        &self,
-        operator: F,
-        conn: &mut PooledConn,
-    ) -> core::result::Result<T, mysql::Error>
-    where
-        F: Fn(&mut PooledConn) -> core::result::Result<T, mysql::Error>,
-    {
-        match operator(conn) {
-            Err(err) => {
-                let is_connection_infra_error: bool = match &err {
-                    mysql::Error::MySqlError(_)
-                    | mysql::Error::UrlError(_)
-                    | mysql::Error::FromValueError(_)
-                    | mysql::Error::FromRowError(_) => false,
+        let command = "DELETE FROM `".to_owned() + TABLE + "`";
+        conn.query_drop(command).await?;
 
-                    mysql::Error::DriverError(_)
-                    | mysql::Error::IoError(_)
-                    | mysql::Error::CodecError(_)
-                    | mysql::Error::TlsError(_)
-                    | mysql::Error::TlsHandshakeError(_) => true,
-                };
+        let command = "DELETE FROM `".to_owned() + USER_TABLE + "`";
+        conn.query_drop(command).await?;
 
-                // If error is due to infra error (e.g bad connection) refresh
-                // connection pool in background. This allows current request to
-                // finish (with err) while blocking subsequent requests until a
-                // healthy connection is restored.
-                if is_connection_infra_error {
-                    let db = self.clone();
-                    tokio::task::spawn(async move {
-                        if let Err(err) = db.refresh_connection_pool() {
-                            println!("Error: Error refreshing MySql connection pool: {:?}", err);
-                        }
-                    });
-                }
-                Err(err)
-            }
-            other => other,
-        }
+        Ok(())
     }
 
     /// Cleanup the test data table
     #[allow(dead_code)]
-    pub(crate) fn test_cleanup(&self) -> core::result::Result<(), mysql::Error> {
-        let mut conn = self.get_connection()?;
+    pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), mysql_async::Error> {
+        let mut conn = self.get_connection().await?;
 
-        self.query_with_guard(
-            |conn| {
-                let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE + "`";
-                conn.query_drop(command)
-            },
-            &mut conn,
-        )?;
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE + "`";
+        conn.query_drop(command).await?;
 
-        self.query_with_guard(
-            |conn| {
-                let command = "DROP TABLE IF EXISTS `".to_owned() + USER_TABLE + "`";
-                conn.query_drop(command)
-            },
-            &mut conn,
-        )?;
+        let command = "DROP TABLE IF EXISTS `".to_owned() + USER_TABLE + "`";
+        conn.query_drop(command).await?;
 
         Ok(())
     }
@@ -276,73 +288,113 @@ impl MySqlDatabase {
     }
 }
 
-impl SyncStorage for MySqlDatabase {
-    fn set(&self, pos: String, val: &[u8]) -> core::result::Result<(), StorageError> {
-        let result = || -> core::result::Result<(), mysql::Error> {
-            let mut conn = self.get_connection()?;
-            self.query_with_guard(
-                |conn| {
-                    let statement_text = "INSERT INTO `".to_owned()
-                        + TABLE
-                        + "` (`key`, `value`) VALUES (:the_key, :the_value)";
-                    let prepared = conn.prep(statement_text)?;
-                    conn.exec_drop(
-                        prepared,
-                        params! { "the_key" => pos.clone(), "the_value" => &(*val) },
-                    )
-                },
-                &mut conn,
-            )?;
-            Ok(())
+#[async_trait]
+impl Storage for AsyncMySqlDatabase {
+    async fn set(
+        &self,
+        pos: String,
+        dt: StorageType,
+        val: &[u8],
+    ) -> core::result::Result<(), StorageError> {
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let statement_text = "INSERT INTO `".to_owned()
+                + TABLE
+                + "` (`key`, `type`, `value`) VALUES (:the_key, :the_type, :the_value) ON DUPLICATE KEY UPDATE `value` = :the_value";
+            let out = conn
+                .exec_drop(
+                    statement_text,
+                    params! { "the_key" => pos, "the_type" => dt as u16, "the_value" => val },
+                )
+                .await;
+            self.check_for_infra_error(out)?;
+            Ok::<(), mysql_async::Error>(())
         };
 
-        match result() {
+        match result.await {
             Ok(()) => Ok(()),
             Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
-    fn get(&self, pos: String) -> core::result::Result<Vec<u8>, StorageError> {
-        let result = || -> core::result::Result<Option<Vec<u8>>, mysql::Error> {
-            let mut conn = self.get_connection()?;
+    async fn get(
+        &self,
+        pos: String,
+        dt: StorageType,
+    ) -> core::result::Result<Vec<u8>, StorageError> {
+        let result = async {
+            let mut conn = self.get_connection().await?;
 
-            let result: Option<(String, Vec<u8>)> = self.query_with_guard(
-                |conn| {
-                    let statement_text = "SELECT `key`, `value` FROM `".to_owned()
-                        + TABLE
-                        + "` WHERE `key` = :the_key LIMIT 1";
-                    let statement = conn.prep(statement_text)?;
-                    conn.exec_first(statement, params! { "the_key" => pos.clone() })
-                },
-                &mut conn,
-            )?;
-            if let Some((_key, value)) = result {
+            let statement_text = "SELECT `key`, `type`, `value` FROM `".to_owned()
+                + TABLE
+                + "` WHERE `key` = :the_key AND `type` = :the_type LIMIT 1";
+            let statement = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_first(
+                    statement,
+                    params! { "the_key" => pos, "the_type" => dt as u16 },
+                )
+                .await;
+            let result: Option<(String, u16, Vec<u8>)> = self.check_for_infra_error(out)?;
+
+            if let Some((_key, _type, value)) = result {
                 return Ok(Some(value));
             }
-            Ok(None)
+            Ok::<Option<Vec<u8>>, mysql_async::Error>(None)
         };
 
-        match result() {
+        match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
             Err(other) => Err(StorageError::GetError(other.to_string())),
         }
     }
 
-    fn append_user_state(
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> core::result::Result<Vec<Vec<u8>>, StorageError> {
+        let result = async {
+            let mut conn = self.get_connection().await?;
+
+            let mut statement_text =
+                "SELECT `value` FROM `".to_owned() + TABLE + "` WHERE `type` = :the_type";
+            let mut params_map = vec![("the_type", Value::from(data_type as u16))];
+            if let Some(limit) = num {
+                statement_text += " LIMIT :the_limit";
+                params_map.push(("the_limit", Value::from(limit)));
+            }
+            let statement = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_map(statement, mysql_async::Params::from(params_map), |value| {
+                    value
+                })
+                .await;
+            let result = self.check_for_infra_error(out)?;
+            Ok::<Vec<Vec<u8>>, mysql_async::Error>(result)
+        };
+
+        match result.await {
+            Ok(result) => Ok(result),
+            Err(other) => Err(StorageError::GetError(other.to_string())),
+        }
+    }
+
+    async fn append_user_state(
         &self,
         username: &Username,
         value: &UserState,
     ) -> core::result::Result<(), StorageError> {
-        let result = || -> core::result::Result<(), mysql::Error> {
-            let mut conn = self.get_connection()?;
-            self.query_with_guard(|conn| {
-                let statement_text = "INSERT INTO `".to_owned()
-                    + USER_TABLE
-                    + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
-                    + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
-                let prepared = conn.prep(statement_text)?;
-                conn.exec_drop(
-                    prepared,
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let statement_text = "INSERT INTO `".to_owned()
+                + USER_TABLE
+                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
+                + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
+            let prepped = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_drop(
+                    prepped,
                     params! {
                         "username" => username.0.clone(),
                         "epoch" => value.epoch,
@@ -352,167 +404,164 @@ impl SyncStorage for MySqlDatabase {
                         "data" => value.plaintext_val.0.clone()
                     },
                 )
-            }, &mut conn)?;
-            Ok(())
+                .await;
+            self.check_for_infra_error(out)?;
+            Ok::<(), mysql_async::Error>(())
         };
 
-        match result() {
+        match result.await {
             Ok(()) => Ok(()),
             Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
 
-    fn append_user_states(
+    async fn append_user_states(
         &self,
         values: Vec<(Username, UserState)>,
     ) -> core::result::Result<(), StorageError> {
-        let result = || -> core::result::Result<(), mysql::Error> {
-            let mut conn = self.get_connection()?;
+        let result = async {
+            let mut conn = self.get_connection().await?;
 
-            self.query_with_guard(|conn| {
-                let statement_text = "INSERT INTO `".to_owned()
-                    + USER_TABLE
-                    + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
-                    + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
-                // create a transaction to perform the operations on
-                let mut tx = conn.start_transaction(TxOpts::default())?;
-                let mut steps = || -> core::result::Result<(), mysql::Error> {
-                    for chunk in values.chunks(100) {
-                        let prepared = tx.prep(statement_text.clone())?;
-                        tx.exec_batch(
-                            prepared,
-                            chunk.iter().map(|(name, value)| {
-                                params! {
-                                    "username" => name.0.clone(),
-                                    "epoch" => value.epoch,
-                                    "version" => value.version,
-                                    "node_label_val" => value.label.val,
-                                    "node_label_len" => value.label.len,
-                                    "data" => value.plaintext_val.0.clone()
-                                }
-                            }),
-                        )?;
-                    }
-                    Ok(())
-                };
-
-                // if any of the steps returns an error, fail the entire transaction to in an atomic state
-                if steps().is_err() {
-                    tx.rollback()?;
-                } else {
-                    tx.commit()?;
+            let statement_text = "INSERT INTO `".to_owned()
+                + USER_TABLE
+                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
+                + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
+            // create a transaction to perform the operations on
+            let mut tx = conn.start_transaction(TxOpts::default()).await?;
+            let mut steps = Ok(());
+            for chunk in values.chunks(100) {
+                let prepped = tx.prep(statement_text.clone()).await?;
+                let out = tx
+                    .exec_batch(
+                        prepped,
+                        chunk.iter().map(|(name, value)| {
+                            params! {
+                                "username" => name.0.clone(),
+                                "epoch" => value.epoch,
+                                "version" => value.version,
+                                "node_label_val" => value.label.val,
+                                "node_label_len" => value.label.len,
+                                "data" => value.plaintext_val.0.clone()
+                            }
+                        }),
+                    )
+                    .await;
+                steps = self.check_for_infra_error(out);
+                if steps.is_err() {
+                    break;
                 }
-                Ok(())
-            }, &mut conn)
+            }
+
+            // if any of the steps returns an error, fail the entire transaction to in an atomic state
+            if steps.is_err() {
+                tx.rollback().await?;
+            } else {
+                tx.commit().await?;
+            }
+            Ok::<(), mysql_async::Error>(())
         };
 
-        match result() {
+        match result.await {
             Ok(()) => Ok(()),
             Err(code) => Err(StorageError::SetError(code.to_string())),
         }
     }
 
-    fn get_user_data(&self, username: &Username) -> core::result::Result<UserData, StorageError> {
-        let result = || -> core::result::Result<UserData, mysql::Error> {
-            let mut conn = self.get_connection()?;
-            self.query_with_guard(
-                |conn| {
-                    let statement_text =
-                    "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
-                        .to_owned()
-                        + USER_TABLE
-                        + "` WHERE `username` = :the_user";
-                    let prepared = conn.prep(statement_text)?;
-                    let selected_records = conn.exec_map(
-                        prepared,
-                        params! { "the_user" => username.0.clone() },
-                        |(epoch, version, node_label_val, node_label_len, data)| UserState {
-                            epoch,
-                            version,
-                            label: NodeLabel {
-                                val: node_label_val,
-                                len: node_label_len,
-                            },
-                            plaintext_val: crate::storage::types::Values(data),
+    async fn get_user_data(
+        &self,
+        username: &Username,
+    ) -> core::result::Result<UserData, StorageError> {
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let statement_text =
+                "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
+                    .to_owned()
+                    + USER_TABLE
+                    + "` WHERE `username` = :the_user";
+            let prepped = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_map(
+                    prepped,
+                    params! { "the_user" => username.0.clone() },
+                    |(epoch, version, node_label_val, node_label_len, data)| UserState {
+                        epoch,
+                        version,
+                        label: NodeLabel {
+                            val: node_label_val,
+                            len: node_label_len,
                         },
-                    )?;
-                    Ok(UserData {
-                        states: selected_records,
-                    })
-                },
-                &mut conn,
-            )
+                        plaintext_val: crate::storage::types::Values(data),
+                    },
+                )
+                .await;
+            let selected_records = self.check_for_infra_error(out)?;
+            Ok::<UserData, mysql_async::Error>(UserData {
+                states: selected_records,
+            })
         };
 
-        match result() {
+        match result.await {
             Ok(output) => Ok(output),
             Err(code) => Err(StorageError::GetError(code.to_string())),
         }
     }
-    fn get_user_state(
+    async fn get_user_state(
         &self,
         username: &Username,
         flag: UserStateRetrievalFlag,
     ) -> core::result::Result<UserState, StorageError> {
-        let result = || -> core::result::Result<Option<UserState>, mysql::Error> {
-            let mut conn = self.get_connection()?;
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let mut statement_text =
+                "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
+                    .to_owned()
+                    + USER_TABLE
+                    + "` WHERE `username` = :the_user";
+            let mut params_map = vec![("the_user", Value::from(&username.0))];
+            // apply the specific filter
+            match flag {
+                UserStateRetrievalFlag::SpecificVersion(version) => {
+                    params_map.push(("the_version", Value::from(version)));
+                    statement_text += " AND `version` = :the_version";
+                }
+                UserStateRetrievalFlag::SpecificEpoch(epoch) => {
+                    params_map.push(("the_epoch", Value::from(epoch)));
+                    statement_text += " AND `epoch` = :the_epoch";
+                }
+                UserStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
+                UserStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
+                UserStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
+                UserStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
+                UserStateRetrievalFlag::LeqEpoch(epoch) => {
+                    params_map.push(("the_epoch", Value::from(epoch)));
+                    statement_text += " AND `epoch` <= :the_epoch";
+                }
+            }
 
-            self.query_with_guard(
-                |conn| {
-                    let mut statement_text =
-                    "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
-                        .to_owned()
-                        + USER_TABLE
-                        + "` WHERE `username` = :the_user";
-                    let mut params_map = vec![("the_user", Value::from(&username.0))];
-                    // apply the specific filter
-                    match flag {
-                        UserStateRetrievalFlag::SpecificVersion(version) => {
-                            params_map.push(("the_version", Value::from(version)));
-                            statement_text += " AND `version` = :the_version";
-                        }
-                        UserStateRetrievalFlag::SpecificEpoch(epoch) => {
-                            params_map.push(("the_epoch", Value::from(epoch)));
-                            statement_text += " AND `epoch` = :the_epoch";
-                        }
-                        UserStateRetrievalFlag::MaxEpoch => {
-                            statement_text += " ORDER BY `epoch` DESC"
-                        }
-                        UserStateRetrievalFlag::MaxVersion => {
-                            statement_text += " ORDER BY `version` DESC"
-                        }
-                        UserStateRetrievalFlag::MinEpoch => {
-                            statement_text += " ORDER BY `epoch` ASC"
-                        }
-                        UserStateRetrievalFlag::MinVersion => {
-                            statement_text += " ORDER BY `version` ASC"
-                        }
-                    }
-
-                    // add limit to retrieve only 1 record
-                    statement_text += " LIMIT 1";
-                    let prepared = conn.prep(statement_text)?;
-                    let selected_record = conn.exec_map(
-                        prepared,
-                        mysql::Params::from(params_map),
-                        |(epoch, version, node_label_val, node_label_len, data)| UserState {
-                            epoch,
-                            version,
-                            label: NodeLabel {
-                                val: node_label_val,
-                                len: node_label_len,
-                            },
-                            plaintext_val: crate::storage::types::Values(data),
+            // add limit to retrieve only 1 record
+            statement_text += " LIMIT 1";
+            let prepped = conn.prep(statement_text).await?;
+            let out = conn
+                .exec_map(
+                    prepped,
+                    mysql_async::Params::from(params_map),
+                    |(epoch, version, node_label_val, node_label_len, data)| UserState {
+                        epoch,
+                        version,
+                        label: NodeLabel {
+                            val: node_label_val,
+                            len: node_label_len,
                         },
-                    )?;
+                        plaintext_val: crate::storage::types::Values(data),
+                    },
+                )
+                .await;
+            let selected_record = self.check_for_infra_error(out)?;
 
-                    Ok(selected_record.into_iter().next())
-                },
-                &mut conn,
-            )
+            Ok::<Option<UserState>, mysql_async::Error>(selected_record.into_iter().next())
         };
 
-        match result() {
+        match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -520,9 +569,9 @@ impl SyncStorage for MySqlDatabase {
     }
 }
 
-impl Clone for MySqlDatabase {
-    fn clone(&self) -> MySqlDatabase {
-        MySqlDatabase {
+impl Clone for AsyncMySqlDatabase {
+    fn clone(&self) -> Self {
+        Self {
             opts: self.opts.clone(),
             pool: self.pool.clone(),
             is_healthy: self.is_healthy.clone(),

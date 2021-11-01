@@ -6,26 +6,30 @@
 // of this source tree.
 
 use crate::errors::StorageError;
-use crate::storage::types::{UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::SyncStorage;
+use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::Storage;
+use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub mod r#async;
-
 // ===== Basic In-Memory database ==== //
 
 #[derive(Debug)]
-pub struct InMemoryDatabase {
-    read_handle: ReadHandle<String, Vec<u8>>,
-    write_handle: Arc<Mutex<WriteHandle<String, Vec<u8>>>>,
+pub struct AsyncInMemoryDatabase {
+    #[allow(clippy::type_complexity)]
+    read_handle: ReadHandle<(StorageType, String), Vec<u8>>,
+    #[allow(clippy::type_complexity)]
+    write_handle: Arc<Mutex<WriteHandle<(StorageType, String), Vec<u8>>>>,
     user_data_read_handle: ReadHandle<Username, UserState>,
     user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
 }
 
-impl InMemoryDatabase {
+unsafe impl Send for AsyncInMemoryDatabase {}
+unsafe impl Sync for AsyncInMemoryDatabase {}
+
+impl AsyncInMemoryDatabase {
     pub fn new() -> Self {
         let (reader, writer) = evmap::new();
         let (user_read, user_write) = evmap::new();
@@ -38,13 +42,13 @@ impl InMemoryDatabase {
     }
 }
 
-impl Default for InMemoryDatabase {
+impl Default for AsyncInMemoryDatabase {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for InMemoryDatabase {
+impl Clone for AsyncInMemoryDatabase {
     fn clone(&self) -> Self {
         Self {
             read_handle: self.read_handle.clone(),
@@ -55,18 +59,19 @@ impl Clone for InMemoryDatabase {
     }
 }
 
-impl SyncStorage for InMemoryDatabase {
-    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
+#[async_trait]
+impl Storage for AsyncInMemoryDatabase {
+    async fn set(&self, pos: String, dt: StorageType, value: &[u8]) -> Result<(), StorageError> {
         let mut hashmap = self.write_handle.lock().unwrap();
         // evmap supports multi-values, so we need to clear the value if it's present and then set the new value
-        hashmap.clear(pos.clone());
-        hashmap.insert(pos, value.to_vec());
+        hashmap.clear((dt, pos.clone()));
+        hashmap.insert((dt, pos), value.to_vec());
         hashmap.refresh();
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
-        if let Some(intermediate) = self.read_handle.get(&pos) {
+    async fn get(&self, pos: String, dt: StorageType) -> Result<Vec<u8>, StorageError> {
+        if let Some(intermediate) = self.read_handle.get(&(dt, pos)) {
             if let Some(output) = intermediate.get_one() {
                 return Ok(output.clone());
             }
@@ -74,7 +79,31 @@ impl SyncStorage for InMemoryDatabase {
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
-    fn append_user_state(
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> Result<Vec<Vec<u8>>, StorageError> {
+        let mut results = Vec::new();
+        if let Some(handle) = &self.read_handle.read() {
+            for item in handle {
+                let ((dt, _pos), v) = item;
+                if *dt == data_type {
+                    if let Some(output) = v.get_one() {
+                        results.push(output.clone());
+                        if let Some(limit) = num {
+                            if results.len() >= limit {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(results)
+    }
+
+    async fn append_user_state(
         &self,
         username: &Username,
         value: &UserState,
@@ -85,7 +114,10 @@ impl SyncStorage for InMemoryDatabase {
         Ok(())
     }
 
-    fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+    async fn append_user_states(
+        &self,
+        values: Vec<(Username, UserState)>,
+    ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
             hashmap.insert(kvp.0.clone(), kvp.1.clone());
@@ -94,7 +126,7 @@ impl SyncStorage for InMemoryDatabase {
         Ok(())
     }
 
-    fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -105,7 +137,7 @@ impl SyncStorage for InMemoryDatabase {
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
-    fn get_user_state(
+    async fn get_user_state(
         &self,
         username: &Username,
         flag: UserStateRetrievalFlag,
@@ -147,6 +179,8 @@ impl SyncStorage for InMemoryDatabase {
                 _ =>
                 // search for specific property
                 {
+                    let mut tracked_epoch = 0u64;
+                    let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
                             UserStateRetrievalFlag::SpecificVersion(version)
@@ -154,11 +188,32 @@ impl SyncStorage for InMemoryDatabase {
                             {
                                 return Ok(kvp.clone())
                             }
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                                return Ok(kvp.clone());
+                            }
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                                match tracked_epoch {
+                                    0u64 => {
+                                        tracked_epoch = kvp.epoch;
+                                        tracker = Some(kvp.clone());
+                                    }
+                                    other_epoch => {
+                                        if kvp.epoch > other_epoch {
+                                            tracker = Some(kvp.clone());
+                                            tracked_epoch = kvp.epoch;
+                                        }
+                                    }
+                                }
+                            }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
                             }
                             _ => continue,
                         }
+                    }
+
+                    if let Some(r) = tracker {
+                        return Ok(r);
                     }
                 }
             }
@@ -170,11 +225,11 @@ impl SyncStorage for InMemoryDatabase {
 // ===== In-Memory database w/caching ==== //
 
 lazy_static! {
-    static ref CACHE_DB: Mutex<HashMap<String, Vec<u8>>> = {
+    static ref CACHE_DB: Mutex<HashMap<(StorageType, String), Vec<u8>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
-    static ref CACHE_CACHE: Mutex<HashMap<String, Vec<u8>>> = {
+    static ref CACHE_CACHE: Mutex<HashMap<(StorageType, String), Vec<u8>>> = {
         let m = HashMap::new();
         Mutex::new(m)
     };
@@ -185,12 +240,15 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub struct InMemoryDbWithCache {
+pub struct AsyncInMemoryDbWithCache {
     user_data_read_handle: ReadHandle<Username, UserState>,
     user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
 }
 
-impl InMemoryDbWithCache {
+unsafe impl Send for AsyncInMemoryDbWithCache {}
+unsafe impl Sync for AsyncInMemoryDbWithCache {}
+
+impl AsyncInMemoryDbWithCache {
     pub fn new() -> Self {
         let (user_read, user_write) = evmap::new();
         Self {
@@ -221,7 +279,7 @@ impl InMemoryDbWithCache {
 
         let stats = CACHE_STATS.lock().unwrap();
         for (key, val) in stats.iter() {
-            println!("{}: {}", key, val);
+            println!("{:?}: {}", key, val);
         }
 
         println!("---------------------");
@@ -254,32 +312,33 @@ impl InMemoryDbWithCache {
     }
 }
 
-impl Default for InMemoryDbWithCache {
+impl Default for AsyncInMemoryDbWithCache {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SyncStorage for InMemoryDbWithCache {
-    fn set(&self, pos: String, value: &[u8]) -> Result<(), StorageError> {
+#[async_trait]
+impl Storage for AsyncInMemoryDbWithCache {
+    async fn set(&self, pos: String, dt: StorageType, value: &[u8]) -> Result<(), StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
         let calls_to_cache_set = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
         *calls_to_cache_set += 1;
 
         let mut cache = CACHE_CACHE.lock().unwrap();
-        cache.insert(pos, value.to_vec());
+        cache.insert((dt, pos), value.to_vec());
 
         Ok(())
     }
 
-    fn get(&self, pos: String) -> Result<Vec<u8>, StorageError> {
+    async fn get(&self, pos: String, dt: StorageType) -> Result<Vec<u8>, StorageError> {
         let mut stats = CACHE_STATS.lock().unwrap();
 
         let cache = &mut CACHE_CACHE.lock().unwrap();
         let calls_to_cache_get = stats.entry(String::from("calls_to_cache_get")).or_insert(0);
         *calls_to_cache_get += 1;
 
-        match cache.get(&pos) {
+        match cache.get(&(dt, pos.clone())) {
             Some(value) => Ok(value.clone()),
             None => {
                 let calls_to_db_get = stats.entry(String::from("calls_to_db_get")).or_insert(0);
@@ -287,17 +346,51 @@ impl SyncStorage for InMemoryDbWithCache {
 
                 let db = CACHE_DB.lock().unwrap();
                 let value = db
-                    .get(&pos)
+                    .get(&(dt, pos.clone()))
                     .cloned()
                     .ok_or_else(|| StorageError::GetError(String::from("Not found")))?;
 
-                cache.insert(pos, value.clone());
+                cache.insert((dt, pos), value.clone());
                 Ok(value)
             }
         }
     }
 
-    fn append_user_state(
+    async fn get_all(
+        &self,
+        data_type: StorageType,
+        num: Option<usize>,
+    ) -> Result<Vec<Vec<u8>>, StorageError> {
+        let cache = CACHE_CACHE.lock().unwrap();
+        let db = CACHE_DB.lock().unwrap();
+
+        let mut hashmap: HashMap<String, Vec<u8>> = HashMap::new();
+        // go through the cache first
+        for (key, v) in &*cache {
+            if key.0 == data_type && !hashmap.contains_key(&key.1) {
+                hashmap.insert(key.1.clone(), v.clone());
+                if let Some(limit) = num {
+                    if hashmap.keys().len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+        for (key, v) in &*db {
+            if key.0 == data_type && !hashmap.contains_key(&key.1) {
+                hashmap.insert(key.1.clone(), v.clone());
+                if let Some(limit) = num {
+                    if hashmap.keys().len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(hashmap.values().cloned().collect())
+    }
+
+    async fn append_user_state(
         &self,
         username: &Username,
         value: &UserState,
@@ -308,7 +401,10 @@ impl SyncStorage for InMemoryDbWithCache {
         Ok(())
     }
 
-    fn append_user_states(&self, values: Vec<(Username, UserState)>) -> Result<(), StorageError> {
+    async fn append_user_states(
+        &self,
+        values: Vec<(Username, UserState)>,
+    ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
             hashmap.insert(kvp.0.clone(), kvp.1.clone());
@@ -317,7 +413,7 @@ impl SyncStorage for InMemoryDbWithCache {
         Ok(())
     }
 
-    fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -327,7 +423,7 @@ impl SyncStorage for InMemoryDbWithCache {
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
-    fn get_user_state(
+    async fn get_user_state(
         &self,
         username: &Username,
         flag: UserStateRetrievalFlag,
@@ -369,6 +465,8 @@ impl SyncStorage for InMemoryDbWithCache {
                 _ =>
                 // search for specific property
                 {
+                    let mut tracked_epoch = 0u64;
+                    let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
                             UserStateRetrievalFlag::SpecificVersion(version)
@@ -376,11 +474,32 @@ impl SyncStorage for InMemoryDbWithCache {
                             {
                                 return Ok(kvp.clone())
                             }
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                                return Ok(kvp.clone());
+                            }
+                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                                match tracked_epoch {
+                                    0u64 => {
+                                        tracked_epoch = kvp.epoch;
+                                        tracker = Some(kvp.clone());
+                                    }
+                                    other_epoch => {
+                                        if kvp.epoch > other_epoch {
+                                            tracker = Some(kvp.clone());
+                                            tracked_epoch = kvp.epoch;
+                                        }
+                                    }
+                                }
+                            }
                             UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
                             }
                             _ => continue,
                         }
+                    }
+
+                    if let Some(r) = tracker {
+                        return Ok(r);
                     }
                 }
             }
@@ -389,7 +508,7 @@ impl SyncStorage for InMemoryDbWithCache {
     }
 }
 
-impl Clone for InMemoryDbWithCache {
+impl Clone for AsyncInMemoryDbWithCache {
     fn clone(&self) -> Self {
         Self::new()
     }

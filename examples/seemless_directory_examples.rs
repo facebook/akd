@@ -11,7 +11,7 @@ use rand::{prelude::ThreadRng, thread_rng};
 use vkd::auditor::audit_verify;
 use vkd::client::{key_history_verify, lookup_verify};
 use vkd::directory::{get_key_history_hashes, Directory};
-use vkd::storage::memory::r#async::AsyncInMemoryDbWithCache;
+use vkd::storage::memory::AsyncInMemoryDbWithCache;
 use vkd::storage::types::{Username, Values};
 
 use winter_crypto::hashers::Blake3_256;
