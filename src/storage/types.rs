@@ -7,13 +7,13 @@
 
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
+use winter_crypto::Hasher;
 
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
 pub enum StorageType {
     Azks = 1,
     HistoryTreeNode = 2,
     HistoryNodeState = 3,
-    HistoryChildState = 4,
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -67,9 +67,10 @@ pub enum UserStateRetrievalFlag {
 
 // == New Data Retrieval Logic == //
 
-// pub(crate) enum DbRecord<H, S> {
-//     Azks(crate::append_only_zks::Azks<H, S>),
-//     HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H, S>),
-//     HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),
-//     HistoryChildState(crate::node_state::HistoryChildState<H, S>),
-// }
+// This needs to be PUBLIC public, since anyone implementing a data-layer will need
+// to be able to access this and all the internal types
+pub enum DbRecord<H: Hasher + Sync + Send> {
+    Azks(crate::append_only_zks::Azks<H>),
+    HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H>),
+    HistoryNodeState(crate::node_state::HistoryNodeState<H>),
+}

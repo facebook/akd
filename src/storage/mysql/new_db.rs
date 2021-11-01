@@ -7,21 +7,31 @@
 
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
-use crate::storage::Storage;
+use crate::storage::types::{
+    DbRecord, StorageType, UserData, UserState, UserStateRetrievalFlag, Username,
+};
+use crate::storage::{NewStorage, Storable};
 use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
+use std::marker::Send;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
+use winter_crypto::Hasher;
 
-const TABLE: &str = "data";
-const USER_TABLE: &str = "user_data";
+const TABLE_AZKS: &str = "azks";
+const TABLE_HISTORY_TREE_NODES: &str = "history";
+const TABLE_HISTORY_NODE_STATES: &str = "states";
+const TABLE_USER: &str = "user";
+
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
 
-pub mod new_db;
+const SELECT_AZKS_DATA: &str = "`root`, `epoch`, `num_nodes`";
+const SELECT_HISTORY_TREE_NODE_DATA: &str =
+    "`location`, `label_len`, `label_val`, `epochs`, `parent`, `node_type`";
+const SELECT_HISTORY_NODE_STATE_DATA: &str = "`value`, `child_states`";
 
 /*
     MySql documentation: https://docs.rs/mysql_async/0.28.1/mysql_async/
@@ -139,39 +149,6 @@ impl AsyncMySqlDatabase {
         Ok(connection)
     }
 
-    async fn setup_database(
-        conn: &mut mysql_async::Conn,
-    ) -> core::result::Result<(), mysql_async::Error> {
-        let mut tx = conn.start_transaction(TxOpts::default()).await?;
-        let result = async {
-            // main data table (for all tree nodes, etc)
-            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
-                + TABLE
-                + "` (`key` VARCHAR(512) NOT NULL, `type` SMALLINT UNSIGNED NOT NULL, `value` VARBINARY(2000), PRIMARY KEY (`key`, `type`)"
-                + ")";
-
-            tx.query_drop(command).await?;
-
-            // user data table
-            let command = "CREATE TABLE IF NOT EXISTS `".to_owned() + USER_TABLE + "`"
-                + " (`username` VARCHAR(512) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-                + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
-                + " PRIMARY KEY(`username`, `epoch`)"
-                + " )";
-            tx.query_drop(command).await?;
-
-            Ok::<(), mysql_async::Error>(())
-        };
-
-        if let Err(err) = result.await {
-            tx.rollback().await?;
-            return Err(err);
-        }
-
-        tx.commit().await?;
-        Ok(())
-    }
-
     // Occasionally our connection pool will become stale. This happens
     // e.g on DB master promotions during mysql upgrades. In these scenarios our
     // queries will begin to fail, and we will need to call this method to
@@ -241,15 +218,70 @@ impl AsyncMySqlDatabase {
         }
     }
 
+    async fn setup_database(
+        conn: &mut mysql_async::Conn,
+    ) -> core::result::Result<(), mysql_async::Error> {
+        let mut tx = conn.start_transaction(TxOpts::default()).await?;
+        let result = async {
+            // AZKS table
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+                + TABLE_AZKS
+                + "` (`key` SMALLINT UNSIGNED NOT NULL, `root` BIGINT UNSIGNED NOT NULL,"
+                + " `epoch` BIGINT UNSIGNED NOT NULL, `num_nodes` BIGINT UNSIGNED NOT NULL,"
+                + " PRIMARY KEY (`key`))";
+            tx.query_drop(command).await?;
+
+            // History tree nodes table
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+                + TABLE_HISTORY_TREE_NODES
+                + "` (`key` VARBINARY(512) NOT NULL, `location` BIGINT UNSIGNED NOT NULL, `label_len` INT UNSIGNED NOT NULL,"
+                + " `label_val` BIGINT UNSIGNED NOT NULL, `epochs` VARBINARY(2000),"
+                + " `parent` BIGINT UNSIGNED NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
+                + " PRIMARY KEY (`key`))";
+            tx.query_drop(command).await?;
+
+            // History node states table
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+                + TABLE_HISTORY_NODE_STATES
+                + "` (`key` VARBINARY(512) NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
+                + " PRIMARY KEY (`key`))";
+            tx.query_drop(command).await?;
+
+            // User data table
+            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
+                + TABLE_USER
+                + "` (`username` VARBINARY(512) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
+                + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+                + " PRIMARY KEY(`username`, `epoch`))";
+            tx.query_drop(command).await?;
+
+            Ok::<(), mysql_async::Error>(())
+        };
+
+        if let Err(err) = result.await {
+            tx.rollback().await?;
+            return Err(err);
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// Delete all the data in the tables
     #[allow(dead_code)]
     pub async fn delete_data(&self) -> core::result::Result<(), mysql_async::Error> {
         let mut conn = self.get_connection().await?;
 
-        let command = "DELETE FROM `".to_owned() + TABLE + "`";
+        let command = "DELETE FROM `".to_owned() + TABLE_AZKS + "`";
         conn.query_drop(command).await?;
 
-        let command = "DELETE FROM `".to_owned() + USER_TABLE + "`";
+        let command = "DELETE FROM `".to_owned() + TABLE_USER + "`";
+        conn.query_drop(command).await?;
+
+        let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
+        conn.query_drop(command).await?;
+
+        let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
         conn.query_drop(command).await?;
 
         Ok(())
@@ -260,10 +292,16 @@ impl AsyncMySqlDatabase {
     pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), mysql_async::Error> {
         let mut conn = self.get_connection().await?;
 
-        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
         conn.query_drop(command).await?;
 
-        let command = "DROP TABLE IF EXISTS `".to_owned() + USER_TABLE + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
+        conn.query_drop(command).await?;
+
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
+        conn.query_drop(command).await?;
+
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
         conn.query_drop(command).await?;
 
         Ok(())
@@ -301,94 +339,245 @@ impl AsyncMySqlDatabase {
 }
 
 #[async_trait]
-impl Storage for AsyncMySqlDatabase {
-    async fn set(
+impl NewStorage for AsyncMySqlDatabase {
+    /// Storage a record in the data layer
+    async fn set<H: Hasher + Sync + Send, St: Storable>(
         &self,
-        pos: String,
-        dt: StorageType,
-        val: &[u8],
+        id: St::Key,
+        record: DbRecord<H>,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
-            let statement_text = "INSERT INTO `".to_owned()
-                + TABLE
-                + "` (`key`, `type`, `value`) VALUES (:the_key, :the_type, :the_value) ON DUPLICATE KEY UPDATE `value` = :the_value";
-            let out = conn
-                .exec_drop(
-                    statement_text,
-                    params! { "the_key" => pos, "the_type" => dt as u16, "the_value" => val },
-                )
-                .await;
-            self.check_for_infra_error(out)?;
-            Ok::<(), mysql_async::Error>(())
+            match record {
+                DbRecord::Azks(azks) => {
+                    let statement_text = format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `root` = :root, `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA);
+                    let out = conn
+                            .exec_drop(
+                                statement_text,
+                                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
+                            )
+                            .await;
+                    self.check_for_infra_error(out)?;
+                    Ok::<(), mysql_async::Error>(())
+                }
+                DbRecord::HistoryNodeState(state) => {
+                    let statement_text = format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :value, :child_states) ON DUPLICATE KEY UPDATE `value` = :value, `child_states` = :child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA);
+                    let bin_data = bincode::serialize(&state.child_states).unwrap();
+                    let out = conn
+                            .exec_drop(
+                                statement_text,
+                                params! { "key" => bincode::serialize(&id).unwrap(), "value" => state.value.clone(), "child_states" => bin_data },
+                            )
+                            .await;
+                    self.check_for_infra_error(out)?;
+                    Ok::<(), mysql_async::Error>(())
+                }
+                DbRecord::HistoryTreeNode(node) => {
+                    let statement_text = format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :location, :label_len, :label_val, :epochs, :parent, :node_type) ON DUPLICATE KEY UPDATE `location` = :location, `label_len` = :label_len, `label_val` = :label_val, `epochs` = :epochs, `parent` = :parent, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA);
+                    let bin_data = bincode::serialize(&node.epochs).unwrap();
+                    let out = conn
+                            .exec_drop(
+                                statement_text,
+                                params! { "key" => bincode::serialize(&id).unwrap(), "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 },
+                            )
+                            .await;
+                    self.check_for_infra_error(out)?;
+                    Ok::<(), mysql_async::Error>(())
+                }
+            }
         };
 
         match result.await {
-            Ok(()) => Ok(()),
-            Err(code) => Err(StorageError::SetError(code.to_string())),
+            Ok(_) => Ok(()),
+            Err(error) => Err(StorageError::SetError(error.to_string())),
         }
     }
-    async fn get(
+
+    /// Retrieve a stored record from the data layer
+    async fn get<H: Hasher + Sync + Send, St: Storable>(
         &self,
-        pos: String,
-        dt: StorageType,
-    ) -> core::result::Result<Vec<u8>, StorageError> {
+        id: St::Key,
+    ) -> core::result::Result<DbRecord<H>, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
-
-            let statement_text = "SELECT `key`, `type`, `value` FROM `".to_owned()
-                + TABLE
-                + "` WHERE `key` = :the_key AND `type` = :the_type LIMIT 1";
-            let statement = conn.prep(statement_text).await?;
-            let out = conn
-                .exec_first(
-                    statement,
-                    params! { "the_key" => pos, "the_type" => dt as u16 },
-                )
-                .await;
-            let result: Option<(String, u16, Vec<u8>)> = self.check_for_infra_error(out)?;
-
-            if let Some((_key, _type, value)) = result {
-                return Ok(Some(value));
+            match St::data_type() {
+                StorageType::Azks => {
+                    let select =
+                        format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS);
+                    let out = conn.query_first(select).await;
+                    let result = self.check_for_infra_error(out)?;
+                    if let Some((root, epoch, num_nodes)) = result {
+                        let azks = AsyncMySqlDatabase::build_azks(root, epoch, num_nodes);
+                        return Ok::<Option<DbRecord<H>>, mysql_async::Error>(Some(
+                            DbRecord::Azks(azks),
+                        ));
+                    }
+                }
+                StorageType::HistoryNodeState => {
+                    let select = format!(
+                        "SELECT {} FROM `{}` WHERE `key` = :the_key LIMIT 1",
+                        SELECT_HISTORY_NODE_STATE_DATA, TABLE_HISTORY_NODE_STATES
+                    );
+                    let statement = conn.prep(select).await?;
+                    let out = conn
+                        .exec_first(
+                            statement,
+                            params! { "the_key" => Value::from(bincode::serialize(&id).unwrap()) },
+                        )
+                        .await;
+                    let result = self.check_for_infra_error(out)?;
+                    if let Some((value, child_states)) = result {
+                        // some evil typing b.s.
+                        // the compiler should optimize this away
+                        let bin_vec: Vec<u8> = child_states;
+                        let state_vec: Vec<crate::node_state::HistoryChildState<H>> =
+                            bincode::deserialize(&bin_vec).unwrap();
+                        let record = AsyncMySqlDatabase::build_history_node_state(value, state_vec);
+                        return Ok::<Option<DbRecord<H>>, mysql_async::Error>(Some(
+                            DbRecord::HistoryNodeState(record),
+                        ));
+                    }
+                }
+                StorageType::HistoryTreeNode => {
+                    let select = format!(
+                        "SELECT {} FROM `{}` WHERE `key` = :the_key LIMIT 1",
+                        SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
+                    );
+                    let statement = conn.prep(select).await?;
+                    let out = conn
+                        .exec_first(
+                            statement,
+                            params! { "the_key" => Value::from(bincode::serialize(&id).unwrap()) },
+                        )
+                        .await;
+                    let result = self.check_for_infra_error(out)?;
+                    if let Some((location, label_len, label_val, epochs, parent, node_type)) =
+                        result
+                    {
+                        // some evil typing b.s.
+                        // the compiler should optimize this away
+                        let bin_vec: Vec<u8> = epochs;
+                        let epochs_vec: Vec<u64> = bincode::deserialize(&bin_vec).unwrap();
+                        /*(epochs: Vec<u64>, parent: usize, node_type: u8)*/
+                        let value = AsyncMySqlDatabase::build_history_tree_node(
+                            label_val, label_len, location, epochs_vec, parent, node_type,
+                        );
+                        let record = DbRecord::HistoryTreeNode(value);
+                        return Ok::<Option<DbRecord<H>>, mysql_async::Error>(Some(record));
+                    }
+                }
             }
-            Ok::<Option<Vec<u8>>, mysql_async::Error>(None)
+            Ok::<Option<DbRecord<H>>, mysql_async::Error>(None)
         };
 
         match result.await {
-            Ok(Some(result)) => Ok(result),
-            Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
-            Err(other) => Err(StorageError::GetError(other.to_string())),
+            Ok(Some(r)) => Ok(r),
+            Ok(None) => Err(StorageError::GetError("Not found".to_string())),
+            Err(error) => Err(StorageError::GetError(error.to_string())),
         }
     }
 
-    async fn get_all(
+    /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
+    async fn get_all<H: Hasher + Sync + Send, St: Storable>(
         &self,
-        data_type: StorageType,
         num: Option<usize>,
-    ) -> core::result::Result<Vec<Vec<u8>>, StorageError> {
+    ) -> core::result::Result<Vec<DbRecord<H>>, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
 
-            let mut statement_text =
-                "SELECT `value` FROM `".to_owned() + TABLE + "` WHERE `type` = :the_type";
-            let mut params_map = vec![("the_type", Value::from(data_type as u16))];
-            if let Some(limit) = num {
-                statement_text += " LIMIT :the_limit";
-                params_map.push(("the_limit", Value::from(limit)));
+            match St::data_type() {
+                StorageType::Azks => {
+                    let statement_text = "SELECT ".to_owned()
+                        + SELECT_AZKS_DATA
+                        + " FROM `"
+                        + TABLE_AZKS
+                        + "` LIMIT 1";
+                    let out = conn
+                        .query_map(statement_text, |(root, epoch, num_nodes)| {
+                            DbRecord::Azks(AsyncMySqlDatabase::build_azks::<H>(
+                                root, epoch, num_nodes,
+                            ))
+                        })
+                        .await;
+                    let list = self.check_for_infra_error(out)?;
+                    Ok::<Vec<DbRecord<H>>, mysql_async::Error>(list)
+                }
+                StorageType::HistoryNodeState => {
+                    //TABLE_HISTORY_NODE_STATES
+                    /*
+                    + TABLE_HISTORY_NODE_STATES
+                    + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL,"
+                    + " `birth_epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
+                    */
+
+                    let mut statement_text = "SELECT ".to_owned()
+                        + SELECT_HISTORY_NODE_STATE_DATA
+                        + " FROM `"
+                        + TABLE_HISTORY_NODE_STATES
+                        + "`";
+
+                    if let Some(limit) = num {
+                        statement_text = format!("{} LIMIT {}", statement_text, limit);
+                    }
+                    let out = conn
+                        .query_map(statement_text, |(value, child_states)| {
+                            // some evil typing b.s.
+                            // the compiler should optimize this away
+                            let bin_vec: Vec<u8> = child_states;
+                            let state_vec: Vec<crate::node_state::HistoryChildState<H>> =
+                                bincode::deserialize(&bin_vec).unwrap();
+
+                            // (label_val: u64, label_len: u32, birth_epoch: usize, value: Vec<u8>, child_states: Vec<crate::node_state::HistoryChildState<H>>)
+                            let value =
+                                AsyncMySqlDatabase::build_history_node_state(value, state_vec);
+                            DbRecord::HistoryNodeState(value)
+                        })
+                        .await;
+                    let list = self.check_for_infra_error(out)?;
+                    Ok::<Vec<DbRecord<H>>, mysql_async::Error>(list)
+                }
+                StorageType::HistoryTreeNode => {
+                    //TABLE_HISTORY_TREE_NODES
+                    /*
+                    + TABLE_HISTORY_TREE_NODES
+                    + "` (`location` BIGINT UNSIGNED NOT NULL, `label_len` INT UNSIGNED NOT NULL,"
+                    + " `label_val` BIGINT UNSIGNED NOT NULL, `epochs` VARBINARY(2000),"
+                    + " `parent` BIGINT UNSIGNED NOT NLL, `node_type` SMALLINT UNSIGNED NOT NULL,"
+                    + " PRIMARY KEY (`location`))";
+                    */
+                    let mut statement_text = "SELECT ".to_owned()
+                        + SELECT_HISTORY_TREE_NODE_DATA
+                        + " FROM `"
+                        + TABLE_HISTORY_TREE_NODES
+                        + "`";
+                    if let Some(limit) = num {
+                        statement_text = format!("{} LIMIT {}", statement_text, limit);
+                    }
+                    let out = conn
+                        .query_map(
+                            statement_text,
+                            |(location, label_len, label_val, epochs, parent, node_type)| {
+                                // some evil typing b.s.
+                                // the compiler should optimize this away
+                                let bin_vec: Vec<u8> = epochs;
+                                let epochs_vec: Vec<u64> = bincode::deserialize(&bin_vec).unwrap();
+                                /*(epochs: Vec<u64>, parent: usize, node_type: u8)*/
+                                let value = AsyncMySqlDatabase::build_history_tree_node(
+                                    label_val, label_len, location, epochs_vec, parent, node_type,
+                                );
+                                DbRecord::HistoryTreeNode(value)
+                            },
+                        )
+                        .await;
+                    let list = self.check_for_infra_error(out)?;
+                    Ok::<Vec<DbRecord<H>>, mysql_async::Error>(list)
+                }
             }
-            let statement = conn.prep(statement_text).await?;
-            let out = conn
-                .exec_map(statement, mysql_async::Params::from(params_map), |value| {
-                    value
-                })
-                .await;
-            let result = self.check_for_infra_error(out)?;
-            Ok::<Vec<Vec<u8>>, mysql_async::Error>(result)
         };
 
         match result.await {
-            Ok(result) => Ok(result),
-            Err(other) => Err(StorageError::GetError(other.to_string())),
+            Ok(map) => Ok(map),
+            Err(error) => Err(StorageError::GetError(error.to_string())),
         }
     }
 
@@ -400,7 +589,7 @@ impl Storage for AsyncMySqlDatabase {
         let result = async {
             let mut conn = self.get_connection().await?;
             let statement_text = "INSERT INTO `".to_owned()
-                + USER_TABLE
+                + TABLE_USER
                 + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
                 + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
             let prepped = conn.prep(statement_text).await?;
@@ -435,7 +624,7 @@ impl Storage for AsyncMySqlDatabase {
             let mut conn = self.get_connection().await?;
 
             let statement_text = "INSERT INTO `".to_owned()
-                + USER_TABLE
+                + TABLE_USER
                 + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
                 + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
             // create a transaction to perform the operations on
@@ -488,7 +677,7 @@ impl Storage for AsyncMySqlDatabase {
             let statement_text =
                 "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
                     .to_owned()
-                    + USER_TABLE
+                    + TABLE_USER
                     + "` WHERE `username` = :the_user";
             let prepped = conn.prep(statement_text).await?;
             let out = conn
@@ -517,6 +706,7 @@ impl Storage for AsyncMySqlDatabase {
             Err(code) => Err(StorageError::GetError(code.to_string())),
         }
     }
+
     async fn get_user_state(
         &self,
         username: &Username,
@@ -527,7 +717,7 @@ impl Storage for AsyncMySqlDatabase {
             let mut statement_text =
                 "SELECT `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
                     .to_owned()
-                    + USER_TABLE
+                    + TABLE_USER
                     + "` WHERE `username` = :the_user";
             let mut params_map = vec![("the_user", Value::from(&username.0))];
             // apply the specific filter

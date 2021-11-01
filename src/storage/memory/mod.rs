@@ -6,7 +6,9 @@
 // of this source tree.
 
 use crate::errors::StorageError;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::types::{
+    StorageType, UserData, UserState, UserStateRetrievalFlag, Username,
+};
 use crate::storage::Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
@@ -318,6 +320,15 @@ impl Default for AsyncInMemoryDbWithCache {
     }
 }
 
+impl Clone for AsyncInMemoryDbWithCache {
+    fn clone(&self) -> Self {
+        Self {
+            user_data_read_handle: self.user_data_read_handle.clone(),
+            user_data_write_handle: self.user_data_write_handle.clone(),
+        }
+    }
+}
+
 #[async_trait]
 impl Storage for AsyncInMemoryDbWithCache {
     async fn set(&self, pos: String, dt: StorageType, value: &[u8]) -> Result<(), StorageError> {
@@ -505,11 +516,5 @@ impl Storage for AsyncInMemoryDbWithCache {
             }
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
-    }
-}
-
-impl Clone for AsyncInMemoryDbWithCache {
-    fn clone(&self) -> Self {
-        Self::new()
     }
 }
