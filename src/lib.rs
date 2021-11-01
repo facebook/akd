@@ -8,10 +8,10 @@
 extern crate rand;
 
 pub mod append_only_zks;
+pub mod directory;
 pub mod errors;
 pub mod history_tree_node;
 pub mod node_state;
-pub mod seemless_directory;
 mod serialization;
 pub mod storage;
 pub use errors::*;
@@ -19,8 +19,8 @@ pub use errors::*;
 pub mod proof_structs;
 pub use proof_structs::*;
 
-pub mod seemless_auditor;
-pub mod seemless_client;
+pub mod auditor;
+pub mod client;
 
 #[cfg(test)]
 pub mod tests;

@@ -25,7 +25,7 @@ use crate::{
 
 use rand::{rngs::OsRng, RngCore};
 
-type InMemoryDb = storage::memory::r#async::AsyncInMemoryDatabase;
+type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 
 ////////// history_tree_node tests //////
 //  Test set_child_without_hash and get_child_at_existing_epoch

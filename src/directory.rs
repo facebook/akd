@@ -32,8 +32,8 @@ impl Username {
     }
 }
 
-pub struct SeemlessDirectory<S, H> {
-    azks_id: Vec<u8>,
+pub struct Directory<S, H> {
+    azks_id: [u8; 32],
     current_epoch: u64,
     storage: S,
     _s: PhantomData<S>,
@@ -41,17 +41,26 @@ pub struct SeemlessDirectory<S, H> {
 }
 
 impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker::Send>
-    SeemlessDirectory<S, H>
+    Directory<S, H>
 {
     pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
         let mut rng: ThreadRng = thread_rng();
-        let azks = Azks::<H, S>::new(storage, &mut rng).await?;
-        let azks_id = azks.get_azks_id();
 
-        storage.store(AzksKey(azks_id.to_vec()), &azks).await?;
-        Ok(SeemlessDirectory {
-            azks_id: azks_id.to_vec(),
-            current_epoch: 0,
+        let azks = {
+            if let Some(azks) = Directory::get_azks_from_storage(storage).await {
+                azks
+            } else {
+                // generate a new one
+                let azks = Azks::<H, S>::new(storage, &mut rng).await?;
+                // store it
+                storage.store(AzksKey(azks.get_azks_id()), &azks).await?;
+                azks
+            }
+        };
+        let azks_id = azks.get_azks_id();
+        Ok(Directory {
+            azks_id,
+            current_epoch: azks.get_latest_epoch(),
             _s: PhantomData::<S>,
             _h: PhantomData::<H>,
             storage: storage.clone(),
@@ -103,7 +112,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .batch_insert_leaves(&self.storage, insertion_set)
             .await;
         self.storage
-            .store(AzksKey(self.azks_id.clone()), &current_azks)
+            .store(AzksKey(self.azks_id), &current_azks)
             .await?;
         self.storage
             .append_user_states(user_data_update_set)
@@ -193,7 +202,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     pub async fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
         self.storage
-            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id.clone()))
+            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id))
             .await
     }
 
@@ -233,6 +242,17 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
         [0u8; 64]
         // unimplemented!()
+    }
+
+    async fn get_azks_from_storage(storage: &S) -> Option<Azks<H, S>> {
+        let result = storage.retrieve_all::<Azks<H, S>>(Some(1)).await;
+        if let Ok(mut v) = result {
+            if !v.is_empty() {
+                let removed = v.remove(0);
+                return Some(removed);
+            }
+        }
+        None
     }
 
     async fn create_single_update_proof(
@@ -356,7 +376,7 @@ pub async fn get_key_history_hashes<
     S: Storage + std::marker::Sync + std::marker::Send,
     H: Hasher + std::marker::Send,
 >(
-    seemless_dir: &SeemlessDirectory<S, H>,
+    seemless_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, SeemlessError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
@@ -396,9 +416,9 @@ pub async fn get_key_history_hashes<
 mod tests {
     use super::*;
     use crate::{
-        seemless_auditor::audit_verify,
-        seemless_client::{key_history_verify, lookup_verify},
-        storage::memory::r#async::AsyncInMemoryDatabase,
+        auditor::audit_verify,
+        client::{key_history_verify, lookup_verify},
+        storage::memory::AsyncInMemoryDatabase,
     };
     use winter_crypto::hashers::Blake3_256;
     use winter_math::fields::f128::BaseElement;
@@ -409,7 +429,7 @@ mod tests {
     async fn test_simple_publish() -> Result<(), SeemlessError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
-            SeemlessDirectory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![(
@@ -425,7 +445,7 @@ mod tests {
     async fn test_simiple_lookup() -> Result<(), SeemlessError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
-            SeemlessDirectory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![
@@ -449,7 +469,7 @@ mod tests {
     async fn test_simple_key_history() -> Result<(), SeemlessError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
-            SeemlessDirectory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![
@@ -543,7 +563,7 @@ mod tests {
     async fn test_simple_audit() -> Result<(), SeemlessError> {
         let db = AsyncInMemoryDatabase::new();
         let mut seemless =
-            SeemlessDirectory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
         seemless
             .publish(vec![

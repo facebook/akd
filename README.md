@@ -1,4 +1,4 @@
-## SEEMless ![Build Status](https://github.com/novifinancial/SEEMless/workflows/CI/badge.svg)
+## vkd ![Build Status](https://github.com/novifinancial/SEEMless/workflows/CI/badge.svg)
 
 An implementation of a verifiable key directory (also known as a verifiable registry).
 
@@ -13,7 +13,7 @@ This library provides a stateless API for a verifiable key directory, meaning th
 Documentation
 -------------
 
-The API can be found [here](https://docs.rs/seemless/) along with an example for usage.
+The API can be found [here](https://docs.rs/vkd/) along with an example for usage.
 
 Installation
 ------------
@@ -21,7 +21,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-seemless = "0.1.0"
+vkd = "0.1"
 ```
 
 ### Minimum Supported Rust Version
@@ -32,8 +32,9 @@ Contributors
 ------------
 
 The authors of this code are
-Jasleen Malvai ([@jasleen1](https://github.com/jasleen1)) and
-Kevin Lewi ([@kevinlewi](https://github.com/kevinlewi)).
+Jasleen Malvai ([@jasleen1](https://github.com/jasleen1)),
+Kevin Lewi ([@kevinlewi](https://github.com/kevinlewi)), and
+Sean Lawlor ([@slawlor](https://github.com/slawlor)).
 To learn more about contributing to this project, [see this document](./CONTRIBUTING.md).
 
 License
