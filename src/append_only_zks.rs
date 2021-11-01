@@ -273,9 +273,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = storage
-            .retrieve(NodeKey(self.azks_id, self.root))
-            .await?;
+        let node = storage.retrieve(NodeKey(self.azks_id, self.root)).await?;
         let (unchanged, leaves) = self
             .get_append_only_proof_helper(storage, node, start_epoch, end_epoch)
             .await?;
@@ -436,9 +434,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             equal = label == curr_node.label;
         }
         if !equal {
-            let new_curr_node = storage
-                .retrieve(NodeKey(self.azks_id, prev_node))
-                .await?;
+            let new_curr_node = storage.retrieve(NodeKey(self.azks_id, prev_node)).await?;
             curr_node = new_curr_node;
 
             parent_labels.pop();
@@ -475,8 +471,8 @@ type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 mod tests {
     use super::*;
     use crate::{
-        seemless_auditor::verify_append_only,
-        seemless_client::{verify_membership, verify_nonmembership},
+        auditor::verify_append_only,
+        client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};

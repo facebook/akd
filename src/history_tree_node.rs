@@ -164,10 +164,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 if hashing {
                     new_leaf.update_hash(storage, epoch).await?;
                     let mut new_self = storage
-                        .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
-                            self.azks_id,
-                            self.location,
-                        ))
+                        .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.location))
                         .await?;
                     new_self.update_hash(storage, epoch).await?;
                 }
@@ -348,9 +345,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     .set_node_child_without_hash(storage, epoch, dir_self, self)
                     .await?;
                 parent.write_to_storage(storage).await?;
-                *parent = storage
-                    .retrieve(NodeKey(self.azks_id, self.parent))
-                    .await?;
+                *parent = storage.retrieve(NodeKey(self.azks_id, self.parent)).await?;
             }
             match get_state_map(storage, parent, &epoch).await {
                 Err(_) => Err(HistoryTreeNodeError::ParentNextEpochInvalid(epoch)),

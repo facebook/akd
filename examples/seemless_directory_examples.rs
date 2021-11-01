@@ -8,16 +8,14 @@
 use rand::prelude::IteratorRandom;
 use rand::{prelude::ThreadRng, thread_rng};
 
-use seemless::seemless_auditor::audit_verify;
-use seemless::seemless_client::{key_history_verify, lookup_verify};
-use seemless::seemless_directory::{get_key_history_hashes, SeemlessDirectory};
-use seemless::storage::memory::AsyncInMemoryDbWithCache;
-use seemless::storage::types::{Username, Values};
+use vkd::auditor::audit_verify;
+use vkd::client::{key_history_verify, lookup_verify};
+use vkd::directory::{get_key_history_hashes, Directory};
+use vkd::storage::memory::AsyncInMemoryDbWithCache;
+use vkd::storage::types::{Username, Values};
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
-
-pub mod measurements;
 
 fn create_usernames_and_values(
     num_insertions: usize,
@@ -60,10 +58,9 @@ async fn main() {
     let mut existing_usernames = Vec::<Username>::new();
 
     let db = AsyncInMemoryDbWithCache::new();
-    let mut seemless_dir =
-        SeemlessDirectory::<AsyncInMemoryDbWithCache, Blake3_256<BaseElement>>::new(&db)
-            .await
-            .unwrap();
+    let mut seemless_dir = Directory::<AsyncInMemoryDbWithCache, Blake3_256<BaseElement>>::new(&db)
+        .await
+        .unwrap();
 
     // Populating the updates
     let rng: ThreadRng = thread_rng();
