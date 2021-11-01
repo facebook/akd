@@ -19,7 +19,6 @@ use winter_crypto::Hasher;
 
 use rand::{CryptoRng, RngCore};
 
-
 /// The NodeLabel struct represents the label for a HistoryTreeNode.
 /// Since the label itself may have any number of zeros pre-pended,
 /// just using a native type, unless it is a bit-vector, wouldn't work.
