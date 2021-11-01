@@ -19,6 +19,11 @@ use winter_crypto::Hasher;
 
 use rand::{CryptoRng, RngCore};
 
+
+/// The NodeLabel struct represents the label for a HistoryTreeNode.
+/// Since the label itself may have any number of zeros pre-pended,
+/// just using a native type, unless it is a bit-vector, wouldn't work.
+/// Hence, we need a custom representation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeLabel {
     pub val: u64,
@@ -30,9 +35,12 @@ impl NodeLabel {
         NodeLabel { val, len }
     }
 
+    /// Gets the length of a NodeLabel.
     pub fn get_len(&self) -> u32 {
         self.len
     }
+
+    /// Gets the value of a NodeLabel.
     pub fn get_val(&self) -> u64 {
         self.val
     }
@@ -65,6 +73,8 @@ impl NodeLabel {
         Self::new(self.val >> (self.len - len), len)
     }
 
+    /// Takes as input a pointer to the caller and another NodeLabel,
+    /// returns a NodeLabel that is the longest common prefix of the two.
     pub fn get_longest_common_prefix(&self, other: Self) -> Self {
         let shorter_len = if self.get_len() < other.get_len() {
             self.get_len()
@@ -82,6 +92,12 @@ impl NodeLabel {
         self.get_prefix(prefix_len)
     }
 
+    /// Takes as input a pointer to self, another NodeLabel and returns the tuple representing:
+    /// * the longest common prefix,
+    /// * the direction, with respect to the longest common prefix, of other,
+    /// * the direction, with respect to the longest common prefix, of self.
+    /// If either the node itself, or other is the longest common prefix, the
+    /// direction of the longest common prefix node is None.
     pub fn get_longest_common_prefix_and_dirs(&self, other: Self) -> (Self, Direction, Direction) {
         let lcp_label = self.get_longest_common_prefix(other);
         let dir_other = lcp_label.get_dir(other);
@@ -89,6 +105,8 @@ impl NodeLabel {
         (lcp_label, dir_other, dir_self)
     }
 
+    /// Gets the direction of other with respect to self, if self is a prefix of other.
+    /// If self is not a prefix of other, then returns None.
     pub fn get_dir(&self, other: Self) -> Direction {
         if self.get_len() >= other.get_len() {
             return Direction::None;
@@ -100,11 +118,18 @@ impl NodeLabel {
     }
 }
 
+/// Hashes a label of type NodeLabel using the hash function provided by
+/// the generic type H.
 pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     let byte_label_len = H::hash(&label.get_len().to_ne_bytes());
     H::merge_with_int(byte_label_len, label.get_val())
 }
 
+/// A HistoryNodeState represents the state of a [`HistoryTreeNode`] at a given epoch.
+/// As you may see, when looking at [`HistoryChildState`], the node needs to include
+/// its hashed value, the hashed values of its children and the labels of its children.
+/// This allows the various algorithms in [`HistoryTreeNode`] to build proofs for the tree at
+/// any given epoch, without having to do a traversal of the history tree to find siblings.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct HistoryNodeState<H, S> {
@@ -112,7 +137,8 @@ pub struct HistoryNodeState<H, S> {
     pub child_states: Vec<HistoryChildState<H, S>>,
 }
 
-// parameters are azks_id, node location, and epoch
+/// This struct is just used for storage access purposes.
+/// parameters are azks_id, node location, and epoch
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
 
@@ -135,6 +161,7 @@ impl<H: Hasher, S: Storage> HistoryNodeState<H, S> {
         }
     }
 
+    /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
     pub fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H, S> {
         self.child_states[dir].clone()
     }
@@ -173,6 +200,11 @@ pub enum DummyChildState {
     Dummy,
     Real,
 }
+
+/// This struct represents the state of the child of a node at a given epoch
+/// and contains all the information its parent might need about it in an operation.
+/// The dummy_marker represents whether this child was real or a dummy.
+/// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HistoryChildState<H, S> {
     pub dummy_marker: DummyChildState,
@@ -184,7 +216,7 @@ pub struct HistoryChildState<H, S> {
     pub(crate) _s: PhantomData<S>,
 }
 
-// parameters are azks_id, node location, epoch, child index
+/// parameters are azks_id, node location, epoch, child index
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ChildStateKey(
     pub(crate) Vec<u8>,

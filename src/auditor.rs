@@ -9,8 +9,10 @@ use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
 use crate::{
-    append_only_zks::Azks, storage::memory::AsyncInMemoryDatabase,
-    SeemlessError, errors::{AzksError, SeemlessError}, proof_structs::AppendOnlyProof,
+    append_only_zks::Azks,
+    errors::{AzksError, SeemlessError},
+    proof_structs::AppendOnlyProof,
+    storage::memory::AsyncInMemoryDatabase,
 };
 
 pub async fn audit_verify<H: Hasher + std::marker::Send>(

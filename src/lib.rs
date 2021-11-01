@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! An implementation of a verifiable key directory (VKD)
+//! An implementation of a verifiable key directory (VKD), also known as a verifiable registery.
 //!
 //!
 //! A verifiable key directory (VKD) is an example of an authenticated
