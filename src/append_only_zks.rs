@@ -65,10 +65,7 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
 }
 
 impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker::Send> Azks<H, S> {
-    pub async fn new<R: CryptoRng + RngCore>(
-        storage: &S,
-        rng: &mut R,
-    ) -> Result<Self, VkdError> {
+    pub async fn new<R: CryptoRng + RngCore>(storage: &S, rng: &mut R) -> Result<Self, VkdError> {
         let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
 

@@ -25,11 +25,9 @@ pub fn verify_membership<H: Hasher>(
         if final_hash == root_hash {
             return Ok(());
         } else {
-            return Err(VkdError::AzksErr(
-                AzksError::MembershipProofDidNotVerify(
-                    "Membership proof for root did not verify".to_string(),
-                ),
-            ));
+            return Err(VkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+                "Membership proof for root did not verify".to_string(),
+            )));
         }
     }
     let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
@@ -45,12 +43,12 @@ pub fn verify_membership<H: Hasher>(
     if final_hash == root_hash {
         Ok(())
     } else {
-        return Err(VkdError::AzksErr(
-            AzksError::MembershipProofDidNotVerify(format!(
+        return Err(VkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+            format!(
                 "Membership proof for label {:?} did not verify",
                 proof.label
-            )),
-        ));
+            ),
+        )));
     }
 }
 
@@ -185,9 +183,8 @@ pub fn verify_single_update_proof<H: Hasher>(
             (version - 1),
             epoch
         );
-        let previous_null_err = VkdError::DirectoryErr(
-            DirectoryError::KeyHistoryVerificationErr(err_str),
-        );
+        let previous_null_err =
+            VkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(err_str));
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
         verify_membership(root_hash, previous_val_stale_at_ep)?;

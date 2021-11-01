@@ -42,9 +42,7 @@ pub async fn verify_append_only<H: Hasher + std::marker::Send>(
     let computed_end_root_hash: H::Digest = azks.get_root_hash(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
-        return Err(VkdError::AzksErr(
-            AzksError::AppendOnlyProofDidNotVerify,
-        ));
+        return Err(VkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));
     }
     Ok(())
 }

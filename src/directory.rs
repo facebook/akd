@@ -10,7 +10,7 @@ use crate::errors::{DirectoryError, VkdError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{UserState, UserStateRetrievalFlag, VkdKey, Values};
+use crate::storage::types::{UserState, UserStateRetrievalFlag, Values, VkdKey};
 use crate::storage::Storage;
 
 use rand::{prelude::ThreadRng, thread_rng};
@@ -347,10 +347,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     }
 
     /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash(
-        &self,
-        current_azks: &Azks<H, S>,
-    ) -> Result<H::Digest, VkdError> {
+    pub async fn get_root_hash(&self, current_azks: &Azks<H, S>) -> Result<H::Digest, VkdError> {
         self.get_root_hash_at_epoch(current_azks, self.current_epoch)
             .await
     }
@@ -514,10 +511,7 @@ mod tests {
         seemless
             .publish(vec![
                 (VkdKey("hello3".to_string()), Values("world6".to_string())),
-                (
-                    VkdKey("hello4".to_string()),
-                    Values("world12".to_string()),
-                ),
+                (VkdKey("hello4".to_string()), Values("world12".to_string())),
             ])
             .await?;
 
@@ -531,9 +525,7 @@ mod tests {
             history_proof,
         )?;
 
-        let history_proof = seemless
-            .key_history(&VkdKey("hello2".to_string()))
-            .await?;
+        let history_proof = seemless.key_history(&VkdKey("hello2".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
@@ -543,9 +535,7 @@ mod tests {
             history_proof,
         )?;
 
-        let history_proof = seemless
-            .key_history(&VkdKey("hello3".to_string()))
-            .await?;
+        let history_proof = seemless.key_history(&VkdKey("hello3".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
@@ -555,9 +545,7 @@ mod tests {
             history_proof,
         )?;
 
-        let history_proof = seemless
-            .key_history(&VkdKey("hello4".to_string()))
-            .await?;
+        let history_proof = seemless.key_history(&VkdKey("hello4".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&seemless, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
@@ -608,10 +596,7 @@ mod tests {
         seemless
             .publish(vec![
                 (VkdKey("hello3".to_string()), Values("world6".to_string())),
-                (
-                    VkdKey("hello4".to_string()),
-                    Values("world12".to_string()),
-                ),
+                (VkdKey("hello4".to_string()), Values("world12".to_string())),
             ])
             .await?;
 
