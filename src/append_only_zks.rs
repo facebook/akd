@@ -213,30 +213,29 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(())
     }
 
+    // Returns the Merkle membership proof for the trie as it stood at epoch
+    // Assumes the verifier as access to the root at epoch
     pub async fn get_membership_proof(
         &self,
         storage: &S,
         label: NodeLabel,
         epoch: u64,
     ) -> Result<MembershipProof<H>, VkdError> {
-        // Regular Merkle membership proof for the trie as it stood at epoch
-        // Assumes the verifier as access to the root at epoch
         let (pf, _) = self
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
         Ok(pf)
     }
 
+    /// In a compressed trie, the proof consists of the longest prefix
+    /// of the label that is included in the trie, as well as its children, to show that
+    /// none of the children is equal to the given label.
     pub async fn get_non_membership_proof(
         &self,
         storage: &S,
         label: NodeLabel,
         epoch: u64,
     ) -> Result<NonMembershipProof<H>, VkdError> {
-        // In a compressed trie, the proof consists of the longest prefix
-        // of the label that is included in the trie, as well as its children, to show that
-        // none of the children is equal to the given label.
-
         let (longest_prefix_membership_proof, lcp_node_id) = self
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
@@ -374,6 +373,9 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
+    /// Gets the root hash of the tree at a epoch.
+    /// Since this is accessing the root node and the root node exists at all epochs that
+    /// the azks does, this would never be called at an epoch before the birth of the root node.
     pub async fn get_root_hash_at_epoch(
         &self,
         storage: &S,
@@ -385,6 +387,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         root_node.get_value_at_epoch(storage, epoch).await
     }
 
+    /// Gets the latest epoch of this azks. If an update aka epoch transition
+    /// is in progress, this should return the most recent completed epoch.
     pub fn get_latest_epoch(&self) -> u64 {
         self.latest_epoch
     }
@@ -394,6 +398,9 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         self.latest_epoch = epoch;
     }
 
+    /// This function returns the node location for the node whose label is the longest common
+    /// prefix for the queried label. It also returns a membership proof for said label.
+    /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
     pub async fn get_membership_proof_and_node(
         &self,
         storage: &S,
@@ -471,6 +478,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         ))
     }
 
+    /// Gets the ID associated with this azks.
     pub fn get_azks_id(&self) -> [u8; 32] {
         self.azks_id
     }

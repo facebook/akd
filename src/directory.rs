@@ -224,9 +224,11 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         unimplemented!()
     }
 
-    // TODO: we need to make this only work on the server and have another function
+    // FIXME: we need to make this only work on the server, use a VRF and have another function
     // that verifies nodelabel.
-    /// FIXME: Add a comment here for what the stale parameter is used for
+    /// Returns the tree nodelabel that corresponds to a version of the vkdkey argument.
+    /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
+    /// or a version that we are retiring.
     pub(crate) fn get_nodelabel(uname: &VkdKey, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
@@ -244,6 +246,8 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         NodeLabel::new(u64::from_ne_bytes(hashed_label_bytes), 64u32)
     }
 
+    // FIXME: Make a real commitment here, alongwith a blinding factor.
+    /// Gets the bytes for a value.
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
         [0u8; 64]
         // unimplemented!()
@@ -330,6 +334,8 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         })
     }
 
+    /// Gets the azks root hash at the provided epoch. Note that the root hash should exist at any epoch
+    /// that the azks existed, so as long as epoch >= 0, we should be fine.
     pub async fn get_root_hash_at_epoch(
         &self,
         current_azks: &Azks<H, S>,
@@ -340,6 +346,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .await?)
     }
 
+    /// Gets the azks root hash at the current epoch.
     pub async fn get_root_hash(
         &self,
         current_azks: &Azks<H, S>,
