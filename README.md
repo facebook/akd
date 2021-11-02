@@ -1,14 +1,14 @@
 ## akd ![Build Status](https://github.com/novifinancial/akd/workflows/CI/badge.svg)
 
-An implementation of a verifiable key directory (also known as a verifiable registry).
+An implementation of an auditable key directory (also known as a verifiable registry).
 
-Verifiable key directories can be used to help provide key transparency for end-to-end encrypted
+Auditable key directories can be used to help provide key transparency for end-to-end encrypted
 messaging.
 
 This implementation is based off of the protocol described in
 [SEEMless: Secure End-to-End Encrypted Messaging with less trust](https://eprint.iacr.org/2018/607).
 
-This library provides a stateless API for a verifiable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
+This library provides a stateless API for an auditable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
 
 Documentation
 -------------
