@@ -2,6 +2,8 @@
 name = "akd"
 version = "0.1.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+description = "An implementation of an auditable key directory"
+license = "MIT"
 edition = "2018"
 
 [features]
