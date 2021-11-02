@@ -10,8 +10,8 @@ use crate::errors::{SeemlessDirectoryError, SeemlessError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{UserState, UserStateRetrievalFlag, Username, Values};
-use crate::storage::Storage;
+use crate::storage::types::{DbRecord, UserState, UserStateRetrievalFlag, Username, Values};
+use crate::storage::NewStorage;
 
 use rand::{CryptoRng, RngCore};
 
@@ -37,17 +37,20 @@ pub struct Directory<S, H> {
     _h: PhantomData<H>,
 }
 
-impl<S: Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
+impl<S: NewStorage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
         let azks = {
-            if let Some(azks) = Directory::get_azks_from_storage(storage).await {
+            if let Ok(azks) = Directory::get_azks_from_storage(storage).await {
                 azks
             } else {
                 // generate a new one
                 let azks = Azks::<H>::new(storage).await?;
                 // store it
                 storage
-                    .store(crate::append_only_zks::DEFAULT_AZKS_KEY, &azks)
+                    .set::<H, Azks<H>>(
+                        crate::append_only_zks::DEFAULT_AZKS_KEY,
+                        DbRecord::Azks(azks.clone()),
+                    )
                     .await?;
                 azks
             }
@@ -104,7 +107,10 @@ impl<S: Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
             .batch_insert_leaves(&self.storage, insertion_set)
             .await;
         self.storage
-            .store(crate::append_only_zks::DEFAULT_AZKS_KEY, &current_azks)
+            .set::<H, Azks<H>>(
+                crate::append_only_zks::DEFAULT_AZKS_KEY,
+                DbRecord::Azks(current_azks.clone()),
+            )
             .await?;
         self.storage
             .append_user_states(user_data_update_set)
@@ -193,9 +199,19 @@ impl<S: Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     }
 
     pub async fn retrieve_current_azks(&self) -> Result<Azks<H>, crate::errors::StorageError> {
-        self.storage
-            .retrieve::<Azks<H>>(crate::append_only_zks::DEFAULT_AZKS_KEY)
-            .await
+        Directory::get_azks_from_storage(&self.storage).await
+    }
+
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks<H>, crate::errors::StorageError> {
+        let got = storage
+            .get::<H, Azks<H>>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+            .await?;
+        match got {
+            DbRecord::Azks(azks) => Ok(azks),
+            _ => Err(crate::errors::StorageError::GetError(String::from(
+                "Not found",
+            ))),
+        }
     }
 
     /// HELPERS ///
@@ -229,16 +245,6 @@ impl<S: Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
         [0u8; 64]
         // unimplemented!()
-    }
-
-    async fn get_azks_from_storage(storage: &S) -> Option<Azks<H>> {
-        let result = storage
-            .retrieve::<Azks<H>>(crate::append_only_zks::DEFAULT_AZKS_KEY)
-            .await;
-        if let Ok(v) = result {
-            return Some(v);
-        }
-        None
     }
 
     async fn create_single_update_proof(
@@ -355,7 +361,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
-pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher + Sync + Send>(
+pub async fn get_key_history_hashes<S: NewStorage + Sync + Send, H: Hasher + Sync + Send>(
     seemless_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, SeemlessError> {
@@ -407,9 +413,12 @@ mod tests {
     #[allow(unused)]
     #[actix_rt::test]
     async fn test_simple_publish() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::NewStorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::NewStorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![(
@@ -423,9 +432,12 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_simiple_lookup() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::NewStorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::NewStorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![
@@ -447,9 +459,12 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_simple_key_history() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::NewStorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::NewStorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![
@@ -541,9 +556,12 @@ mod tests {
     #[allow(unused)]
     #[actix_rt::test]
     async fn test_simple_audit() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::NewStorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::NewStorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![

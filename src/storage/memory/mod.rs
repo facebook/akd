@@ -6,9 +6,7 @@
 // of this source tree.
 
 use crate::errors::StorageError;
-use crate::storage::types::{
-    StorageType, UserData, UserState, UserStateRetrievalFlag, Username,
-};
+use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
 use crate::storage::Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};

@@ -5,13 +5,13 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::marker::{Send, Sync};
+use tokio::sync::mpsc::*;
 use vkd::directory::Directory;
 use vkd::storage::types::*;
-use vkd::storage::Storage;
+use vkd::storage::NewStorage;
 use vkd::SeemlessError;
-use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
-use std::marker::{Sync, Send};
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,
@@ -28,10 +28,12 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, H: Sync + Send>(directory: &mut Directory<S, H>, o_epoch: Option<u64>)
--> Option<Result<H::Digest, SeemlessError>>
+async fn get_root_hash<S, H: Sync + Send>(
+    directory: &mut Directory<S, H>,
+    o_epoch: Option<u64>,
+) -> Option<Result<H::Digest, SeemlessError>>
 where
-    S: Storage + Sync + Send,
+    S: NewStorage + Sync + Send,
     H: Hasher + Send,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -44,9 +46,11 @@ where
     }
 }
 
-pub(crate) async fn init_host<S, H: Sync + Send>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, H>)
-where
-    S: Storage + Sync + Send,
+pub(crate) async fn init_host<S, H: Sync + Send>(
+    rx: &mut Receiver<Rpc>,
+    directory: &mut Directory<S, H>,
+) where
+    S: NewStorage + Sync + Send,
     H: Hasher + Send,
 {
     println!("INFO: Starting the verifiable directory host");
@@ -77,15 +81,22 @@ where
                         let hash = get_root_hash(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let verification = vkd::client::lookup_verify(root_hash, Username(a.clone()), proof);
+                                let verification = vkd::client::lookup_verify(
+                                    root_hash,
+                                    Username(a.clone()),
+                                    proof,
+                                );
                                 if verification.is_err() {
-                                    let msg = format!("WARN: Lookup proof failed verification for '{}'", a);
+                                    let msg = format!(
+                                        "WARN: Lookup proof failed verification for '{}'",
+                                        a
+                                    );
                                     response.send(Ok(msg)).unwrap();
                                 } else {
                                     let msg = format!("Lookup proof verified for user '{}'", a);
                                     response.send(Ok(msg)).unwrap();
                                 }
-                            },
+                            }
                             _ => {
                                 let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", a);
                                 response.send(Ok(msg)).unwrap();

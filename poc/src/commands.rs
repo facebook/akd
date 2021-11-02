@@ -5,8 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use colored::*;
 use crate::directory_host::DirectoryCommand;
+use colored::*;
 
 pub(crate) enum Command {
     Help,

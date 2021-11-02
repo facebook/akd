@@ -277,9 +277,7 @@ pub struct NewStorageWrapper<S: Storage> {
 
 impl<S: Storage> NewStorageWrapper<S> {
     pub fn new(storage: S) -> Self {
-        Self {
-            db: storage,
-        }
+        Self { db: storage }
     }
 }
 
@@ -293,6 +291,13 @@ impl<S: Storage> Clone for NewStorageWrapper<S> {
 
 unsafe impl<S: Storage> Send for NewStorageWrapper<S> {}
 unsafe impl<S: Storage> Sync for NewStorageWrapper<S> {}
+
+// Auto-converter for Storage -> NewStorage (i.e. auto-upgrader)
+impl<S: Storage + Send + Sync> From<S> for NewStorageWrapper<S> {
+    fn from(storage: S) -> Self {
+        NewStorageWrapper::new(storage)
+    }
+}
 
 #[async_trait]
 impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
@@ -355,15 +360,21 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
         let got = self.db.get_all(St::data_type(), num).await?;
         let list = got.iter().fold(Vec::new(), |mut acc, item| {
             match St::data_type() {
-                StorageType::Azks => if let Ok(item) = bincode::deserialize(item) {
-                    acc.push(DbRecord::Azks(item));
-                },
-                StorageType::HistoryNodeState => if let Ok(item) = bincode::deserialize(item) {
-                    acc.push(DbRecord::HistoryNodeState(item))
-                },
-                StorageType::HistoryTreeNode => if let Ok(item) = bincode::deserialize(item) {
-                    acc.push(DbRecord::HistoryTreeNode(item))
-                },
+                StorageType::Azks => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::Azks(item));
+                    }
+                }
+                StorageType::HistoryNodeState => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::HistoryNodeState(item))
+                    }
+                }
+                StorageType::HistoryTreeNode => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::HistoryTreeNode(item))
+                    }
+                }
             }
             acc
         });
@@ -387,7 +398,10 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
     }
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(&self, username: &types::Username) -> Result<types::UserData, StorageError> {
+    async fn get_user_data(
+        &self,
+        username: &types::Username,
+    ) -> Result<types::UserData, StorageError> {
         self.db.get_user_data(username).await
     }
 

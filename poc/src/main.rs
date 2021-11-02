@@ -5,18 +5,18 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use vkd::directory::Directory;
-use vkd::storage::mysql::AsyncMySqlDatabase;
+use commands::Command;
 use std::io::*;
 use std::time::Duration;
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
+use vkd::directory::Directory;
+use vkd::storage::mysql::new_db::AsyncMySqlDatabase;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
-use commands::Command;
 
-mod directory_host;
 mod commands;
+mod directory_host;
 
 // MAIN //
 #[tokio::main]
@@ -28,14 +28,12 @@ async fn main() {
         Option::from("root"),
         Option::from("example"),
         Option::from(8001),
-
     )
     .await;
 
-    let mut directory =
-        Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
-            .await
-            .unwrap();
+    let mut directory = Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
+        .await
+        .unwrap();
     tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
 
     process_input(&tx, &mysql_db).await;
@@ -60,19 +58,21 @@ async fn process_input(tx: &Sender<directory_host::Rpc>, db: &AsyncMySqlDatabase
             Command::Exit => {
                 println!("Exiting...");
                 break;
-            },
+            }
             Command::Help => {
                 Command::print_help_menu();
-            },
+            }
             Command::Flush => {
                 println!("Flushing the database...");
                 if let Err(error) = db.delete_data().await {
                     println!("Error flushing database: {}", error);
                 } else {
-                    println!("Database flushed, exiting application. Please restart to create a new VKD");
+                    println!(
+                        "Database flushed, exiting application. Please restart to create a new VKD"
+                    );
                     break;
                 }
-            },
+            }
             Command::Directory(cmd) => {
                 let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                 let rpc = directory_host::Rpc(cmd, Some(rpc_tx));
