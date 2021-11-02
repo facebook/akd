@@ -1,16 +1,23 @@
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
 
+//! An implementation of an append-only zero knowledge set
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
+    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof},
     storage::{Storable, Storage},
 };
 
 use crate::serialization::to_digest;
-use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
+
+use crate::storage::types::StorageType;
+use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
+use async_recursion::async_recursion;
 use rand::{CryptoRng, RngCore};
 use std::marker::PhantomData;
 use winter_crypto::Hasher;
@@ -19,11 +26,13 @@ use serde::{Deserialize, Serialize};
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
+/// An append-only zero knowledge set, the data structure used to efficiently implement
+/// a verifiable key directory.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H, S> {
     /// Random identifier for the AZKS instance
-    azks_id: Vec<u8>,
+    azks_id: [u8; 32],
     root: usize,
     latest_epoch: u64,
     num_nodes: usize, // The size of the tree
@@ -31,22 +40,24 @@ pub struct Azks<H, S> {
     _h: PhantomData<H>,
 }
 
-// parameter is azks_id
+/// parameter is azks_id
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct AzksKey(pub(crate) Vec<u8>);
+pub struct AzksKey(pub(crate) [u8; 32]);
 
-impl<H: Hasher, S: Storage> Storable<S> for Azks<H, S> {
+impl<H: Hasher, S: Storage> Storable for Azks<H, S> {
     type Key = AzksKey;
 
-    fn identifier() -> String {
-        String::from("Azks")
+    fn data_type() -> StorageType {
+        StorageType::Azks
     }
 }
+
+unsafe impl<H: Hasher, S: Storage> Sync for Azks<H, S> {}
 
 impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     fn clone(&self) -> Self {
         Self {
-            azks_id: self.azks_id.clone(),
+            azks_id: self.azks_id,
             root: self.root,
             latest_epoch: self.latest_epoch,
             num_nodes: self.num_nodes,
@@ -56,12 +67,13 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
     }
 }
 
-impl<H: Hasher, S: Storage> Azks<H, S> {
-    pub fn new<R: CryptoRng + RngCore>(rng: &mut R) -> Result<Self, SeemlessError> {
-        let mut azks_id = vec![0u8; 32];
+impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker::Send> Azks<H, S> {
+    /// Creates a new azks
+    pub async fn new<R: CryptoRng + RngCore>(storage: &S, rng: &mut R) -> Result<Self, VkdError> {
+        let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
 
-        let root = get_empty_root::<H, S>(&azks_id, Option::Some(0))?;
+        let root = get_empty_root::<H, S>(storage, &azks_id, Option::Some(0)).await?;
 
         let azks = Azks {
             azks_id,
@@ -72,80 +84,110 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             _h: PhantomData,
         };
 
-        root.write_to_storage()?;
+        root.write_to_storage(storage).await?;
 
         Ok(azks)
     }
 
-    pub fn insert_leaf(&mut self, label: NodeLabel, value: H::Digest) -> Result<(), SeemlessError> {
+    /// Inserts a single leaf and is only used for testing, since batching is more efficient.
+    /// We just want to make sure batch insertions work correctly and this function is useful for that.
+    pub async fn insert_leaf(
+        &mut self,
+        storage: &S,
+        label: NodeLabel,
+        value: H::Digest,
+    ) -> Result<(), VkdError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
         let new_leaf = get_leaf_node::<H, S>(
+            storage,
             &self.azks_id,
             label,
             0,
             value.as_ref(),
             0,
             self.latest_epoch,
-        )?;
+        )
+        .await?;
 
-        let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        root_node.insert_single_leaf(
-            new_leaf,
-            &self.azks_id,
-            self.latest_epoch,
-            &mut self.num_nodes,
-        )?;
-
-        Ok(())
-    }
-
-    pub fn batch_insert_leaves(
-        &mut self,
-        insertion_set: Vec<(NodeLabel, H::Digest)>,
-    ) -> Result<(), SeemlessError> {
-        self.batch_insert_leaves_helper(insertion_set, false)
-    }
-
-    pub fn batch_insert_leaves_helper(
-        &mut self,
-        insertion_set: Vec<(NodeLabel, H::Digest)>,
-        append_only_usage: bool,
-    ) -> Result<(), SeemlessError> {
-        self.increment_epoch();
-
-        let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
-        let mut priorities: i32 = 0;
-        let mut root_node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        for insertion_elt in insertion_set {
-            let new_leaf_loc = self.num_nodes;
-
-            let mut new_leaf = get_leaf_node::<H, S>(
-                &self.azks_id,
-                insertion_elt.0,
-                0,
-                insertion_elt.1.as_ref(),
-                0,
-                self.latest_epoch,
-            )?;
-            if append_only_usage {
-                new_leaf = get_leaf_node_without_hashing::<H, S>(
-                    &self.azks_id,
-                    insertion_elt.0,
-                    0,
-                    insertion_elt.1,
-                    0,
-                    self.latest_epoch,
-                )?;
-            }
-
-            root_node.insert_single_leaf_without_hash(
+        let mut root_node = storage
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
+            .await?;
+        root_node
+            .insert_leaf(
+                storage,
                 new_leaf,
                 &self.azks_id,
                 self.latest_epoch,
                 &mut self.num_nodes,
-            )?;
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Insert a batch of new leaves
+    pub async fn batch_insert_leaves(
+        &mut self,
+        storage: &S,
+        insertion_set: Vec<(NodeLabel, H::Digest)>,
+    ) -> Result<(), VkdError> {
+        self.batch_insert_leaves_helper(storage, insertion_set, false)
+            .await
+    }
+
+    /// An azks is built both by the [crate::directory::Directory] and the auditor.
+    /// However, both constructions have very minor differences, and the append_only_usage
+    /// bool keeps track of this.
+    pub(crate) async fn batch_insert_leaves_helper(
+        &mut self,
+        storage: &S,
+        insertion_set: Vec<(NodeLabel, H::Digest)>,
+        append_only_usage: bool,
+    ) -> Result<(), VkdError> {
+        self.increment_epoch();
+
+        let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
+        let mut priorities: i32 = 0;
+        let mut root_node = storage
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
+            .await?;
+        for (label, value) in insertion_set {
+            let new_leaf_loc = self.num_nodes;
+
+            let mut new_leaf = get_leaf_node::<H, S>(
+                storage,
+                &self.azks_id,
+                label,
+                0,
+                value.as_ref(),
+                0,
+                self.latest_epoch,
+            )
+            .await?;
+            if append_only_usage {
+                new_leaf = get_leaf_node_without_hashing::<H, S>(
+                    storage,
+                    &self.azks_id,
+                    label,
+                    0,
+                    value,
+                    0,
+                    self.latest_epoch,
+                )
+                .await?;
+            }
+
+            root_node
+                .insert_single_leaf(
+                    storage,
+                    new_leaf,
+                    &self.azks_id,
+                    self.latest_epoch,
+                    &mut self.num_nodes,
+                )
+                .await?;
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -156,10 +198,11 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
 
-            let mut next_node =
-                HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), next_node_loc))?;
+            let mut next_node = storage
+                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, next_node_loc))
+                .await?;
 
-            next_node.update_hash(self.latest_epoch)?;
+            next_node.update_hash(storage, self.latest_epoch).await?;
 
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
@@ -177,48 +220,48 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         Ok(())
     }
 
-    pub fn get_membership_proof(
+    /// Returns the Merkle membership proof for the trie as it stood at epoch
+    // Assumes the verifier has access to the root at epoch
+    pub async fn get_membership_proof(
         &self,
+        storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<MembershipProof<H>, SeemlessError> {
-        // Regular Merkle membership proof for the trie as it stood at epoch
-        // Assumes the verifier as access to the root at epoch
-        let (pf, _) = self.get_membership_proof_and_node(label, epoch)?;
+    ) -> Result<MembershipProof<H>, VkdError> {
+        let (pf, _) = self
+            .get_membership_proof_and_node(storage, label, epoch)
+            .await?;
         Ok(pf)
     }
 
-    pub fn get_non_membership_proof(
+    /// In a compressed trie, the proof consists of the longest prefix
+    /// of the label that is included in the trie, as well as its children, to show that
+    /// none of the children is equal to the given label.
+    pub async fn get_non_membership_proof(
         &self,
+        storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<NonMembershipProof<H>, SeemlessError> {
-        // In a compressed trie, the proof consists of the longest prefix
-        // of the label that is included in the trie, as well as its children, to show that
-        // none of the children is equal to the given label.
-
-        let (longest_prefix_membership_proof, lcp_node_id) =
-            self.get_membership_proof_and_node(label, epoch)?;
-        let lcp_node =
-            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), lcp_node_id))?;
+    ) -> Result<NonMembershipProof<H>, VkdError> {
+        let (longest_prefix_membership_proof, lcp_node_id) = self
+            .get_membership_proof_and_node(storage, label, epoch)
+            .await?;
+        let lcp_node = storage
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, lcp_node_id))
+            .await?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
         let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
-        let state = lcp_node.get_state_at_epoch(epoch)?;
+        let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
 
-        let children = state
-            .child_states
-            .iter()
-            .map(|x: &node_state::HistoryChildState<H, S>| -> Result<HistoryTreeNode<H, S>, HistoryTreeNodeError> {
-                let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), x.location))?;
-                Ok(node)
-            });
-
-        for (i, child) in children.enumerate() {
-            let unwrapped_child = child?;
+        for (i, child) in state.child_states.iter().enumerate() {
+            let unwrapped_child: HistoryTreeNode<H, S> = storage
+                .retrieve(NodeKey(self.azks_id, child.location))
+                .await?;
             longest_prefix_children_labels[i] = unwrapped_child.label;
-            longest_prefix_children_values[i] =
-                unwrapped_child.get_value_without_label_at_epoch(epoch)?;
+            longest_prefix_children_values[i] = unwrapped_child
+                .get_value_without_label_at_epoch(storage, epoch)
+                .await?;
         }
         Ok(NonMembershipProof {
             label,
@@ -229,29 +272,42 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         })
     }
 
-    pub fn get_append_only_proof(
+    /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
+    /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
+    /// tree after `start_epoch` and  up until `end_epoch`.
+    /// If there is no errors, this function returns an `Ok` result, containing the
+    ///  append-only proof and otherwise, it returns a [`SeemlessError`].
+    ///
+    /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
+    /// * `start_epoch` <= `end_epoch`
+    /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
+    pub async fn get_append_only_proof(
         &self,
+        storage: &S,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+    ) -> Result<AppendOnlyProof<H>, VkdError> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        let (unchanged, leaves) =
-            self.get_append_only_proof_helper(node, start_epoch, end_epoch)?;
+        let node = storage.retrieve(NodeKey(self.azks_id, self.root)).await?;
+        let (unchanged, leaves) = self
+            .get_append_only_proof_helper(storage, node, start_epoch, end_epoch)
+            .await?;
         Ok(AppendOnlyProof {
             inserted: leaves,
             unchanged_nodes: unchanged,
         })
     }
 
-    fn get_append_only_proof_helper(
+    #[async_recursion]
+    async fn get_append_only_proof_helper(
         &self,
+        storage: &S,
         node: HistoryTreeNode<H, S>,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyHelper<H::Digest>, SeemlessError> {
+    ) -> Result<AppendOnlyHelper<H::Digest>, VkdError> {
         let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
         let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
         if node.get_latest_epoch()? <= start_epoch {
@@ -262,7 +318,8 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
 
             unchanged.push((
                 node.label,
-                node.get_value_without_label_at_epoch(node.get_latest_epoch()?)?,
+                node.get_value_without_label_at_epoch(storage, node.get_latest_epoch()?)
+                    .await?,
             ));
             return Ok((unchanged, leaves));
         }
@@ -273,11 +330,13 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         if node.is_leaf() {
             leaves.push((
                 node.label,
-                node.get_value_without_label_at_epoch(node.get_latest_epoch()?)?,
+                node.get_value_without_label_at_epoch(storage, node.get_latest_epoch()?)
+                    .await?,
             ));
         } else {
             for child_node_state in node
-                .get_state_at_epoch(end_epoch)?
+                .get_state_at_epoch(storage, end_epoch)
+                .await?
                 .child_states
                 .iter()
                 .map(|x| x.clone())
@@ -285,12 +344,15 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
                 if child_node_state.dummy_marker == DummyChildState::Dummy {
                     continue;
                 } else {
-                    let child_node = HistoryTreeNode::retrieve(NodeKey(
-                        self.azks_id.clone(),
-                        child_node_state.location,
-                    ))?;
-                    let mut rec_output =
-                        self.get_append_only_proof_helper(child_node, start_epoch, end_epoch)?;
+                    let child_node = storage
+                        .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
+                            self.azks_id,
+                            child_node_state.location,
+                        ))
+                        .await?;
+                    let mut rec_output = self
+                        .get_append_only_proof_helper(storage, child_node, start_epoch, end_epoch)
+                        .await?;
                     unchanged.append(&mut rec_output.0);
                     leaves.append(&mut rec_output.1);
                 }
@@ -299,28 +361,29 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         Ok((unchanged, leaves))
     }
 
-    pub fn get_consecutive_append_only_proof(
-        &self,
-        start_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
-        // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
-        // This function should return the proof that nothing was removed/changed from the tree
-        // between these epochs.
-        self.get_append_only_proof(start_epoch, start_epoch + 1)
-    }
-
     // FIXME: these functions below should be moved into higher-level API
-
-    pub fn get_root_hash(&self) -> Result<H::Digest, HistoryTreeNodeError> {
-        self.get_root_hash_at_epoch(self.get_latest_epoch())
+    /// Gets the root hash for this azks
+    pub async fn get_root_hash(&self, storage: &S) -> Result<H::Digest, HistoryTreeNodeError> {
+        self.get_root_hash_at_epoch(storage, self.get_latest_epoch())
+            .await
     }
 
-    pub fn get_root_hash_at_epoch(&self, epoch: u64) -> Result<H::Digest, HistoryTreeNodeError> {
-        let root_node =
-            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
-        root_node.get_value_at_epoch(epoch)
+    /// Gets the root hash of the tree at a epoch.
+    /// Since this is accessing the root node and the root node exists at all epochs that
+    /// the azks does, this would never be called at an epoch before the birth of the root node.
+    pub async fn get_root_hash_at_epoch(
+        &self,
+        storage: &S,
+        epoch: u64,
+    ) -> Result<H::Digest, HistoryTreeNodeError> {
+        let root_node = storage
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
+            .await?;
+        root_node.get_value_at_epoch(storage, epoch).await
     }
 
+    /// Gets the latest epoch of this azks. If an update aka epoch transition
+    /// is in progress, this should return the most recent completed epoch.
     pub fn get_latest_epoch(&self) -> u64 {
         self.latest_epoch
     }
@@ -330,17 +393,22 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         self.latest_epoch = epoch;
     }
 
-    pub fn get_membership_proof_and_node(
+    /// This function returns the node location for the node whose label is the longest common
+    /// prefix for the queried label. It also returns a membership proof for said label.
+    /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
+    pub async fn get_membership_proof_and_node(
         &self,
+        storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, usize), SeemlessError> {
+    ) -> Result<(MembershipProof<H>, usize), VkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
-        let mut curr_node =
-            HistoryTreeNode::<H, S>::retrieve(NodeKey(self.azks_id.clone(), self.root))?;
+        let mut curr_node = storage
+            .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
+            .await?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
@@ -348,18 +416,17 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             dirs.push(dir);
             parent_labels.push(curr_node.label);
             prev_node = curr_node.location;
-            let curr_state = curr_node.get_state_at_epoch(epoch)?;
+            let curr_state = curr_node.get_state_at_epoch(storage, epoch).await?;
             let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
-            let next_state = curr_node.get_state_at_epoch(epoch);
-            let next_state = next_state.map(|curr| curr.get_child_state_in_dir(direction))?;
+            let direction = dir.ok_or(VkdError::NoDirectionError)?;
+            let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state.dummy_marker == DummyChildState::Dummy {
                 break;
             }
             for i in 0..ARITY {
-                if i != dir.ok_or(SeemlessError::NoDirectionError)? {
+                if i != dir.ok_or(VkdError::NoDirectionError)? {
                     labels[count] = curr_state.child_states[i].label;
                     hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
                     count += 1;
@@ -367,17 +434,20 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             }
             sibling_labels.push(labels);
             sibling_hashes.push(hashes);
-            let new_curr_node = HistoryTreeNode::retrieve(NodeKey(
-                self.azks_id.clone(),
-                curr_node.get_child_location_at_epoch(epoch, dir)?,
-            ))?;
+            let new_curr_node = storage
+                .retrieve::<HistoryTreeNode<H, S>>(NodeKey(
+                    self.azks_id,
+                    curr_node
+                        .get_child_location_at_epoch(storage, epoch, dir)
+                        .await?,
+                ))
+                .await?;
             curr_node = new_curr_node;
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
         if !equal {
-            let new_curr_node =
-                HistoryTreeNode::retrieve(NodeKey(self.azks_id.clone(), prev_node))?;
+            let new_curr_node = storage.retrieve(NodeKey(self.azks_id, prev_node)).await?;
             curr_node = new_curr_node;
 
             parent_labels.pop();
@@ -386,7 +456,9 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
             dirs.pop();
         }
 
-        let hash_val = curr_node.get_value_without_label_at_epoch(epoch)?;
+        let hash_val = curr_node
+            .get_value_without_label_at_epoch(storage, epoch)
+            .await?;
 
         Ok((
             MembershipProof::<H> {
@@ -401,8 +473,9 @@ impl<H: Hasher, S: Storage> Azks<H, S> {
         ))
     }
 
-    pub fn get_azks_id(&self) -> &[u8] {
-        &self.azks_id
+    /// Gets the ID associated with this azks.
+    pub fn get_azks_id(&self) -> [u8; 32] {
+        self.azks_id
     }
 }
 
@@ -412,9 +485,9 @@ type AppendOnlyHelper<D> = (Vec<(NodeLabel, D)>, Vec<(NodeLabel, D)>);
 mod tests {
     use super::*;
     use crate::{
-        seemless_auditor::verify_append_only,
-        seemless_client::{verify_membership, verify_nonmembership},
-        tests::InMemoryDb,
+        auditor::verify_append_only,
+        client::{verify_membership, verify_nonmembership},
+        storage::memory::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
     use winter_crypto::hashers::Blake3_256;
@@ -423,11 +496,12 @@ mod tests {
     type Blake3 = Blake3_256<BaseElement>;
     type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
-    #[test]
-    fn test_batch_insert_basic() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_batch_insert_basic() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
-        let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks1 = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
 
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
@@ -437,59 +511,28 @@ mod tests {
             rng.fill_bytes(&mut input);
             let val = Blake3::hash(&input);
             insertion_set.push((node, val));
-            azks1.insert_leaf(node, val)?;
+            azks1.insert_leaf(&db, node, val).await?;
         }
 
-        let mut azks2 = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
+        let mut azks2 = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
 
-        azks2.batch_insert_leaves(insertion_set)?;
-
-        assert_eq!(
-            azks1.get_root_hash()?,
-            azks2.get_root_hash()?,
-            "Batch insert doesn't match individual insert"
-        );
-
-        Ok(())
-    }
-    #[test]
-    fn test_insert_permuted() -> Result<(), SeemlessError> {
-        let num_nodes = 10;
-        let mut rng = OsRng;
-
-        let mut azks1 = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
-
-        for _ in 0..num_nodes {
-            let node = NodeLabel::random(&mut rng);
-            let mut input = [0u8; 32];
-            rng.fill_bytes(&mut input);
-            let input = Blake3Digest::new(input);
-            insertion_set.push((node, input));
-            azks1.insert_leaf(node, input)?;
-        }
-
-        // Try randomly permuting
-        insertion_set.shuffle(&mut rng);
-
-        let mut azks2 = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-
-        azks2.batch_insert_leaves(insertion_set)?;
+        azks2.batch_insert_leaves(&db, insertion_set).await?;
 
         assert_eq!(
-            azks1.get_root_hash()?,
-            azks2.get_root_hash()?,
+            azks1.get_root_hash(&db).await?,
+            azks2.get_root_hash(&db).await?,
             "Batch insert doesn't match individual insert"
         );
 
         Ok(())
     }
 
-    #[test]
-    fn test_membership_proof_permuted() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_insert_permuted() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
-
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks1 = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
         for _ in 0..num_nodes {
@@ -498,23 +541,27 @@ mod tests {
             rng.fill_bytes(&mut input);
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
+            azks1.insert_leaf(&db, node, input).await?;
         }
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        azks.batch_insert_leaves(insertion_set.clone())?;
+        let mut azks2 = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
 
-        let proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
+        azks2.batch_insert_leaves(&db, insertion_set).await?;
 
-        verify_membership::<Blake3>(azks.get_root_hash()?, &proof)?;
+        assert_eq!(
+            azks1.get_root_hash(&db).await?,
+            azks2.get_root_hash(&db).await?,
+            "Batch insert doesn't match individual insert"
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn test_membership_proof_failing() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_membership_proof_permuted() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -530,11 +577,43 @@ mod tests {
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+        azks.batch_insert_leaves(&db, insertion_set.clone()).await?;
 
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        azks.batch_insert_leaves(insertion_set.clone())?;
+        let proof = azks
+            .get_membership_proof(&db, insertion_set[0].0, 1)
+            .await?;
 
-        let mut proof = azks.get_membership_proof(insertion_set[0].0, 1)?;
+        verify_membership::<Blake3>(azks.get_root_hash(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    #[actix_rt::test]
+    async fn test_membership_proof_failing() -> Result<(), VkdError> {
+        let num_nodes = 10;
+        let mut rng = OsRng;
+
+        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
+
+        for _ in 0..num_nodes {
+            let node = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let input = Blake3Digest::new(input);
+            insertion_set.push((node, input));
+        }
+
+        // Try randomly permuting
+        insertion_set.shuffle(&mut rng);
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+        azks.batch_insert_leaves(&db, insertion_set.clone()).await?;
+
+        let mut proof = azks
+            .get_membership_proof(&db, insertion_set[0].0, 1)
+            .await?;
         let hash_val = Blake3::hash(&[0u8]);
         proof = MembershipProof::<Blake3> {
             label: proof.label,
@@ -545,35 +624,36 @@ mod tests {
             dirs: proof.dirs,
         };
         assert!(
-            !verify_membership::<Blake3>(azks.get_root_hash()?, &proof).is_ok(),
+            !verify_membership::<Blake3>(azks.get_root_hash(&db).await?, &proof).is_ok(),
             "Membership proof does verifies, despite being wrong"
         );
 
         Ok(())
     }
 
-    #[test]
-    fn test_membership_proof_intermediate() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_membership_proof_intermediate() -> Result<(), VkdError> {
         let mut rng = OsRng;
+        let db = AsyncInMemoryDatabase::new();
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
         insertion_set.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
         insertion_set.push((NodeLabel::new(0b11 << 62, 64), Blake3::hash(&[])));
         insertion_set.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
         insertion_set.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        azks.batch_insert_leaves(insertion_set)?;
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+        azks.batch_insert_leaves(&db, insertion_set).await?;
         let search_label = NodeLabel::new(0b1111 << 60, 64);
-        let proof = azks.get_non_membership_proof(search_label, 1)?;
+        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
         assert!(
-            verify_nonmembership::<Blake3>(azks.get_root_hash()?, &proof)?,
+            verify_nonmembership::<Blake3>(azks.get_root_hash(&db).await?, &proof)?,
             "Nonmembership proof does not verify"
         );
         Ok(())
     }
 
-    #[test]
-    fn test_nonmembership_proof() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_nonmembership_proof() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -586,68 +666,71 @@ mod tests {
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
         }
-
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
         let search_label = insertion_set[num_nodes - 1].0;
-        azks.batch_insert_leaves(insertion_set.clone()[0..num_nodes - 1].to_vec())?;
-        let proof = azks.get_non_membership_proof(search_label, 1)?;
+        azks.batch_insert_leaves(&db, insertion_set.clone()[0..num_nodes - 1].to_vec())
+            .await?;
+        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
 
         assert!(
-            verify_nonmembership::<Blake3>(azks.get_root_hash()?, &proof)?,
+            verify_nonmembership::<Blake3>(azks.get_root_hash(&db).await?, &proof)?,
             "Nonmembership proof does not verify"
         );
 
         Ok(())
     }
 
-    #[test]
-    fn test_append_only_proof_very_tiny() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_append_only_proof_very_tiny() -> Result<(), VkdError> {
         let mut rng = OsRng;
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set_1.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
-        azks.batch_insert_leaves(insertion_set_1)?;
-        let start_hash = azks.get_root_hash()?;
+        azks.batch_insert_leaves(&db, insertion_set_1).await?;
+        let start_hash = azks.get_root_hash(&db).await?;
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set_2.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
 
-        azks.batch_insert_leaves(insertion_set_2)?;
-        let end_hash = azks.get_root_hash()?;
+        azks.batch_insert_leaves(&db, insertion_set_2).await?;
+        let end_hash = azks.get_root_hash(&db).await?;
 
-        let proof = azks.get_append_only_proof(1, 2)?;
+        let proof = azks.get_append_only_proof(&db, 1, 2).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 
-    #[test]
-    fn test_append_only_proof_tiny() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_append_only_proof_tiny() -> Result<(), VkdError> {
         let mut rng = OsRng;
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set_1.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
         insertion_set_1.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
-        azks.batch_insert_leaves(insertion_set_1)?;
-        let start_hash = azks.get_root_hash()?;
+        azks.batch_insert_leaves(&db, insertion_set_1).await?;
+        let start_hash = azks.get_root_hash(&db).await?;
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set_2.push((NodeLabel::new(0b01 << 62, 64), Blake3::hash(&[])));
         insertion_set_2.push((NodeLabel::new(0b111 << 61, 64), Blake3::hash(&[])));
 
-        azks.batch_insert_leaves(insertion_set_2)?;
-        let end_hash = azks.get_root_hash()?;
+        azks.batch_insert_leaves(&db, insertion_set_2).await?;
+        let end_hash = azks.get_root_hash(&db).await?;
 
-        let proof = azks.get_append_only_proof(1, 2)?;
+        let proof = azks.get_append_only_proof(&db, 1, 2).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 
-    #[test]
-    fn test_append_only_proof() -> Result<(), SeemlessError> {
+    #[actix_rt::test]
+    async fn test_append_only_proof() -> Result<(), VkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -661,10 +744,12 @@ mod tests {
             insertion_set_1.push((node, input));
         }
 
-        let mut azks = Azks::<Blake3, InMemoryDb>::new(&mut rng)?;
-        azks.batch_insert_leaves(insertion_set_1.clone())?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::<Blake3, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+        azks.batch_insert_leaves(&db, insertion_set_1.clone())
+            .await?;
 
-        let start_hash = azks.get_root_hash()?;
+        let start_hash = azks.get_root_hash(&db).await?;
 
         let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
@@ -676,7 +761,8 @@ mod tests {
             insertion_set_2.push((node, input));
         }
 
-        azks.batch_insert_leaves(insertion_set_2.clone())?;
+        azks.batch_insert_leaves(&db, insertion_set_2.clone())
+            .await?;
 
         let mut insertion_set_3: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
@@ -688,13 +774,14 @@ mod tests {
             insertion_set_3.push((node, input));
         }
 
-        azks.batch_insert_leaves(insertion_set_3.clone())?;
+        azks.batch_insert_leaves(&db, insertion_set_3.clone())
+            .await?;
 
-        let end_hash = azks.get_root_hash()?;
+        let end_hash = azks.get_root_hash(&db).await?;
 
-        let proof = azks.get_append_only_proof(1, 3)?;
+        let proof = azks.get_append_only_proof(&db, 1, 3).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash)?;
+        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 }
