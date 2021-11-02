@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Storage module for a verifiable key directory
+
 use crate::errors::StorageError;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
@@ -24,13 +26,14 @@ pub mod mysql;
 
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
+    /// This particular storage will have a key type
     type Key: Clone + Serialize + Eq + std::hash::Hash + std::marker::Send;
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;
 }
 
-/// Represents the storage layer for SEEMless (with associated configuration if necessary)
+/// Represents the storage layer for the VKD (with associated configuration if necessary)
 ///
 /// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
 /// partial state pending)
@@ -60,26 +63,25 @@ pub trait Storage: Clone {
     async fn append_user_state(
         &self,
         username: &types::VkdKey,
-        value: &types::UserState,
+        value: &types::ValueState,
     ) -> Result<(), StorageError>;
 
+    /// Adds user states to storage
     async fn append_user_states(
         &self,
-        values: Vec<(types::VkdKey, types::UserState)>,
+        values: Vec<(types::VkdKey, types::ValueState)>,
     ) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(
-        &self,
-        username: &types::VkdKey,
-    ) -> Result<types::UserData, StorageError>;
+    async fn get_user_data(&self, username: &types::VkdKey)
+        -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
         username: &types::VkdKey,
-        flag: types::UserStateRetrievalFlag,
-    ) -> Result<types::UserState, StorageError>;
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<types::ValueState, StorageError>;
 
     // ========= Defined logic ========= //
 

@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Code for a client of a verifiable key directory
+
 use winter_crypto::Hasher;
 
 use crate::{
@@ -16,6 +18,7 @@ use crate::{
     Direction, ARITY,
 };
 
+/// Verifies membership, with respect to the root_hash
 pub fn verify_membership<H: Hasher>(
     root_hash: H::Digest,
     proof: &MembershipProof<H>,
@@ -52,6 +55,7 @@ pub fn verify_membership<H: Hasher>(
     }
 }
 
+/// Verifies the non-membership proof with respect to the root hash
 pub fn verify_nonmembership<H: Hasher>(
     root_hash: H::Digest,
     proof: &NonMembershipProof<H>,
@@ -80,6 +84,7 @@ pub fn verify_nonmembership<H: Hasher>(
     Ok(verified)
 }
 
+/// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
     _uname: VkdKey,
@@ -129,6 +134,7 @@ pub fn lookup_verify<H: Hasher>(
     Ok(())
 }
 
+/// Verifies a key history proof, given the corresponding sequence of hashes.
 pub fn key_history_verify<H: Hasher>(
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
@@ -143,7 +149,8 @@ pub fn key_history_verify<H: Hasher>(
     Ok(())
 }
 
-pub fn verify_single_update_proof<H: Hasher>(
+/// Verifies a single update proof
+fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
@@ -229,6 +236,7 @@ pub fn verify_single_update_proof<H: Hasher>(
     Ok(())
 }
 
+/// Hashes all the children of a node, as well as their labels
 fn build_and_hash_layer<H: Hasher>(
     hashes: [H::Digest; ARITY - 1],
     dir: Direction,
@@ -241,6 +249,7 @@ fn build_and_hash_layer<H: Hasher>(
     Ok(hash_layer::<H>(hashes_as_vec, parent_label))
 }
 
+/// Helper for build_and_hash_layer
 fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::Digest {
     let mut new_hash = H::hash(&[]); //hash_label::<H>(parent_label);
     for child_hash in hashes.iter().take(ARITY) {

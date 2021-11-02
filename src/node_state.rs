@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! The representation for the label of a history tree node.
+
 use crate::serialization::from_digest;
 use crate::storage::types::StorageType;
 use crate::storage::{Storable, Storage};
@@ -25,11 +27,14 @@ use rand::{CryptoRng, RngCore};
 /// Hence, we need a custom representation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeLabel {
+    /// val stores a binary string as a u64
     pub val: u64,
+    /// len keeps track of how long the binary string is
     pub len: u32,
 }
 
 impl NodeLabel {
+    /// Creates a new NodeLabel with the given value and len.
     pub fn new(val: u64, len: u32) -> Self {
         NodeLabel { val, len }
     }
@@ -124,22 +129,25 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     H::merge_with_int(byte_label_len, label.get_val())
 }
 
-/// A HistoryNodeState represents the state of a [`HistoryTreeNode`] at a given epoch.
-/// As you may see, when looking at [`HistoryChildState`], the node needs to include
-/// its hashed value, the hashed values of its children and the labels of its children.
-/// This allows the various algorithms in [`HistoryTreeNode`] to build proofs for the tree at
-/// any given epoch, without having to do a traversal of the history tree to find siblings.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct HistoryNodeState<H, S> {
-    pub value: Vec<u8>,
-    pub child_states: Vec<HistoryChildState<H, S>>,
+pub(crate) struct HistoryNodeState<H, S> {
+    /// A HistoryNodeState represents the state of a [`HistoryTreeNode`] at a given epoch.
+    /// As you may see, when looking at [`HistoryChildState`], the node needs to include
+    /// its hashed value, the hashed values of its children and the labels of its children.
+    /// This allows the various algorithms in [`HistoryTreeNode`] to build proofs for the tree at
+    /// any given epoch, without having to do a traversal of the history tree to find siblings.
+    /// The hash value of this node at this state.
+    /// To be used in its parent, alongwith the label.
+    pub(crate) value: Vec<u8>,
+    /// The states of this node's children to aid with sibling paths.
+    pub(crate) child_states: Vec<HistoryChildState<H, S>>,
 }
 
 /// This struct is just used for storage access purposes.
 /// parameters are azks_id, node location, and epoch
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
+pub(crate) struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
 
 impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
     type Key = NodeStateKey;
@@ -152,6 +160,7 @@ impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
 unsafe impl<H: Hasher, S: Storage> Sync for HistoryNodeState<H, S> {}
 
 impl<H: Hasher, S: Storage> HistoryNodeState<H, S> {
+    /// Creates a new [HistoryNodeState]
     pub fn new() -> Self {
         let children = vec![HistoryChildState::<H, S>::new_dummy(); ARITY];
         HistoryNodeState {
@@ -195,7 +204,7 @@ impl<H: Hasher, S: Storage> fmt::Display for HistoryNodeState<H, S> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum DummyChildState {
+pub(crate) enum DummyChildState {
     Dummy,
     Real,
 }
@@ -205,12 +214,12 @@ pub enum DummyChildState {
 /// The dummy_marker represents whether this child was real or a dummy.
 /// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HistoryChildState<H, S> {
-    pub dummy_marker: DummyChildState,
-    pub location: usize,
-    pub label: NodeLabel,
-    pub hash_val: Vec<u8>,
-    pub epoch_version: u64,
+pub(crate) struct HistoryChildState<H, S> {
+    pub(crate) dummy_marker: DummyChildState,
+    pub(crate) location: usize,
+    pub(crate) label: NodeLabel,
+    pub(crate) hash_val: Vec<u8>,
+    pub(crate) epoch_version: u64,
     pub(crate) _h: PhantomData<H>,
     pub(crate) _s: PhantomData<S>,
 }
@@ -226,7 +235,6 @@ pub struct ChildStateKey(
 
 impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
     type Key = ChildStateKey;
-
     fn data_type() -> StorageType {
         StorageType::HistoryChildState
     }
@@ -235,7 +243,9 @@ impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
 unsafe impl<H: Hasher, S: Storage> Sync for HistoryChildState<H, S> {}
 
 impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
-    pub fn new(loc: usize, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
+    /// Instantiates a new [HistoryChildState] with given label and hash val.
+    #[allow(unused)]
+    pub(crate) fn new(loc: usize, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
         HistoryChildState {
             dummy_marker: DummyChildState::Real,
             location: loc,
@@ -247,6 +257,9 @@ impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
         }
     }
 
+    /// Creates a dummy [HistoryChildState] to signify a node not having children.
+    /// Used elsewhere to instantiate a leaf node of the
+    /// [crate::history_tree_node::HistoryTreeNode] type.
     pub fn new_dummy() -> Self {
         HistoryChildState {
             dummy_marker: DummyChildState::Dummy,
@@ -296,61 +309,6 @@ impl<H: Hasher, S: Storage> fmt::Display for HistoryChildState<H, S> {
         )
     }
 }
-
-/*
-
-use serde::{ Serializer, Deserializer};
-use winter_utils::{Serializable, Deserializable, SliceReader};
-
-
-fn hash_digest_serialize<S, H>(input: &H::Digest, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer, H: Hasher
-{
-    let mut output = vec![];
-    input.write_into(&mut output);
-    s.serialize_bytes(&output)
-}
-
-pub fn hash_digest_deserialize<'de, D, H>(deserializer: D) -> Result<H::Digest, D::Error>
-where
-    D: Deserializer<'de>, H: Hasher
-{
-    let input: &[u8] = Deserialize::deserialize(deserializer).unwrap();
-    Ok(H::Digest::read_from(&mut SliceReader {
-        source: &input,
-        pos: 0,
-    }).unwrap()) // FIXME
-}
-
-mod hash_digest_serde {
-
-    use serde::{ Serializer, Deserializer, Deserialize};
-    use crypto::{ Hasher };
-    use winter_utils::{Serializable, Deserializable, SliceReader};
-
-    pub fn serialize<S, H>(input: &H::Digest, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer, H: Hasher
-    {
-        let mut output = vec![];
-        input.write_into(&mut output);
-        s.serialize_bytes(&output)
-    }
-
-    pub fn deserialize<'de, D, H>(deserializer: D) -> Result<H::Digest, D::Error>
-    where
-        D: Deserializer<'de>, H: Hasher
-    {
-        let input: &[u8] = Deserialize::deserialize(deserializer).unwrap();
-        Ok(H::Digest::read_from(&mut SliceReader {
-            source: &input,
-            pos: 0,
-        }).unwrap()) // FIXME
-    }
-}
-
-*/
 
 #[cfg(test)]
 mod tests {

@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! An implementation of an append-only zero knowledge set
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
@@ -25,6 +26,8 @@ use serde::{Deserialize, Serialize};
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
+/// An append-only zero knowledge set, the data structure used to efficiently implement
+/// a verifiable key directory.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H, S> {
@@ -37,7 +40,7 @@ pub struct Azks<H, S> {
     _h: PhantomData<H>,
 }
 
-// parameter is azks_id
+/// parameter is azks_id
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct AzksKey(pub(crate) [u8; 32]);
 
@@ -65,6 +68,7 @@ impl<H: Hasher, S: Storage> Clone for Azks<H, S> {
 }
 
 impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker::Send> Azks<H, S> {
+    /// Creates a new azks
     pub async fn new<R: CryptoRng + RngCore>(storage: &S, rng: &mut R) -> Result<Self, VkdError> {
         let mut azks_id: [u8; 32] = [0u8; 32];
         rng.fill_bytes(&mut azks_id);
@@ -85,6 +89,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(azks)
     }
 
+    /// Inserts a single leaf and is only used for testing, since batching is more efficient.
+    /// We just want to make sure batch insertions work correctly and this function is useful for that.
     pub async fn insert_leaf(
         &mut self,
         storage: &S,
@@ -109,7 +115,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .retrieve::<HistoryTreeNode<H, S>>(NodeKey(self.azks_id, self.root))
             .await?;
         root_node
-            .insert_single_leaf(
+            .insert_leaf(
                 storage,
                 new_leaf,
                 &self.azks_id,
@@ -121,6 +127,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(())
     }
 
+    /// Insert a batch of new leaves
     pub async fn batch_insert_leaves(
         &mut self,
         storage: &S,
@@ -130,7 +137,10 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    pub async fn batch_insert_leaves_helper(
+    /// An azks is built both by the [crate::directory::Directory] and the auditor.
+    /// However, both constructions have very minor differences, and the append_only_usage
+    /// bool keeps track of this.
+    pub(crate) async fn batch_insert_leaves_helper(
         &mut self,
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
@@ -170,7 +180,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             }
 
             root_node
-                .insert_single_leaf_without_hash(
+                .insert_single_leaf(
                     storage,
                     new_leaf,
                     &self.azks_id,
@@ -210,8 +220,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok(())
     }
 
-    // Returns the Merkle membership proof for the trie as it stood at epoch
-    // Assumes the verifier as access to the root at epoch
+    /// Returns the Merkle membership proof for the trie as it stood at epoch
+    // Assumes the verifier has access to the root at epoch
     pub async fn get_membership_proof(
         &self,
         storage: &S,
@@ -351,20 +361,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
         Ok((unchanged, leaves))
     }
 
-    pub async fn get_consecutive_append_only_proof(
-        &self,
-        storage: &S,
-        start_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, VkdError> {
-        // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
-        // This function should return the proof that nothing was removed/changed from the tree
-        // between these epochs.
-        self.get_append_only_proof(storage, start_epoch, start_epoch + 1)
-            .await
-    }
-
     // FIXME: these functions below should be moved into higher-level API
-
+    /// Gets the root hash for this azks
     pub async fn get_root_hash(&self, storage: &S) -> Result<H::Digest, HistoryTreeNodeError> {
         self.get_root_hash_at_epoch(storage, self.get_latest_epoch())
             .await

@@ -5,16 +5,23 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Errors for various data structure operations.
 use core::fmt;
 
 use crate::node_state::NodeLabel;
 
+/// Symbolizes a VkdError, thrown by the vkd.
 #[derive(Debug)]
 pub enum VkdError {
+    /// Error propogation
     HistoryTreeNodeErr(HistoryTreeNodeError),
+    /// Error propogation
     DirectoryErr(DirectoryError),
+    /// Error propogation
     AzksErr(AzksError),
+    /// Thrown when a direction should have been given but isn't
     NoDirectionError,
+    /// Thrown when a place where an epoch is needed wasn't provided one.
     NoEpochGiven,
 }
 
@@ -48,23 +55,40 @@ impl From<StorageError> for HistoryTreeNodeError {
     }
 }
 
+/// Errors thown by [crate::history_tree_node::HistoryTreeNode]s
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
+    /// Tried to set a child and the direction given was none.
     NoDirectionInSettingChild(u64, u64),
+    /// Direction is unexpectedly None
     DirectionIsNone,
+    /// The node didn't have a child in the given epoch
     NoChildInTreeAtEpoch(u64, usize),
+    /// The node had no children at the given epoch
     NoChildrenInTreeAtEpoch(u64),
+    /// The hash was being updated for an invalid epoch
     InvalidEpochForUpdatingHash(u64),
+    /// Tried to update the parent of the root, which should not be done
     TriedToUpdateParentOfRoot,
+    /// The next epoch of this node's parent was invalid
     ParentNextEpochInvalid(u64),
+    /// The hash of a parent was attempted to be updated, without setting the calling node as a child.
     HashUpdateOnlyAllowedAfterNodeInsertion,
+    /// The children of a leaf are always dummy and should not be hashed
     TriedToHashLeafChildren,
+    /// The list of epochs for a given node was empty
     NodeCreatedWithoutEpochs(u64),
+    /// The label of a leaf node was shorter than that of an interior node.
     LeafNodeLabelLenLessThanInterior(NodeLabel),
+    /// Error compressing the Merkle trie
     CompressionError(NodeLabel),
+    /// Tried to access something about the node at an epoch that didn't exist.
     NodeDidNotExistAtEp(NodeLabel, u64),
+    /// The state of a node did not exist at a given epoch
     NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
+    /// Error propogation
     StorageError(StorageError),
+    /// Error propogation
     SerializationError,
 }
 
@@ -142,10 +166,14 @@ impl fmt::Display for HistoryTreeNodeError {
     }
 }
 
+/// An error thrown by the Azks data structure.
 #[derive(Debug)]
 pub enum AzksError {
+    /// Popped from the priority queue to update hash but found an empty value
     PopFromEmptyPriorityQueue(u64),
+    /// Membership proof did not verify
     MembershipProofDidNotVerify(String),
+    /// Append-only proof did not verify
     AppendOnlyProofDidNotVerify,
 }
 
@@ -168,13 +196,21 @@ impl fmt::Display for AzksError {
         }
     }
 }
+
+/// The errors thrown by various algorithms in [crate::directory::Directory]
 #[derive(Debug)]
 pub enum DirectoryError {
+    /// Tried to audit for "append-only" from epoch a to b where a > b
     AuditProofStartEpLess(u64, u64),
+    /// Looked up a user not in the directory
     LookedUpNonExistentUser(String, u64),
+    /// Lookup proof did not verify
     LookupVerificationErr(String),
+    /// Key-History proof did not verify
     KeyHistoryVerificationErr(String),
+    /// Error generating the key history proof
     KeyHistoryProofErr(String),
+    /// Error propogation
     StorageError,
 }
 

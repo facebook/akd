@@ -5,9 +5,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module implements operations for a simple asynchronized mysql database
+
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, VkdKey};
+use crate::storage::types::{KeyData, StorageType, ValueState, ValueStateRetrievalFlag, VkdKey};
 use crate::storage::Storage;
 use async_trait::async_trait;
 use mysql_async::prelude::*;
@@ -33,6 +35,7 @@ pub struct AsyncMySqlDatabase {
 }
 
 impl AsyncMySqlDatabase {
+    /// Creates a new mysql database
     #[allow(unused)]
     pub async fn new<T: Into<String>>(
         endpoint: T,
@@ -383,7 +386,7 @@ impl Storage for AsyncMySqlDatabase {
     async fn append_user_state(
         &self,
         username: &VkdKey,
-        value: &UserState,
+        value: &ValueState,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
@@ -417,7 +420,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn append_user_states(
         &self,
-        values: Vec<(VkdKey, UserState)>,
+        values: Vec<(VkdKey, ValueState)>,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
@@ -470,7 +473,7 @@ impl Storage for AsyncMySqlDatabase {
     async fn get_user_data(
         &self,
         username: &VkdKey,
-    ) -> core::result::Result<UserData, StorageError> {
+    ) -> core::result::Result<KeyData, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
             let statement_text =
@@ -483,7 +486,7 @@ impl Storage for AsyncMySqlDatabase {
                 .exec_map(
                     prepped,
                     params! { "the_user" => username.0.clone() },
-                    |(epoch, version, node_label_val, node_label_len, data)| UserState {
+                    |(epoch, version, node_label_val, node_label_len, data)| ValueState {
                         epoch,
                         version,
                         label: NodeLabel {
@@ -495,7 +498,7 @@ impl Storage for AsyncMySqlDatabase {
                 )
                 .await;
             let selected_records = self.check_for_infra_error(out)?;
-            Ok::<UserData, mysql_async::Error>(UserData {
+            Ok::<KeyData, mysql_async::Error>(KeyData {
                 states: selected_records,
             })
         };
@@ -508,8 +511,8 @@ impl Storage for AsyncMySqlDatabase {
     async fn get_user_state(
         &self,
         username: &VkdKey,
-        flag: UserStateRetrievalFlag,
-    ) -> core::result::Result<UserState, StorageError> {
+        flag: ValueStateRetrievalFlag,
+    ) -> core::result::Result<ValueState, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
             let mut statement_text =
@@ -520,19 +523,19 @@ impl Storage for AsyncMySqlDatabase {
             let mut params_map = vec![("the_user", Value::from(&username.0))];
             // apply the specific filter
             match flag {
-                UserStateRetrievalFlag::SpecificVersion(version) => {
+                ValueStateRetrievalFlag::SpecificVersion(version) => {
                     params_map.push(("the_version", Value::from(version)));
                     statement_text += " AND `version` = :the_version";
                 }
-                UserStateRetrievalFlag::SpecificEpoch(epoch) => {
+                ValueStateRetrievalFlag::SpecificEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` = :the_epoch";
                 }
-                UserStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
-                UserStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
-                UserStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
-                UserStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
-                UserStateRetrievalFlag::LeqEpoch(epoch) => {
+                ValueStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
+                ValueStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
+                ValueStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
+                ValueStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
+                ValueStateRetrievalFlag::LeqEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` <= :the_epoch";
                 }
@@ -545,7 +548,7 @@ impl Storage for AsyncMySqlDatabase {
                 .exec_map(
                     prepped,
                     mysql_async::Params::from(params_map),
-                    |(epoch, version, node_label_val, node_label_len, data)| UserState {
+                    |(epoch, version, node_label_val, node_label_len, data)| ValueState {
                         epoch,
                         version,
                         label: NodeLabel {
@@ -558,7 +561,7 @@ impl Storage for AsyncMySqlDatabase {
                 .await;
             let selected_record = self.check_for_infra_error(out)?;
 
-            Ok::<Option<UserState>, mysql_async::Error>(selected_record.into_iter().next())
+            Ok::<Option<ValueState>, mysql_async::Error>(selected_record.into_iter().next())
         };
 
         match result.await {

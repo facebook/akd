@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! The implementation of a node for a history patricia tree
+
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::StorageType;
 use crate::storage::{Storable, Storage};
@@ -18,15 +20,18 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
+/// There are three types of nodes: root, leaf and interior.
 #[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
-    Leaf,     // Nodes with this type only have dummy children.
-    Root, // Nodes with this type do not have parents and their value includes a hash of their label.
-    Interior, // Nodes of this type must have non-dummy children and their value is a hash of their children, along with the labels of the children.
+    /// Nodes with this type only have dummy children.
+    Leaf,
+    /// Nodes with this type do not have parents and their value includes a hash of their label.
+    Root,
+    /// Nodes of this type must have non-dummy children and their value is a hash of their children, along with the labels of the children.
+    Interior,
 }
 
-pub type HistoryInsertionNode<H, S> = (Direction, HistoryChildState<H, S>);
-pub type HistoryNodeHash<H> = Option<H>;
+pub(crate) type HistoryInsertionNode<H, S> = (Direction, HistoryChildState<H, S>);
 
 /// A HistoryNode represents a generic interior node of a compressed history tree.
 /// The main idea here is that the tree is changing at every epoch and that we do not need
@@ -48,7 +53,7 @@ pub(crate) struct HistoryTreeNode<H, S> {
     _h: PhantomData<H>,
 }
 
-// parameters are azks_id and location
+/// Parameters are azks_id and location. Represents the key with which to find a node in storage.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeKey(pub(crate) [u8; 32], pub(crate) usize);
 
@@ -106,7 +111,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     }
 
     /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
-    pub(crate) async fn insert_single_leaf(
+    pub(crate) async fn insert_leaf(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -118,8 +123,8 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
             .await
     }
 
-    // Inserts a single leaf node
-    pub(crate) async fn insert_single_leaf_without_hash(
+    /// Inserts a single leaf node without hashing, creates new nodes where needed
+    pub(crate) async fn insert_single_leaf(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -157,7 +162,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 .await?;
             if child_state.dummy_marker == DummyChildState::Dummy {
                 new_leaf.parent = self.location;
-                self.set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)
+                self.set_node_child(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
                 self.write_to_storage(storage).await?;
                 new_leaf.write_to_storage(storage).await?;
@@ -209,14 +214,14 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                 self.write_to_storage(storage).await?;
 
                 new_node
-                    .set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)
+                    .set_node_child(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
                 new_node
-                    .set_node_child_without_hash(storage, epoch, dir_self, self)
+                    .set_node_child(storage, epoch, dir_self, self)
                     .await?;
 
                 parent
-                    .set_node_child_without_hash(storage, epoch, self_dir_in_parent, &new_node)
+                    .set_node_child(storage, epoch, self_dir_in_parent, &new_node)
                     .await?;
                 if hashing {
                     new_leaf.update_hash(storage, epoch).await?;
@@ -346,7 +351,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                     .label
                     .get_longest_common_prefix_and_dirs(self.get_label());
                 parent
-                    .set_node_child_without_hash(storage, epoch, dir_self, self)
+                    .set_node_child(storage, epoch, dir_self, self)
                     .await?;
                 parent.write_to_storage(storage).await?;
                 *parent = storage.retrieve(NodeKey(self.azks_id, self.parent)).await?;
@@ -374,7 +379,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
     #[async_recursion]
-    pub(crate) async fn set_child_without_hash(
+    pub(crate) async fn set_child(
         &mut self,
         storage: &S,
         epoch: u64,
@@ -426,7 +431,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
                         }
                     }
                     self.write_to_storage(storage).await?;
-                    self.set_child_without_hash(storage, epoch, child).await
+                    self.set_child(storage, epoch, child).await
                 }
             },
             Direction::None => Err(HistoryTreeNodeError::NoDirectionInSettingChild(
@@ -438,7 +443,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
 
     /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
     /// set_child_without_hash. Just used for type conversion.
-    pub(crate) async fn set_node_child_without_hash(
+    pub(crate) async fn set_node_child(
         &mut self,
         storage: &S,
         epoch: u64,
@@ -447,8 +452,7 @@ impl<H: Hasher + std::marker::Send, S: Storage + std::marker::Sync + std::marker
     ) -> Result<(), HistoryTreeNodeError> {
         let node_as_child_state = child.to_node_unhashed_child_state(storage).await?;
         let insertion_node = (dir, node_as_child_state);
-        self.set_child_without_hash(storage, epoch, &insertion_node)
-            .await
+        self.set_child(storage, epoch, &insertion_node).await
     }
 
     ////// getrs for this node ////

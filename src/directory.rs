@@ -5,12 +5,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Implementation of a verifiable key directory
+
 use crate::append_only_zks::{Azks, AzksKey};
 use crate::errors::{DirectoryError, VkdError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{UserState, UserStateRetrievalFlag, Values, VkdKey};
+use crate::storage::types::{ValueState, ValueStateRetrievalFlag, Values, VkdKey};
 use crate::storage::Storage;
 
 use rand::{prelude::ThreadRng, thread_rng};
@@ -21,17 +23,20 @@ use std::marker::PhantomData;
 use winter_crypto::Hasher;
 
 impl Values {
+    /// Gets a random value for a VKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
     }
 }
 
 impl VkdKey {
+    /// Creates a random key for a VKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
     }
 }
 
+/// The representation of a verifiable key directory
 pub struct Directory<S, H> {
     azks_id: [u8; 32],
     current_epoch: u64,
@@ -73,12 +78,12 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// Updates the directory to inclulde the updated key-value pairs.
     pub async fn publish(&mut self, updates: Vec<(VkdKey, Values)>) -> Result<(), VkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<(VkdKey, UserState)>::new();
+        let mut user_data_update_set = Vec::<(VkdKey, ValueState)>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
             match self
                 .storage
-                .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+                .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
                 .await
             {
                 Err(_) => {
@@ -89,7 +94,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((label, value_to_add));
-                    let latest_state = UserState::new(val, latest_version, label, next_epoch);
+                    let latest_state = ValueState::new(val, latest_version, label, next_epoch);
                     user_data_update_set.push((uname, latest_state));
                 }
                 Ok(max_user_state) => {
@@ -103,7 +108,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((stale_label, stale_value_to_add));
                     update_set.push((fresh_label, fresh_value_to_add));
-                    let new_state = UserState::new(val, latest_version, fresh_label, next_epoch);
+                    let new_state = ValueState::new(val, latest_version, fresh_label, next_epoch);
                     user_data_update_set.push((uname, new_state));
                 }
             }
@@ -131,7 +136,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     pub async fn lookup(&self, uname: VkdKey) -> Result<LookupProof<H>, VkdError> {
         match self
             .storage
-            .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+            .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
             .await
         {
             Err(_) => {
@@ -205,6 +210,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .await
     }
 
+    /// Retrieves the current azks
     pub async fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
         self.storage
             .retrieve::<Azks<H, S>>(AzksKey(self.azks_id))
@@ -267,7 +273,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     async fn create_single_update_proof(
         &self,
         uname: &VkdKey,
-        user_state: &UserState,
+        user_state: &ValueState,
     ) -> Result<UpdateProof<H>, VkdError> {
         let epoch = user_state.epoch;
         let plaintext_value = &user_state.plaintext_val;
@@ -381,6 +387,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
+/// Gets hashes for key history proofs
 pub async fn get_key_history_hashes<
     S: Storage + std::marker::Sync + std::marker::Send,
     H: Hasher + std::marker::Send,

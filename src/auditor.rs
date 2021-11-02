@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Code for an auditor of a verifiable key directory
+
 use rand::rngs::OsRng;
 use winter_crypto::Hasher;
 
@@ -15,6 +17,7 @@ use crate::{
     storage::memory::AsyncInMemoryDatabase,
 };
 
+/// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
 pub async fn audit_verify<H: Hasher + std::marker::Send>(
     start_hash: H::Digest,
     end_hash: H::Digest,
@@ -23,7 +26,8 @@ pub async fn audit_verify<H: Hasher + std::marker::Send>(
     verify_append_only::<H>(proof, start_hash, end_hash).await
 }
 
-pub async fn verify_append_only<H: Hasher + std::marker::Send>(
+/// Helper for audit, verifies an append-only proof
+pub(crate) async fn verify_append_only<H: Hasher + std::marker::Send>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,
     end_hash: H::Digest,
