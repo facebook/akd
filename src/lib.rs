@@ -23,7 +23,7 @@
 //! locally, where the code is running, and instead, uses a [storage::Storage] as a generic type.
 //!
 //! ## Setup
-//! A [directory::Directory] represents a VKD. To setup a [directory::Directory], call
+//! A [directory::Directory] represents a VKD. To setup a [directory::Directory], call the new operation
 //!
 //!
 //!
