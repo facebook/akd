@@ -270,7 +270,7 @@ pub trait NewStorage: Clone {
     }
 }
 
-// === New DB wrapper === //
+// === NewStorage wrapper over Storage === //
 pub struct NewStorageWrapper<S: Storage> {
     pub db: S,
 }
@@ -278,7 +278,7 @@ pub struct NewStorageWrapper<S: Storage> {
 impl<S: Storage> NewStorageWrapper<S> {
     pub fn new(storage: S) -> Self {
         Self {
-            db: storage.clone(),
+            db: storage,
         }
     }
 }

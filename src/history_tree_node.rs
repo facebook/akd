@@ -53,12 +53,12 @@ pub struct HistoryTreeNode<H> {
     pub node_type: NodeType,
     // Note that the NodeType along with the parent/children being options
     // allows us to use this struct to represent child and parent nodes as well.
-    pub(crate) _h: PhantomData<H>,
+    pub _h: PhantomData<H>,
 }
 
 // parameters are azks_id and location
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeKey(pub(crate) usize);
+pub struct NodeKey(pub usize);
 
 impl<H: Hasher> Storable for HistoryTreeNode<H> {
     type Key = NodeKey;

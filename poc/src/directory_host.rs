@@ -11,6 +11,7 @@ use vkd::storage::Storage;
 use vkd::SeemlessError;
 use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
+use std::marker::{Sync, Send};
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,
@@ -27,7 +28,7 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, H>(directory: &mut Directory<S, H>, o_epoch: Option<u64>)
+async fn get_root_hash<S, H: Sync + Send>(directory: &mut Directory<S, H>, o_epoch: Option<u64>)
 -> Option<Result<H::Digest, SeemlessError>>
 where
     S: Storage + Sync + Send,
@@ -43,7 +44,7 @@ where
     }
 }
 
-pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, H>)
+pub(crate) async fn init_host<S, H: Sync + Send>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, H>)
 where
     S: Storage + Sync + Send,
     H: Hasher + Send,

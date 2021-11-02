@@ -27,10 +27,10 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H> {
-    pub(crate) root: usize,
-    pub(crate) latest_epoch: u64,
-    pub(crate) num_nodes: usize, // The size of the tree
-    pub(crate) _h: PhantomData<H>,
+    pub root: usize,
+    pub latest_epoch: u64,
+    pub num_nodes: usize, // The size of the tree
+    pub _h: PhantomData<H>,
 }
 
 impl<H: Hasher> Storable for Azks<H> {

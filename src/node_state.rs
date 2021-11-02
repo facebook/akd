@@ -114,7 +114,7 @@ pub struct HistoryNodeState<H> {
 
 // parameters are azks_id, node location, and epoch
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub(crate) NodeLabel, pub(crate) usize);
+pub struct NodeStateKey(pub NodeLabel, pub usize);
 
 impl<H: Hasher> Storable for HistoryNodeState<H> {
     type Key = NodeStateKey;
@@ -181,7 +181,7 @@ pub struct HistoryChildState<H> {
     pub label: NodeLabel,
     pub hash_val: Vec<u8>,
     pub epoch_version: u64,
-    pub(crate) _h: PhantomData<H>,
+    pub _h: PhantomData<H>,
 }
 
 // parameters are azks_id, node location, epoch, child index
