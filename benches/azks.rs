@@ -8,16 +8,16 @@
 #[macro_use]
 extern crate criterion;
 
+use akd::{append_only_zks::Azks, node_state::NodeLabel};
 use criterion::Criterion;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use std::time::Instant;
-use vkd::{append_only_zks::Azks, node_state::NodeLabel};
 use winter_crypto::{hashers::Blake3_256, Hasher};
 use winter_math::fields::f128::BaseElement;
 
 type Blake3 = Blake3_256<BaseElement>;
 type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-type InMemoryDb = vkd::storage::memory::AsyncInMemoryDatabase;
+type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
 
 fn single_insertion(c: &mut Criterion) {
     let num_nodes = 1000;

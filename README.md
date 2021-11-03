@@ -1,19 +1,19 @@
-## vkd ![Build Status](https://github.com/novifinancial/SEEMless/workflows/CI/badge.svg)
+## akd ![Build Status](https://github.com/novifinancial/akd/workflows/CI/badge.svg)
 
-An implementation of a verifiable key directory (also known as a verifiable registry).
+An implementation of an auditable key directory (also known as a verifiable registry).
 
-Verifiable key directories can be used to help provide key transparency for end-to-end encrypted
+Auditable key directories can be used to help provide key transparency for end-to-end encrypted
 messaging.
 
 This implementation is based off of the protocol described in
 [SEEMless: Secure End-to-End Encrypted Messaging with less trust](https://eprint.iacr.org/2018/607).
 
-This library provides a stateless API for a verifiable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
+This library provides a stateless API for an auditable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
 
 Documentation
 -------------
 
-The API can be found [here](https://docs.rs/vkd/) along with an example for usage.
+The API can be found [here](https://docs.rs/akd/) along with an example for usage.
 
 Installation
 ------------
@@ -21,7 +21,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-vkd = "0.1"
+akd = "0.1"
 ```
 
 ### Minimum Supported Rust Version
