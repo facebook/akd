@@ -110,11 +110,12 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 pub struct HistoryNodeState<H> {
     pub value: Vec<u8>,
     pub child_states: Vec<HistoryChildState<H>>,
+    pub key: NodeStateKey,
 }
 
 // parameters are azks_id, node location, and epoch
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub NodeLabel, pub usize);
+#[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
+pub struct NodeStateKey(pub NodeLabel, pub u64);
 
 impl<H: Hasher> Storable for HistoryNodeState<H> {
     type Key = NodeStateKey;
@@ -122,16 +123,21 @@ impl<H: Hasher> Storable for HistoryNodeState<H> {
     fn data_type() -> StorageType {
         StorageType::HistoryNodeState
     }
+
+    fn get_id(&self) -> NodeStateKey {
+        self.key
+    }
 }
 
 unsafe impl<H: Hasher> Sync for HistoryNodeState<H> {}
 
 impl<H: Hasher> HistoryNodeState<H> {
-    pub fn new() -> Self {
+    pub fn new(key: NodeStateKey) -> Self {
         let children = vec![HistoryChildState::<H>::new_dummy(); ARITY];
         HistoryNodeState {
             value: from_digest::<H>(H::hash(&[0u8])).unwrap(),
             child_states: children,
+            key,
         }
     }
 
@@ -140,17 +146,12 @@ impl<H: Hasher> HistoryNodeState<H> {
     }
 }
 
-impl<H: Hasher> Default for HistoryNodeState<H> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<H: Hasher> Clone for HistoryNodeState<H> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
             child_states: self.child_states.clone(),
+            key: self.key,
         }
     }
 }

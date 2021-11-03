@@ -29,7 +29,7 @@ pub async fn verify_append_only<H: Hasher + Send + Sync>(
     let unchanged_nodes = proof.unchanged_nodes;
     let inserted = proof.inserted;
 
-    let db = crate::storage::NewStorageWrapper::new(AsyncInMemoryDatabase::new());
+    let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
     let mut azks = Azks::<H>::new(&db).await?;
     azks.batch_insert_leaves_helper(&db, unchanged_nodes, true)
         .await?;

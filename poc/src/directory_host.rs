@@ -9,7 +9,7 @@ use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use vkd::directory::Directory;
 use vkd::storage::types::*;
-use vkd::storage::NewStorage;
+use vkd::storage::V2Storage;
 use vkd::SeemlessError;
 use winter_crypto::Hasher;
 
@@ -33,7 +33,7 @@ async fn get_root_hash<S, H: Sync + Send>(
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, SeemlessError>>
 where
-    S: NewStorage + Sync + Send,
+    S: V2Storage + Sync + Send,
     H: Hasher + Send,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -50,7 +50,7 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
     rx: &mut Receiver<Rpc>,
     directory: &mut Directory<S, H>,
 ) where
-    S: NewStorage + Sync + Send,
+    S: V2Storage + Sync + Send,
     H: Hasher + Send,
 {
     println!("INFO: Starting the verifiable directory host");

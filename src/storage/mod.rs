@@ -29,6 +29,8 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;
+
+    fn get_id(&self) -> Self::Key;
 }
 
 /// Represents the storage layer for SEEMless (with associated configuration if necessary)
@@ -36,7 +38,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 /// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
 /// partial state pending)
 #[async_trait]
-pub trait Storage: Clone {
+pub trait V1Storage: Clone {
     // ======= Abstract Functions ======= //
 
     /// Set a key/value pair in the storage layer
@@ -124,12 +126,14 @@ pub trait Storage: Clone {
 }
 
 #[async_trait]
-pub trait NewStorage: Clone {
-    /// Storage a record in the data layer
-    async fn set<H: Hasher + Sync + Send, St: Storable>(
+pub trait V2Storage: Clone {
+    /// V1Storage a record in the data layer
+    async fn set<H: Hasher + Sync + Send>(&self, record: DbRecord<H>) -> Result<(), StorageError>;
+
+    /// Set multiple records in transactional operation
+    async fn batch_set<H: Hasher + Sync + Send>(
         &self,
-        id: St::Key,
-        record: DbRecord<H>,
+        records: Vec<DbRecord<H>>,
     ) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the data layer
@@ -144,26 +148,27 @@ pub trait NewStorage: Clone {
         num: Option<usize>,
     ) -> Result<Vec<DbRecord<H>>, StorageError>;
 
+    /* User data searching */
+
     /// Add a user state element to the associated user
-    async fn append_user_state(
+    async fn append_user_state<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
         value: &types::UserState,
     ) -> Result<(), StorageError>;
 
-    async fn append_user_states(
+    async fn append_user_states<H: Hasher + Sync + Send>(
         &self,
-        values: Vec<(types::Username, types::UserState)>,
+        values: Vec<types::UserState>,
     ) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(
+    async fn get_user_data<H: Hasher + Sync + Send>(
         &self,
         username: &types::Username,
     ) -> Result<types::UserData, StorageError>;
 
     /// Retrieve a specific state for a given user
-    async fn get_user_state(
+    async fn get_user_state<H: Hasher + Sync + Send>(
         &self,
         username: &types::Username,
         flag: types::UserStateRetrievalFlag,
@@ -262,26 +267,63 @@ pub trait NewStorage: Clone {
     fn build_history_node_state<H>(
         value: Vec<u8>,
         child_states: Vec<crate::node_state::HistoryChildState<H>>,
+        label_len: u32,
+        label_val: u64,
+        epoch: u64,
     ) -> crate::node_state::HistoryNodeState<H> {
         crate::node_state::HistoryNodeState::<H> {
             value,
             child_states,
+            key: crate::node_state::NodeStateKey(
+                crate::node_state::NodeLabel {
+                    val: label_val,
+                    len: label_len,
+                },
+                epoch,
+            ),
+        }
+    }
+
+    /*
+    pub(crate) plaintext_val: Values, // This needs to be the plaintext value, to discuss
+    pub(crate) version: u64,          // to discuss
+    pub(crate) label: NodeLabel,
+    pub(crate) epoch: u64,
+    */
+    /// Build a user state from the properties
+    fn build_user_state(
+        username: String,
+        plaintext_val: String,
+        version: u64,
+        label_len: u32,
+        label_val: u64,
+        epoch: u64,
+    ) -> crate::storage::types::UserState {
+        crate::storage::types::UserState {
+            plaintext_val: crate::storage::types::Values(plaintext_val),
+            version,
+            label: crate::node_state::NodeLabel {
+                val: label_val,
+                len: label_len,
+            },
+            epoch,
+            username: crate::storage::types::Username(username),
         }
     }
 }
 
-// === NewStorage wrapper over Storage === //
-pub struct NewStorageWrapper<S: Storage> {
+// ===  V2Storage wrapper over V1Storage === //
+pub struct V2FromV1StorageWrapper<S: V1Storage> {
     pub db: S,
 }
 
-impl<S: Storage> NewStorageWrapper<S> {
+impl<S: V1Storage> V2FromV1StorageWrapper<S> {
     pub fn new(storage: S) -> Self {
         Self { db: storage }
     }
 }
 
-impl<S: Storage> Clone for NewStorageWrapper<S> {
+impl<S: V1Storage> Clone for V2FromV1StorageWrapper<S> {
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
@@ -289,36 +331,57 @@ impl<S: Storage> Clone for NewStorageWrapper<S> {
     }
 }
 
-unsafe impl<S: Storage> Send for NewStorageWrapper<S> {}
-unsafe impl<S: Storage> Sync for NewStorageWrapper<S> {}
+unsafe impl<S: V1Storage> Send for V2FromV1StorageWrapper<S> {}
+unsafe impl<S: V1Storage> Sync for V2FromV1StorageWrapper<S> {}
 
-// Auto-converter for Storage -> NewStorage (i.e. auto-upgrader)
-impl<S: Storage + Send + Sync> From<S> for NewStorageWrapper<S> {
+// Auto-converter for V1Storage ->  V2Storage (i.e. auto-upgrader)
+impl<S: V1Storage + Send + Sync> From<S> for V2FromV1StorageWrapper<S> {
     fn from(storage: S) -> Self {
-        NewStorageWrapper::new(storage)
+        Self::new(storage)
     }
 }
 
 #[async_trait]
-impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
-    /// Storage a record in the data layer
-    async fn set<H: Hasher + Sync + Send, St: Storable>(
-        &self,
-        id: St::Key,
-        record: DbRecord<H>,
-    ) -> Result<(), StorageError> {
-        let k: String = hex::encode(bincode::serialize(&id).unwrap());
-
-        let serialized = match record {
-            DbRecord::Azks(azks) => bincode::serialize(&azks),
-            DbRecord::HistoryNodeState(state) => bincode::serialize(&state),
-            DbRecord::HistoryTreeNode(node) => bincode::serialize(&node),
+impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
+    /// V1Storage a record in the data layer
+    async fn set<H: Hasher + Sync + Send>(&self, record: DbRecord<H>) -> Result<(), StorageError> {
+        let (k, serialized, ty) = match record {
+            DbRecord::Azks(azks) => (
+                hex::encode(bincode::serialize(&azks.get_id()).unwrap()),
+                bincode::serialize(&azks),
+                StorageType::Azks,
+            ),
+            DbRecord::HistoryNodeState(state) => (
+                hex::encode(bincode::serialize(&state.get_id()).unwrap()),
+                bincode::serialize(&state),
+                StorageType::HistoryNodeState,
+            ),
+            DbRecord::HistoryTreeNode(node) => (
+                hex::encode(bincode::serialize(&node.get_id()).unwrap()),
+                bincode::serialize(&node),
+                StorageType::HistoryTreeNode,
+            ),
+            DbRecord::UserState(state) => (
+                hex::encode(bincode::serialize(&state.get_id()).unwrap()),
+                bincode::serialize(&state),
+                StorageType::UserState,
+            ),
         };
 
         match serialized {
             Err(_) => Err(StorageError::SerializationError),
-            Ok(serialized) => self.db.set(k, St::data_type(), &serialized).await,
+            Ok(serialized) => self.db.set(k, ty, &serialized).await,
         }
+    }
+
+    async fn batch_set<H: Hasher + Sync + Send>(
+        &self,
+        records: Vec<DbRecord<H>>,
+    ) -> Result<(), StorageError> {
+        for record in records.into_iter() {
+            self.set::<H>(record).await?
+        }
+        Ok(())
     }
 
     /// Retrieve a stored record from the data layer
@@ -329,24 +392,31 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
         let k: String = hex::encode(bincode::serialize(&id).unwrap());
         match St::data_type() {
             StorageType::Azks => {
-                let got = self.db.get(k, St::data_type()).await?;
+                let got = self.db.get(k, StorageType::Azks).await?;
                 match bincode::deserialize(&got) {
                     Err(_) => Err(StorageError::SerializationError),
                     Ok(result) => Ok(DbRecord::Azks(result)),
                 }
             }
             StorageType::HistoryNodeState => {
-                let got = self.db.get(k, St::data_type()).await?;
+                let got = self.db.get(k, StorageType::HistoryNodeState).await?;
                 match bincode::deserialize(&got) {
                     Err(_) => Err(StorageError::SerializationError),
                     Ok(result) => Ok(DbRecord::HistoryNodeState(result)),
                 }
             }
             StorageType::HistoryTreeNode => {
-                let got = self.db.get(k, St::data_type()).await?;
+                let got = self.db.get(k, StorageType::HistoryTreeNode).await?;
                 match bincode::deserialize(&got) {
                     Err(_) => Err(StorageError::SerializationError),
                     Ok(result) => Ok(DbRecord::HistoryTreeNode(result)),
+                }
+            }
+            StorageType::UserState => {
+                let got = self.db.get(k, StorageType::UserState).await?;
+                match bincode::deserialize(&got) {
+                    Err(_) => Err(StorageError::SerializationError),
+                    Ok(result) => Ok(DbRecord::UserState(result)),
                 }
             }
         }
@@ -357,9 +427,10 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
         &self,
         num: Option<usize>,
     ) -> Result<Vec<DbRecord<H>>, StorageError> {
-        let got = self.db.get_all(St::data_type(), num).await?;
+        let datatype = St::data_type();
+        let got = self.db.get_all(datatype, num).await?;
         let list = got.iter().fold(Vec::new(), |mut acc, item| {
-            match St::data_type() {
+            match datatype {
                 StorageType::Azks => {
                     if let Ok(item) = bincode::deserialize(item) {
                         acc.push(DbRecord::Azks(item));
@@ -375,6 +446,11 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
                         acc.push(DbRecord::HistoryTreeNode(item))
                     }
                 }
+                StorageType::UserState => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::UserState(item))
+                    }
+                }
             }
             acc
         });
@@ -382,35 +458,124 @@ impl<S: Storage + Send + Sync> NewStorage for NewStorageWrapper<S> {
     }
 
     /// Add a user state element to the associated user
-    async fn append_user_state(
+    async fn append_user_state<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
         value: &types::UserState,
     ) -> Result<(), StorageError> {
-        self.db.append_user_state(username, value).await
+        self.set::<H>(DbRecord::UserState(value.clone())).await
     }
 
-    async fn append_user_states(
+    async fn append_user_states<H: Hasher + Sync + Send>(
         &self,
-        values: Vec<(types::Username, types::UserState)>,
+        values: Vec<types::UserState>,
     ) -> Result<(), StorageError> {
-        self.db.append_user_states(values).await
+        for item in values.into_iter() {
+            self.set::<H>(DbRecord::UserState(item)).await?;
+        }
+        Ok(())
     }
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(
+    async fn get_user_data<H: Hasher + Sync + Send>(
         &self,
         username: &types::Username,
     ) -> Result<types::UserData, StorageError> {
-        self.db.get_user_data(username).await
+        let all = self
+            .get_all::<H, crate::storage::types::UserState>(None)
+            .await?;
+        let mut results = vec![];
+        for item in all.into_iter() {
+            if let DbRecord::UserState(state) = item {
+                if state.username == *username {
+                    results.push(state);
+                }
+            }
+        }
+        // return ordered by epoch (from smallest -> largest)
+        results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+
+        Ok(types::UserData { states: results })
     }
 
     /// Retrieve a specific state for a given user
-    async fn get_user_state(
+    async fn get_user_state<H: Hasher + Sync + Send>(
         &self,
         username: &types::Username,
         flag: types::UserStateRetrievalFlag,
     ) -> Result<types::UserState, StorageError> {
-        self.db.get_user_state(username, flag).await
+        let intermediate = self.get_user_data::<H>(username).await?.states;
+        match flag {
+            types::UserStateRetrievalFlag::MaxEpoch =>
+            // retrieve by max epoch
+            {
+                if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
+                    return Ok(value.clone());
+                }
+            }
+            types::UserStateRetrievalFlag::MaxVersion =>
+            // retrieve the max version
+            {
+                if let Some(value) = intermediate.iter().max_by(|a, b| a.version.cmp(&b.version)) {
+                    return Ok(value.clone());
+                }
+            }
+            types::UserStateRetrievalFlag::MinEpoch =>
+            // retrieve by min epoch
+            {
+                if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
+                    return Ok(value.clone());
+                }
+            }
+            types::UserStateRetrievalFlag::MinVersion =>
+            // retrieve the min version
+            {
+                if let Some(value) = intermediate.iter().min_by(|a, b| a.version.cmp(&b.version)) {
+                    return Ok(value.clone());
+                }
+            }
+            _ =>
+            // search for specific property
+            {
+                let mut tracked_epoch = 0u64;
+                let mut tracker = None;
+                for kvp in intermediate.iter() {
+                    match flag {
+                        types::UserStateRetrievalFlag::SpecificVersion(version)
+                            if version == kvp.version =>
+                        {
+                            return Ok(kvp.clone())
+                        }
+                        types::UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                            return Ok(kvp.clone());
+                        }
+                        types::UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                            match tracked_epoch {
+                                0u64 => {
+                                    tracked_epoch = kvp.epoch;
+                                    tracker = Some(kvp.clone());
+                                }
+                                other_epoch => {
+                                    if kvp.epoch > other_epoch {
+                                        tracker = Some(kvp.clone());
+                                        tracked_epoch = kvp.epoch;
+                                    }
+                                }
+                            }
+                        }
+                        types::UserStateRetrievalFlag::SpecificEpoch(epoch)
+                            if epoch == kvp.epoch =>
+                        {
+                            return Ok(kvp.clone())
+                        }
+                        _ => continue,
+                    }
+                }
+
+                if let Some(r) = tracker {
+                    return Ok(r);
+                }
+            }
+        }
+        Err(StorageError::GetError(String::from("Not found")))
     }
 }
