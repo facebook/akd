@@ -20,17 +20,14 @@ mod commands;
 mod directory_host;
 
 #[derive(StructOpt)]
-#[structopt(about = "The database types")]
-enum DatabaseType {
-    Mysql,
-    Memory
-}
-
-#[derive(StructOpt)]
 struct Cli {
     /// The database implementation to utilize
-    #[structopt(subcommand)]
-    db: Option<DatabaseType>
+    #[structopt(long = "memory", name = "Use in-memory database")]
+    memory_db: bool,
+
+    /// Activate debuging mode
+    #[structopt(long = "debug", short = "d", name = "Enable debugging mode")]
+    debug: bool,
 }
 
 // MAIN //
@@ -41,11 +38,11 @@ async fn main() {
 
     let (tx, mut rx) = channel(2);
 
-    if let Some(DatabaseType::Memory) = cli.db {
+    if cli.memory_db {
         let db = akd::storage::V2FromV1StorageWrapper::new(akd::storage::memory::AsyncInMemoryDatabase::new());
         let mut directory = Directory::<akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>, Blake3_256<BaseElement>>::new(&db).await.unwrap();
         tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
-        process_input(&tx, None).await;
+        process_input(&cli, &tx, None).await;
     } else {
         // MySQL (the default)
         let mysql_db = AsyncMySqlDatabase::new(
@@ -60,12 +57,12 @@ async fn main() {
             .await
             .unwrap();
         tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
-        process_input(&tx, Some(&mysql_db)).await;
+        process_input(&cli, &tx, Some(&mysql_db)).await;
     }
 }
 
 // Helpers //
-async fn process_input(tx: &Sender<directory_host::Rpc>, db: Option<&AsyncMySqlDatabase>) {
+async fn process_input(cli: &Cli, tx: &Sender<directory_host::Rpc>, db: Option<&AsyncMySqlDatabase>) {
     loop {
         println!("Please enter a command");
         print!("> ");
@@ -101,11 +98,16 @@ async fn process_input(tx: &Sender<directory_host::Rpc>, db: Option<&AsyncMySqlD
                 }
             },
             Command::Info => {
-                if let Some(mysql) = db {
-                    println!("Database properties ({})", mysql);
-                } else {
-                    println!("Connected to an in-memory database");
+                if cli.debug {
+                    println!("\t**** DEBUG mode ACTIVE ****");
                 }
+                println!("===== Auditable Key Directory Information =====");
+                if let Some(mysql) = db {
+                    println!("      Database properties ({})", mysql);
+                } else {
+                    println!("      Connected to an in-memory database");
+                }
+                println!("");
             },
             Command::Directory(cmd) => {
                 let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
@@ -115,18 +117,32 @@ async fn process_input(tx: &Sender<directory_host::Rpc>, db: Option<&AsyncMySqlD
                     println!("Error sending message to directory");
                     continue;
                 }
-                match timeout(Duration::from_millis(1000), rpc_rx).await {
-                    Ok(Ok(Ok(success))) => {
-                        println!("Response: {}", success);
+                if cli.debug {
+                    match rpc_rx.await {
+                        Ok(Ok(success)) => {
+                            println!("Response: {}", success);
+                        },
+                        Ok(Err(dir_err)) => {
+                            println!("ERROR: Error in directory processing command: {}", dir_err);
+                        },
+                        Err(_) => {
+                            println!("ERROR: Failed to receive result from directory");
+                        }
                     }
-                    Ok(Ok(Err(dir_err))) => {
-                        println!("ERROR: Error in directory processing command: {}", dir_err);
-                    }
-                    Ok(Err(_)) => {
-                        println!("ERROR: Failed to receive result from directory");
-                    }
-                    Err(_) => {
-                        println!("Timeout waiting on receive from directory");
+                } else {
+                    match timeout(Duration::from_millis(1000), rpc_rx).await {
+                        Ok(Ok(Ok(success))) => {
+                            println!("Response: {}", success);
+                        }
+                        Ok(Ok(Err(dir_err))) => {
+                            println!("ERROR: Error in directory processing command: {}", dir_err);
+                        }
+                        Ok(Err(_)) => {
+                            println!("ERROR: Failed to receive result from directory");
+                        }
+                        Err(_) => {
+                            println!("Timeout waiting on receive from directory");
+                        }
                     }
                 }
             },
