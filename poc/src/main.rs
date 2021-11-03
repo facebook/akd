@@ -16,8 +16,6 @@ use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 use structopt::StructOpt;
 
-// any error type implementing Display is acceptable.
-
 mod commands;
 mod directory_host;
 
@@ -32,7 +30,7 @@ enum DatabaseType {
 struct Cli {
     /// The database implementation to utilize
     #[structopt(subcommand)]
-    db: DatabaseType
+    db: Option<DatabaseType>
 }
 
 // MAIN //
@@ -43,7 +41,7 @@ async fn main() {
 
     let (tx, mut rx) = channel(2);
 
-    if let DatabaseType::Memory = cli.db {
+    if let Some(DatabaseType::Memory) = cli.db {
         let db = akd::storage::V2FromV1StorageWrapper::new(akd::storage::memory::AsyncInMemoryDatabase::new());
         let mut directory = Directory::<akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>, Blake3_256<BaseElement>>::new(&db).await.unwrap();
         tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
