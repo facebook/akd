@@ -10,8 +10,8 @@ use std::io::*;
 use std::time::Duration;
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
-use vkd::directory::Directory;
-use vkd::storage::mysql::AsyncMySqlDatabase;
+use akd::directory::Directory;
+use akd::storage::mysql::AsyncMySqlDatabase;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 

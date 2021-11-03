@@ -9,7 +9,7 @@ edition = "2018"
 winter-crypto = "0.1"
 winter-math = "0.1"
 tokio = { version = "1", features = ["full"] }
-vkd = { path = "../." }
+akd = { path = "../." }
 colored = "2.0.0"
 hex = "0.4.3"
 

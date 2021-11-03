@@ -7,10 +7,10 @@
 
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
-use vkd::directory::Directory;
-use vkd::storage::types::*;
-use vkd::storage::V2Storage;
-use vkd::SeemlessError;
+use akd::directory::Directory;
+use akd::storage::types::*;
+use akd::storage::V2Storage;
+use akd::SeemlessError;
 use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
@@ -81,7 +81,7 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
                         let hash = get_root_hash(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let verification = vkd::client::lookup_verify(
+                                let verification = akd::client::lookup_verify(
                                     root_hash,
                                     Username(a.clone()),
                                     proof,
