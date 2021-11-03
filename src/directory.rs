@@ -5,19 +5,18 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use crate::append_only_zks::{Azks, AzksKey};
+use crate::append_only_zks::Azks;
 use crate::errors::{SeemlessDirectoryError, SeemlessError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{UserState, UserStateRetrievalFlag, Username, Values};
-use crate::storage::Storage;
+use crate::storage::types::{DbRecord, UserState, UserStateRetrievalFlag, Username, Values};
+use crate::storage::V2Storage;
 
-use rand::{prelude::ThreadRng, thread_rng};
 use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
-use std::marker::PhantomData;
+use std::marker::{PhantomData, Send, Sync};
 use winter_crypto::Hasher;
 
 impl Values {
@@ -33,35 +32,26 @@ impl Username {
 }
 
 pub struct Directory<S, H> {
-    azks_id: [u8; 32],
     current_epoch: u64,
     storage: S,
-    _s: PhantomData<S>,
     _h: PhantomData<H>,
 }
 
-impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker::Send>
-    Directory<S, H>
-{
+impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
-        let mut rng: ThreadRng = thread_rng();
-
         let azks = {
-            if let Some(azks) = Directory::get_azks_from_storage(storage).await {
+            if let Ok(azks) = Directory::get_azks_from_storage(storage).await {
                 azks
             } else {
                 // generate a new one
-                let azks = Azks::<H, S>::new(storage, &mut rng).await?;
+                let azks = Azks::<H>::new(storage).await?;
                 // store it
-                storage.store(AzksKey(azks.get_azks_id()), &azks).await?;
+                storage.set::<H>(DbRecord::Azks(azks.clone())).await?;
                 azks
             }
         };
-        let azks_id = azks.get_azks_id();
         Ok(Directory {
-            azks_id,
             current_epoch: azks.get_latest_epoch(),
-            _s: PhantomData::<S>,
             _h: PhantomData::<H>,
             storage: storage.clone(),
         })
@@ -69,12 +59,12 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     pub async fn publish(&mut self, updates: Vec<(Username, Values)>) -> Result<(), SeemlessError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<(Username, UserState)>::new();
+        let mut user_data_update_set = Vec::<UserState>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
             match self
                 .storage
-                .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+                .get_user_state::<H>(&uname, UserStateRetrievalFlag::MaxEpoch)
                 .await
             {
                 Err(_) => {
@@ -85,8 +75,9 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((label, value_to_add));
-                    let latest_state = UserState::new(val, latest_version, label, next_epoch);
-                    user_data_update_set.push((uname, latest_state));
+                    let latest_state =
+                        UserState::new(uname, val, latest_version, label, next_epoch);
+                    user_data_update_set.push(latest_state);
                 }
                 Ok(max_user_state) => {
                     // Data found for the given user
@@ -99,8 +90,9 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((stale_label, stale_value_to_add));
                     update_set.push((fresh_label, fresh_value_to_add));
-                    let new_state = UserState::new(val, latest_version, fresh_label, next_epoch);
-                    user_data_update_set.push((uname, new_state));
+                    let new_state =
+                        UserState::new(uname, val, latest_version, fresh_label, next_epoch);
+                    user_data_update_set.push(new_state);
                 }
             }
         }
@@ -112,10 +104,10 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .batch_insert_leaves(&self.storage, insertion_set)
             .await;
         self.storage
-            .store(AzksKey(self.azks_id), &current_azks)
+            .set::<H>(DbRecord::Azks(current_azks.clone()))
             .await?;
         self.storage
-            .append_user_states(user_data_update_set)
+            .append_user_states::<H>(user_data_update_set)
             .await?;
         self.current_epoch = next_epoch;
         output
@@ -127,7 +119,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     pub async fn lookup(&self, uname: Username) -> Result<LookupProof<H>, SeemlessError> {
         match self
             .storage
-            .get_user_state(&uname, UserStateRetrievalFlag::MaxEpoch)
+            .get_user_state::<H>(&uname, UserStateRetrievalFlag::MaxEpoch)
             .await
         {
             Err(_) => {
@@ -174,7 +166,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// It also returns the proof of the latest version being served at all times.
     pub async fn key_history(&self, uname: &Username) -> Result<HistoryProof<H>, SeemlessError> {
         let username = uname.0.to_string();
-        if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
+        if let Ok(this_user_data) = self.storage.get_user_data::<H>(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
                 let proof = self.create_single_update_proof(uname, user_state).await?;
@@ -200,18 +192,23 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .await
     }
 
-    pub async fn retrieve_current_azks(&self) -> Result<Azks<H, S>, crate::errors::StorageError> {
-        self.storage
-            .retrieve::<Azks<H, S>>(AzksKey(self.azks_id))
-            .await
+    pub async fn retrieve_current_azks(&self) -> Result<Azks<H>, crate::errors::StorageError> {
+        Directory::get_azks_from_storage(&self.storage).await
+    }
+
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks<H>, crate::errors::StorageError> {
+        let got = storage
+            .get::<H, Azks<H>>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+            .await?;
+        match got {
+            DbRecord::Azks(azks) => Ok(azks),
+            _ => Err(crate::errors::StorageError::GetError(String::from(
+                "Not found",
+            ))),
+        }
     }
 
     /// HELPERS ///
-
-    #[allow(unused)]
-    fn get_azks_id(&self) -> &[u8] {
-        &self.azks_id
-    }
 
     #[allow(unused)]
     fn username_to_nodelabel(_uname: &Username) -> NodeLabel {
@@ -242,17 +239,6 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     pub fn value_to_bytes(_value: &Values) -> [u8; 64] {
         [0u8; 64]
         // unimplemented!()
-    }
-
-    async fn get_azks_from_storage(storage: &S) -> Option<Azks<H, S>> {
-        let result = storage.retrieve_all::<Azks<H, S>>(Some(1)).await;
-        if let Ok(mut v) = result {
-            if !v.is_empty() {
-                let removed = v.remove(0);
-                return Some(removed);
-            }
-        }
-        None
     }
 
     async fn create_single_update_proof(
@@ -327,7 +313,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     pub async fn get_root_hash_at_epoch(
         &self,
-        current_azks: &Azks<H, S>,
+        current_azks: &Azks<H>,
         epoch: u64,
     ) -> Result<H::Digest, SeemlessError> {
         Ok(current_azks
@@ -335,10 +321,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             .await?)
     }
 
-    pub async fn get_root_hash(
-        &self,
-        current_azks: &Azks<H, S>,
-    ) -> Result<H::Digest, SeemlessError> {
+    pub async fn get_root_hash(&self, current_azks: &Azks<H>) -> Result<H::Digest, SeemlessError> {
         self.get_root_hash_at_epoch(current_azks, self.current_epoch)
             .await
     }
@@ -372,10 +355,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
-pub async fn get_key_history_hashes<
-    S: Storage + std::marker::Sync + std::marker::Send,
-    H: Hasher + std::marker::Send,
->(
+pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher + Sync + Send>(
     seemless_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, SeemlessError> {
@@ -427,9 +407,12 @@ mod tests {
     #[allow(unused)]
     #[actix_rt::test]
     async fn test_simple_publish() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![(
@@ -443,9 +426,12 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_simiple_lookup() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![
@@ -467,9 +453,12 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_simple_key_history() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![
@@ -561,9 +550,12 @@ mod tests {
     #[allow(unused)]
     #[actix_rt::test]
     async fn test_simple_audit() -> Result<(), SeemlessError> {
-        let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let mut seemless = Directory::<
+            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+            Blake3_256<BaseElement>,
+        >::new(&db)
+        .await?;
 
         seemless
             .publish(vec![

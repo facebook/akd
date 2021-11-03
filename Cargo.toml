@@ -19,7 +19,6 @@ keyed_priority_queue = "0.3"
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 lazy_static = "1"
-mysql = "21"
 evmap = "10"
 mysql_async = "0.28"
 async-trait = "0.1"

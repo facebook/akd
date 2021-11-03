@@ -7,7 +7,7 @@
 
 use crate::serialization::from_digest;
 use crate::storage::types::StorageType;
-use crate::storage::{Storable, Storage};
+use crate::storage::Storable;
 use crate::{Direction, ARITY};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -107,57 +107,58 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct HistoryNodeState<H, S> {
+pub struct HistoryNodeState<H> {
     pub value: Vec<u8>,
-    pub child_states: Vec<HistoryChildState<H, S>>,
+    pub child_states: Vec<HistoryChildState<H>>,
+    pub key: NodeStateKey,
 }
 
 // parameters are azks_id, node location, and epoch
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct NodeStateKey(pub(crate) [u8; 32], pub(crate) NodeLabel, pub(crate) usize);
+#[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
+pub struct NodeStateKey(pub NodeLabel, pub u64);
 
-impl<H: Hasher, S: Storage> Storable for HistoryNodeState<H, S> {
+impl<H: Hasher> Storable for HistoryNodeState<H> {
     type Key = NodeStateKey;
 
     fn data_type() -> StorageType {
         StorageType::HistoryNodeState
     }
+
+    fn get_id(&self) -> NodeStateKey {
+        self.key
+    }
 }
 
-unsafe impl<H: Hasher, S: Storage> Sync for HistoryNodeState<H, S> {}
+unsafe impl<H: Hasher> Sync for HistoryNodeState<H> {}
 
-impl<H: Hasher, S: Storage> HistoryNodeState<H, S> {
-    pub fn new() -> Self {
-        let children = vec![HistoryChildState::<H, S>::new_dummy(); ARITY];
+impl<H: Hasher> HistoryNodeState<H> {
+    pub fn new(key: NodeStateKey) -> Self {
+        let children = vec![HistoryChildState::<H>::new_dummy(); ARITY];
         HistoryNodeState {
             value: from_digest::<H>(H::hash(&[0u8])).unwrap(),
             child_states: children,
+            key,
         }
     }
 
-    pub fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H, S> {
+    pub fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H> {
         self.child_states[dir].clone()
     }
 }
 
-impl<H: Hasher, S: Storage> Default for HistoryNodeState<H, S> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<H: Hasher, S: Storage> Clone for HistoryNodeState<H, S> {
+impl<H: Hasher> Clone for HistoryNodeState<H> {
     fn clone(&self) -> Self {
         Self {
             value: self.value.clone(),
             child_states: self.child_states.clone(),
+            key: self.key,
         }
     }
 }
 
 // To use the `{}` marker, the trait `fmt::Display` must be implemented
 // manually for the type.
-impl<H: Hasher, S: Storage> fmt::Display for HistoryNodeState<H, S> {
+impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "\tvalue = {:?}", self.value).unwrap();
@@ -173,15 +174,15 @@ pub enum DummyChildState {
     Dummy,
     Real,
 }
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HistoryChildState<H, S> {
+pub struct HistoryChildState<H> {
     pub dummy_marker: DummyChildState,
     pub location: usize,
     pub label: NodeLabel,
     pub hash_val: Vec<u8>,
     pub epoch_version: u64,
-    pub(crate) _h: PhantomData<H>,
-    pub(crate) _s: PhantomData<S>,
+    pub _h: PhantomData<H>,
 }
 
 // parameters are azks_id, node location, epoch, child index
@@ -193,17 +194,9 @@ pub struct ChildStateKey(
     pub(crate) usize,
 );
 
-impl<H: Hasher, S: Storage> Storable for HistoryChildState<H, S> {
-    type Key = ChildStateKey;
+unsafe impl<H: Hasher> Sync for HistoryChildState<H> {}
 
-    fn data_type() -> StorageType {
-        StorageType::HistoryChildState
-    }
-}
-
-unsafe impl<H: Hasher, S: Storage> Sync for HistoryChildState<H, S> {}
-
-impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
+impl<H: Hasher> HistoryChildState<H> {
     pub fn new(loc: usize, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
         HistoryChildState {
             dummy_marker: DummyChildState::Real,
@@ -212,7 +205,6 @@ impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
             hash_val: from_digest::<H>(hash_val).unwrap(),
             epoch_version: ep,
             _h: PhantomData,
-            _s: PhantomData,
         }
     }
 
@@ -224,12 +216,11 @@ impl<H: Hasher, S: Storage> HistoryChildState<H, S> {
             hash_val: from_digest::<H>(H::hash(&[0u8])).unwrap(),
             epoch_version: 0,
             _h: PhantomData,
-            _s: PhantomData,
         }
     }
 }
 
-impl<H: Hasher, S: Storage> Clone for HistoryChildState<H, S> {
+impl<H: Hasher> Clone for HistoryChildState<H> {
     fn clone(&self) -> Self {
         Self {
             dummy_marker: self.dummy_marker,
@@ -238,12 +229,11 @@ impl<H: Hasher, S: Storage> Clone for HistoryChildState<H, S> {
             hash_val: self.hash_val.clone(),
             epoch_version: self.epoch_version,
             _h: PhantomData,
-            _s: PhantomData,
         }
     }
 }
 
-impl<H: Hasher, S: Storage> PartialEq for HistoryChildState<H, S> {
+impl<H: Hasher> PartialEq for HistoryChildState<H> {
     fn eq(&self, other: &Self) -> bool {
         self.dummy_marker == other.dummy_marker
             && self.location == other.location
@@ -253,7 +243,7 @@ impl<H: Hasher, S: Storage> PartialEq for HistoryChildState<H, S> {
     }
 }
 
-impl<H: Hasher, S: Storage> fmt::Display for HistoryChildState<H, S> {
+impl<H: Hasher> fmt::Display for HistoryChildState<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

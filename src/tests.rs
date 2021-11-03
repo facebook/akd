@@ -32,12 +32,13 @@ type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 
 #[actix_rt::test]
 async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(ep),
+    )
+    .await?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
@@ -68,11 +69,15 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(ep),
+    )
+    .await?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_2: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
@@ -121,11 +126,15 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(ep),
+    )
+    .await?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_2: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
@@ -143,9 +152,9 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
 
     ep = 2;
 
-    let child_hist_node_3: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_3: HistoryChildState<Blake3> =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_4: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
@@ -194,11 +203,15 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(ep)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(ep),
+    )
+    .await?;
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(11, 2), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_2: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
@@ -216,9 +229,9 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
 
     ep = 2;
 
-    let child_hist_node_3: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_3: HistoryChildState<Blake3> =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
-    let child_hist_node_4: HistoryChildState<Blake3, InMemoryDb> =
+    let child_hist_node_4: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
         root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
@@ -267,9 +280,12 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
     let init_ep = 0;
-    let db = InMemoryDb::new();
-    let mut root =
-        get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(init_ep)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(init_ep),
+    )
+    .await?;
 
     for ep in 0u64..3u64 {
         let child_hist_node_1 = HistoryChildState::new(
@@ -278,7 +294,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
             Blake3::hash(&[0u8]),
             2 * ep,
         );
-        let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> = HistoryChildState::new(
+        let child_hist_node_2: HistoryChildState<Blake3> = HistoryChildState::new(
             ep.try_into().unwrap(),
             NodeLabel::new(0, ep.clone().try_into().unwrap()),
             Blake3::hash(&[0u8]),
@@ -302,7 +318,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
         Blake3::hash(&[0u8]),
         2 * ep_existing,
     );
-    let child_hist_node_2: HistoryChildState<Blake3, InMemoryDb> = HistoryChildState::new(
+    let child_hist_node_2: HistoryChildState<Blake3> = HistoryChildState::new(
         0,
         NodeLabel::new(0, ep_existing.clone().try_into().unwrap()),
         Blake3::hash(&[0u8]),
@@ -341,11 +357,14 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
+        Option::Some(0u64),
+    )
+    .await?;
+    let new_leaf = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
         NodeLabel::new(0b0u64, 1u32),
         1,
         &[0u8],
@@ -354,9 +373,8 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     )
     .await?;
 
-    let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_1 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b1u64, 1u32),
         2,
         &[1u8],
@@ -368,9 +386,9 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 0, &mut num_nodes)
+    root.insert_single_leaf(&db, new_leaf.clone(), 0, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 0, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_1.clone(), 0, &mut num_nodes)
         .await?;
 
     let root_val = root.get_value(&db).await?;
@@ -402,11 +420,14 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
+        Option::Some(0u64),
+    )
+    .await?;
+    let new_leaf = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
         NodeLabel::new(0b00u64, 2u32),
         1,
         &[0u8],
@@ -415,9 +436,8 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     )
     .await?;
 
-    let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_1 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b11u64, 2u32),
         2,
         &[1u8],
@@ -426,9 +446,8 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     )
     .await?;
 
-    let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_2 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b10u64, 2u32),
         3,
         &[1u8, 1u8],
@@ -469,13 +488,13 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
+    root.insert_single_leaf(&db, new_leaf.clone(), 1, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_1.clone(), 2, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_2.clone(), 3, &mut num_nodes)
         .await?;
 
     let root_val = root.get_value(&db).await?;
@@ -496,11 +515,14 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
+        Option::Some(0u64),
+    )
+    .await?;
+    let new_leaf = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
         NodeLabel::new(0b000u64, 3u32),
         1,
         &[0u8],
@@ -509,9 +531,8 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     )
     .await?;
 
-    let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_1 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b111u64, 3u32),
         2,
         &[1u8],
@@ -520,9 +541,8 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     )
     .await?;
 
-    let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_2 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b100u64, 3u32),
         3,
         &[1u8, 1u8],
@@ -531,9 +551,8 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     )
     .await?;
 
-    let leaf_3 = get_leaf_node::<Blake3, InMemoryDb>(
+    let leaf_3 = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
         &db,
-        &azks_id,
         NodeLabel::new(0b010u64, 3u32),
         4,
         &[0u8, 1u8],
@@ -586,13 +605,13 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
+    root.insert_single_leaf(&db, new_leaf.clone(), 1, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_1.clone(), 2, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_2.clone(), 3, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_3.clone(), &azks_id, 4, &mut num_nodes)
+    root.insert_single_leaf(&db, leaf_3.clone(), 4, &mut num_nodes)
         .await?;
 
     // let root_val = root.get_value()?;
@@ -613,16 +632,19 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
     rng.fill_bytes(&mut azks_id);
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, InMemoryDb>(&db, &azks_id, Option::Some(0u64)).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let mut root = get_empty_root::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
+        &db,
+        Option::Some(0u64),
+    )
+    .await?;
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
-    let mut leaves = Vec::<HistoryTreeNode<Blake3, InMemoryDb>>::new();
+    let mut leaves = Vec::<HistoryTreeNode<Blake3>>::new();
     let mut leaf_hashes = Vec::new();
     for i in 0u64..8u64 {
-        let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+        let new_leaf = get_leaf_node::<Blake3, crate::storage::V2FromV1StorageWrapper<InMemoryDb>>(
             &db,
-            &azks_id,
             NodeLabel::new(i.clone(), 3u32),
             leaves.len(),
             &i.to_ne_bytes(),
@@ -677,7 +699,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
 
     for i in 0..8 {
         let ep: u64 = i.try_into().unwrap();
-        root.insert_single_leaf(&db, leaves[7 - i].clone(), &azks_id, ep + 1, &mut num_nodes)
+        root.insert_single_leaf(&db, leaves[7 - i].clone(), ep + 1, &mut num_nodes)
             .await?;
     }
 
