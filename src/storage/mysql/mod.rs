@@ -47,6 +47,28 @@ pub struct AsyncMySqlDatabase {
     is_healthy: Arc<Mutex<bool>>,
 }
 
+impl std::fmt::Display for AsyncMySqlDatabase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let db_str = match self.opts.db_name() {
+            Some(db) => format!("Database {}", db),
+            None => String::from(""),
+        };
+        let user_str = match self.opts.user() {
+            Some(user) => format!(", User {}", user),
+            None => String::from(""),
+        };
+
+        write!(
+            f,
+            "Connected to {}:{} ({}{})",
+            self.opts.ip_or_hostname(),
+            self.opts.tcp_port(),
+            db_str,
+            user_str
+        )
+    }
+}
+
 impl Clone for AsyncMySqlDatabase {
     fn clone(&self) -> Self {
         Self {

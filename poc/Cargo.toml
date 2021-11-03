@@ -1,6 +1,6 @@
 [package]
-name = "vkd_app"
-default-run = "vkd_app"
+name = "akd_app"
+default-run = "akd_app"
 version = "0.1.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
@@ -12,6 +12,7 @@ tokio = { version = "1", features = ["full"] }
 akd = { path = "../." }
 colored = "2.0.0"
 hex = "0.4.3"
+structopt = "0.3.13"
 
 [dev-dependencies]
 actix-rt = "*"

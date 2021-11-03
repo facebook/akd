@@ -57,9 +57,9 @@ async fn main() {
 
     let mut existing_usernames = Vec::<Username>::new();
 
-    let db = vkd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
+    let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
     let mut seemless_dir = Directory::<
-        vkd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>,
+        akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>,
         Blake3_256<BaseElement>,
     >::new(&db)
     .await

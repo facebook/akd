@@ -14,33 +14,60 @@ use akd::directory::Directory;
 use akd::storage::mysql::AsyncMySqlDatabase;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
+use structopt::StructOpt;
+
+// any error type implementing Display is acceptable.
 
 mod commands;
 mod directory_host;
 
+#[derive(StructOpt)]
+#[structopt(about = "The database types")]
+enum DatabaseType {
+    Mysql,
+    Memory
+}
+
+#[derive(StructOpt)]
+struct Cli {
+    /// The database implementation to utilize
+    #[structopt(subcommand)]
+    db: DatabaseType
+}
+
 // MAIN //
 #[tokio::main]
 async fn main() {
+
+    let cli = Cli::from_args();
+
     let (tx, mut rx) = channel(2);
-    let mysql_db = AsyncMySqlDatabase::new(
-        "localhost",
-        "default",
-        Option::from("root"),
-        Option::from("example"),
-        Option::from(8001),
-    )
-    .await;
 
-    let mut directory = Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
-        .await
-        .unwrap();
-    tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
-
-    process_input(&tx, &mysql_db).await;
+    if let DatabaseType::Memory = cli.db {
+        let db = akd::storage::V2FromV1StorageWrapper::new(akd::storage::memory::AsyncInMemoryDatabase::new());
+        let mut directory = Directory::<akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>, Blake3_256<BaseElement>>::new(&db).await.unwrap();
+        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        process_input(&tx, None).await;
+    } else {
+        // MySQL (the default)
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "default",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+        )
+        .await;
+        let mut directory = Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
+            .await
+            .unwrap();
+        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        process_input(&tx, Some(&mysql_db)).await;
+    }
 }
 
 // Helpers //
-async fn process_input(tx: &Sender<directory_host::Rpc>, db: &AsyncMySqlDatabase) {
+async fn process_input(tx: &Sender<directory_host::Rpc>, db: Option<&AsyncMySqlDatabase>) {
     loop {
         println!("Please enter a command");
         print!("> ");
@@ -58,21 +85,30 @@ async fn process_input(tx: &Sender<directory_host::Rpc>, db: &AsyncMySqlDatabase
             Command::Exit => {
                 println!("Exiting...");
                 break;
-            }
+            },
             Command::Help => {
                 Command::print_help_menu();
-            }
+            },
             Command::Flush => {
                 println!("Flushing the database...");
-                if let Err(error) = db.delete_data().await {
-                    println!("Error flushing database: {}", error);
-                } else {
-                    println!(
-                        "Database flushed, exiting application. Please restart to create a new VKD"
-                    );
-                    break;
+                if let Some(mysql_db) = db {
+                    if let Err(error) = mysql_db.delete_data().await {
+                        println!("Error flushing database: {}", error);
+                    } else {
+                        println!(
+                            "Database flushed, exiting application. Please restart to create a new VKD"
+                        );
+                        break;
+                    }
                 }
-            }
+            },
+            Command::Info => {
+                if let Some(mysql) = db {
+                    println!("Database properties ({})", mysql);
+                } else {
+                    println!("Connected to an in-memory database");
+                }
+            },
             Command::Directory(cmd) => {
                 let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                 let rpc = directory_host::Rpc(cmd, Some(rpc_tx));
@@ -95,7 +131,7 @@ async fn process_input(tx: &Sender<directory_host::Rpc>, db: &AsyncMySqlDatabase
                         println!("Timeout waiting on receive from directory");
                     }
                 }
-            }
+            },
         }
     }
 

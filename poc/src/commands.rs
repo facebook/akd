@@ -12,6 +12,7 @@ pub(crate) enum Command {
     Help,
     Exit,
     Flush,
+    Info,
     Directory(DirectoryCommand),
     InvalidArgs(String),
     Unknown(String),
@@ -31,6 +32,7 @@ impl Command {
             "exit" | "x" => Command::Exit,
             "help" | "?" => Command::Help,
             "flush" => Command::Flush,
+            "info" => Command::Info,
             cmd => Command::handle_dir_cmd(cmd, parts, text),
         }
     }
@@ -54,6 +56,7 @@ impl Command {
             "x".green()
         );
         println!("  {}\t\t\t\tflush the database entries", "flush".green());
+        println!("  {}\t\t\t\tprints information about the running instance", "info".green());
         println!(
             "  {} {} {}:\t\tpublish key material (value) for user",
             "publish".green(),
