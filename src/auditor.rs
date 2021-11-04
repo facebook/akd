@@ -5,9 +5,13 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+
 //! Code for an auditor of a verifiable key directory
 
 use rand::rngs::OsRng;
+
+use std::marker::{Send, Sync};
+
 use winter_crypto::Hasher;
 
 use crate::{
@@ -18,7 +22,7 @@ use crate::{
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
-pub async fn audit_verify<H: Hasher + std::marker::Send>(
+pub async fn audit_verify<H: Hasher + Send + Sync>(
     start_hash: H::Digest,
     end_hash: H::Digest,
     proof: AppendOnlyProof<H>,
@@ -27,17 +31,16 @@ pub async fn audit_verify<H: Hasher + std::marker::Send>(
 }
 
 /// Helper for audit, verifies an append-only proof
-pub(crate) async fn verify_append_only<H: Hasher + std::marker::Send>(
+pub async fn verify_append_only<H: Hasher + Send + Sync>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,
     end_hash: H::Digest,
 ) -> Result<(), AkdError> {
     let unchanged_nodes = proof.unchanged_nodes;
     let inserted = proof.inserted;
-    let mut rng = OsRng;
 
-    let db = AsyncInMemoryDatabase::new();
-    let mut azks = Azks::<H, AsyncInMemoryDatabase>::new(&db, &mut rng).await?;
+    let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+    let mut azks = Azks::<H>::new(&db).await?;
     azks.batch_insert_leaves_helper(&db, unchanged_nodes, true)
         .await?;
     let computed_start_root_hash: H::Digest = azks.get_root_hash(&db).await?;

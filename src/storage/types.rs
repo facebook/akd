@@ -9,6 +9,7 @@
 
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
+use winter_crypto::Hasher;
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -19,20 +20,23 @@ pub enum StorageType {
     HistoryTreeNode = 2,
     /// HistoryNodeState
     HistoryNodeState = 3,
-    /// HistoryChildState
-    HistoryChildState = 4,
+    // UserState
+    UserState = 4,
 }
 
-/// The type of keys used in the VKD, to represent the keys of its key-value pairs.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct AkdKey(pub String);
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Username(pub String);
 
 /// The types of values used in the key-value pairs of a VKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct Values(pub String);
 
+
 /// State for a value at a given version for that key
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UserStateKey(pub String, pub u64);
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct ValueState {
@@ -40,15 +44,36 @@ pub struct ValueState {
     pub(crate) version: u64,          // to discuss
     pub(crate) label: NodeLabel,
     pub(crate) epoch: u64,
+    pub(crate) username: Username,
 }
 
-impl ValueState {
-    pub(crate) fn new(plaintext_val: Values, version: u64, label: NodeLabel, epoch: u64) -> Self {
-        ValueState {
+impl crate::storage::Storable for UserState {
+    type Key = UserStateKey;
+
+    fn data_type() -> StorageType {
+        StorageType::UserState
+    }
+
+    fn get_id(&self) -> UserStateKey {
+        UserStateKey(self.username.0.clone(), self.epoch)
+    }
+}
+
+
+impl UserState {
+    pub(crate) fn new(
+        username: Username,
+        plaintext_val: Values,
+        version: u64,
+        label: NodeLabel,
+        epoch: u64,
+    ) -> Self {
+        UserState {
             plaintext_val,
             version,
             label,
             epoch,
+            username,
         }
     }
 }
@@ -86,9 +111,11 @@ pub enum ValueStateRetrievalFlag {
 
 // == New Data Retrieval Logic == //
 
-// pub(crate) enum DbRecord<H, S> {
-//     Azks(crate::append_only_zks::Azks<H, S>),
-//     HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H, S>),
-//     HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),
-//     HistoryChildState(crate::node_state::HistoryChildState<H, S>),
-// }
+// This needs to be PUBLIC public, since anyone implementing a data-layer will need
+// to be able to access this and all the internal types
+pub enum DbRecord<H: Hasher + Sync + Send> {
+    Azks(crate::append_only_zks::Azks<H>),
+    HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H>),
+    HistoryNodeState(crate::node_state::HistoryNodeState<H>),
+    UserState(crate::storage::types::UserState),
+}
