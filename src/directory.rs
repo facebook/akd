@@ -8,11 +8,11 @@
 //! Implementation of a verifiable key directory
 
 use crate::append_only_zks::{Azks, AzksKey};
-use crate::errors::{DirectoryError, VkdError};
+use crate::errors::{AkdError, DirectoryError};
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
-use crate::storage::types::{ValueState, ValueStateRetrievalFlag, Values, VkdKey};
+use crate::storage::types::{AkdKey, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::Storage;
 
 use rand::{prelude::ThreadRng, thread_rng};
@@ -29,7 +29,7 @@ impl Values {
     }
 }
 
-impl VkdKey {
+impl AkdKey {
     /// Creates a random key for a VKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
@@ -51,7 +51,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// Creates a new (stateless) instance of a verifiable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new(storage: &S) -> Result<Self, VkdError> {
+    pub async fn new(storage: &S) -> Result<Self, AkdError> {
         let mut rng: ThreadRng = thread_rng();
 
         let azks = {
@@ -76,9 +76,9 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     }
 
     /// Updates the directory to inclulde the updated key-value pairs.
-    pub async fn publish(&mut self, updates: Vec<(VkdKey, Values)>) -> Result<(), VkdError> {
+    pub async fn publish(&mut self, updates: Vec<(AkdKey, Values)>) -> Result<(), AkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<(VkdKey, ValueState)>::new();
+        let mut user_data_update_set = Vec::<(AkdKey, ValueState)>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
             match self
@@ -133,7 +133,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     }
 
     /// Provides proof for correctness of latest version
-    pub async fn lookup(&self, uname: VkdKey) -> Result<LookupProof<H>, VkdError> {
+    pub async fn lookup(&self, uname: AkdKey) -> Result<LookupProof<H>, AkdError> {
         match self
             .storage
             .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
@@ -141,7 +141,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         {
             Err(_) => {
                 // Need to throw an error
-                Err(VkdError::DirectoryErr(
+                Err(AkdError::DirectoryErr(
                     DirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
                 ))
             }
@@ -181,7 +181,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// this function returns all the values ever associated with it,
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
-    pub async fn key_history(&self, uname: &VkdKey) -> Result<HistoryProof<H>, VkdError> {
+    pub async fn key_history(&self, uname: &AkdKey) -> Result<HistoryProof<H>, AkdError> {
         let username = uname.0.to_string();
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
@@ -191,7 +191,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(VkdError::DirectoryErr(
+            Err(AkdError::DirectoryErr(
                 DirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
             ))
         }
@@ -203,7 +203,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         &self,
         audit_start_ep: u64,
         audit_end_ep: u64,
-    ) -> Result<AppendOnlyProof<H>, VkdError> {
+    ) -> Result<AppendOnlyProof<H>, AkdError> {
         let current_azks = self.retrieve_current_azks().await?;
         current_azks
             .get_append_only_proof(&self.storage, audit_start_ep, audit_end_ep)
@@ -225,7 +225,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     }
 
     #[allow(unused)]
-    fn username_to_nodelabel(_uname: &VkdKey) -> NodeLabel {
+    fn username_to_nodelabel(_uname: &AkdKey) -> NodeLabel {
         // this function will need to read the VRF key off some function
         unimplemented!()
     }
@@ -235,7 +235,7 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
     /// Returns the tree nodelabel that corresponds to a version of the vkdkey argument.
     /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
     /// or a version that we are retiring.
-    pub(crate) fn get_nodelabel(uname: &VkdKey, stale: bool, version: u64) -> NodeLabel {
+    pub(crate) fn get_nodelabel(uname: &AkdKey, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
@@ -272,9 +272,9 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
 
     async fn create_single_update_proof(
         &self,
-        uname: &VkdKey,
+        uname: &AkdKey,
         user_state: &ValueState,
-    ) -> Result<UpdateProof<H>, VkdError> {
+    ) -> Result<UpdateProof<H>, AkdError> {
         let epoch = user_state.epoch;
         let plaintext_value = &user_state.plaintext_val;
         let version = &user_state.version;
@@ -346,14 +346,14 @@ impl<S: Storage + std::marker::Sync + std::marker::Send, H: Hasher + std::marker
         &self,
         current_azks: &Azks<H, S>,
         epoch: u64,
-    ) -> Result<H::Digest, VkdError> {
+    ) -> Result<H::Digest, AkdError> {
         Ok(current_azks
             .get_root_hash_at_epoch(&self.storage, epoch)
             .await?)
     }
 
     /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash(&self, current_azks: &Azks<H, S>) -> Result<H::Digest, VkdError> {
+    pub async fn get_root_hash(&self, current_azks: &Azks<H, S>) -> Result<H::Digest, AkdError> {
         self.get_root_hash_at_epoch(current_azks, self.current_epoch)
             .await
     }
@@ -392,16 +392,16 @@ pub async fn get_key_history_hashes<
     S: Storage + std::marker::Sync + std::marker::Send,
     H: Hasher + std::marker::Send,
 >(
-    seemless_dir: &Directory<S, H>,
+    akd_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
-) -> Result<KeyHistoryHelper<H::Digest>, VkdError> {
+) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
 
     let mut root_hashes = Vec::<H::Digest>::new();
     let mut previous_root_hashes = Vec::<Option<H::Digest>>::new();
-    let current_azks = seemless_dir.retrieve_current_azks().await?;
+    let current_azks = akd_dir.retrieve_current_azks().await?;
     for proof in &history_proof.proofs {
-        let hash = seemless_dir
+        let hash = akd_dir
             .get_root_hash_at_epoch(&current_azks, proof.epoch)
             .await?;
         epoch_hash_map.insert(proof.epoch, hash);
@@ -418,7 +418,7 @@ pub async fn get_key_history_hashes<
             previous_root_hashes.push(Some(*hash));
         } else {
             // cache miss, fetch it
-            let hash = seemless_dir
+            let hash = akd_dir
                 .get_root_hash_at_epoch(&current_azks, proof.epoch - 1)
                 .await?;
             previous_root_hashes.push(Some(hash));
@@ -442,123 +442,113 @@ mod tests {
     // FIXME: #[test]
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_publish() -> Result<(), VkdError> {
+    async fn test_simple_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
-        seemless
-            .publish(vec![(
-                VkdKey("hello".to_string()),
-                Values("world".to_string()),
-            )])
-            .await?;
+        akd.publish(vec![(
+            AkdKey("hello".to_string()),
+            Values("world".to_string()),
+        )])
+        .await?;
 
         Ok(())
     }
 
     #[actix_rt::test]
-    async fn test_simiple_lookup() -> Result<(), VkdError> {
+    async fn test_simiple_lookup() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello".to_string()), Values("world".to_string())),
-                (VkdKey("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
-        let lookup_proof = seemless.lookup(VkdKey("hello".to_string())).await?;
-        let current_azks = seemless.retrieve_current_azks().await?;
-        let root_hash = seemless.get_root_hash(&current_azks).await?;
+        let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
+        let current_azks = akd.retrieve_current_azks().await?;
+        let root_hash = akd.get_root_hash(&current_azks).await?;
         lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
-            VkdKey("hello".to_string()),
+            AkdKey("hello".to_string()),
             lookup_proof,
         )?;
         Ok(())
     }
 
     #[actix_rt::test]
-    async fn test_simple_key_history() -> Result<(), VkdError> {
+    async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello".to_string()), Values("world".to_string())),
-                (VkdKey("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello".to_string()), Values("world3".to_string())),
-                (VkdKey("hello2".to_string()), Values("world4".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world3".to_string())),
+            (AkdKey("hello2".to_string()), Values("world4".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello3".to_string()), Values("world".to_string())),
-                (VkdKey("hello4".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello3".to_string()), Values("world".to_string())),
+            (AkdKey("hello4".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![(
-                VkdKey("hello".to_string()),
-                Values("world_updated".to_string()),
-            )])
-            .await?;
+        akd.publish(vec![(
+            AkdKey("hello".to_string()),
+            Values("world_updated".to_string()),
+        )])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello3".to_string()), Values("world6".to_string())),
-                (VkdKey("hello4".to_string()), Values("world12".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello3".to_string()), Values("world6".to_string())),
+            (AkdKey("hello4".to_string()), Values("world12".to_string())),
+        ])
+        .await?;
 
-        let history_proof = seemless.key_history(&VkdKey("hello".to_string())).await?;
+        let history_proof = akd.key_history(&AkdKey("hello".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&seemless, &history_proof).await?;
+            get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            VkdKey("hello".to_string()),
+            AkdKey("hello".to_string()),
             history_proof,
         )?;
 
-        let history_proof = seemless.key_history(&VkdKey("hello2".to_string())).await?;
+        let history_proof = akd.key_history(&AkdKey("hello2".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&seemless, &history_proof).await?;
+            get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            VkdKey("hello2".to_string()),
+            AkdKey("hello2".to_string()),
             history_proof,
         )?;
 
-        let history_proof = seemless.key_history(&VkdKey("hello3".to_string())).await?;
+        let history_proof = akd.key_history(&AkdKey("hello3".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&seemless, &history_proof).await?;
+            get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            VkdKey("hello3".to_string()),
+            AkdKey("hello3".to_string()),
             history_proof,
         )?;
 
-        let history_proof = seemless.key_history(&VkdKey("hello4".to_string())).await?;
+        let history_proof = akd.key_history(&AkdKey("hello4".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&seemless, &history_proof).await?;
+            get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            VkdKey("hello4".to_string()),
+            AkdKey("hello4".to_string()),
             history_proof,
         )?;
 
@@ -567,92 +557,86 @@ mod tests {
 
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_audit() -> Result<(), VkdError> {
+    async fn test_simple_audit() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut seemless =
-            Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+        let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello".to_string()), Values("world".to_string())),
-                (VkdKey("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello".to_string()), Values("world3".to_string())),
-                (VkdKey("hello2".to_string()), Values("world4".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world3".to_string())),
+            (AkdKey("hello2".to_string()), Values("world4".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello3".to_string()), Values("world".to_string())),
-                (VkdKey("hello4".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello3".to_string()), Values("world".to_string())),
+            (AkdKey("hello4".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
-        seemless
-            .publish(vec![(
-                VkdKey("hello".to_string()),
-                Values("world_updated".to_string()),
-            )])
-            .await?;
+        akd.publish(vec![(
+            AkdKey("hello".to_string()),
+            Values("world_updated".to_string()),
+        )])
+        .await?;
 
-        seemless
-            .publish(vec![
-                (VkdKey("hello3".to_string()), Values("world6".to_string())),
-                (VkdKey("hello4".to_string()), Values("world12".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello3".to_string()), Values("world6".to_string())),
+            (AkdKey("hello4".to_string()), Values("world12".to_string())),
+        ])
+        .await?;
 
-        let current_azks = seemless.retrieve_current_azks().await?;
+        let current_azks = akd.retrieve_current_azks().await?;
 
-        let audit_proof_1 = seemless.audit(1, 2).await?;
+        let audit_proof_1 = akd.audit(1, 2).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 1).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 2).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
             audit_proof_1,
         )
         .await?;
 
-        let audit_proof_2 = seemless.audit(1, 3).await?;
+        let audit_proof_2 = akd.audit(1, 3).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 1).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 3).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 3).await?,
             audit_proof_2,
         )
         .await?;
 
-        let audit_proof_3 = seemless.audit(1, 4).await?;
+        let audit_proof_3 = akd.audit(1, 4).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 1).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 4).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 4).await?,
             audit_proof_3,
         )
         .await?;
 
-        let audit_proof_4 = seemless.audit(1, 5).await?;
+        let audit_proof_4 = akd.audit(1, 5).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 1).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 5).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 5).await?,
             audit_proof_4,
         )
         .await?;
 
-        let audit_proof_5 = seemless.audit(2, 3).await?;
+        let audit_proof_5 = akd.audit(2, 3).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 2).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 3).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 3).await?,
             audit_proof_5,
         )
         .await?;
 
-        let audit_proof_6 = seemless.audit(2, 4).await?;
+        let audit_proof_6 = akd.audit(2, 4).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            seemless.get_root_hash_at_epoch(&current_azks, 2).await?,
-            seemless.get_root_hash_at_epoch(&current_azks, 4).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
+            akd.get_root_hash_at_epoch(&current_azks, 4).await?,
             audit_proof_6,
         )
         .await?;

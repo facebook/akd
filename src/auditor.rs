@@ -12,7 +12,7 @@ use winter_crypto::Hasher;
 
 use crate::{
     append_only_zks::Azks,
-    errors::{AzksError, VkdError},
+    errors::{AkdError, AzksError},
     proof_structs::AppendOnlyProof,
     storage::memory::AsyncInMemoryDatabase,
 };
@@ -22,7 +22,7 @@ pub async fn audit_verify<H: Hasher + std::marker::Send>(
     start_hash: H::Digest,
     end_hash: H::Digest,
     proof: AppendOnlyProof<H>,
-) -> Result<(), VkdError> {
+) -> Result<(), AkdError> {
     verify_append_only::<H>(proof, start_hash, end_hash).await
 }
 
@@ -31,7 +31,7 @@ pub(crate) async fn verify_append_only<H: Hasher + std::marker::Send>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,
     end_hash: H::Digest,
-) -> Result<(), VkdError> {
+) -> Result<(), AkdError> {
     let unchanged_nodes = proof.unchanged_nodes;
     let inserted = proof.inserted;
     let mut rng = OsRng;
@@ -46,7 +46,7 @@ pub(crate) async fn verify_append_only<H: Hasher + std::marker::Send>(
     let computed_end_root_hash: H::Digest = azks.get_root_hash(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
-        return Err(VkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));
+        return Err(AkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));
     }
     Ok(())
 }

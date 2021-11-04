@@ -1,33 +1,35 @@
 [package]
-name = "vkd"
+name = "akd"
 version = "0.1.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+description = "An implementation of an auditable key directory"
+license = "MIT"
 edition = "2018"
 
 [features]
 bench = []
 
 [dependencies]
-bincode = "1.3"
+bincode = "1"
 winter-crypto = "0.1"
 winter-utils = "0.1"
 winter-math = "0.1"
 rand = "0.8"
 keyed_priority_queue = "0.3"
-hex = "0.4.2"
-serde = { version = "1.0", features = ["derive"] }
-lazy_static = "1.4.0"
-mysql = "21.0.2"
-evmap = "10.0.2"
-mysql_async = "0.28.1"
-async-trait = "0.1.51"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+lazy_static = "1"
+mysql = "21"
+evmap = "10"
+mysql_async = "0.28"
+async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
-async-recursion = "0.3.2"
+async-recursion = "0.3"
 
 [dev-dependencies]
-criterion = "0.3.3"
-actix-rt = "*"
-serial_test = "*"
+criterion = "0.3"
+actix-rt = "2"
+serial_test = "0.5"
 
 [[bench]]
 name = "azks"

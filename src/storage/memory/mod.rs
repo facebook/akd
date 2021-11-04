@@ -6,7 +6,7 @@
 // of this source tree.
 //! This module contains various memory representations.
 use crate::errors::StorageError;
-use crate::storage::types::{KeyData, StorageType, ValueState, ValueStateRetrievalFlag, VkdKey};
+use crate::storage::types::{AkdKey, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
@@ -23,8 +23,8 @@ pub struct AsyncInMemoryDatabase {
     read_handle: ReadHandle<(StorageType, String), Vec<u8>>,
     #[allow(clippy::type_complexity)]
     write_handle: Arc<Mutex<WriteHandle<(StorageType, String), Vec<u8>>>>,
-    user_data_read_handle: ReadHandle<VkdKey, ValueState>,
-    user_data_write_handle: Arc<Mutex<WriteHandle<VkdKey, ValueState>>>,
+    user_data_read_handle: ReadHandle<AkdKey, ValueState>,
+    user_data_write_handle: Arc<Mutex<WriteHandle<AkdKey, ValueState>>>,
 }
 
 unsafe impl Send for AsyncInMemoryDatabase {}
@@ -107,7 +107,7 @@ impl Storage for AsyncInMemoryDatabase {
 
     async fn append_user_state(
         &self,
-        username: &VkdKey,
+        username: &AkdKey,
         value: &ValueState,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
@@ -118,7 +118,7 @@ impl Storage for AsyncInMemoryDatabase {
 
     async fn append_user_states(
         &self,
-        values: Vec<(VkdKey, ValueState)>,
+        values: Vec<(AkdKey, ValueState)>,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
@@ -128,7 +128,7 @@ impl Storage for AsyncInMemoryDatabase {
         Ok(())
     }
 
-    async fn get_user_data(&self, username: &VkdKey) -> Result<KeyData, StorageError> {
+    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -141,7 +141,7 @@ impl Storage for AsyncInMemoryDatabase {
 
     async fn get_user_state(
         &self,
-        username: &VkdKey,
+        username: &AkdKey,
         flag: ValueStateRetrievalFlag,
     ) -> Result<ValueState, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
@@ -244,8 +244,8 @@ lazy_static! {
 /// An in memory database with a cache, so serialization is done fewer times.
 #[derive(Debug)]
 pub struct AsyncInMemoryDbWithCache {
-    user_data_read_handle: ReadHandle<VkdKey, ValueState>,
-    user_data_write_handle: Arc<Mutex<WriteHandle<VkdKey, ValueState>>>,
+    user_data_read_handle: ReadHandle<AkdKey, ValueState>,
+    user_data_write_handle: Arc<Mutex<WriteHandle<AkdKey, ValueState>>>,
 }
 
 unsafe impl Send for AsyncInMemoryDbWithCache {}
@@ -399,7 +399,7 @@ impl Storage for AsyncInMemoryDbWithCache {
 
     async fn append_user_state(
         &self,
-        username: &VkdKey,
+        username: &AkdKey,
         value: &ValueState,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
@@ -410,7 +410,7 @@ impl Storage for AsyncInMemoryDbWithCache {
 
     async fn append_user_states(
         &self,
-        values: Vec<(VkdKey, ValueState)>,
+        values: Vec<(AkdKey, ValueState)>,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
@@ -420,7 +420,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(())
     }
 
-    async fn get_user_data(&self, username: &VkdKey) -> Result<KeyData, StorageError> {
+    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
@@ -432,7 +432,7 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
     async fn get_user_state(
         &self,
-        username: &VkdKey,
+        username: &AkdKey,
         flag: ValueStateRetrievalFlag,
     ) -> Result<ValueState, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {

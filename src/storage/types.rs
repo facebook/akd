@@ -25,7 +25,7 @@ pub enum StorageType {
 
 /// The type of keys used in the VKD, to represent the keys of its key-value pairs.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct VkdKey(pub String);
+pub struct AkdKey(pub String);
 
 /// The types of values used in the key-value pairs of a VKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]

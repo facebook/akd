@@ -369,9 +369,9 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 0, &mut num_nodes)
+    root.insert_leaf(&db, new_leaf.clone(), &azks_id, 0, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 0, &mut num_nodes)
+    root.insert_leaf(&db, leaf_1.clone(), &azks_id, 0, &mut num_nodes)
         .await?;
 
     let root_val = root.get_value(&db).await?;
@@ -470,13 +470,13 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
+    root.insert_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
+    root.insert_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
+    root.insert_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
         .await?;
 
     let root_val = root.get_value(&db).await?;
@@ -587,13 +587,13 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
+    root.insert_leaf(&db, new_leaf.clone(), &azks_id, 1, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
+    root.insert_leaf(&db, leaf_1.clone(), &azks_id, 2, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
+    root.insert_leaf(&db, leaf_2.clone(), &azks_id, 3, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_3.clone(), &azks_id, 4, &mut num_nodes)
+    root.insert_leaf(&db, leaf_3.clone(), &azks_id, 4, &mut num_nodes)
         .await?;
 
     // let root_val = root.get_value()?;
@@ -678,7 +678,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
 
     for i in 0..8 {
         let ep: u64 = i.try_into().unwrap();
-        root.insert_single_leaf(&db, leaves[7 - i].clone(), &azks_id, ep + 1, &mut num_nodes)
+        root.insert_leaf(&db, leaves[7 - i].clone(), &azks_id, ep + 1, &mut num_nodes)
             .await?;
     }
 

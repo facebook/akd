@@ -10,9 +10,9 @@ use core::fmt;
 
 use crate::node_state::NodeLabel;
 
-/// Symbolizes a VkdError, thrown by the vkd.
+/// Symbolizes a AkdError, thrown by the vkd.
 #[derive(Debug)]
-pub enum VkdError {
+pub enum AkdError {
     /// Error propogation
     HistoryTreeNodeErr(HistoryTreeNodeError),
     /// Error propogation
@@ -25,25 +25,25 @@ pub enum VkdError {
     NoEpochGiven,
 }
 
-impl From<HistoryTreeNodeError> for VkdError {
+impl From<HistoryTreeNodeError> for AkdError {
     fn from(error: HistoryTreeNodeError) -> Self {
         Self::HistoryTreeNodeErr(error)
     }
 }
 
-impl From<StorageError> for VkdError {
+impl From<StorageError> for AkdError {
     fn from(error: StorageError) -> Self {
         Self::HistoryTreeNodeErr(HistoryTreeNodeError::StorageError(error))
     }
 }
 
-impl From<DirectoryError> for VkdError {
+impl From<DirectoryError> for AkdError {
     fn from(error: DirectoryError) -> Self {
         Self::DirectoryErr(error)
     }
 }
 
-impl From<AzksError> for VkdError {
+impl From<AzksError> for AkdError {
     fn from(error: AzksError) -> Self {
         Self::AzksErr(error)
     }
@@ -55,7 +55,7 @@ impl From<StorageError> for HistoryTreeNodeError {
     }
 }
 
-/// Errors thown by [crate::history_tree_node::HistoryTreeNode]s
+/// Errors thown by HistoryTreeNodes
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
     /// Tried to set a child and the direction given was none.
