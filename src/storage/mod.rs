@@ -33,6 +33,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// Must return a valid storage type
     fn data_type() -> StorageType;
 
+    /// FIXME: Needs docs
     fn get_id(&self) -> Self::Key;
 }
 
@@ -127,6 +128,7 @@ pub trait V1Storage: Clone {
     }
 }
 
+/// FIXME: Needs docs
 #[async_trait]
 pub trait V2Storage: Clone {
     /// V1Storage a record in the data layer
@@ -155,26 +157,27 @@ pub trait V2Storage: Clone {
     /// Add a user state element to the associated user
     async fn append_user_state<H: Hasher + Sync + Send>(
         &self,
-        value: &types::UserState,
+        value: &types::ValueState,
     ) -> Result<(), StorageError>;
 
+    /// Adds user states
     async fn append_user_states<H: Hasher + Sync + Send>(
         &self,
-        values: Vec<types::UserState>,
+        values: Vec<types::ValueState>,
     ) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
     async fn get_user_data<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
-    ) -> Result<types::UserData, StorageError>;
+        username: &types::AkdKey,
+    ) -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
-        flag: types::UserStateRetrievalFlag,
-    ) -> Result<types::UserState, StorageError>;
+        username: &types::AkdKey,
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<types::ValueState, StorageError>;
 
     /* Data Layer Builders */
 
@@ -300,8 +303,8 @@ pub trait V2Storage: Clone {
         label_len: u32,
         label_val: u64,
         epoch: u64,
-    ) -> crate::storage::types::UserState {
-        crate::storage::types::UserState {
+    ) -> crate::storage::types::ValueState {
+        crate::storage::types::ValueState {
             plaintext_val: crate::storage::types::Values(plaintext_val),
             version,
             label: crate::node_state::NodeLabel {
@@ -309,17 +312,20 @@ pub trait V2Storage: Clone {
                 len: label_len,
             },
             epoch,
-            username: crate::storage::types::Username(username),
+            username: crate::storage::types::AkdKey(username),
         }
     }
 }
 
 // ===  V2Storage wrapper over V1Storage === //
+/// FIXME: needs docs
 pub struct V2FromV1StorageWrapper<S: V1Storage> {
+    /// FIXME: Needs docs
     pub db: S,
 }
 
 impl<S: V1Storage> V2FromV1StorageWrapper<S> {
+    /// FIXME: Needs docs
     pub fn new(storage: S) -> Self {
         Self { db: storage }
     }
@@ -363,10 +369,10 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                 bincode::serialize(&node),
                 StorageType::HistoryTreeNode,
             ),
-            DbRecord::UserState(state) => (
+            DbRecord::ValueState(state) => (
                 hex::encode(bincode::serialize(&state.get_id()).unwrap()),
                 bincode::serialize(&state),
-                StorageType::UserState,
+                StorageType::ValueState,
             ),
         };
 
@@ -414,11 +420,11 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                     Ok(result) => Ok(DbRecord::HistoryTreeNode(result)),
                 }
             }
-            StorageType::UserState => {
-                let got = self.db.get(k, StorageType::UserState).await?;
+            StorageType::ValueState => {
+                let got = self.db.get(k, StorageType::ValueState).await?;
                 match bincode::deserialize(&got) {
                     Err(_) => Err(StorageError::SerializationError),
-                    Ok(result) => Ok(DbRecord::UserState(result)),
+                    Ok(result) => Ok(DbRecord::ValueState(result)),
                 }
             }
         }
@@ -448,9 +454,9 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                         acc.push(DbRecord::HistoryTreeNode(item))
                     }
                 }
-                StorageType::UserState => {
+                StorageType::ValueState => {
                     if let Ok(item) = bincode::deserialize(item) {
-                        acc.push(DbRecord::UserState(item))
+                        acc.push(DbRecord::ValueState(item))
                     }
                 }
             }
@@ -462,17 +468,17 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
     /// Add a user state element to the associated user
     async fn append_user_state<H: Hasher + Sync + Send>(
         &self,
-        value: &types::UserState,
+        value: &types::ValueState,
     ) -> Result<(), StorageError> {
-        self.set::<H>(DbRecord::UserState(value.clone())).await
+        self.set::<H>(DbRecord::ValueState(value.clone())).await
     }
 
     async fn append_user_states<H: Hasher + Sync + Send>(
         &self,
-        values: Vec<types::UserState>,
+        values: Vec<types::ValueState>,
     ) -> Result<(), StorageError> {
         for item in values.into_iter() {
-            self.set::<H>(DbRecord::UserState(item)).await?;
+            self.set::<H>(DbRecord::ValueState(item)).await?;
         }
         Ok(())
     }
@@ -480,14 +486,14 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
     /// Retrieve the user data for a given user
     async fn get_user_data<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
-    ) -> Result<types::UserData, StorageError> {
+        username: &types::AkdKey,
+    ) -> Result<types::KeyData, StorageError> {
         let all = self
-            .get_all::<H, crate::storage::types::UserState>(None)
+            .get_all::<H, crate::storage::types::ValueState>(None)
             .await?;
         let mut results = vec![];
         for item in all.into_iter() {
-            if let DbRecord::UserState(state) = item {
+            if let DbRecord::ValueState(state) = item {
                 if state.username == *username {
                     results.push(state);
                 }
@@ -496,39 +502,39 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
         // return ordered by epoch (from smallest -> largest)
         results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
 
-        Ok(types::UserData { states: results })
+        Ok(types::KeyData { states: results })
     }
 
     /// Retrieve a specific state for a given user
     async fn get_user_state<H: Hasher + Sync + Send>(
         &self,
-        username: &types::Username,
-        flag: types::UserStateRetrievalFlag,
-    ) -> Result<types::UserState, StorageError> {
+        username: &types::AkdKey,
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<types::ValueState, StorageError> {
         let intermediate = self.get_user_data::<H>(username).await?.states;
         match flag {
-            types::UserStateRetrievalFlag::MaxEpoch =>
+            types::ValueStateRetrievalFlag::MaxEpoch =>
             // retrieve by max epoch
             {
                 if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                     return Ok(value.clone());
                 }
             }
-            types::UserStateRetrievalFlag::MaxVersion =>
+            types::ValueStateRetrievalFlag::MaxVersion =>
             // retrieve the max version
             {
                 if let Some(value) = intermediate.iter().max_by(|a, b| a.version.cmp(&b.version)) {
                     return Ok(value.clone());
                 }
             }
-            types::UserStateRetrievalFlag::MinEpoch =>
+            types::ValueStateRetrievalFlag::MinEpoch =>
             // retrieve by min epoch
             {
                 if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                     return Ok(value.clone());
                 }
             }
-            types::UserStateRetrievalFlag::MinVersion =>
+            types::ValueStateRetrievalFlag::MinVersion =>
             // retrieve the min version
             {
                 if let Some(value) = intermediate.iter().min_by(|a, b| a.version.cmp(&b.version)) {
@@ -542,15 +548,15 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                 let mut tracker = None;
                 for kvp in intermediate.iter() {
                     match flag {
-                        types::UserStateRetrievalFlag::SpecificVersion(version)
+                        types::ValueStateRetrievalFlag::SpecificVersion(version)
                             if version == kvp.version =>
                         {
                             return Ok(kvp.clone())
                         }
-                        types::UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                        types::ValueStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                             return Ok(kvp.clone());
                         }
-                        types::UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                        types::ValueStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
                             match tracked_epoch {
                                 0u64 => {
                                     tracked_epoch = kvp.epoch;
@@ -564,7 +570,7 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                                 }
                             }
                         }
-                        types::UserStateRetrievalFlag::SpecificEpoch(epoch)
+                        types::ValueStateRetrievalFlag::SpecificEpoch(epoch)
                             if epoch == kvp.epoch =>
                         {
                             return Ok(kvp.clone())

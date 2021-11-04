@@ -32,9 +32,13 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H> {
+    /// The location of the root
     pub root: usize,
+    /// The latest complete epoch
     pub latest_epoch: u64,
+    /// The number of nodes ie the size of this tree
     pub num_nodes: usize, // The size of the tree
+    /// Placeholder
     pub _h: PhantomData<H>,
 }
 
@@ -64,8 +68,8 @@ impl<H: Hasher> Clone for Azks<H> {
 }
 
 impl<H: Hasher + Send + Sync> Azks<H> {
-  /// Creates a new azks  
-  pub async fn new<S: V2Storage + Sync + Send>(storage: &S) -> Result<Self, SeemlessError> {
+    /// Creates a new azks
+    pub async fn new<S: V2Storage + Sync + Send>(storage: &S) -> Result<Self, AkdError> {
         let root = get_empty_root::<H, S>(storage, Option::Some(0)).await?;
         let azks = Azks {
             root: 0,
@@ -111,7 +115,6 @@ impl<H: Hasher + Send + Sync> Azks<H> {
             .await
     }
 
-
     /// An azks is built both by the [crate::directory::Directory] and the auditor.
     /// However, both constructions have very minor differences, and the append_only_usage
     /// bool keeps track of this.
@@ -145,12 +148,7 @@ impl<H: Hasher + Send + Sync> Azks<H> {
             }
 
             root_node
-                .insert_single_leaf(
-                    storage,
-                    new_leaf,
-                    self.latest_epoch,
-                    &mut self.num_nodes,
-                )
+                .insert_leaf(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
                 .await?;
 
             hash_q.push(new_leaf_loc, priorities);
@@ -355,7 +353,6 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         self.latest_epoch = epoch;
     }
 
-
     /// This function returns the node location for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
@@ -456,7 +453,7 @@ mod tests {
     type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
     #[actix_rt::test]
-    async fn test_batch_insert_basic() -> Result<(), SeemlessError> {
+    async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
@@ -593,7 +590,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_intermediate() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
@@ -642,7 +639,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_very_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
 
@@ -664,7 +661,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
 

@@ -20,23 +20,24 @@ pub enum StorageType {
     HistoryTreeNode = 2,
     /// HistoryNodeState
     HistoryNodeState = 3,
-    // UserState
-    UserState = 4,
+    /// ValueState
+    ValueState = 4,
 }
 
+/// The keys for this key-value store
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Username(pub String);
+pub struct AkdKey(pub String);
 
 /// The types of values used in the key-value pairs of a VKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct Values(pub String);
 
-
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct UserStateKey(pub String, pub u64);
+pub struct ValueStateKey(pub String, pub u64);
 
+/// The state of the value for a given key, starting at a particular epoch.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct ValueState {
@@ -44,31 +45,30 @@ pub struct ValueState {
     pub(crate) version: u64,          // to discuss
     pub(crate) label: NodeLabel,
     pub(crate) epoch: u64,
-    pub(crate) username: Username,
+    pub(crate) username: AkdKey,
 }
 
-impl crate::storage::Storable for UserState {
-    type Key = UserStateKey;
+impl crate::storage::Storable for ValueState {
+    type Key = ValueStateKey;
 
     fn data_type() -> StorageType {
-        StorageType::UserState
+        StorageType::ValueState
     }
 
-    fn get_id(&self) -> UserStateKey {
-        UserStateKey(self.username.0.clone(), self.epoch)
+    fn get_id(&self) -> ValueStateKey {
+        ValueStateKey(self.username.0.clone(), self.epoch)
     }
 }
 
-
-impl UserState {
+impl ValueState {
     pub(crate) fn new(
-        username: Username,
+        username: AkdKey,
         plaintext_val: Values,
         version: u64,
         label: NodeLabel,
         epoch: u64,
     ) -> Self {
-        UserState {
+        ValueState {
             plaintext_val,
             version,
             label,
@@ -111,11 +111,15 @@ pub enum ValueStateRetrievalFlag {
 
 // == New Data Retrieval Logic == //
 
-// This needs to be PUBLIC public, since anyone implementing a data-layer will need
-// to be able to access this and all the internal types
+/// This needs to be PUBLIC public, since anyone implementing a data-layer will need
+/// to be able to access this and all the internal types
 pub enum DbRecord<H: Hasher + Sync + Send> {
+    /// An Azks
     Azks(crate::append_only_zks::Azks<H>),
+    /// A HistoryTreeNode
     HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H>),
+    /// A HistoryNodeState
     HistoryNodeState(crate::node_state::HistoryNodeState<H>),
-    UserState(crate::storage::types::UserState),
+    /// The state of the value for a particular key.
+    ValueState(crate::storage::types::ValueState),
 }

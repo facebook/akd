@@ -56,7 +56,7 @@ async fn main() {
     let mut existing_keys = Vec::<AkdKey>::new();
 
     let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
-    let mut seemless_dir = Directory::<
+    let mut akd_dir = Directory::<
         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>,
         Blake3_256<BaseElement>,
     >::new(&db)
@@ -88,12 +88,11 @@ async fn main() {
     println!("*********************************************************************************");
     // Publish measurement
     db.db.clear_stats();
-    seemless_dir.publish(updates.clone()).await.unwrap();
+    akd_dir.publish(updates.clone()).await.unwrap();
 
     db.db.print_hashmap_distribution();
     db.db.print_stats();
-    new_usernames = updates
-
+    new_keys = updates
         .clone()
         .iter()
         .map(|x| x.0.clone())

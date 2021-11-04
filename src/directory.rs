@@ -5,17 +5,16 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-
 //! Implementation of a verifiable key directory
 
-use crate::append_only_zks::{Azks, AzksKey};
+use crate::append_only_zks::Azks;
 
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
 
-use crate::errors::{SeemlessDirectoryError, SeemlessError};
+use crate::errors::{AkdError, DirectoryError};
 
-use crate::storage::types::{DbRecord, UserState, UserStateRetrievalFlag, Username, Values};
+use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::V2Storage;
 
 use rand::{CryptoRng, RngCore};
@@ -45,12 +44,11 @@ pub struct Directory<S, H> {
     _h: PhantomData<H>,
 }
 
-    
 impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
-  /// Creates a new (stateless) instance of a verifiable key directory.
-  /// Takes as input a pointer to the storage being used for this instance.
-  /// The state is stored in the storage.  
-  pub async fn new(storage: &S) -> Result<Self, SeemlessError> {
+    /// Creates a new (stateless) instance of a verifiable key directory.
+    /// Takes as input a pointer to the storage being used for this instance.
+    /// The state is stored in the storage.
+    pub async fn new(storage: &S) -> Result<Self, AkdError> {
         let azks = {
             if let Ok(azks) = Directory::get_azks_from_storage(storage).await {
                 azks
@@ -72,12 +70,12 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     /// Updates the directory to inclulde the updated key-value pairs.
     pub async fn publish(&mut self, updates: Vec<(AkdKey, Values)>) -> Result<(), AkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
-        let mut user_data_update_set = Vec::<UserState>::new();
+        let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
         for (uname, val) in updates {
             match self
                 .storage
-                .get_user_state::<H>(&uname, UserStateRetrievalFlag::MaxEpoch)
+                .get_user_state::<H>(&uname, ValueStateRetrievalFlag::MaxEpoch)
                 .await
             {
                 Err(_) => {
@@ -89,7 +87,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((label, value_to_add));
                     let latest_state =
-                        UserState::new(uname, val, latest_version, label, next_epoch);
+                        ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
                 }
                 Ok(max_user_state) => {
@@ -104,7 +102,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
                     update_set.push((stale_label, stale_value_to_add));
                     update_set.push((fresh_label, fresh_value_to_add));
                     let new_state =
-                        UserState::new(uname, val, latest_version, fresh_label, next_epoch);
+                        ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
                     user_data_update_set.push(new_state);
                 }
             }
@@ -132,7 +130,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     pub async fn lookup(&self, uname: AkdKey) -> Result<LookupProof<H>, AkdError> {
         match self
             .storage
-            .get_user_state::<H>(&uname, UserStateRetrievalFlag::MaxEpoch)
+            .get_user_state::<H>(&uname, ValueStateRetrievalFlag::MaxEpoch)
             .await
         {
             Err(_) => {
@@ -342,9 +340,8 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
             .await?)
     }
 
-
     /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash(&self, current_azks: &Azks<H>) -> Result<H::Digest, SeemlessError> {
+    pub async fn get_root_hash(&self, current_azks: &Azks<H>) -> Result<H::Digest, AkdError> {
         self.get_root_hash_at_epoch(current_azks, self.current_epoch)
             .await
     }
@@ -380,7 +377,7 @@ type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
 pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher + Sync + Send>(
-    seemless_dir: &Directory<S, H>,
+    akd_dir: &Directory<S, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
@@ -430,38 +427,36 @@ mod tests {
     // FIXME: #[test]
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_publish() -> Result<(), SeemlessError> {
+    async fn test_simple_publish() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut seemless = Directory::<
+        let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
             Blake3_256<BaseElement>,
         >::new(&db)
         .await?;
 
-        seemless
-            .publish(vec![(
-                Username("hello".to_string()),
-                Values("world".to_string()),
-            )])
-            .await?;
+        akd.publish(vec![(
+            AkdKey("hello".to_string()),
+            Values("world".to_string()),
+        )])
+        .await?;
         Ok(())
     }
 
     #[actix_rt::test]
-    async fn test_simiple_lookup() -> Result<(), SeemlessError> {
+    async fn test_simiple_lookup() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut seemless = Directory::<
+        let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
             Blake3_256<BaseElement>,
         >::new(&db)
         .await?;
 
-        seemless
-            .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
         let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
@@ -475,20 +470,19 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_simple_key_history() -> Result<(), SeemlessError> {
+    async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut seemless = Directory::<
+        let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
             Blake3_256<BaseElement>,
         >::new(&db)
         .await?;
 
-        seemless
-            .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
         akd.publish(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
@@ -565,20 +559,19 @@ mod tests {
 
     #[allow(unused)]
     #[actix_rt::test]
-    async fn test_simple_audit() -> Result<(), SeemlessError> {
+    async fn test_simple_audit() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut seemless = Directory::<
+        let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
             Blake3_256<BaseElement>,
         >::new(&db)
         .await?;
 
-        seemless
-            .publish(vec![
-                (Username("hello".to_string()), Values("world".to_string())),
-                (Username("hello2".to_string()), Values("world2".to_string())),
-            ])
-            .await?;
+        akd.publish(vec![
+            (AkdKey("hello".to_string()), Values("world".to_string())),
+            (AkdKey("hello2".to_string()), Values("world2".to_string())),
+        ])
+        .await?;
 
         akd.publish(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),

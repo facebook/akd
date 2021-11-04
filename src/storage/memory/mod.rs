@@ -6,7 +6,7 @@
 // of this source tree.
 //! This module contains various memory representations.
 use crate::errors::StorageError;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::types::{AkdKey, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
 use crate::storage::V1Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};

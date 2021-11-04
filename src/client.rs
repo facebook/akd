@@ -74,10 +74,8 @@ pub fn verify_nonmembership<H: Hasher>(
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
     if !verified {
-        return Err(SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::LookupVerificationErr(
-                "lcp_hash != longest_prefix_hash".to_string(),
-            ),
+        return Err(AkdError::DirectoryErr(
+            DirectoryError::LookupVerificationErr("lcp_hash != longest_prefix_hash".to_string()),
         ));
     }
     let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
@@ -87,8 +85,8 @@ pub fn verify_nonmembership<H: Hasher>(
     // So we can just check that one of the children's lcp is = the proof.longest_prefix
     verified = verified && (proof.longest_prefix == lcp_real);
     if !verified {
-        return Err(SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::LookupVerificationErr("longest_prefix != lcp".to_string()),
+        return Err(AkdError::DirectoryErr(
+            DirectoryError::LookupVerificationErr("longest_prefix != lcp".to_string()),
         ));
     }
     Ok(verified)
@@ -113,24 +111,24 @@ pub fn lookup_verify<H: Hasher>(
     // These need to be changed to VRF verifications later.
     let existence_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, false, version);
     if existence_label != existence_proof.label {
-        return Err(SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::LookupVerificationErr(
+        return Err(AkdError::DirectoryErr(
+            DirectoryError::LookupVerificationErr(
                 "Existence proof label does not match computed label".to_string(),
             ),
         ));
     }
     let non_existence_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, true, version);
     if non_existence_label != freshness_proof.label {
-        return Err(SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::LookupVerificationErr(
+        return Err(AkdError::DirectoryErr(
+            DirectoryError::LookupVerificationErr(
                 "Freshness proof label does not match computed label".to_string(),
             ),
         ));
     }
     let marker_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, false, marker_version);
     if marker_label != marker_proof.label {
-        return Err(SeemlessError::SeemlessDirectoryErr(
-            SeemlessDirectoryError::LookupVerificationErr(
+        return Err(AkdError::DirectoryErr(
+            DirectoryError::LookupVerificationErr(
                 "Marker proof label does not match computed label".to_string(),
             ),
         ));
@@ -178,14 +176,14 @@ fn verify_single_update_proof<H: Hasher>(
     let non_existence_before_ep = &proof.non_existence_before_ep;
     // Need to include vrf verification
     // if label_at_ep != existence_at_ep_label {
-    //     return Err(SeemlessError::SeemlessDirectoryErr(
-    //         SeemlessDirectoryError::KeyHistoryVerificationErr(
+    //     return Err(AkdError::DirectoryErr(
+    //         DirectoryError::KeyHistoryVerificationErr(
     //             format!("Label of user {:?}'s version {:?} at epoch {:?} does not match the one in the proof",
     //             uname, version, epoch))));
     // }
     verify_membership(root_hash, existence_at_ep)?;
-    //     return Err(SeemlessError::SeemlessDirectoryErr(
-    //         SeemlessDirectoryError::KeyHistoryVerificationErr(format!(
+    //     return Err(AkdError::DirectoryErr(
+    //         DirectoryError::KeyHistoryVerificationErr(format!(
     //             "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
     //             uname, version, epoch
     //         )),

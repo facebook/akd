@@ -139,8 +139,11 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 /// The hash value of this node at this state.
 /// To be used in its parent, alongwith the label.
 pub struct HistoryNodeState<H> {
+    /// The hash at this node state
     pub value: Vec<u8>,
+    /// The states of the children at this time
     pub child_states: Vec<HistoryChildState<H>>,
+    /// A unique key
     pub key: NodeStateKey,
 }
 
@@ -175,7 +178,7 @@ impl<H: Hasher> HistoryNodeState<H> {
     }
 
     /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
-    pub fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H> {
+    pub(crate) fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState<H> {
         self.child_states[dir].clone()
     }
 }
@@ -203,12 +206,14 @@ impl<H: Hasher> fmt::Display for HistoryNodeState<H> {
     }
 }
 
+///  Marks whether a child state is real
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub(crate) enum DummyChildState {
+pub enum DummyChildState {
+    /// If this child is dummy. Usually for children of leaves
     Dummy,
+    /// If this child is real
     Real,
 }
-
 
 /// This struct represents the state of the child of a node at a given epoch
 /// and contains all the information its parent might need about it in an operation.
@@ -216,11 +221,17 @@ pub(crate) enum DummyChildState {
 /// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HistoryChildState<H> {
+    ///  Tells you whether this child is a dummy
     pub dummy_marker: DummyChildState,
+    /// Says where the child node with this label is located
     pub location: usize,
+    /// Child node's label
     pub label: NodeLabel,
+    /// Child node's hash value
     pub hash_val: Vec<u8>,
+    /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,
+    /// Phantom
     pub _h: PhantomData<H>,
 }
 
@@ -232,7 +243,6 @@ pub struct ChildStateKey(
     pub(crate) usize,
     pub(crate) usize,
 );
-
 
 unsafe impl<H: Hasher> Sync for HistoryChildState<H> {}
 

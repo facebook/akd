@@ -27,13 +27,19 @@
 //! a database and a hash function. For this example, we use the [winter_crypto::hashers::Blake3_256] as the hash function and
 //! AsyncInMemoryDatabase as storage.
 //! ```
+//! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
+//! use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use crate::storage::V2Storage;
+//! storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = AsyncInMemoryDatabase::new();
-//! let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
+//! let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let mut akd = akd::Directory::<
+//!    crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!    Blake3_256<BaseElement>,
+//!    >::new(&db).unwrap();
 //! ```
 //!
 //! ## Adding key-value pairs to the akd
@@ -41,17 +47,25 @@
 //! After adding key-value pairs to the akd's data structure, it also needs to be committed. To do this, after running the setup, as in the previous step,
 //! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdKey(String), Values(String)). See below for example usage.
 //! ```
+//! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = AsyncInMemoryDatabase::new();
-//! let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
-//! // commit the latest changes
-//! akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!      (AkdKey("hello2".to_string()), Values("world2".to_string())),])
-//!      .await?;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = akd::Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).unwrap();
+//!     // commit the latest changes
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!          (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!       .await;
+//! };
 //! ```
 //!
 //!
@@ -59,29 +73,40 @@
 //! We can use the lookup API call of the [crate::directory::Directory] to prove the correctness of a client lookup at a given epoch.
 //! If
 //! ```
+//! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
+//! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = AsyncInMemoryDatabase::new();
-//! let mut akd = Directory::<AsyncInMemoryDatabase, Blake3_256<BaseElement>>::new(&db).await?;
-//! akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!      (AkdKey("hello2".to_string()), Values("world2".to_string())),])
-//!      .await?;
-//! // Generate latest proof
-//! let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//!use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await;
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Generate latest proof
+//!     let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await;
+//! };
 //! ```
 //!  and to verify this proof, we call the client's verification algorithm, with respect to the latest commitment, as follows:
 //! ```
-//! let current_azks = akd.retrieve_current_azks().await?;
-//! // Get the latest commitment, i.e. azks root hash
-//! let root_hash = akd.get_root_hash(&current_azks).await?;
-//! lookup_verify::<Blake3_256<BaseElement>>(
-//! root_hash,
-//! AkdKey("hello".to_string()),
-//! lookup_proof,
-//! )?;
+//! async {
+//!     let current_azks = akd.retrieve_current_azks().unwrap();
+//!     // Get the latest commitment, i.e. azks root hash
+//!     let root_hash = akd.get_root_hash(&current_azks).unwrap();
+//!     lookup_verify::<Blake3_256<BaseElement>>(
+//!     root_hash,
+//!     AkdKey("hello".to_string()),
+//!     lookup_proof,
+//!     ).unwrap();
+//! };
 //! ```
 #![warn(missing_docs)]
 #![allow(clippy::multiple_crate_versions)]

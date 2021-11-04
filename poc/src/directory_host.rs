@@ -10,7 +10,7 @@ use tokio::sync::mpsc::*;
 use akd::directory::Directory;
 use akd::storage::types::*;
 use akd::storage::V2Storage;
-use akd::SeemlessError;
+use akd::AkdError;
 use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
@@ -31,7 +31,7 @@ pub enum DirectoryCommand {
 async fn get_root_hash<S, H: Sync + Send>(
     directory: &mut Directory<S, H>,
     o_epoch: Option<u64>,
-) -> Option<Result<H::Digest, SeemlessError>>
+) -> Option<Result<H::Digest, AkdError>>
 where
     S: V2Storage + Sync + Send,
     H: Hasher + Send,
