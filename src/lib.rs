@@ -169,6 +169,7 @@
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
+//! use akd::client::key_history_verify;
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
@@ -186,7 +187,6 @@
 //!          .await.unwrap();
 //!     // Generate latest proof
 //!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await.unwrap();
-//! async {
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash(&current_azks).await.unwrap();
@@ -194,7 +194,7 @@
 //!     root_hash,
 //!     AkdKey("hello".to_string()),
 //!     history_proof,
-//!     ).await.unwrap();
+//!     ).unwrap();
 //! };
 //! ```
 //!
