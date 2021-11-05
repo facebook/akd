@@ -7,6 +7,8 @@
 
 //! An implementation of an authenticated key directory (AKD), also known as a verifiable registery or auditable key directory.
 //!
+//! ⚠️ **Warning**: This implementation has not been audited and is not ready for use in a real system. Use at your own risk!
+//!
 //! # Overview
 //! An authenticated key directory (AKD) is an example of an authenticated
 //! data structure. An AKD lets a server commit to a key-value store as it evolves over a
