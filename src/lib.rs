@@ -188,10 +188,11 @@
 //!     // Generate latest proof
 //!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
-//!     // Get the latest commitment, i.e. azks root hash
-//!     let root_hash = akd.get_root_hash(&current_azks).await.unwrap();
+//!     // Get the azks root hashes at the required epochs
+//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes(&akd, &history_proof).await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
-//!     root_hash,
+//!     root_hashes,
+//!     previous_root_hashes,
 //!     AkdKey("hello".to_string()),
 //!     history_proof,
 //!     ).unwrap();
