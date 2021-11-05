@@ -13,6 +13,7 @@ akd = { path = "../." }
 colored = "2.0.0"
 hex = "0.4.3"
 structopt = "0.3.13"
+rand = "0.8"
 
 [dev-dependencies]
 actix-rt = "*"

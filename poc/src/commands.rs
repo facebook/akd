@@ -56,7 +56,10 @@ impl Command {
             "x".green()
         );
         println!("  {}\t\t\t\tflush the database entries", "flush".green());
-        println!("  {}\t\t\t\tprints information about the running instance", "info".green());
+        println!(
+            "  {}\t\t\t\tprints information about the running instance",
+            "info".green()
+        );
         println!(
             "  {} {} {}:\t\tpublish key material (value) for user",
             "publish".green(),
