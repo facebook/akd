@@ -152,7 +152,7 @@ async fn async_test_new_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     // === HistoryNodeState storage === //
     // TODO: test the history node state storage
 
-    // === UserState storage === //
+    // === ValueState storage === //
     // TODO: test with this format of user storage
 }
 
@@ -167,7 +167,7 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
         .take(1028)
         .map(char::from)
         .collect();
-    let mut sample_state = UserState {
+    let mut sample_state = ValueState {
         plaintext_val: Values(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
@@ -175,10 +175,10 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
             len: 1u32,
         },
         epoch: 1u64,
-        username: Username(rand_user),
+        username: AkdKey(rand_user),
     };
     let mut sample_state_2 = sample_state.clone();
-    sample_state_2.username = Username("test_user".to_string());
+    sample_state_2.username = AkdKey("test_user".to_string());
 
     let result = storage.append_user_state::<Blake3>(&sample_state).await;
     assert_eq!(Ok(()), result);
@@ -236,11 +236,11 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     let specific_result = storage
         .get_user_state::<Blake3>(
             &sample_state.username,
-            UserStateRetrievalFlag::SpecificVersion(2),
+            ValueStateRetrievalFlag::SpecificVersion(2),
         )
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 123,
             version: 2,
             label: NodeLabel { val: 1, len: 1 },
@@ -251,14 +251,14 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     );
 
     let specifc_result = storage
-        .get::<Blake3, crate::storage::types::UserState>(crate::storage::types::UserStateKey(
+        .get::<Blake3, crate::storage::types::ValueState>(crate::storage::types::ValueStateKey(
             sample_state.username.0.clone(),
             123,
         ))
         .await;
-    if let Ok(DbRecord::UserState(state)) = specifc_result {
+    if let Ok(DbRecord::ValueState(state)) = specifc_result {
         assert_eq!(
-            UserState {
+            ValueState {
                 epoch: 123,
                 version: 2,
                 label: NodeLabel { val: 1, len: 1 },
@@ -274,7 +274,7 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     let missing_result = storage
         .get_user_state::<Blake3>(
             &sample_state.username,
-            UserStateRetrievalFlag::SpecificVersion(100),
+            ValueStateRetrievalFlag::SpecificVersion(100),
         )
         .await;
     assert_eq!(
@@ -285,11 +285,11 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     let specific_result = storage
         .get_user_state::<Blake3>(
             &sample_state.username,
-            UserStateRetrievalFlag::SpecificEpoch(123),
+            ValueStateRetrievalFlag::SpecificEpoch(123),
         )
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 123,
             version: 2,
             label: NodeLabel { val: 1, len: 1 },
@@ -300,10 +300,10 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     );
 
     let specific_result = storage
-        .get_user_state::<Blake3>(&sample_state.username, UserStateRetrievalFlag::MinEpoch)
+        .get_user_state::<Blake3>(&sample_state.username, ValueStateRetrievalFlag::MinEpoch)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 1,
             version: 1,
             label: NodeLabel { val: 1, len: 1 },
@@ -313,10 +313,10 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
         specific_result
     );
     let specific_result = storage
-        .get_user_state::<Blake3>(&sample_state.username, UserStateRetrievalFlag::MinVersion)
+        .get_user_state::<Blake3>(&sample_state.username, ValueStateRetrievalFlag::MinVersion)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 1,
             version: 1,
             label: NodeLabel { val: 1, len: 1 },
@@ -327,10 +327,10 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     );
 
     let specific_result = storage
-        .get_user_state::<Blake3>(&sample_state.username, UserStateRetrievalFlag::MaxEpoch)
+        .get_user_state::<Blake3>(&sample_state.username, ValueStateRetrievalFlag::MaxEpoch)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 456,
             version: 3,
             label: NodeLabel { val: 1, len: 1 },
@@ -340,10 +340,10 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
         specific_result
     );
     let specific_result = storage
-        .get_user_state::<Blake3>(&sample_state.username, UserStateRetrievalFlag::MaxVersion)
+        .get_user_state::<Blake3>(&sample_state.username, ValueStateRetrievalFlag::MaxVersion)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 456,
             version: 3,
             label: NodeLabel { val: 1, len: 1 },
@@ -423,7 +423,7 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
         .take(1028)
         .map(char::from)
         .collect();
-    let mut sample_state = UserState {
+    let mut sample_state = ValueState {
         plaintext_val: Values(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
@@ -431,11 +431,11 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
             len: 1u32,
         },
         epoch: 1u64,
-        username: Username(rand_user.clone()),
+        username: AkdKey(rand_user.clone()),
     };
     let mut sample_state_2 = sample_state.clone();
-    let username = Username(rand_user);
-    let username_2 = Username("test_user".to_string());
+    let username = AkdKey(rand_user);
+    let username_2 = AkdKey("test_user".to_string());
     sample_state_2.username = username_2.clone();
 
     let result = storage.append_user_state(&username, &sample_state).await;
@@ -489,10 +489,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
     */
 
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::SpecificVersion(2))
+        .get_user_state(&username, ValueStateRetrievalFlag::SpecificVersion(2))
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 123,
             version: 2,
             label: NodeLabel { val: 1, len: 1 },
@@ -503,7 +503,7 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
     );
 
     let missing_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::SpecificVersion(100))
+        .get_user_state(&username, ValueStateRetrievalFlag::SpecificVersion(100))
         .await;
     assert_eq!(
         Err(StorageError::GetError(String::from("Not found"))),
@@ -511,10 +511,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
     );
 
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::SpecificEpoch(123))
+        .get_user_state(&username, ValueStateRetrievalFlag::SpecificEpoch(123))
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 123,
             version: 2,
             label: NodeLabel { val: 1, len: 1 },
@@ -525,10 +525,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
     );
 
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::MinEpoch)
+        .get_user_state(&username, ValueStateRetrievalFlag::MinEpoch)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 1,
             version: 1,
             label: NodeLabel { val: 1, len: 1 },
@@ -538,10 +538,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
         specific_result
     );
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::MinVersion)
+        .get_user_state(&username, ValueStateRetrievalFlag::MinVersion)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 1,
             version: 1,
             label: NodeLabel { val: 1, len: 1 },
@@ -552,10 +552,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
     );
 
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::MaxEpoch)
+        .get_user_state(&username, ValueStateRetrievalFlag::MaxEpoch)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 456,
             version: 3,
             label: NodeLabel { val: 1, len: 1 },
@@ -565,10 +565,10 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
         specific_result
     );
     let specific_result = storage
-        .get_user_state(&username, UserStateRetrievalFlag::MaxVersion)
+        .get_user_state(&username, ValueStateRetrievalFlag::MaxVersion)
         .await;
     assert_eq!(
-        Ok(UserState {
+        Ok(ValueState {
             epoch: 456,
             version: 3,
             label: NodeLabel { val: 1, len: 1 },

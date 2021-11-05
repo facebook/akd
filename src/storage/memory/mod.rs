@@ -4,9 +4,9 @@
 // LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
-
+//! This module contains various memory representations.
 use crate::errors::StorageError;
-use crate::storage::types::{StorageType, UserData, UserState, UserStateRetrievalFlag, Username};
+use crate::storage::types::{AkdKey, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
 use crate::storage::V1Storage;
 use async_trait::async_trait;
 use evmap::{ReadHandle, WriteHandle};
@@ -16,20 +16,22 @@ use std::sync::{Arc, Mutex};
 
 // ===== Basic In-Memory database ==== //
 
+/// This struct represents a basic in-memory database.
 #[derive(Debug)]
 pub struct AsyncInMemoryDatabase {
     #[allow(clippy::type_complexity)]
     read_handle: ReadHandle<(StorageType, String), Vec<u8>>,
     #[allow(clippy::type_complexity)]
     write_handle: Arc<Mutex<WriteHandle<(StorageType, String), Vec<u8>>>>,
-    user_data_read_handle: ReadHandle<Username, UserState>,
-    user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
+    user_data_read_handle: ReadHandle<AkdKey, ValueState>,
+    user_data_write_handle: Arc<Mutex<WriteHandle<AkdKey, ValueState>>>,
 }
 
 unsafe impl Send for AsyncInMemoryDatabase {}
 unsafe impl Sync for AsyncInMemoryDatabase {}
 
 impl AsyncInMemoryDatabase {
+    /// Creates a new in memory db
     pub fn new() -> Self {
         let (reader, writer) = evmap::new();
         let (user_read, user_write) = evmap::new();
@@ -105,8 +107,8 @@ impl V1Storage for AsyncInMemoryDatabase {
 
     async fn append_user_state(
         &self,
-        username: &Username,
-        value: &UserState,
+        username: &AkdKey,
+        value: &ValueState,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         hashmap.insert(username.clone(), value.clone());
@@ -116,7 +118,7 @@ impl V1Storage for AsyncInMemoryDatabase {
 
     async fn append_user_states(
         &self,
-        values: Vec<(Username, UserState)>,
+        values: Vec<(AkdKey, ValueState)>,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
@@ -126,32 +128,32 @@ impl V1Storage for AsyncInMemoryDatabase {
         Ok(())
     }
 
-    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
                 results.push(kvp.clone());
             }
-            return Ok(UserData { states: results });
+            return Ok(KeyData { states: results });
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
 
     async fn get_user_state(
         &self,
-        username: &Username,
-        flag: UserStateRetrievalFlag,
-    ) -> Result<UserState, StorageError> {
+        username: &AkdKey,
+        flag: ValueStateRetrievalFlag,
+    ) -> Result<ValueState, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             match flag {
-                UserStateRetrievalFlag::MaxEpoch =>
+                ValueStateRetrievalFlag::MaxEpoch =>
                 // retrieve by max epoch
                 {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MaxVersion =>
+                ValueStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
                     if let Some(value) =
@@ -160,14 +162,14 @@ impl V1Storage for AsyncInMemoryDatabase {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MinEpoch =>
+                ValueStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MinVersion =>
+                ValueStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
                     if let Some(value) =
@@ -183,15 +185,15 @@ impl V1Storage for AsyncInMemoryDatabase {
                     let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
-                            UserStateRetrievalFlag::SpecificVersion(version)
+                            ValueStateRetrievalFlag::SpecificVersion(version)
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
                             }
-                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                            ValueStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone());
                             }
-                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                            ValueStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
                                 match tracked_epoch {
                                     0u64 => {
                                         tracked_epoch = kvp.epoch;
@@ -205,7 +207,7 @@ impl V1Storage for AsyncInMemoryDatabase {
                                     }
                                 }
                             }
-                            UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
+                            ValueStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
                             }
                             _ => continue,
@@ -239,16 +241,18 @@ lazy_static! {
     };
 }
 
+/// An in memory database with a cache, so serialization is done fewer times.
 #[derive(Debug)]
 pub struct AsyncInMemoryDbWithCache {
-    user_data_read_handle: ReadHandle<Username, UserState>,
-    user_data_write_handle: Arc<Mutex<WriteHandle<Username, UserState>>>,
+    user_data_read_handle: ReadHandle<AkdKey, ValueState>,
+    user_data_write_handle: Arc<Mutex<WriteHandle<AkdKey, ValueState>>>,
 }
 
 unsafe impl Send for AsyncInMemoryDbWithCache {}
 unsafe impl Sync for AsyncInMemoryDbWithCache {}
 
 impl AsyncInMemoryDbWithCache {
+    /// Creates a new in memory db with a cache
     pub fn new() -> Self {
         let (user_read, user_write) = evmap::new();
         Self {
@@ -257,6 +261,7 @@ impl AsyncInMemoryDbWithCache {
         }
     }
 
+    /// Flushes the cache and clearn any associated stats
     pub fn clear_stats(&self) {
         // Flush cache to db
 
@@ -273,6 +278,7 @@ impl AsyncInMemoryDbWithCache {
         stats.clear();
     }
 
+    /// Prints db states
     pub fn print_stats(&self) {
         println!("Statistics collected:");
         println!("---------------------");
@@ -285,6 +291,7 @@ impl AsyncInMemoryDbWithCache {
         println!("---------------------");
     }
 
+    /// Prints the distribution of the lengths of entries in a db
     pub fn print_hashmap_distribution(&self) {
         println!("Cache distribution of length of entries (in bytes):");
         println!("---------------------");
@@ -401,8 +408,8 @@ impl V1Storage for AsyncInMemoryDbWithCache {
 
     async fn append_user_state(
         &self,
-        username: &Username,
-        value: &UserState,
+        username: &AkdKey,
+        value: &ValueState,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         hashmap.insert(username.clone(), value.clone());
@@ -412,7 +419,7 @@ impl V1Storage for AsyncInMemoryDbWithCache {
 
     async fn append_user_states(
         &self,
-        values: Vec<(Username, UserState)>,
+        values: Vec<(AkdKey, ValueState)>,
     ) -> Result<(), StorageError> {
         let mut hashmap = self.user_data_write_handle.lock().unwrap();
         for kvp in values {
@@ -422,31 +429,31 @@ impl V1Storage for AsyncInMemoryDbWithCache {
         Ok(())
     }
 
-    async fn get_user_data(&self, username: &Username) -> Result<UserData, StorageError> {
+    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             let mut results = Vec::new();
             for kvp in intermediate.iter() {
                 results.push(kvp.clone());
             }
-            return Ok(UserData { states: results });
+            return Ok(KeyData { states: results });
         }
         Result::Err(StorageError::GetError(String::from("Not found")))
     }
     async fn get_user_state(
         &self,
-        username: &Username,
-        flag: UserStateRetrievalFlag,
-    ) -> Result<UserState, StorageError> {
+        username: &AkdKey,
+        flag: ValueStateRetrievalFlag,
+    ) -> Result<ValueState, StorageError> {
         if let Some(intermediate) = self.user_data_read_handle.get(username) {
             match flag {
-                UserStateRetrievalFlag::MaxEpoch =>
+                ValueStateRetrievalFlag::MaxEpoch =>
                 // retrieve by max epoch
                 {
                     if let Some(value) = intermediate.iter().max_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MaxVersion =>
+                ValueStateRetrievalFlag::MaxVersion =>
                 // retrieve the max version
                 {
                     if let Some(value) =
@@ -455,14 +462,14 @@ impl V1Storage for AsyncInMemoryDbWithCache {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MinEpoch =>
+                ValueStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
                         return Ok(value.clone());
                     }
                 }
-                UserStateRetrievalFlag::MinVersion =>
+                ValueStateRetrievalFlag::MinVersion =>
                 // retrieve the min version
                 {
                     if let Some(value) =
@@ -478,15 +485,15 @@ impl V1Storage for AsyncInMemoryDbWithCache {
                     let mut tracker = None;
                     for kvp in intermediate.iter() {
                         match flag {
-                            UserStateRetrievalFlag::SpecificVersion(version)
+                            ValueStateRetrievalFlag::SpecificVersion(version)
                                 if version == kvp.version =>
                             {
                                 return Ok(kvp.clone())
                             }
-                            UserStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
+                            ValueStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone());
                             }
-                            UserStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
+                            ValueStateRetrievalFlag::LeqEpoch(epoch) if kvp.epoch < epoch => {
                                 match tracked_epoch {
                                     0u64 => {
                                         tracked_epoch = kvp.epoch;
@@ -500,7 +507,7 @@ impl V1Storage for AsyncInMemoryDbWithCache {
                                     }
                                 }
                             }
-                            UserStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
+                            ValueStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
                                 return Ok(kvp.clone())
                             }
                             _ => continue,
