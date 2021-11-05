@@ -35,6 +35,7 @@ enum OtherMode {
         num_users: u64,
         num_updates_per_user: u64,
     },
+    Flush
 }
 
 #[derive(StructOpt)]
@@ -96,12 +97,12 @@ async fn process_input(
     db: Option<&AsyncMySqlDatabase>,
 ) {
     if let Some(other_mode) = &cli.other_mode {
-        println!(" ======= Benchmark operation requested ======= ");
         match other_mode {
             OtherMode::BenchPublish {
                 num_users,
                 num_updates_per_user,
             } => {
+                println!("======= Benchmark operation requested ======= ");
                 println!(
                     "Beginning PUBLISH benchmark of {} users with {} updates/user",
                     num_users, num_updates_per_user
@@ -168,11 +169,24 @@ async fn process_input(
                 num_users,
                 num_updates_per_user,
             } => {
+                println!("======= Benchmark operation requested ======= ");
                 println!(
                     "Beginning LOOKUP benchmark of {} users with {} updates/user",
                     num_users, num_updates_per_user
                 );
-            }
+            },
+            OtherMode::Flush => {
+                println!("======= One-off flushing of the database ======= ");
+                if let Some(mysql_db) = db {
+                    if let Err(error) = mysql_db.delete_data().await {
+                        panic!("Error flushing database: {}", error);
+                    } else {
+                        println!(
+                            "Database flushed."
+                        );
+                    }
+                }
+            },
         }
     } else {
         // Traditional REPL processing loop

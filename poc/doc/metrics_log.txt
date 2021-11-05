@@ -1,0 +1,17 @@
+############################################################################################################
+##################
+# Test run 1: Nov 5, 2021
+# Commit hash: a541c17f5acf7cedbfb9752e53d90c7d0073abe7
+##################
+$ cargo run -- flush && cargo run -- bench-publish 10 10
+
+======= Benchmark operation requested =======
+Beginning PUBLISH benchmark of 10 users with 10 updates/user
+INFO: Starting the verifiable directory host
+Benchmark output: Inserted 10 users with 10 updates/user
+Execution time: 26505ms
+Time-per-user (avg): 2650517µs
+Time-per-op (avg): 265051µs
+INFO: VKD host shutting down
+
+############################################################################################################
