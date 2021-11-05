@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT"
