@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Implementation of a verifiable key directory
+//! Implementation of a auditable key directory
 
 use crate::append_only_zks::Azks;
 
@@ -24,20 +24,20 @@ use std::marker::{PhantomData, Send, Sync};
 use winter_crypto::Hasher;
 
 impl Values {
-    /// Gets a random value for a VKD
+    /// Gets a random value for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
     }
 }
 
 impl AkdKey {
-    /// Creates a random key for a VKD
+    /// Creates a random key for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         Self(get_random_str(rng))
     }
 }
 
-/// The representation of a verifiable key directory
+/// The representation of a auditable key directory
 pub struct Directory<S, H> {
     current_epoch: u64,
     storage: S,
@@ -45,7 +45,7 @@ pub struct Directory<S, H> {
 }
 
 impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
-    /// Creates a new (stateless) instance of a verifiable key directory.
+    /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     pub async fn new(storage: &S) -> Result<Self, AkdError> {
@@ -231,7 +231,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
 
     // FIXME: we need to make this only work on the server, use a VRF and have another function
     // that verifies nodelabel.
-    /// Returns the tree nodelabel that corresponds to a version of the vkdkey argument.
+    /// Returns the tree nodelabel that corresponds to a version of the akdkey argument.
     /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
     /// or a version that we are retiring.
     pub(crate) fn get_nodelabel(uname: &AkdKey, stale: bool, version: u64) -> NodeLabel {

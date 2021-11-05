@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Storage module for a verifiable key directory
+//! Storage module for a auditable key directory
 
 use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
@@ -37,7 +37,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     fn get_id(&self) -> Self::Key;
 }
 
-/// Represents the storage layer for the VKD (with associated configuration if necessary)
+/// Represents the storage layer for the AKD (with associated configuration if necessary)
 ///
 /// Each storage layer operation can be considered atomic (i.e. if function fails, it will not leave
 /// partial state pending)

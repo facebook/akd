@@ -10,7 +10,7 @@ use core::fmt;
 
 use crate::node_state::NodeLabel;
 
-/// Symbolizes a AkdError, thrown by the vkd.
+/// Symbolizes a AkdError, thrown by the akd.
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propogation

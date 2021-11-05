@@ -131,10 +131,10 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-/// A HistoryNodeState represents the state of a [`HistoryTreeNode`] at a given epoch.
-/// As you may see, when looking at [`HistoryChildState`], the node needs to include
+/// A HistoryNodeState represents the state of a [crate::history_tree_node::HistoryTreeNode] at a given epoch.
+/// As you may see, when looking at [HistoryChildState], the node needs to include
 /// its hashed value, the hashed values of its children and the labels of its children.
-/// This allows the various algorithms in [`HistoryTreeNode`] to build proofs for the tree at
+/// This allows the various algorithms in [crate::history_tree_node::HistoryTreeNode] to build proofs for the tree at
 /// any given epoch, without having to do a traversal of the history tree to find siblings.
 /// The hash value of this node at this state.
 /// To be used in its parent, alongwith the label.

@@ -28,7 +28,7 @@ pub enum StorageType {
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AkdKey(pub String);
 
-/// The types of values used in the key-value pairs of a VKD
+/// The types of values used in the key-value pairs of a AKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct Values(pub String);

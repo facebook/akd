@@ -6,7 +6,7 @@
 // of this source tree.
 
 //! Note that the proofs [`AppendOnlyProof`], [`MembershipProof`] and [`NonMembershipProof`] are Merkle Patricia tree proofs,
-//! while the proofs [`HistoryProof`] and [`LookupProof`] are VKD proofs.
+//! while the proofs [`HistoryProof`] and [`LookupProof`] are AKD proofs.
 
 use winter_crypto::Hasher;
 

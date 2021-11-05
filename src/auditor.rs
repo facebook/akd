@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Code for an auditor of a verifiable key directory
+//! Code for an auditor of a authenticated key directory
 
 use std::marker::{Send, Sync};
 

@@ -21,9 +21,9 @@ use winter_math::fields::f128::BaseElement;
 fn create_keys_and_values(num_insertions: usize, mut rng: ThreadRng) -> Vec<(AkdKey, Values)> {
     let mut updates = Vec::<(AkdKey, Values)>::new();
     for _ in 0..num_insertions {
-        let vkd_key = AkdKey::random(&mut rng);
+        let akd_key = AkdKey::random(&mut rng);
         let val = Values::random(&mut rng);
-        updates.push((vkd_key, val));
+        updates.push((akd_key, val));
     }
     updates
 }

@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! An implementation of an authenticated key directory (AKD), also known as a verifiable registery or verifiable key directory.
+//! An implementation of an authenticated key directory (AKD), also known as a verifiable registery or auditable key directory.
 //!
 //! # Overview
 //! An authenticated key directory (AKD) is an example of an authenticated
@@ -20,7 +20,8 @@
 //!
 //! ## Statelessness
 //! This library is meant to be stateless, in that it runs without storing a majority of the data
-//! locally, where the code is running, and instead, uses a [storage::Storage] as a generic type.
+//! locally, where the code is running, and instead, uses a [storage::Storable] trait for
+//! each type to be stored in an external database.
 //!
 //! ## Setup
 //! A [directory::Directory] represents an AKD. To setup a [directory::Directory], we first need to decide on
@@ -30,16 +31,19 @@
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
-//! use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use crate::storage::V2Storage;
-//! storage::memory::AsyncInMemoryDatabase;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
+//! use akd::directory::Directory;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-//! let mut akd = akd::Directory::<
-//!    crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//! let mut akd = Directory::<
+//!    akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!    Blake3_256<BaseElement>,
-//!    >::new(&db).unwrap();
+//!    >::new(&db).await.unwrap();
+//! };
 //! ```
 //!
 //! ## Adding key-value pairs to the akd
@@ -54,13 +58,14 @@
 //! use akd::storage::V2Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
+//! use akd::directory::Directory;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
 //! async {
-//!     let mut akd = akd::Directory::<
+//!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         Blake3_256<BaseElement>,
-//!         >::new(&db).unwrap();
+//!         >::new(&db).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!          (AkdKey("hello2".to_string()), Values("world2".to_string())),])
@@ -70,7 +75,7 @@
 //!
 //!
 //! ## Responding to a client lookup
-//! We can use the lookup API call of the [crate::directory::Directory] to prove the correctness of a client lookup at a given epoch.
+//! We can use the `lookup` API call of the [directory::Directory] to prove the correctness of a client lookup at a given epoch.
 //! If
 //! ```
 //! use winter_crypto::Hasher;
@@ -87,7 +92,7 @@
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         Blake3_256<BaseElement>,
-//!         >::new(&db).await;
+//!         >::new(&db).await.unwrap();
 //!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
@@ -95,19 +100,180 @@
 //!     let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await;
 //! };
 //! ```
-//!  and to verify this proof, we call the client's verification algorithm, with respect to the latest commitment, as follows:
+//! ## Verifying a lookup proof
+//!  To verify the above proof, we call the client's verification algorithm, with respect to the latest commitment, as follows:
 //! ```
+//! use winter_crypto::Hasher;
+//! use winter_crypto::hashers::Blake3_256;
+//! use winter_math::fields::f128::BaseElement;
+//! use akd::directory::Directory;
+//! use akd::client;
+//! type Blake3 = Blake3_256<BaseElement>;
+//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//!use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
 //! async {
-//!     let current_azks = akd.retrieve_current_azks().unwrap();
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await.unwrap();
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Generate latest proof
+//!     let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await.unwrap();
+//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
-//!     let root_hash = akd.get_root_hash(&current_azks).unwrap();
-//!     lookup_verify::<Blake3_256<BaseElement>>(
+//!     let root_hash = akd.get_root_hash(&current_azks).await.unwrap();
+//!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!     root_hash,
 //!     AkdKey("hello".to_string()),
 //!     lookup_proof,
 //!     ).unwrap();
 //! };
 //! ```
+//!
+//! ## Responding to a client history query
+//! As mentioned above, the security is defined by consistent views of the value for a key at any epoch.
+//! To this end, a server running an AKD needs to provide a way to check the history of a key. Note that in this case,
+//! the server is trusted for validating that a particular client is authorized to run a history check on a particular key.
+//! We can use the `key_history` API call of the [directory::Directory] to prove the history of a key's values at a given epoch, as follows.
+//! ```
+//! use winter_crypto::Hasher;
+//! use winter_crypto::hashers::Blake3_256;
+//! use winter_math::fields::f128::BaseElement;
+//! use akd::directory::Directory;
+//! type Blake3 = Blake3_256<BaseElement>;
+//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await.unwrap();
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Generate latest proof
+//!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await;
+//! };
+//! ```
+//! ## Verifying a key history proof
+//!  To verify the above proof, we again call the client's verification algorithm, defined in [client], with respect to the latest commitment, as follows:
+//! ```
+//! use winter_crypto::Hasher;
+//! use winter_crypto::hashers::Blake3_256;
+//! use winter_math::fields::f128::BaseElement;
+//! use akd::directory::Directory;
+//! type Blake3 = Blake3_256<BaseElement>;
+//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await.unwrap();
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Generate latest proof
+//!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await.unwrap();
+//! async {
+//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
+//!     // Get the latest commitment, i.e. azks root hash
+//!     let root_hash = akd.get_root_hash(&current_azks).await.unwrap();
+//!     key_history_verify::<Blake3_256<BaseElement>>(
+//!     root_hash,
+//!     AkdKey("hello".to_string()),
+//!     history_proof,
+//!     ).await.unwrap();
+//! };
+//! ```
+//!
+//! ## Responding to an audit query
+//! In addition to the client API calls, the AKD also provides proofs to auditors that its commitments evolved correctly.
+//! Below we illustrate how the server responds to an audit query between two epochs.
+//! ```
+//! use winter_crypto::Hasher;
+//! use winter_crypto::hashers::Blake3_256;
+//! use winter_math::fields::f128::BaseElement;
+//! use akd::directory::Directory;
+//! type Blake3 = Blake3_256<BaseElement>;
+//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await.unwrap();
+//!     // Commit to the first epoch
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Commit to the second epoch
+//!     akd.publish(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
+//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
+//!          .await.unwrap();
+//!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
+//!     let audit_proof = akd.audit(1u64, 2u64).await.unwrap();
+//! };
+//! ```
+//! ## Verifying an audit proof
+//!  The auditor verifies the above proof and the code for this is in [auditor].
+//! ```
+//! use winter_crypto::Hasher;
+//! use winter_crypto::hashers::Blake3_256;
+//! use winter_math::fields::f128::BaseElement;
+//! use akd::auditor;
+//! use akd::directory::Directory;
+//! type Blake3 = Blake3_256<BaseElement>;
+//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
+//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::V2Storage;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
+//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! async {
+//!     let mut akd = Directory::<
+//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
+//!         Blake3_256<BaseElement>,
+//!         >::new(&db).await.unwrap();
+//!     // Commit to the first epoch
+//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          .await.unwrap();
+//!     // Commit to the second epoch
+//!     akd.publish(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
+//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
+//!          .await.unwrap();
+//!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
+//!     let audit_proof = akd.audit(1u64, 2u64).await.unwrap();
+//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
+//!     // Get the latest commitment, i.e. azks root hash
+//!     let start_root_hash = akd.get_root_hash_at_epoch(&current_azks, 1u64).await.unwrap();
+//!     let end_root_hash = akd.get_root_hash_at_epoch(&current_azks, 2u64).await.unwrap();
+//!     auditor::audit_verify::<Blake3_256<BaseElement>>(
+//!         start_root_hash,
+//!         end_root_hash,
+//!         audit_proof,
+//!     ).await.unwrap();
+//! };
+//! ```
+//!
+//!
+//!
+//!
+//!
 #![warn(missing_docs)]
 #![allow(clippy::multiple_crate_versions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -129,7 +295,7 @@ pub mod errors;
 #[cfg(test)]
 pub mod tests;
 
-/// The arity of the underlying tree structure of the vkd.
+/// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;
 
 /// This type is used to indicate a direction for a

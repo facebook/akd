@@ -28,7 +28,7 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 /// An append-only zero knowledge set, the data structure used to efficiently implement
-/// a verifiable key directory.
+/// a auditable key directory.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H> {

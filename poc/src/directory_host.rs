@@ -156,5 +156,5 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
         }
     }
 
-    println!("INFO: VKD host shutting down");
+    println!("INFO: AKD host shutting down");
 }
