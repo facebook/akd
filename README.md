@@ -10,6 +10,8 @@ This implementation is based off of the protocol described in
 
 This library provides a stateless API for an auditable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
 
+⚠️ **Warning**: This implementation has not been audited and is not ready for a production application. Use at your own risk!
+
 Documentation
 -------------
 
@@ -21,7 +23,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-akd = "0.1"
+akd = "0.2"
 ```
 
 ### Minimum Supported Rust Version

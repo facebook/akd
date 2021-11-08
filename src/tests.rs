@@ -15,6 +15,7 @@ type Blake3 = Blake3_256<BaseElement>;
 
 use crate::serialization::from_digest;
 use crate::{
+    errors::*,
     history_tree_node::get_empty_root,
     history_tree_node::get_leaf_node,
     history_tree_node::HistoryTreeNode,
@@ -42,7 +43,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
     let child_hist_node_1 =
         HistoryChildState::new(1, NodeLabel::new(1, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
-    root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()))
+    root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()))
         .await?;
 
     let set_child = root
@@ -81,13 +82,13 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
@@ -138,13 +139,13 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1))
+        root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_1))
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2))
+        root.set_child(&db, ep, &(Direction::Some(0), child_hist_node_2))
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
@@ -158,13 +159,13 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
@@ -215,13 +216,13 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
         HistoryChildState::new(2, NodeLabel::new(00, 2), Blake3::hash(&[0u8]), ep);
     root.write_to_storage(&db).await?;
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
@@ -234,13 +235,13 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
     let child_hist_node_4: HistoryChildState<Blake3> =
         HistoryChildState::new(2, NodeLabel::new(0, 1), Blake3::hash(&[0u8]), ep);
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
     );
     assert!(
-        root.set_child_without_hash(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
+        root.set_child(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
             .await
             .is_ok(),
         "Setting the child without hash threw an error"
@@ -301,9 +302,9 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
             2 * ep,
         );
         root.write_to_storage(&db).await?;
-        root.set_child_without_hash(&db, 2 * ep, &(Direction::Some(1), child_hist_node_1))
+        root.set_child(&db, 2 * ep, &(Direction::Some(1), child_hist_node_1))
             .await?;
-        root.set_child_without_hash(&db, 2 * ep, &(Direction::Some(0), child_hist_node_2))
+        root.set_child(&db, 2 * ep, &(Direction::Some(0), child_hist_node_2))
             .await?;
     }
 
