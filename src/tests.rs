@@ -31,7 +31,7 @@ type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 ////////// history_tree_node tests //////
 //  Test set_child_without_hash and get_child_at_existing_epoch
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
     let ep = 1;
     let db = crate::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
@@ -64,7 +64,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -121,7 +121,7 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -198,7 +198,7 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -275,7 +275,7 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
 }
 
 //  Test get_child_at_epoch
-#[actix_rt::test]
+#[tokio::test]
 pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -353,7 +353,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 
 // insert_single_leaf tests
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -416,7 +416,7 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -511,7 +511,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];
@@ -628,7 +628,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
     Ok(())
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
     let mut rng = OsRng;
     let mut azks_id = vec![0u8; 32];

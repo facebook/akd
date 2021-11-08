@@ -426,7 +426,7 @@ mod tests {
 
     // FIXME: #[test]
     #[allow(unused)]
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
@@ -443,7 +443,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_simiple_lookup() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
@@ -469,7 +469,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
@@ -558,7 +558,7 @@ mod tests {
     }
 
     #[allow(unused)]
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_simple_audit() -> Result<(), AkdError> {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<

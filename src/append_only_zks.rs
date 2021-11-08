@@ -452,7 +452,7 @@ mod tests {
     type Blake3 = Blake3_256<BaseElement>;
     type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
@@ -484,7 +484,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -518,7 +518,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_membership_proof_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -548,7 +548,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_membership_proof_failing() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -589,7 +589,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -609,7 +609,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -638,7 +638,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
@@ -660,7 +660,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
@@ -684,7 +684,7 @@ mod tests {
         Ok(())
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_append_only_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;

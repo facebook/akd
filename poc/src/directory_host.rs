@@ -5,12 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::marker::{Send, Sync};
-use tokio::sync::mpsc::*;
 use akd::directory::Directory;
+use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::V2Storage;
-use akd::AkdError;
+use std::marker::{Send, Sync};
+use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
@@ -21,6 +21,7 @@ pub(crate) struct Rpc(
 #[derive(Debug)]
 pub enum DirectoryCommand {
     Publish(String, String),
+    PublishBatch(Vec<(String, String)>),
     Lookup(String),
     KeyHistory(String),
     Audit(u64, u64),
@@ -62,7 +63,7 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
             }
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 match directory
-                    .publish(vec![(Username(a.clone()), Values(b.clone()))])
+                    .publish(vec![(AkdKey(a.clone()), Values(b.clone()))])
                     .await
                 {
                     Ok(_) => {
@@ -75,17 +76,35 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
                     }
                 }
             }
+            (DirectoryCommand::PublishBatch(batches), Some(response)) => {
+                let len = batches.len();
+                match directory
+                    .publish(
+                        batches
+                            .into_iter()
+                            .map(|(key, value)| (AkdKey(key), Values(value)))
+                            .collect(),
+                    )
+                    .await
+                {
+                    Ok(_) => {
+                        let msg = format!("PUBLISHED {} records", len);
+                        response.send(Ok(msg)).unwrap()
+                    }
+                    Err(error) => {
+                        let msg = format!("Failed to publish with error: {:?}", error);
+                        response.send(Err(msg)).unwrap();
+                    }
+                }
+            }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup(Username(a.clone())).await {
+                match directory.lookup(AkdKey(a.clone())).await {
                     Ok(proof) => {
                         let hash = get_root_hash(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let verification = akd::client::lookup_verify(
-                                    root_hash,
-                                    Username(a.clone()),
-                                    proof,
-                                );
+                                let verification =
+                                    akd::client::lookup_verify(root_hash, AkdKey(a.clone()), proof);
                                 if verification.is_err() {
                                     let msg = format!(
                                         "WARN: Lookup proof failed verification for '{}'",
@@ -110,7 +129,7 @@ pub(crate) async fn init_host<S, H: Sync + Send>(
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory.key_history(&Username(a.clone())).await {
+                match directory.key_history(&AkdKey(a.clone())).await {
                     Ok(_proof) => {
                         let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();
