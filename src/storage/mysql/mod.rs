@@ -21,7 +21,7 @@ use std::marker::Send;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
-use winter_crypto::Hasher;
+use std::hash::{Hash, Hasher};
 
 type MySqlError = mysql_async::error::Error;
 
@@ -361,7 +361,7 @@ impl AsyncMySqlDatabase {
     }
 
     /// Storage a record in the data layer
-    async fn internal_set<H: Hasher + Sync + Send>(
+    async fn internal_set<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         record: DbRecord<H>,
         trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
@@ -386,7 +386,7 @@ impl AsyncMySqlDatabase {
     }
 
     /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
-    async fn internal_batch_set<H: Hasher + Sync + Send>(
+    async fn internal_batch_set<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         records: Vec<DbRecord<H>>,
         trans: mysql_async::Transaction<mysql_async::Conn>,
@@ -408,7 +408,7 @@ impl AsyncMySqlDatabase {
 #[async_trait]
 impl V2Storage for AsyncMySqlDatabase {
     /// Storage a record in the data layer
-    async fn set<H: Hasher + Sync + Send>(
+    async fn set<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         record: DbRecord<H>,
     ) -> core::result::Result<(), StorageError> {
@@ -418,7 +418,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
     }
 
-    async fn batch_set<H: Hasher + Sync + Send>(
+    async fn batch_set<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         records: Vec<DbRecord<H>>,
     ) -> core::result::Result<(), StorageError> {
@@ -465,7 +465,7 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<H: Hasher + Sync + Send, St: Storable>(
+    async fn get<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
         &self,
         id: St::Key,
     ) -> core::result::Result<DbRecord<H>, StorageError> {
@@ -499,7 +499,7 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<H: Hasher + Sync + Send, St: Storable>(
+    async fn get_all<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
         &self,
         num: Option<usize>,
     ) -> core::result::Result<Vec<DbRecord<H>>, StorageError> {
@@ -528,7 +528,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
     }
 
-    async fn append_user_state<H: Hasher + Sync + Send>(
+    async fn append_user_state<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         value: &ValueState,
     ) -> core::result::Result<(), StorageError> {
@@ -559,7 +559,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
     }
 
-    async fn append_user_states<H: Hasher + Sync + Send>(
+    async fn append_user_states<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         values: Vec<ValueState>,
     ) -> core::result::Result<(), StorageError> {
@@ -567,7 +567,7 @@ impl V2Storage for AsyncMySqlDatabase {
         self.batch_set(records).await
     }
 
-    async fn get_user_data<H: Hasher + Sync + Send>(
+    async fn get_user_data<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         username: &AkdKey,
     ) -> core::result::Result<KeyData, StorageError> {
@@ -617,7 +617,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
     }
 
-    async fn get_user_state<H: Hasher + Sync + Send>(
+    async fn get_user_state<H: winter_crypto::Hasher + Sync + Send>(
         &self,
         username: &AkdKey,
         flag: ValueStateRetrievalFlag,
@@ -706,9 +706,11 @@ trait MySqlStorable {
     fn from_row<St: Storable>(row: &mut mysql_async::Row) -> core::result::Result<Self, MySqlError>
     where
         Self: std::marker::Sized;
+
+    fn get_cache_key(&self) -> (StorageType, u64);
 }
 
-impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
+impl<H: winter_crypto::Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
     fn set_statement(&self) -> String {
         match &self {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `root` = :root, `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
@@ -902,6 +904,30 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
         // fallback
         let err = MySqlError::Driver(mysql_async::error::DriverError::FromRow { row: row.clone() });
         Err(err)
+    }
+
+    fn get_cache_key(&self) -> (StorageType, u64) {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        let ty =
+            match &self {
+                DbRecord::Azks(azks) => {
+                    azks.get_id().hash(&mut s);
+                    StorageType::Azks
+                },
+                DbRecord::HistoryNodeState(state) => {
+                    state.get_id().hash(&mut s);
+                    StorageType::HistoryNodeState
+                },
+                DbRecord::HistoryTreeNode(node) => {
+                    node.get_id().hash(&mut s);
+                    StorageType::HistoryTreeNode
+                },
+                DbRecord::ValueState(value) => {
+                    value.get_id().hash(&mut s);
+                    StorageType::ValueState
+                },
+            };
+        (ty, s.finish())
     }
 }
 
