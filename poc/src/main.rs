@@ -35,7 +35,7 @@ enum OtherMode {
         num_users: u64,
         num_updates_per_user: u64,
     },
-    Flush
+    Flush,
 }
 
 #[derive(StructOpt)]
@@ -131,9 +131,15 @@ async fn process_input(
 
                 let mut code = None;
                 for value in data {
-                    let user_data: Vec<(String, String)> = users.iter().map(|user| (user.clone(), value.clone())).collect();
+                    let user_data: Vec<(String, String)> = users
+                        .iter()
+                        .map(|user| (user.clone(), value.clone()))
+                        .collect();
                     let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
-                    let rpc = directory_host::Rpc(directory_host::DirectoryCommand::PublishBatch(user_data), Some(rpc_tx));
+                    let rpc = directory_host::Rpc(
+                        directory_host::DirectoryCommand::PublishBatch(user_data),
+                        Some(rpc_tx),
+                    );
                     let sent = tx.clone().send(rpc).await;
                     if sent.is_err() {
                         println!("Error sending message to directory");
@@ -174,19 +180,17 @@ async fn process_input(
                     "Beginning LOOKUP benchmark of {} users with {} updates/user",
                     num_users, num_updates_per_user
                 );
-            },
+            }
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
                     if let Err(error) = mysql_db.delete_data().await {
                         panic!("Error flushing database: {}", error);
                     } else {
-                        println!(
-                            "Database flushed."
-                        );
+                        println!("Database flushed.");
                     }
                 }
-            },
+            }
         }
     } else {
         // Traditional REPL processing loop

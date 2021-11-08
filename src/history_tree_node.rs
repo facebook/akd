@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! The implementation of a node for a history patricia tree
+
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, V2Storage};
@@ -18,10 +20,14 @@ use std::marker::{PhantomData, Send, Sync};
 
 use serde::{Deserialize, Serialize};
 
+/// There are three types of nodes: root, leaf and interior.
 #[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
+    /// Nodes with this type only have dummy children.
     Leaf = 1,
+    /// Nodes with this type do not have parents and their value includes a hash of their label.
     Root = 2,
+    /// Nodes of this type must have non-dummy children and their value is a hash of their children, along with the labels of the children.
     Interior = 3,
 }
 
@@ -36,27 +42,33 @@ impl NodeType {
     }
 }
 
-pub type HistoryInsertionNode<H> = (Direction, HistoryChildState<H>);
-pub type HistoryNodeHash<H> = Option<H>;
+pub(crate) type HistoryInsertionNode<H> = (Direction, HistoryChildState<H>);
 
-/**
- * HistoryNode will represent a generic interior node of a compressed history tree
- **/
+/// A HistoryNode represents a generic interior node of a compressed history tree.
+/// The main idea here is that the tree is changing at every epoch and that we do not need
+/// to replicate the state of a node, unless it changes.
+/// However, in order to allow for a user to monitor the state of a key-value pair in
+/// the past, the older states also need to be stored.
+/// While the states themselves can be stored elsewhere,
+/// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct HistoryTreeNode<H> {
+    /// The binary label for this node
     pub label: NodeLabel,
+    /// The location of this node in the storage
     pub location: usize,
+    /// The epochs this node was updated
     pub epochs: Vec<u64>,
-    pub parent: usize,
-    // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
-    pub node_type: NodeType,
-    // Note that the NodeType along with the parent/children being options
-    // allows us to use this struct to represent child and parent nodes as well.
-    pub _h: PhantomData<H>,
+    /// The location of this node's parent
+    pub parent: usize, // The root node is marked its own parent.
+    /// The type of node: leaf root or interior.
+    pub node_type: NodeType, // Leaf, Root or Interior
+    /// Placeholder
+    pub(crate) _h: PhantomData<H>,
 }
 
-// parameters are azks_id and location
+/// Parameters are azks_id and location. Represents the key with which to find a node in storage.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeKey(pub usize);
 
@@ -119,7 +131,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
         }
     }
 
-    // Inserts a single leaf node and updates the required hashes
+    /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
     pub(crate) async fn insert_single_leaf<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
@@ -131,8 +143,9 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
             .await
     }
 
-    // Inserts a single leaf node
-    pub(crate) async fn insert_single_leaf_without_hash<S: V2Storage + Sync + Send>(
+    #[allow(unused)]
+    /// Inserts a single leaf node without hashing, creates new nodes where needed
+    pub(crate) async fn insert_leaf<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -143,8 +156,8 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
             .await
     }
 
-    // Inserts a single leaf node and updates the required hashes,
-    // if hashing is true
+    /// Inserts a single leaf node and updates the required hashes,
+    /// if hashing is true. Creates new nodes where neded.
     #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper<S: V2Storage + Sync + Send>(
         &mut self,
@@ -168,7 +181,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
                 .await?;
             if child_state.dummy_marker == DummyChildState::Dummy {
                 new_leaf.parent = self.location;
-                self.set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)
+                self.set_node_child(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
                 self.write_to_storage(storage).await?;
                 new_leaf.write_to_storage(storage).await?;
@@ -213,14 +226,14 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
                 self.write_to_storage(storage).await?;
 
                 new_node
-                    .set_node_child_without_hash(storage, epoch, dir_leaf, &new_leaf)
+                    .set_node_child(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
                 new_node
-                    .set_node_child_without_hash(storage, epoch, dir_self, self)
+                    .set_node_child(storage, epoch, dir_self, self)
                     .await?;
 
                 parent
-                    .set_node_child_without_hash(storage, epoch, self_dir_in_parent, &new_node)
+                    .set_node_child(storage, epoch, self_dir_in_parent, &new_node)
                     .await?;
                 if hashing {
                     new_leaf.update_hash(storage, epoch).await?;
@@ -306,6 +319,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
         }
     }
 
+    /// Hashes a node by merging the hashes and labels of its children.
     async fn hash_node<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
@@ -327,6 +341,8 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
         Ok(new_hash)
     }
 
+    /// Writes the new_hash_val into the parent's state for this epoch.
+    /// Accounts for the case when considering a root node, which has no parent.
     async fn update_hash_at_parent<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
@@ -343,7 +359,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
                     .label
                     .get_longest_common_prefix_and_dirs(self.get_label());
                 parent
-                    .set_node_child_without_hash(storage, epoch, dir_self, self)
+                    .set_node_child(storage, epoch, dir_self, self)
                     .await?;
                 parent.write_to_storage(storage).await?;
                 *parent = HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
@@ -369,8 +385,10 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
         }
     }
 
+    /// Inserts a child into this node, adding the state to the state at this epoch,
+    /// without updating its own hash.
     #[async_recursion]
-    pub(crate) async fn set_child_without_hash<S: V2Storage + Sync + Send>(
+    pub(crate) async fn set_child<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         epoch: u64,
@@ -423,7 +441,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
                         }
                     }
                     self.write_to_storage(storage).await?;
-                    self.set_child_without_hash(storage, epoch, child).await
+                    self.set_child(storage, epoch, child).await
                 }
             },
             Direction::None => Err(HistoryTreeNodeError::NoDirectionInSettingChild(
@@ -433,7 +451,9 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
         }
     }
 
-    pub(crate) async fn set_node_child_without_hash<S: V2Storage + Sync + Send>(
+    /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
+    /// set_child_without_hash. Just used for type conversion.
+    pub(crate) async fn set_node_child<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         epoch: u64,
@@ -442,8 +462,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
     ) -> Result<(), HistoryTreeNodeError> {
         let node_as_child_state = child.to_node_unhashed_child_state(storage).await?;
         let insertion_node = (dir, node_as_child_state);
-        self.set_child_without_hash(storage, epoch, &insertion_node)
-            .await
+        self.set_child(storage, epoch, &insertion_node).await
     }
 
     ////// getrs for this node ////
@@ -627,7 +646,7 @@ impl<H: Hasher + Send + Sync> HistoryTreeNode<H> {
     }
 
     #[cfg(test)]
-    pub async fn to_node_child_state<S: V2Storage + Sync + Send>(
+    pub(crate) async fn to_node_child_state<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
     ) -> Result<HistoryChildState<H>, HistoryTreeNodeError> {

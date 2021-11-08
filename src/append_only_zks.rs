@@ -5,15 +5,18 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! An implementation of an append-only zero knowledge set
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
+    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof},
     storage::{Storable, V2Storage},
 };
 
 use crate::serialization::to_digest;
+
 use crate::storage::types::StorageType;
-use crate::{history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
+use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use std::marker::{PhantomData, Send, Sync};
 use winter_crypto::Hasher;
@@ -22,14 +25,20 @@ use serde::{Deserialize, Serialize};
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
+/// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
-
+/// An append-only zero knowledge set, the data structure used to efficiently implement
+/// a auditable key directory.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct Azks<H> {
+    /// The location of the root
     pub root: usize,
+    /// The latest complete epoch
     pub latest_epoch: u64,
+    /// The number of nodes ie the size of this tree
     pub num_nodes: usize, // The size of the tree
+    /// Placeholder
     pub _h: PhantomData<H>,
 }
 
@@ -59,9 +68,9 @@ impl<H: Hasher> Clone for Azks<H> {
 }
 
 impl<H: Hasher + Send + Sync> Azks<H> {
-    pub async fn new<S: V2Storage + Sync + Send>(storage: &S) -> Result<Self, SeemlessError> {
+    /// Creates a new azks
+    pub async fn new<S: V2Storage + Sync + Send>(storage: &S) -> Result<Self, AkdError> {
         let root = get_empty_root::<H, S>(storage, Option::Some(0)).await?;
-
         let azks = Azks {
             root: 0,
             latest_epoch: 0,
@@ -74,12 +83,14 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         Ok(azks)
     }
 
+    /// Inserts a single leaf and is only used for testing, since batching is more efficient.
+    /// We just want to make sure batch insertions work correctly and this function is useful for that.
     pub async fn insert_leaf<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         label: NodeLabel,
         value: H::Digest,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), AkdError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
@@ -94,21 +105,25 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         Ok(())
     }
 
+    /// Insert a batch of new leaves
     pub async fn batch_insert_leaves<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), AkdError> {
         self.batch_insert_leaves_helper(storage, insertion_set, false)
             .await
     }
 
+    /// An azks is built both by the [crate::directory::Directory] and the auditor.
+    /// However, both constructions have very minor differences, and the append_only_usage
+    /// bool keeps track of this.
     pub async fn batch_insert_leaves_helper<S: V2Storage + Sync + Send>(
         &mut self,
         storage: &S,
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
-    ) -> Result<(), SeemlessError> {
+    ) -> Result<(), AkdError> {
         self.increment_epoch();
 
         let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
@@ -133,12 +148,7 @@ impl<H: Hasher + Send + Sync> Azks<H> {
             }
 
             root_node
-                .insert_single_leaf_without_hash(
-                    storage,
-                    new_leaf,
-                    self.latest_epoch,
-                    &mut self.num_nodes,
-                )
+                .insert_leaf(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
                 .await?;
 
             hash_q.push(new_leaf_loc, priorities);
@@ -171,30 +181,29 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         Ok(())
     }
 
+    /// Returns the Merkle membership proof for the trie as it stood at epoch
+    // Assumes the verifier has access to the root at epoch
     pub async fn get_membership_proof<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<MembershipProof<H>, SeemlessError> {
-        // Regular Merkle membership proof for the trie as it stood at epoch
-        // Assumes the verifier as access to the root at epoch
+    ) -> Result<MembershipProof<H>, AkdError> {
         let (pf, _) = self
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
         Ok(pf)
     }
 
+    /// In a compressed trie, the proof consists of the longest prefix
+    /// of the label that is included in the trie, as well as its children, to show that
+    /// none of the children is equal to the given label.
     pub async fn get_non_membership_proof<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<NonMembershipProof<H>, SeemlessError> {
-        // In a compressed trie, the proof consists of the longest prefix
-        // of the label that is included in the trie, as well as its children, to show that
-        // none of the children is equal to the given label.
-
+    ) -> Result<NonMembershipProof<H>, AkdError> {
         let (longest_prefix_membership_proof, lcp_node_id) = self
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
@@ -222,12 +231,21 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         })
     }
 
+    /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
+    /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
+    /// tree after `start_epoch` and  up until `end_epoch`.
+    /// If there is no errors, this function returns an `Ok` result, containing the
+    ///  append-only proof and otherwise, it returns a [errors::AkdError].
+    ///
+    /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
+    /// * `start_epoch` <= `end_epoch`
+    /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
     pub async fn get_append_only_proof<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
+    ) -> Result<AppendOnlyProof<H>, AkdError> {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
@@ -248,7 +266,7 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         node: HistoryTreeNode<H>,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<AppendOnlyHelper<H::Digest>, SeemlessError> {
+    ) -> Result<AppendOnlyHelper<H::Digest>, AkdError> {
         let mut unchanged = Vec::<(NodeLabel, H::Digest)>::new();
         let mut leaves = Vec::<(NodeLabel, H::Digest)>::new();
         if node.get_latest_epoch()? <= start_epoch {
@@ -301,20 +319,8 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         Ok((unchanged, leaves))
     }
 
-    pub async fn get_consecutive_append_only_proof<S: V2Storage + Sync + Send>(
-        &self,
-        storage: &S,
-        start_epoch: u64,
-    ) -> Result<AppendOnlyProof<H>, SeemlessError> {
-        // Suppose the epochs start_epoch and start_epoch+1 exist in the set.
-        // This function should return the proof that nothing was removed/changed from the tree
-        // between these epochs.
-        self.get_append_only_proof(storage, start_epoch, start_epoch + 1)
-            .await
-    }
-
     // FIXME: these functions below should be moved into higher-level API
-
+    /// Gets the root hash for this azks
     pub async fn get_root_hash<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
@@ -323,6 +329,9 @@ impl<H: Hasher + Send + Sync> Azks<H> {
             .await
     }
 
+    /// Gets the root hash of the tree at a epoch.
+    /// Since this is accessing the root node and the root node exists at all epochs that
+    /// the azks does, this would never be called at an epoch before the birth of the root node.
     pub async fn get_root_hash_at_epoch<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
@@ -333,6 +342,8 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         root_node.get_value_at_epoch(storage, epoch).await
     }
 
+    /// Gets the latest epoch of this azks. If an update aka epoch transition
+    /// is in progress, this should return the most recent completed epoch.
     pub fn get_latest_epoch(&self) -> u64 {
         self.latest_epoch
     }
@@ -342,12 +353,15 @@ impl<H: Hasher + Send + Sync> Azks<H> {
         self.latest_epoch = epoch;
     }
 
+    /// This function returns the node location for the node whose label is the longest common
+    /// prefix for the queried label. It also returns a membership proof for said label.
+    /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
     pub async fn get_membership_proof_and_node<S: V2Storage + Sync + Send>(
         &self,
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, usize), SeemlessError> {
+    ) -> Result<(MembershipProof<H>, usize), AkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
@@ -365,13 +379,13 @@ impl<H: Hasher + Send + Sync> Azks<H> {
             let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or(SeemlessError::NoDirectionError)?;
+            let direction = dir.ok_or(AkdError::NoDirectionError)?;
             let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state.dummy_marker == DummyChildState::Dummy {
                 break;
             }
             for i in 0..ARITY {
-                if i != dir.ok_or(SeemlessError::NoDirectionError)? {
+                if i != dir.ok_or(AkdError::NoDirectionError)? {
                     labels[count] = curr_state.child_states[i].label;
                     hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
                     count += 1;
@@ -439,7 +453,7 @@ mod tests {
     type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 
     #[actix_rt::test]
-    async fn test_batch_insert_basic() -> Result<(), SeemlessError> {
+    async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
@@ -471,7 +485,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_insert_permuted() -> Result<(), SeemlessError> {
+    async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
@@ -505,7 +519,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_permuted() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -535,7 +549,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_failing() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_failing() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -576,7 +590,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_membership_proof_intermediate() -> Result<(), SeemlessError> {
+    async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
@@ -596,7 +610,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_nonmembership_proof() -> Result<(), SeemlessError> {
+    async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -625,7 +639,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_very_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
 
@@ -647,7 +661,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof_tiny() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut azks = Azks::<Blake3>::new(&db).await?;
 
@@ -671,7 +685,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn test_append_only_proof() -> Result<(), SeemlessError> {
+    async fn test_append_only_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
 

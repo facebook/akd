@@ -5,10 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module implements operations for a simple asynchronized mysql database
+
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
 use crate::storage::types::{
-    DbRecord, StorageType, UserData, UserState, UserStateRetrievalFlag, Username,
+    AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, V2Storage};
 use async_trait::async_trait;
@@ -80,6 +82,7 @@ impl Clone for AsyncMySqlDatabase {
 }
 
 impl AsyncMySqlDatabase {
+    /// Creates a new mysql database
     #[allow(unused)]
     pub async fn new<T: Into<String>>(
         endpoint: T,
@@ -449,8 +452,8 @@ impl V2Storage for AsyncMySqlDatabase {
                     .entry(StorageType::HistoryTreeNode)
                     .or_insert_with(Vec::new)
                     .push(record),
-                DbRecord::UserState(_) => groups
-                    .entry(StorageType::UserState)
+                DbRecord::ValueState(_) => groups
+                    .entry(StorageType::ValueState)
                     .or_insert_with(Vec::new)
                     .push(record),
             }
@@ -543,7 +546,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
     async fn append_user_state<H: Hasher + Sync + Send>(
         &self,
-        value: &UserState,
+        value: &ValueState,
     ) -> core::result::Result<(), StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
@@ -577,16 +580,16 @@ impl V2Storage for AsyncMySqlDatabase {
 
     async fn append_user_states<H: Hasher + Sync + Send>(
         &self,
-        values: Vec<UserState>,
+        values: Vec<ValueState>,
     ) -> core::result::Result<(), StorageError> {
-        let records = values.into_iter().map(DbRecord::<H>::UserState).collect();
+        let records = values.into_iter().map(DbRecord::<H>::ValueState).collect();
         self.batch_set(records).await
     }
 
     async fn get_user_data<H: Hasher + Sync + Send>(
         &self,
-        username: &Username,
-    ) -> core::result::Result<UserData, StorageError> {
+        username: &AkdKey,
+    ) -> core::result::Result<KeyData, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
             let statement_text =
@@ -599,7 +602,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .exec_map(
                     prepped,
                     params! { "the_user" => username.0.clone() },
-                    |(username, epoch, version, node_label_val, node_label_len, data)| UserState {
+                    |(username, epoch, version, node_label_val, node_label_len, data)| ValueState {
                         epoch,
                         version,
                         label: NodeLabel {
@@ -607,12 +610,12 @@ impl V2Storage for AsyncMySqlDatabase {
                             len: node_label_len,
                         },
                         plaintext_val: crate::storage::types::Values(data),
-                        username: crate::storage::types::Username(username),
+                        username: crate::storage::types::AkdKey(username),
                     },
                 )
                 .await;
             let selected_records = self.check_for_infra_error(out)?;
-            Ok::<UserData, mysql_async::Error>(UserData {
+            Ok::<KeyData, mysql_async::Error>(KeyData {
                 states: selected_records,
             })
         };
@@ -625,9 +628,9 @@ impl V2Storage for AsyncMySqlDatabase {
 
     async fn get_user_state<H: Hasher + Sync + Send>(
         &self,
-        username: &Username,
-        flag: UserStateRetrievalFlag,
-    ) -> core::result::Result<UserState, StorageError> {
+        username: &AkdKey,
+        flag: ValueStateRetrievalFlag,
+    ) -> core::result::Result<ValueState, StorageError> {
         let result = async {
             let mut conn = self.get_connection().await?;
             let mut statement_text =
@@ -638,19 +641,19 @@ impl V2Storage for AsyncMySqlDatabase {
             let mut params_map = vec![("the_user", Value::from(&username.0))];
             // apply the specific filter
             match flag {
-                UserStateRetrievalFlag::SpecificVersion(version) => {
+                ValueStateRetrievalFlag::SpecificVersion(version) => {
                     params_map.push(("the_version", Value::from(version)));
                     statement_text += " AND `version` = :the_version";
                 }
-                UserStateRetrievalFlag::SpecificEpoch(epoch) => {
+                ValueStateRetrievalFlag::SpecificEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` = :the_epoch";
                 }
-                UserStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
-                UserStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
-                UserStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
-                UserStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
-                UserStateRetrievalFlag::LeqEpoch(epoch) => {
+                ValueStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
+                ValueStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
+                ValueStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
+                ValueStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
+                ValueStateRetrievalFlag::LeqEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` <= :the_epoch";
                 }
@@ -663,7 +666,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .exec_map(
                     prepped,
                     mysql_async::Params::from(params_map),
-                    |(username, epoch, version, node_label_val, node_label_len, data)| UserState {
+                    |(username, epoch, version, node_label_val, node_label_len, data)| ValueState {
                         epoch,
                         version,
                         label: NodeLabel {
@@ -671,13 +674,13 @@ impl V2Storage for AsyncMySqlDatabase {
                             len: node_label_len,
                         },
                         plaintext_val: crate::storage::types::Values(data),
-                        username: crate::storage::types::Username(username),
+                        username: crate::storage::types::AkdKey(username),
                     },
                 )
                 .await;
             let selected_record = self.check_for_infra_error(out)?;
 
-            Ok::<Option<UserState>, mysql_async::Error>(selected_record.into_iter().next())
+            Ok::<Option<ValueState>, mysql_async::Error>(selected_record.into_iter().next())
         };
 
         match result.await {
@@ -714,7 +717,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `root` = :root, `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
             DbRecord::HistoryNodeState(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :epoch, :value, :child_states) ON DUPLICATE KEY UPDATE `value` = :value, `child_states` = :child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA),
             DbRecord::HistoryTreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:location, :label_len, :label_val, :epochs, :parent, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `epochs` = :epochs, `parent` = :parent, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
-            DbRecord::UserState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
+            DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
         }
     }
 
@@ -732,7 +735,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                 let bin_data = bincode::serialize(&node.epochs).unwrap();
                 params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 }
             }
-            DbRecord::UserState(state) => {
+            DbRecord::ValueState(state) => {
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone()}
             }
         }
@@ -749,7 +752,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                 "SELECT {} FROM `{}`",
                 SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
             ),
-            StorageType::UserState => format!("SELECT {} FROM `{}`", SELECT_USER_DATA, TABLE_USER),
+            StorageType::ValueState => format!("SELECT {} FROM `{}`", SELECT_USER_DATA, TABLE_USER),
         }
     }
 
@@ -758,7 +761,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
             StorageType::Azks => format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS),
             StorageType::HistoryNodeState => format!("SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val AND `epoch` = :epoch", SELECT_HISTORY_NODE_STATE_DATA, TABLE_HISTORY_NODE_STATES),
             StorageType::HistoryTreeNode => format!("SELECT {} FROM `{}` WHERE `location` = :location", SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES),
-            StorageType::UserState => format!("SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch", SELECT_USER_DATA, TABLE_USER),
+            StorageType::ValueState => format!("SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch", SELECT_USER_DATA, TABLE_USER),
         }
     }
 
@@ -782,9 +785,10 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                     "location" => back.0
                 })
             }
-            StorageType::UserState => {
+            StorageType::ValueState => {
                 let bin = bincode::serialize(&key).unwrap();
-                let back: crate::storage::types::UserStateKey = bincode::deserialize(&bin).unwrap();
+                let back: crate::storage::types::ValueStateKey =
+                    bincode::deserialize(&bin).unwrap();
                 Some(params! {
                     "username" => back.0,
                     "epoch" => back.1
@@ -867,7 +871,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                     return Ok(DbRecord::HistoryTreeNode(node));
                 }
             }
-            StorageType::UserState => {
+            StorageType::ValueState => {
                 // `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`
                 if let (
                     Some(Ok(username)),
@@ -892,7 +896,7 @@ impl<H: Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                         node_label_val,
                         epoch,
                     );
-                    return Ok(DbRecord::UserState(state));
+                    return Ok(DbRecord::ValueState(state));
                 }
             }
         }

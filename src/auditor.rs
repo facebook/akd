@@ -5,27 +5,34 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Code for an auditor of a authenticated key directory
+
 use std::marker::{Send, Sync};
+
 use winter_crypto::Hasher;
 
 use crate::{
-    append_only_zks::Azks, storage::memory::AsyncInMemoryDatabase, AppendOnlyProof, AzksError,
-    SeemlessError,
+    append_only_zks::Azks,
+    errors::{AkdError, AzksError},
+    proof_structs::AppendOnlyProof,
+    storage::memory::AsyncInMemoryDatabase,
 };
 
+/// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
 pub async fn audit_verify<H: Hasher + Send + Sync>(
     start_hash: H::Digest,
     end_hash: H::Digest,
     proof: AppendOnlyProof<H>,
-) -> Result<(), SeemlessError> {
+) -> Result<(), AkdError> {
     verify_append_only::<H>(proof, start_hash, end_hash).await
 }
 
+/// Helper for audit, verifies an append-only proof
 pub async fn verify_append_only<H: Hasher + Send + Sync>(
     proof: AppendOnlyProof<H>,
     start_hash: H::Digest,
     end_hash: H::Digest,
-) -> Result<(), SeemlessError> {
+) -> Result<(), AkdError> {
     let unchanged_nodes = proof.unchanged_nodes;
     let inserted = proof.inserted;
 
@@ -39,9 +46,7 @@ pub async fn verify_append_only<H: Hasher + Send + Sync>(
     let computed_end_root_hash: H::Digest = azks.get_root_hash(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
-        return Err(SeemlessError::AzksErr(
-            AzksError::AppendOnlyProofDidNotVerify,
-        ));
+        return Err(AkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));
     }
     Ok(())
 }
