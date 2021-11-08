@@ -12,9 +12,9 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
+use std::hash::Hash;
 use std::marker::{PhantomData, Send};
 use winter_crypto::Hasher;
-use std::hash::Hash;
 
 // This holds the types used in the storage layer
 pub mod tests;

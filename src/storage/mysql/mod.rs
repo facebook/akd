@@ -17,13 +17,12 @@ use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
 
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::marker::Send;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
-use std::hash::{Hash, Hasher};
-
-type MySqlError = mysql_async::error::Error;
 
 type MySqlError = mysql_async::error::Error;
 
@@ -52,6 +51,8 @@ pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<Mutex<bool>>,
+    #[allow(clippy::type_complexity)]
+    cache: Option<Arc<tokio::sync::RwLock<HashMap<(StorageType, u64), Vec<Vec<u8>>>>>>,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -82,6 +83,7 @@ impl Clone for AsyncMySqlDatabase {
             opts: self.opts.clone(),
             pool: self.pool.clone(),
             is_healthy: self.is_healthy.clone(),
+            cache: self.cache.clone(),
         }
     }
 }
@@ -95,6 +97,7 @@ impl AsyncMySqlDatabase {
         user: Option<T>,
         password: Option<T>,
         port: Option<u16>,
+        add_cache: Option<bool>,
     ) -> Self {
         let dport = port.unwrap_or(1u16);
         let mut builder = OptsBuilder::new();
@@ -110,10 +113,17 @@ impl AsyncMySqlDatabase {
         let healthy = Arc::new(Mutex::new(false));
         let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
+        let cache = if let Some(true) = add_cache {
+            Some(Arc::new(tokio::sync::RwLock::new(HashMap::new())))
+        } else {
+            None
+        };
+
         Self {
             opts,
             pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
+            cache,
         }
     }
 
@@ -312,6 +322,196 @@ impl AsyncMySqlDatabase {
         Ok(())
     }
 
+    fn get_cache_key<St: Storable>(key: &St::Key) -> (StorageType, u64) {
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut s);
+        let ty = St::data_type();
+        (ty, s.finish())
+    }
+
+    async fn cache_test<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
+        &self,
+        key: &St::Key,
+    ) -> Option<DbRecord<H>> {
+        let key_copy = key.clone();
+        let cache_key = Self::get_cache_key::<St>(key);
+        if let Some(cache) = &self.cache {
+            let guard = cache.read().await;
+            let ptr: &HashMap<_, _> = &*guard;
+            if let Some(result) = ptr.get(&cache_key) {
+                for item in result.iter() {
+                    if let Ok(decoded) = bincode::deserialize::<St>(item) {
+                        // compare the full item key
+                        if decoded.get_id() == key_copy.clone() {
+                            // CACHE HIT
+
+                            // Now the fugly part, decode a 2nd time to assert the mastry of Rust's inability
+                            // to cast objects to their underlying type without KNOWING full in advance what
+                            // the type is.
+                            match St::data_type() {
+                                StorageType::Azks => {
+                                    if let Ok(decoded2) = bincode::deserialize::<
+                                        crate::append_only_zks::Azks<H>,
+                                    >(item)
+                                    {
+                                        return Some(DbRecord::Azks::<H>(decoded2));
+                                    }
+                                }
+                                StorageType::HistoryNodeState => {
+                                    if let Ok(decoded2) = bincode::deserialize::<
+                                        crate::node_state::HistoryNodeState<H>,
+                                    >(item)
+                                    {
+                                        return Some(DbRecord::HistoryNodeState::<H>(decoded2));
+                                    }
+                                }
+                                StorageType::HistoryTreeNode => {
+                                    if let Ok(decoded2) = bincode::deserialize::<
+                                        crate::history_tree_node::HistoryTreeNode<H>,
+                                    >(item)
+                                    {
+                                        return Some(DbRecord::HistoryTreeNode::<H>(decoded2));
+                                    }
+                                }
+                                StorageType::ValueState => {
+                                    if let Ok(decoded2) = bincode::deserialize::<
+                                        crate::storage::types::ValueState,
+                                    >(item)
+                                    {
+                                        return Some(DbRecord::ValueState::<H>(decoded2));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    async fn cache_put<H: winter_crypto::Hasher + Sync + Send>(
+        &self,
+        record: &DbRecord<H>,
+        flush_on_hit: bool,
+    ) -> Result<(), StorageError> {
+        if let Some(cache) = &self.cache {
+            let mut guard = cache.write().await;
+            let key = record.get_cache_key();
+            let binary = match &record {
+                DbRecord::Azks(azks) => bincode::serialize(azks),
+                DbRecord::HistoryNodeState(state) => bincode::serialize(state),
+                DbRecord::HistoryTreeNode(node) => bincode::serialize(node),
+                DbRecord::ValueState(value) => bincode::serialize(value),
+            };
+            if let Ok(bin) = binary {
+                // insert or replace the value (i.e. invalidate cache because of clash with hashcode)
+                if flush_on_hit {
+                    (*guard).insert(key, vec![bin]);
+                } else {
+                    // push a new entry into the cache list at the specified caching location
+                    (*guard).entry(key).or_insert_with(Vec::new).push(bin);
+                }
+                return Ok(());
+            } else {
+                return Err(StorageError::SerializationError);
+            }
+        }
+        Ok(())
+    }
+
+    async fn cache_batch<H: winter_crypto::Hasher + Sync + Send>(
+        &self,
+        records: &[DbRecord<H>],
+    ) -> Result<(), StorageError> {
+        if let Some(cache) = &self.cache {
+            let mut guard = cache.write().await;
+            let mut keys: Vec<(StorageType, u64)> =
+                records.iter().map(|i| i.get_cache_key()).collect();
+            // remove duplicates
+            let mut unique_keys = HashSet::new();
+            keys.retain(|e| unique_keys.insert(*e));
+
+            // clear the keys in this batch update
+            for key in keys.into_iter() {
+                if let std::collections::hash_map::Entry::Occupied(o) = (*guard).entry(key) {
+                    if o.get().is_empty() {
+                        o.remove_entry();
+                    }
+                }
+            }
+
+            for record in records.iter() {
+                let key = record.get_cache_key();
+
+                let binary = match &record {
+                    DbRecord::Azks(azks) => bincode::serialize(azks),
+                    DbRecord::HistoryNodeState(state) => bincode::serialize(state),
+                    DbRecord::HistoryTreeNode(node) => bincode::serialize(node),
+                    DbRecord::ValueState(value) => bincode::serialize(value),
+                };
+                if let Ok(bin) = binary {
+                    // push a new entry into the cache list at the specified caching location
+                    (*guard).entry(key).or_insert_with(Vec::new).push(bin);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn cache_flush(&self) {
+        if let Some(cache) = &self.cache {
+            let mut guard = cache.write().await;
+            (*guard).clear();
+        }
+    }
+
+    /// Storage a record in the data layer
+    async fn internal_set<H: winter_crypto::Hasher + Sync + Send>(
+        &self,
+        record: DbRecord<H>,
+        trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
+    ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
+        let statement_text = record.set_statement();
+        let (ntx, out) = match trans {
+            Some(tx) => match tx.drop_exec(statement_text, record.set_params()).await {
+                Err(err) => (None, Err(err)),
+                Ok(next_tx) => (Some(next_tx), Ok(())),
+            },
+            None => {
+                let conn = self.get_connection().await?;
+                if let Err(err) = conn.drop_exec(statement_text, record.set_params()).await {
+                    (None, Err(err))
+                } else {
+                    (None, Ok(()))
+                }
+            }
+        };
+        self.check_for_infra_error(out)?;
+        Ok(ntx)
+    }
+
+    /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
+    async fn internal_batch_set<H: winter_crypto::Hasher + Sync + Send>(
+        &self,
+        records: Vec<DbRecord<H>>,
+        trans: mysql_async::Transaction<mysql_async::Conn>,
+    ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
+        let mut mini_tx = trans;
+        for batch in records.chunks(100) {
+            let head = &batch[0];
+            let statement = head.set_statement();
+            let param_groups: Vec<mysql_async::Params> =
+                batch.iter().map(|value| value.set_params()).collect();
+            let prepped = mini_tx.prepare(statement).await?;
+            let out = prepped.batch(param_groups).await;
+            mini_tx = self.check_for_infra_error(out)?.close().await?;
+        }
+        Ok(mini_tx)
+    }
+
     /// Cleanup the test data table
     #[allow(dead_code)]
     pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
@@ -361,50 +561,6 @@ impl AsyncMySqlDatabase {
         // docker may have thrown an error, just fail
         false
     }
-
-    /// Storage a record in the data layer
-    async fn internal_set<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        record: DbRecord<H>,
-        trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
-    ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
-        let statement_text = record.set_statement();
-        let (ntx, out) = match trans {
-            Some(tx) => match tx.drop_exec(statement_text, record.set_params()).await {
-                Err(err) => (None, Err(err)),
-                Ok(next_tx) => (Some(next_tx), Ok(())),
-            },
-            None => {
-                let conn = self.get_connection().await?;
-                if let Err(err) = conn.drop_exec(statement_text, record.set_params()).await {
-                    (None, Err(err))
-                } else {
-                    (None, Ok(()))
-                }
-            }
-        };
-        self.check_for_infra_error(out)?;
-        Ok(ntx)
-    }
-
-    /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
-    async fn internal_batch_set<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        records: Vec<DbRecord<H>>,
-        trans: mysql_async::Transaction<mysql_async::Conn>,
-    ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
-        let mut mini_tx = trans;
-        for batch in records.chunks(100) {
-            let head = &batch[0];
-            let statement = head.set_statement();
-            let param_groups: Vec<mysql_async::Params> =
-                batch.iter().map(|value| value.set_params()).collect();
-            let prepped = mini_tx.prepare(statement).await?;
-            let out = prepped.batch(param_groups).await;
-            mini_tx = self.check_for_infra_error(out)?.close().await?;
-        }
-        Ok(mini_tx)
-    }
 }
 
 #[async_trait]
@@ -414,6 +570,8 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         record: DbRecord<H>,
     ) -> core::result::Result<(), StorageError> {
+        let _ = self.cache_put(&record, true).await;
+
         match self.internal_set::<H>(record, None).await {
             Ok(_) => Ok(()),
             Err(error) => Err(StorageError::SetError(error.to_string())),
@@ -424,6 +582,8 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         records: Vec<DbRecord<H>>,
     ) -> core::result::Result<(), StorageError> {
+        let _ = self.cache_batch(&records).await;
+
         // generate batches by type
         let mut groups = std::collections::HashMap::new();
         for record in records {
@@ -471,6 +631,10 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         id: St::Key,
     ) -> core::result::Result<DbRecord<H>, StorageError> {
+        if let Some(result) = self.cache_test::<H, St>(&id).await {
+            return Ok(result);
+        }
+
         let result = async {
             let conn = self.get_connection().await?;
             let statement = DbRecord::<H>::get_specific_statement::<St>();
@@ -488,6 +652,9 @@ impl V2Storage for AsyncMySqlDatabase {
             let result = self.check_for_infra_error(out)?;
             if let Some(mut row) = result {
                 let record = DbRecord::<H>::from_row::<St>(&mut row)?;
+                // ignore the put fail result (if it fails)
+                let _ = self.cache_put(&record, false).await;
+                // return
                 return Ok::<Option<DbRecord<H>>, MySqlError>(Some(record));
             }
             Ok::<Option<DbRecord<H>>, MySqlError>(None)
@@ -521,6 +688,9 @@ impl V2Storage for AsyncMySqlDatabase {
                     acc
                 })
                 .await?;
+            for el in out.iter() {
+                let _ = self.cache_put(el, false).await;
+            }
             Ok::<Vec<DbRecord<H>>, MySqlError>(out)
         };
 
@@ -534,31 +704,7 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         value: &ValueState,
     ) -> core::result::Result<(), StorageError> {
-        let result = async {
-            let conn = self.get_connection().await?;
-            let statement_text = "INSERT INTO `".to_owned()
-                + TABLE_USER
-                + "` (`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`)"
-                + " VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)";
-            let prepped = conn.prepare(statement_text).await?;
-            let out = prepped
-                .execute(params! {
-                    "username" => value.username.0.clone(),
-                    "epoch" => value.epoch,
-                    "version" => value.version,
-                    "node_label_val" => value.label.val,
-                    "node_label_len" => value.label.len,
-                    "data" => value.plaintext_val.0.clone()
-                })
-                .await;
-            let _ = self.check_for_infra_error(out)?;
-            Ok::<(), MySqlError>(())
-        };
-
-        match result.await {
-            Ok(()) => Ok(()),
-            Err(code) => Err(StorageError::SetError(code.to_string())),
-        }
+        self.set(DbRecord::<H>::ValueState(value.clone())).await
     }
 
     async fn append_user_states<H: winter_crypto::Hasher + Sync + Send>(
@@ -608,6 +754,11 @@ impl V2Storage for AsyncMySqlDatabase {
                 })
                 .await;
             let (_, selected_records) = self.check_for_infra_error(out)?;
+            for record in selected_records.iter() {
+                let _ = self
+                    .cache_put(&DbRecord::<H>::ValueState(record.clone()), false)
+                    .await;
+            }
             Ok::<KeyData, MySqlError>(KeyData {
                 states: selected_records,
             })
@@ -681,7 +832,13 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await;
             let (_, selected_record) = self.check_for_infra_error(out)?;
 
-            Ok::<Option<ValueState>, MySqlError>(selected_record.into_iter().next())
+            let item = selected_record.into_iter().next();
+            if let Some(value_in_item) = &item {
+                let _ = self
+                    .cache_put(&DbRecord::<H>::ValueState(value_in_item.clone()), false)
+                    .await;
+            }
+            Ok::<Option<ValueState>, MySqlError>(item)
         };
 
         match result.await {
@@ -910,46 +1067,25 @@ impl<H: winter_crypto::Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
 
     fn get_cache_key(&self) -> (StorageType, u64) {
         let mut s = std::collections::hash_map::DefaultHasher::new();
-        let ty =
-            match &self {
-                DbRecord::Azks(azks) => {
-                    azks.get_id().hash(&mut s);
-                    StorageType::Azks
-                },
-                DbRecord::HistoryNodeState(state) => {
-                    state.get_id().hash(&mut s);
-                    StorageType::HistoryNodeState
-                },
-                DbRecord::HistoryTreeNode(node) => {
-                    node.get_id().hash(&mut s);
-                    StorageType::HistoryTreeNode
-                },
-                DbRecord::ValueState(value) => {
-                    value.get_id().hash(&mut s);
-                    StorageType::ValueState
-                },
-            };
+        let ty = match &self {
+            DbRecord::Azks(azks) => {
+                azks.get_id().hash(&mut s);
+                StorageType::Azks
+            }
+            DbRecord::HistoryNodeState(state) => {
+                state.get_id().hash(&mut s);
+                StorageType::HistoryNodeState
+            }
+            DbRecord::HistoryTreeNode(node) => {
+                node.get_id().hash(&mut s);
+                StorageType::HistoryTreeNode
+            }
+            DbRecord::ValueState(value) => {
+                value.get_id().hash(&mut s);
+                StorageType::ValueState
+            }
+        };
         (ty, s.finish())
-    }
-}
-
-trait StorageErrorWrappable<TErr> {
-    fn as_get<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
-    fn as_set<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
-}
-
-impl StorageErrorWrappable<MySqlError> for StorageError {
-    fn as_get<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
-        match result {
-            Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::GetError(err.to_string())),
-        }
-    }
-    fn as_set<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
-        match result {
-            Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::SetError(err.to_string())),
-        }
     }
 }
 

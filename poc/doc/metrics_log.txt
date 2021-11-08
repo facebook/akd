@@ -1,5 +1,23 @@
 ############################################################################################################
 =======================================================
+# Test run 3: Nov 8, 2021
+# Commit hash: e1a1509a30e2a9399d52cee90d640e9027dddcc0
+# Commit title: Adding memory cache to mysql storage layer
+=======================================================
+$ cargo run -- flush && cargo run -- bench-publish 10 10
+
+======= Benchmark operation requested =======
+Beginning PUBLISH benchmark of 10 users with 10 updates/user
+INFO: Starting the verifiable directory host
+Benchmark operation completed in ERROR: Failed to publish with error: HistoryTreeNodeErr(DirectionIsNone)
+Benchmark output: Inserted 10 users with 10 updates/user
+Execution time: 554ms
+Time-per-user (avg): 55403µs
+Time-per-op (avg): 5540µs
+INFO: AKD host shutting down
+
+############################################################################################################
+=======================================================
 # Test run 2: Nov 8, 2021
 # Commit hash: 099140269355f6739869be5f1166c6461ac11725
 # Commit title: Downgrade mysql_async from 0.28 to 0.23 to match FB Infra

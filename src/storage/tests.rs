@@ -61,6 +61,7 @@ async fn test_async_mysql_new_db() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
+            Option::from(false),
         )
         .await;
 
