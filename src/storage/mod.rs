@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::{PhantomData, Send};
 use winter_crypto::Hasher;
+use std::hash::Hash;
 
 // This holds the types used in the storage layer
 pub mod tests;
@@ -28,12 +29,13 @@ pub mod mysql;
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
-    type Key: Clone + Serialize + Eq + std::hash::Hash + Send + Sync;
+    type Key: Clone + Serialize + Eq + Hash + Send + Sync;
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;
 
-    /// FIXME: Needs docs
+    /// Retrieve an instance of the id of this storable. The combination of the
+    /// storable's StorageType and this id are _globally_ unique
     fn get_id(&self) -> Self::Key;
 }
 
