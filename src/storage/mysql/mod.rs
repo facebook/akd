@@ -25,6 +25,8 @@ use std::hash::{Hash, Hasher};
 
 type MySqlError = mysql_async::error::Error;
 
+type MySqlError = mysql_async::error::Error;
+
 const TABLE_AZKS: &str = "azks";
 const TABLE_HISTORY_TREE_NODES: &str = "history";
 const TABLE_HISTORY_NODE_STATES: &str = "states";
@@ -928,6 +930,26 @@ impl<H: winter_crypto::Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                 },
             };
         (ty, s.finish())
+    }
+}
+
+trait StorageErrorWrappable<TErr> {
+    fn as_get<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
+    fn as_set<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
+}
+
+impl StorageErrorWrappable<MySqlError> for StorageError {
+    fn as_get<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+        match result {
+            Ok(t) => Ok(t),
+            Err(err) => Err(StorageError::GetError(err.to_string())),
+        }
+    }
+    fn as_set<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+        match result {
+            Ok(t) => Ok(t),
+            Err(err) => Err(StorageError::SetError(err.to_string())),
+        }
     }
 }
 
