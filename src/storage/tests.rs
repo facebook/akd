@@ -12,7 +12,7 @@ use serial_test::serial;
 
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
-use crate::storage::memory::{AsyncInMemoryDatabase, AsyncInMemoryDbWithCache};
+use crate::storage::memory::AsyncInMemoryDatabase;
 use crate::storage::mysql::AsyncMySqlDatabase;
 use crate::storage::types::*;
 use crate::storage::{V1Storage, V2Storage};
@@ -27,29 +27,31 @@ type HistoryTreeNode = crate::history_tree_node::HistoryTreeNode<Blake3>;
 
 // *** Tests *** //
 
-#[actix_rt::test]
+#[tokio::test]
+#[serial]
 async fn async_test_basic_database() {
     let db = AsyncInMemoryDatabase::new();
     async_test_get_and_set_item(&db).await;
     async_test_user_data(&db).await;
 
-    let db = AsyncInMemoryDbWithCache::new();
-    async_test_get_and_set_item(&db).await;
-    async_test_user_data(&db).await;
+    // let db = AsyncInMemoryDbWithCache::new();
+    // async_test_get_and_set_item(&db).await;
+    // async_test_user_data(&db).await;
 }
 
-#[actix_rt::test]
+#[tokio::test]
+#[serial]
 async fn async_test_new_basic_database() {
     let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
     async_test_new_get_and_set_item(&db).await;
     async_test_new_user_data(&db).await;
 
-    let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
-    async_test_new_get_and_set_item(&db).await;
-    async_test_new_user_data(&db).await;
+    // let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
+    // async_test_new_get_and_set_item(&db).await;
+    // async_test_new_user_data(&db).await;
 }
 
-#[actix_rt::test]
+#[tokio::test]
 #[serial]
 async fn test_async_mysql_new_db() {
     if AsyncMySqlDatabase::test_guard() {
@@ -71,7 +73,7 @@ async fn test_async_mysql_new_db() {
         async_test_new_user_data(&mysql_db).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.test_cleanup().await {
+        if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
             println!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
@@ -372,9 +374,8 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
 
     let data = storage
         .get_user_data::<Blake3>(&sample_state_2.username)
-        .await
-        .unwrap();
-    assert_eq!(4, data.states.len());
+        .await;
+    assert_eq!(4, data.unwrap().states.len());
 }
 
 // *** Helper Functions *** //

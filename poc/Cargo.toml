@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 winter-crypto = "0.1"
 winter-math = "0.1"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "0.2", features = ["full"] }
 akd = { path = "../." }
 colored = "2.0.0"
 hex = "0.4.3"
@@ -16,5 +16,4 @@ structopt = "0.3.13"
 rand = "0.8"
 
 [dev-dependencies]
-actix-rt = "*"
 serial_test = "*"
