@@ -1,20 +1,37 @@
-############################################################################################################
 =======================================================
-# Test run 3: Nov 8, 2021
-# Commit hash: e1a1509a30e2a9399d52cee90d640e9027dddcc0
-# Commit title: Adding memory cache to mysql storage layer
+# Test run 4: Nov 9, 2021
+# Commit hash: f60b2ecb35d68da96896fc9b5cf6e7384dc7ec6d
+# Commit title: Downgrade mysql_async from 0.28 to 0.23 to match FB Infra
 =======================================================
 $ cargo run -- flush && cargo run -- bench-publish 10 10
 
 ======= Benchmark operation requested =======
 Beginning PUBLISH benchmark of 10 users with 10 updates/user
 INFO: Starting the verifiable directory host
-Benchmark operation completed in ERROR: Failed to publish with error: HistoryTreeNodeErr(DirectionIsNone)
 Benchmark output: Inserted 10 users with 10 updates/user
-Execution time: 554ms
-Time-per-user (avg): 55403µs
-Time-per-op (avg): 5540µs
+Execution time: 18798ms
+Time-per-user (avg): 1879804µs
+Time-per-op (avg): 187980µs
 INFO: AKD host shutting down
+
+############################################################################################################
+************ INVALID TEST BELOW ************
+### =======================================================
+### # Test run 3: Nov 8, 2021
+### # Commit hash: e1a1509a30e2a9399d52cee90d640e9027dddcc0
+### # Commit title: Adding memory cache to mysql storage layer
+### =======================================================
+### $ cargo run -- flush && cargo run -- bench-publish 10 10
+###
+### ======= Benchmark operation requested =======
+### Beginning PUBLISH benchmark of 10 users with 10 updates/user
+### INFO: Starting the verifiable directory host
+### Benchmark operation completed in ERROR: Failed to publish with error: HistoryTreeNodeErr(DirectionIsNone)
+### Benchmark output: Inserted 10 users with 10 updates/user
+### Execution time: 554ms
+### Time-per-user (avg): 55403µs
+### Time-per-op (avg): 5540µs
+### INFO: AKD host shutting down
 
 ############################################################################################################
 =======================================================
