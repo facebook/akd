@@ -13,7 +13,7 @@ use serial_test::serial;
 use crate::errors::StorageError;
 use crate::node_state::NodeLabel;
 use crate::storage::memory::AsyncInMemoryDatabase;
-use crate::storage::mysql::AsyncMySqlDatabase;
+use crate::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use crate::storage::types::*;
 use crate::storage::{V1Storage, V2Storage};
 
@@ -61,6 +61,7 @@ async fn test_async_mysql_new_db() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
+            MySqlCacheOptions::None,
         )
         .await;
 

@@ -72,6 +72,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
+
         for (uname, val) in updates {
             match self
                 .storage
@@ -111,17 +112,19 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
-        let output = current_azks
+        current_azks
             .batch_insert_leaves(&self.storage, insertion_set)
-            .await;
-        self.storage
-            .set::<H>(DbRecord::Azks(current_azks.clone()))
             .await?;
-        self.storage
-            .append_user_states::<H>(user_data_update_set)
-            .await?;
+
+        // batch all the inserts into a single transactional write to storage
+        let mut updates = vec![DbRecord::Azks(current_azks.clone())];
+        for update in user_data_update_set.into_iter() {
+            updates.push(DbRecord::ValueState::<H>(update));
+        }
+        self.storage.batch_set(updates).await?;
         self.current_epoch = next_epoch;
-        output
+
+        Ok(())
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
