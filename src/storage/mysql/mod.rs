@@ -54,7 +54,7 @@ pub enum MySqlCacheOptions {
     /// Utilize the default caching settings
     Default,
     /// Customize the caching options (cache item duration)
-    Specific(std::time::Duration)
+    Specific(std::time::Duration),
 }
 
 /// Represents an _asynchronous_ connection to a MySQL database
@@ -124,12 +124,11 @@ impl AsyncMySqlDatabase {
         let healthy = Arc::new(Mutex::new(false));
         let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
-        let cache =
-            match cache_options {
-                MySqlCacheOptions::None => None,
-                MySqlCacheOptions::Default => Some(TimedCache::new(None)),
-                MySqlCacheOptions::Specific(timing) => Some(TimedCache::new(Some(timing))),
-            };
+        let cache = match cache_options {
+            MySqlCacheOptions::None => None,
+            MySqlCacheOptions::Default => Some(TimedCache::new(None)),
+            MySqlCacheOptions::Specific(timing) => Some(TimedCache::new(Some(timing))),
+        };
 
         Self {
             opts,
