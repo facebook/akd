@@ -122,6 +122,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
             updates.push(DbRecord::ValueState::<H>(update));
         }
         self.storage.batch_set(updates).await?;
+        self.current_epoch = next_epoch;
 
         Ok(())
         // At the moment the tree root is not being written anywhere. Eventually we

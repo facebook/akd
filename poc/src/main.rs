@@ -9,7 +9,7 @@
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::storage::mysql::AsyncMySqlDatabase;
+use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use commands::Command;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -79,7 +79,7 @@ async fn main() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
-            Option::from(true), // enable caching
+            MySqlCacheOptions::Default, // enable caching
         )
         .await;
         let mut directory =
