@@ -121,7 +121,7 @@ async fn process_input(
                     num_users, num_updates_per_user
                 );
 
-                let users: Vec<String> = (1..*num_users)
+                let users: Vec<String> = (1..=*num_users)
                     .map(|_| {
                         thread_rng()
                             .sample_iter(&Alphanumeric)
@@ -130,7 +130,7 @@ async fn process_input(
                             .collect()
                     })
                     .collect();
-                let data: Vec<String> = (1..*num_updates_per_user)
+                let data: Vec<String> = (1..=*num_updates_per_user)
                     .map(|_| {
                         thread_rng()
                             .sample_iter(&Alphanumeric)
@@ -161,7 +161,7 @@ async fn process_input(
                     match rpc_rx.await {
                         Err(err) => code = Some(format!("{}", err)),
                         Ok(Err(dir_err)) => code = Some(dir_err),
-                        _ => {}
+                        Ok(Ok(msg)) => println!("{}", msg),
                     }
                     if code.is_some() {
                         break;
@@ -176,7 +176,7 @@ async fn process_input(
 
                 let millis = toc.as_millis();
                 println!(
-                    "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {}ms\nTime-per-user (avg): {}\u{00B5}s\nTime-per-op (avg): {}\u{00B5}s",
+                    "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
                     num_users,
                     num_updates_per_user,
                     toc.as_millis(),

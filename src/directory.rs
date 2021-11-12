@@ -12,7 +12,7 @@ use crate::append_only_zks::Azks;
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
 
-use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError};
+use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::V2Storage;
@@ -116,7 +116,13 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         let mut current_azks = self.retrieve_current_azks().await?;
 
         if use_transaction {
-            self.storage.begin_transaction().await;
+            if let false = self.storage.begin_transaction().await {
+                return Err(AkdError::HistoryTreeNodeErr(
+                    HistoryTreeNodeError::StorageError(StorageError::SetError(
+                        "Transaction is already active".to_string(),
+                    )),
+                ));
+            }
         }
         current_azks
             .batch_insert_leaves::<_, H>(&self.storage, insertion_set)
