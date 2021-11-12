@@ -9,9 +9,9 @@ $ cargo run -- flush && cargo run -- bench-publish 10 10
 Beginning PUBLISH benchmark of 10 users with 10 updates/user
 INFO: Starting the verifiable directory host
 Benchmark output: Inserted 10 users with 10 updates/user
-Execution time: 14274ms
-Time-per-user (avg): 1427493µs
-Time-per-op (avg): 142749µs
+Execution time: 3138ms
+Time-per-user (avg): 313838µs
+Time-per-op (avg): 31383µs
 INFO: AKD host shutting down
 
 ############################################################################################################

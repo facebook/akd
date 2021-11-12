@@ -13,6 +13,7 @@ use crate::storage::types::{
     AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, V2Storage};
+type LocalTransaction = crate::storage::transaction::Transaction;
 use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
@@ -61,8 +62,8 @@ pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<Mutex<bool>>,
-    #[allow(clippy::type_complexity)]
     cache: Option<TimedCache>,
+    trans: LocalTransaction,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -94,6 +95,7 @@ impl Clone for AsyncMySqlDatabase {
             pool: self.pool.clone(),
             is_healthy: self.is_healthy.clone(),
             cache: self.cache.clone(),
+            trans: LocalTransaction::new(),
         }
     }
 }
@@ -134,6 +136,7 @@ impl AsyncMySqlDatabase {
             pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
             cache,
+            trans: LocalTransaction::new(),
         }
     }
 
@@ -429,8 +432,37 @@ impl AsyncMySqlDatabase {
 
 #[async_trait]
 impl V2Storage for AsyncMySqlDatabase {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool {
+        self.trans.begin_transaction().await
+    }
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+        // this retrieves all the trans operations, and "de-activates" the transaction flag
+        let ops = self.trans.commit_transaction().await?;
+        self.batch_set(ops).await
+    }
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+        self.trans.rollback_transaction().await?;
+        Ok(())
+    }
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool {
+        self.trans.is_transaction_active().await
+    }
+
     /// Storage a record in the data layer
     async fn set(&self, record: DbRecord) -> core::result::Result<(), StorageError> {
+        // we're in a transaction, set the item in the transaction
+        if self.is_transaction_active().await {
+            self.trans.set(&record).await;
+            return Ok(());
+        }
+
         if let Some(cache) = &self.cache {
             cache.put(&record, true).await;
         }
@@ -442,6 +474,14 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     async fn batch_set(&self, records: Vec<DbRecord>) -> core::result::Result<(), StorageError> {
+        // we're in a transaction, set the items in the transaction
+        if self.is_transaction_active().await {
+            for record in records.into_iter() {
+                self.trans.set(&record).await;
+            }
+            return Ok(());
+        }
+
         if let Some(cache) = &self.cache {
             let _ = cache.batch_put(&records).await;
         }
@@ -490,6 +530,14 @@ impl V2Storage for AsyncMySqlDatabase {
 
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> core::result::Result<DbRecord, StorageError> {
+        // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
+        // log instead of the raw storage layer
+        if self.is_transaction_active().await {
+            if let Some(result) = self.trans.get::<St>(&id).await {
+                return Ok(result);
+            }
+        }
+
         if let Some(cache) = &self.cache {
             if let Some(result) = cache.hit_test::<St>(&id).await {
                 return Ok(result);
@@ -560,7 +608,62 @@ impl V2Storage for AsyncMySqlDatabase {
         };
 
         match result.await {
-            Ok(map) => Ok(map),
+            Ok(list) => {
+                if self.is_transaction_active().await {
+                    // check transacted objects, which might be newer than those from the data-layer
+                    let mut updated = vec![];
+                    for item in list.into_iter() {
+                        match &item {
+                            DbRecord::Azks(azks) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::append_only_zks::Azks>(&azks.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::HistoryNodeState(state) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::node_state::HistoryNodeState>(&state.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::HistoryTreeNode(node) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::history_tree_node::HistoryTreeNode>(
+                                        &node.get_id(),
+                                    )
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::ValueState(state) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::storage::types::ValueState>(&state.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                        }
+                        updated.push(item);
+                    }
+                    Ok(updated)
+                } else {
+                    Ok(list)
+                }
+            }
             Err(error) => Err(StorageError::GetError(error.to_string())),
         }
     }
@@ -626,9 +729,25 @@ impl V2Storage for AsyncMySqlDatabase {
                         .await;
                 }
             }
-            Ok::<KeyData, MySqlError>(KeyData {
-                states: selected_records,
-            })
+            if self.is_transaction_active().await {
+                let mut updated = vec![];
+                for record in selected_records.into_iter() {
+                    if let Some(DbRecord::ValueState(value)) = self
+                        .trans
+                        .get::<crate::storage::types::ValueState>(&record.get_id())
+                        .await
+                    {
+                        updated.push(value);
+                    } else {
+                        updated.push(record);
+                    }
+                }
+                Ok::<KeyData, MySqlError>(KeyData { states: updated })
+            } else {
+                Ok::<KeyData, MySqlError>(KeyData {
+                    states: selected_records,
+                })
+            }
         };
 
         match result.await {
@@ -705,6 +824,18 @@ impl V2Storage for AsyncMySqlDatabase {
                     cache
                         .put(&DbRecord::ValueState(value_in_item.clone()), false)
                         .await;
+                }
+            }
+            // check the transaction log for an updated record
+            if self.is_transaction_active().await {
+                if let Some(found_item) = &item {
+                    if let Some(DbRecord::ValueState(value)) = self
+                        .trans
+                        .get::<crate::storage::types::ValueState>(&found_item.get_id())
+                        .await
+                    {
+                        return Ok::<Option<ValueState>, MySqlError>(Some(value));
+                    }
                 }
             }
             Ok::<Option<ValueState>, MySqlError>(item)

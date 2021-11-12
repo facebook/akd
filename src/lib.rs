@@ -68,7 +68,7 @@
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!          (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!          (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!       .await;
 //! };
 //! ```
@@ -93,7 +93,7 @@
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
 //!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await;
@@ -118,7 +118,7 @@
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
 //!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await.unwrap();
@@ -154,7 +154,7 @@
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
 //!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await;
@@ -179,7 +179,7 @@
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
 //!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await.unwrap();
@@ -215,11 +215,11 @@
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
-//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
+//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -245,11 +245,11 @@
 //!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
+//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
-//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
+//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();

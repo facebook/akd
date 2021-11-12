@@ -84,10 +84,18 @@ impl TimedCache {
             for item in result.data.iter() {
                 // retrieve the "cache bucket", and then find the matching inner item
                 match &item {
-                    DbRecord::Azks(azks) if azks.get_full_binary_id() == full_key => return Some(DbRecord::Azks(azks.clone())),
-                    DbRecord::HistoryTreeNode(node) if node.get_full_binary_id() == full_key => return Some(DbRecord::HistoryTreeNode(node.clone())),
-                    DbRecord::HistoryNodeState(state) if state.get_full_binary_id() == full_key => return Some(DbRecord::HistoryNodeState(state.clone())),
-                    DbRecord::ValueState(value) if value.get_full_binary_id() == full_key => return Some(DbRecord::ValueState(value.clone())),
+                    DbRecord::Azks(azks) if azks.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::Azks(azks.clone()))
+                    }
+                    DbRecord::HistoryTreeNode(node) if node.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::HistoryTreeNode(node.clone()))
+                    }
+                    DbRecord::HistoryNodeState(state) if state.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::HistoryNodeState(state.clone()))
+                    }
+                    DbRecord::ValueState(value) if value.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::ValueState(value.clone()))
+                    }
                     _ => {}
                 }
             }
@@ -96,23 +104,25 @@ impl TimedCache {
         None
     }
 
-    pub(crate) async fn put(
-        &self,
-        record: &DbRecord,
-        flush_on_hit: bool,
-    ) {
+    pub(crate) async fn put(&self, record: &DbRecord, flush_on_hit: bool) {
         self.clean().await;
 
         let mut guard = self.map.write().await;
         let key = record.cache_key();
         if flush_on_hit {
             // overwrite any existing items since a flush is requested
-            let item = CachedItem{ expiration: Instant::now() + self.item_lifetime, data: vec![record.clone()]};
+            let item = CachedItem {
+                expiration: Instant::now() + self.item_lifetime,
+                data: vec![record.clone()],
+            };
             (*guard).insert(key, item);
         } else {
             (*guard)
                 .entry(key)
-                .or_insert_with(|| CachedItem{ expiration: Instant::now() + self.item_lifetime, data: vec![] })
+                .or_insert_with(|| CachedItem {
+                    expiration: Instant::now() + self.item_lifetime,
+                    data: vec![],
+                })
                 .append_item(record.clone(), self.item_lifetime);
         }
     }
@@ -121,10 +131,7 @@ impl TimedCache {
         self.clean().await;
 
         let mut guard = self.map.write().await;
-        let mut keys: Vec<[u8; 64]> = records
-            .iter()
-            .map(|i| i.cache_key())
-            .collect();
+        let mut keys: Vec<[u8; 64]> = records.iter().map(|i| i.cache_key()).collect();
         // remove duplicates
         let mut unique_keys = HashSet::new();
         keys.retain(|e| unique_keys.insert(*e));
@@ -138,7 +145,13 @@ impl TimedCache {
 
         for record in records.iter() {
             let key = record.cache_key();
-            (*guard).entry(key).or_insert_with(|| CachedItem {expiration: Instant::now() + self.item_lifetime, data: vec![]}).append_item(record.clone(), self.item_lifetime);
+            (*guard)
+                .entry(key)
+                .or_insert_with(|| CachedItem {
+                    expiration: Instant::now() + self.item_lifetime,
+                    data: vec![],
+                })
+                .append_item(record.clone(), self.item_lifetime);
         }
     }
 

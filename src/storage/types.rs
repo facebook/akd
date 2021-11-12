@@ -8,8 +8,8 @@
 //! Various storage and representation related types
 
 use crate::node_state::NodeLabel;
-use serde::{Deserialize, Serialize};
 use crate::storage::Storable;
+use serde::{Deserialize, Serialize};
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -72,7 +72,6 @@ impl crate::storage::Storable for ValueState {
 
         result
     }
-
 }
 
 impl ValueState {
@@ -158,6 +157,15 @@ impl DbRecord {
             DbRecord::HistoryNodeState(state) => state.cache_key(),
             DbRecord::HistoryTreeNode(node) => node.cache_key(),
             DbRecord::ValueState(state) => state.cache_key(),
+        }
+    }
+
+    pub(crate) fn get_full_binary_id(&self) -> Vec<u8> {
+        match &self {
+            DbRecord::Azks(azks) => azks.get_full_binary_id(),
+            DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
+            DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
+            DbRecord::ValueState(state) => state.get_full_binary_id(),
         }
     }
 }

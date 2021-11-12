@@ -12,7 +12,7 @@ use crate::append_only_zks::Azks;
 use crate::node_state::NodeLabel;
 use crate::proof_structs::*;
 
-use crate::errors::{AkdError, DirectoryError};
+use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError};
 
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::V2Storage;
@@ -69,6 +69,7 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
     pub async fn publish<H: Hasher>(
         &mut self,
         updates: Vec<(AkdKey, Values)>,
+        use_transaction: bool,
     ) -> Result<(), AkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
@@ -113,6 +114,10 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
+
+        if use_transaction {
+            self.storage.begin_transaction().await;
+        }
         current_azks
             .batch_insert_leaves::<_, H>(&self.storage, insertion_set)
             .await?;
@@ -123,6 +128,16 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
             updates.push(DbRecord::ValueState(update));
         }
         self.storage.batch_set(updates).await?;
+        if use_transaction {
+            if let Err(err) = self.storage.commit_transaction().await {
+                // ignore any rollback error(s)
+                let _ = self.storage.rollback_transaction().await;
+                return Err(AkdError::HistoryTreeNodeErr(
+                    HistoryTreeNodeError::StorageError(err),
+                ));
+            }
+        }
+
         self.current_epoch = next_epoch;
 
         Ok(())
@@ -445,10 +460,10 @@ mod tests {
         >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish::<Blake3>(vec![(
-            AkdKey("hello".to_string()),
-            Values("world".to_string()),
-        )])
+        akd.publish::<Blake3>(
+            vec![(AkdKey("hello".to_string()), Values("world".to_string()))],
+            false,
+        )
         .await?;
         Ok(())
     }
@@ -461,10 +476,13 @@ mod tests {
         >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world".to_string())),
-            (AkdKey("hello2".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world".to_string())),
+                (AkdKey("hello2".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
         let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
@@ -486,40 +504,58 @@ mod tests {
         >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world".to_string())),
-            (AkdKey("hello2".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world".to_string())),
+                (AkdKey("hello2".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world".to_string())),
-            (AkdKey("hello2".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world".to_string())),
+                (AkdKey("hello2".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world3".to_string())),
-            (AkdKey("hello2".to_string()), Values("world4".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world3".to_string())),
+                (AkdKey("hello2".to_string()), Values("world4".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello3".to_string()), Values("world".to_string())),
-            (AkdKey("hello4".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello3".to_string()), Values("world".to_string())),
+                (AkdKey("hello4".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![(
-            AkdKey("hello".to_string()),
-            Values("world_updated".to_string()),
-        )])
+        akd.publish::<Blake3>(
+            vec![(
+                AkdKey("hello".to_string()),
+                Values("world_updated".to_string()),
+            )],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello3".to_string()), Values("world6".to_string())),
-            (AkdKey("hello4".to_string()), Values("world12".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello3".to_string()), Values("world6".to_string())),
+                (AkdKey("hello4".to_string()), Values("world12".to_string())),
+            ],
+            false,
+        )
         .await?;
 
         let history_proof = akd.key_history(&AkdKey("hello".to_string())).await?;
@@ -574,40 +610,58 @@ mod tests {
         >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world".to_string())),
-            (AkdKey("hello2".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world".to_string())),
+                (AkdKey("hello2".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world".to_string())),
-            (AkdKey("hello2".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world".to_string())),
+                (AkdKey("hello2".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello".to_string()), Values("world3".to_string())),
-            (AkdKey("hello2".to_string()), Values("world4".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello".to_string()), Values("world3".to_string())),
+                (AkdKey("hello2".to_string()), Values("world4".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello3".to_string()), Values("world".to_string())),
-            (AkdKey("hello4".to_string()), Values("world2".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello3".to_string()), Values("world".to_string())),
+                (AkdKey("hello4".to_string()), Values("world2".to_string())),
+            ],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![(
-            AkdKey("hello".to_string()),
-            Values("world_updated".to_string()),
-        )])
+        akd.publish::<Blake3>(
+            vec![(
+                AkdKey("hello".to_string()),
+                Values("world_updated".to_string()),
+            )],
+            false,
+        )
         .await?;
 
-        akd.publish::<Blake3>(vec![
-            (AkdKey("hello3".to_string()), Values("world6".to_string())),
-            (AkdKey("hello4".to_string()), Values("world12".to_string())),
-        ])
+        akd.publish::<Blake3>(
+            vec![
+                (AkdKey("hello3".to_string()), Values("world6".to_string())),
+                (AkdKey("hello4".to_string()), Values("world12".to_string())),
+            ],
+            false,
+        )
         .await?;
 
         let current_azks = akd.retrieve_current_azks().await?;

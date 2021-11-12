@@ -21,7 +21,7 @@ pub(crate) struct Rpc(
 #[derive(Debug)]
 pub enum DirectoryCommand {
     Publish(String, String),
-    PublishBatch(Vec<(String, String)>),
+    PublishBatch(Vec<(String, String)>, bool),
     Lookup(String),
     KeyHistory(String),
     Audit(u64, u64),
@@ -61,7 +61,7 @@ where
             }
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 match directory
-                    .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))])
+                    .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))], false)
                     .await
                 {
                     Ok(_) => {
@@ -74,7 +74,7 @@ where
                     }
                 }
             }
-            (DirectoryCommand::PublishBatch(batches), Some(response)) => {
+            (DirectoryCommand::PublishBatch(batches, with_trans), Some(response)) => {
                 let len = batches.len();
                 match directory
                     .publish::<H>(
@@ -82,6 +82,7 @@ where
                             .into_iter()
                             .map(|(key, value)| (AkdKey(key), Values(value)))
                             .collect(),
+                        with_trans,
                     )
                     .await
                 {

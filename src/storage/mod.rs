@@ -12,13 +12,16 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
+use std::cmp::min;
 use std::hash::Hash;
 use std::marker::Send;
-use std::cmp::min;
 
 // This holds the types used in the storage layer
 pub mod tests;
+pub mod transaction;
 pub mod types;
+
+use crate::storage::transaction::Transaction;
 
 /*
 Various implementations supported by the library are imported here and usable at various checkpoints
@@ -154,6 +157,18 @@ pub trait V1Storage: Clone {
 /// Updated storage layer with better support of asynchronous work and batched operations
 #[async_trait]
 pub trait V2Storage: Clone {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool;
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError>;
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError>;
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool;
+
     /// V1Storage a record in the data layer
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
@@ -328,12 +343,16 @@ pub trait V2Storage: Clone {
 pub struct V2FromV1StorageWrapper<S: V1Storage> {
     /// The V1Storage data layer
     pub db: S,
+    trans: Transaction,
 }
 
 impl<S: V1Storage> V2FromV1StorageWrapper<S> {
     /// Instantiate a new V2->V1 Storage Wrapper instance
     pub fn new(storage: S) -> Self {
-        Self { db: storage }
+        Self {
+            db: storage,
+            trans: Transaction::new(),
+        }
     }
 }
 
@@ -341,6 +360,8 @@ impl<S: V1Storage> Clone for V2FromV1StorageWrapper<S> {
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
+            // transactions are not clonable (i.e. cannot be shared across or memory locations). To share a transaction, borrow the storage layer
+            trans: Transaction::new(),
         }
     }
 }
@@ -357,8 +378,36 @@ impl<S: V1Storage + Send + Sync> From<S> for V2FromV1StorageWrapper<S> {
 
 #[async_trait]
 impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool {
+        self.trans.begin_transaction().await
+    }
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+        // this retrieves all the trans operations, and "de-activates" the transaction flag
+        let ops = self.trans.commit_transaction().await?;
+        self.batch_set(ops).await
+    }
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+        self.trans.rollback_transaction().await?;
+        Ok(())
+    }
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool {
+        self.trans.is_transaction_active().await
+    }
+
     /// V1Storage a record in the data layer
     async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
+        if self.is_transaction_active().await {
+            self.trans.set(&record).await;
+            return Ok(());
+        }
+
         let (k, serialized, ty) = match record {
             DbRecord::Azks(azks) => (
                 hex::encode(bincode::serialize(&azks.get_id()).unwrap()),
@@ -397,6 +446,13 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
 
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+        if self.is_transaction_active().await {
+            if let Some(result) = self.trans.get::<St>(&id).await {
+                // there's a transacted item, return that one since it's "more up to date"
+                return Ok(result);
+            }
+        }
+
         let k: String = hex::encode(bincode::serialize(&id).unwrap());
         match St::data_type() {
             StorageType::Azks => {
@@ -462,7 +518,59 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
             }
             acc
         });
-        Ok(list)
+
+        if self.is_transaction_active().await {
+            // check transacted objects
+            let mut updated = vec![];
+            for item in list.into_iter() {
+                match &item {
+                    DbRecord::Azks(azks) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::append_only_zks::Azks>(&azks.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryNodeState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::node_state::HistoryNodeState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryTreeNode(node) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::history_tree_node::HistoryTreeNode>(&node.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::ValueState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::storage::types::ValueState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                }
+                updated.push(item);
+            }
+            Ok(updated)
+        } else {
+            Ok(list)
+        }
     }
 
     /// Add a user state element to the associated user

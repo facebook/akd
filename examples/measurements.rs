@@ -69,7 +69,7 @@ async fn main() {
 
     // Publishing updated set with an initial set of users
     akd_dir
-        .publish::<Blake3_256<BaseElement>>(updates.clone())
+        .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
         .await
         .unwrap();
 
@@ -92,7 +92,7 @@ async fn main() {
     // Publish measurement
     db.db.clear_stats();
     akd_dir
-        .publish::<Blake3_256<BaseElement>>(updates.clone())
+        .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
         .await
         .unwrap();
 
@@ -116,7 +116,7 @@ async fn main() {
         updates = create_random_subset_of_existing_keys(existing_keys.clone(), num_updates, rng);
         updates.append(&mut new_users);
         akd_dir
-            .publish::<Blake3_256<BaseElement>>(updates.clone())
+            .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
             .await
             .unwrap();
         new_keys = new_users
