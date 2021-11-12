@@ -9,7 +9,6 @@
 
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
-use winter_crypto::Hasher;
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -114,13 +113,13 @@ pub enum ValueStateRetrievalFlag {
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
 #[derive(Serialize, Deserialize)]
-pub enum DbRecord<H: Hasher + Sync + Send> {
+pub enum DbRecord {
     /// An Azks
-    Azks(crate::append_only_zks::Azks<H>),
+    Azks(crate::append_only_zks::Azks),
     /// A HistoryTreeNode
-    HistoryTreeNode(crate::history_tree_node::HistoryTreeNode<H>),
+    HistoryTreeNode(crate::history_tree_node::HistoryTreeNode),
     /// A HistoryNodeState
-    HistoryNodeState(crate::node_state::HistoryNodeState<H>),
+    HistoryNodeState(crate::node_state::HistoryNodeState),
     /// The state of the value for a particular key.
     ValueState(crate::storage::types::ValueState),
 }

@@ -20,7 +20,7 @@ use crate::storage::V2Storage;
 use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
-use std::marker::{PhantomData, Send, Sync};
+use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 impl Values {
@@ -38,37 +38,38 @@ impl AkdKey {
 }
 
 /// The representation of a auditable key directory
-pub struct Directory<S, H> {
+pub struct Directory<S> {
     current_epoch: u64,
     storage: S,
-    _h: PhantomData<H>,
 }
 
-impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
+impl<S: V2Storage + Sync + Send> Directory<S> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new(storage: &S) -> Result<Self, AkdError> {
+    pub async fn new<H: Hasher>(storage: &S) -> Result<Self, AkdError> {
         let azks = {
             if let Ok(azks) = Directory::get_azks_from_storage(storage).await {
                 azks
             } else {
                 // generate a new one
-                let azks = Azks::<H>::new(storage).await?;
+                let azks = Azks::new::<_, H>(storage).await?;
                 // store it
-                storage.set::<H>(DbRecord::Azks(azks.clone())).await?;
+                storage.set(DbRecord::Azks(azks.clone())).await?;
                 azks
             }
         };
         Ok(Directory {
             current_epoch: azks.get_latest_epoch(),
-            _h: PhantomData::<H>,
             storage: storage.clone(),
         })
     }
 
     /// Updates the directory to inclulde the updated key-value pairs.
-    pub async fn publish(&mut self, updates: Vec<(AkdKey, Values)>) -> Result<(), AkdError> {
+    pub async fn publish<H: Hasher>(
+        &mut self,
+        updates: Vec<(AkdKey, Values)>,
+    ) -> Result<(), AkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
@@ -76,13 +77,13 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         for (uname, val) in updates {
             match self
                 .storage
-                .get_user_state::<H>(&uname, ValueStateRetrievalFlag::MaxEpoch)
+                .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
                 .await
             {
                 Err(_) => {
                     // No data found for the user
                     let latest_version = 1;
-                    let label = Self::get_nodelabel(&uname, false, latest_version);
+                    let label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
@@ -96,8 +97,8 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
                     let latest_st = max_user_state;
                     let previous_version = latest_st.version;
                     let latest_version = previous_version + 1;
-                    let stale_label = Self::get_nodelabel(&uname, true, previous_version);
-                    let fresh_label = Self::get_nodelabel(&uname, false, latest_version);
+                    let stale_label = Self::get_nodelabel::<H>(&uname, true, previous_version);
+                    let fresh_label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push((stale_label, stale_value_to_add));
@@ -113,13 +114,13 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
         current_azks
-            .batch_insert_leaves(&self.storage, insertion_set)
+            .batch_insert_leaves::<_, H>(&self.storage, insertion_set)
             .await?;
 
         // batch all the inserts into a single transactional write to storage
         let mut updates = vec![DbRecord::Azks(current_azks.clone())];
         for update in user_data_update_set.into_iter() {
-            updates.push(DbRecord::ValueState::<H>(update));
+            updates.push(DbRecord::ValueState(update));
         }
         self.storage.batch_set(updates).await?;
         self.current_epoch = next_epoch;
@@ -130,10 +131,10 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     }
 
     /// Provides proof for correctness of latest version
-    pub async fn lookup(&self, uname: AkdKey) -> Result<LookupProof<H>, AkdError> {
+    pub async fn lookup<H: Hasher>(&self, uname: AkdKey) -> Result<LookupProof<H>, AkdError> {
         match self
             .storage
-            .get_user_state::<H>(&uname, ValueStateRetrievalFlag::MaxEpoch)
+            .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
             .await
         {
             Err(_) => {
@@ -147,9 +148,9 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
                 // added but the database is in the middle of an update
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
-                let existent_label = Self::get_nodelabel(&uname, false, current_version);
-                let non_existent_label = Self::get_nodelabel(&uname, true, current_version);
-                let marker_label = Self::get_nodelabel(&uname, false, marker_version);
+                let existent_label = Self::get_nodelabel::<H>(&uname, false, current_version);
+                let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version);
+                let marker_label = Self::get_nodelabel::<H>(&uname, false, marker_version);
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
@@ -178,9 +179,12 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     /// this function returns all the values ever associated with it,
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
-    pub async fn key_history(&self, uname: &AkdKey) -> Result<HistoryProof<H>, AkdError> {
+    pub async fn key_history<H: Hasher>(
+        &self,
+        uname: &AkdKey,
+    ) -> Result<HistoryProof<H>, AkdError> {
         let username = uname.0.to_string();
-        if let Ok(this_user_data) = self.storage.get_user_data::<H>(uname).await {
+        if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
                 let proof = self.create_single_update_proof(uname, user_state).await?;
@@ -196,25 +200,25 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
 
     /// Returns an AppendOnlyProof for the leaves inseted into the underlying tree between
     /// the epochs audit_start_ep and audit_end_ep.
-    pub async fn audit(
+    pub async fn audit<H: Hasher>(
         &self,
         audit_start_ep: u64,
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
         let current_azks = self.retrieve_current_azks().await?;
         current_azks
-            .get_append_only_proof(&self.storage, audit_start_ep, audit_end_ep)
+            .get_append_only_proof::<_, H>(&self.storage, audit_start_ep, audit_end_ep)
             .await
     }
 
     /// Retrieves the current azks
-    pub async fn retrieve_current_azks(&self) -> Result<Azks<H>, crate::errors::StorageError> {
+    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::StorageError> {
         Directory::get_azks_from_storage(&self.storage).await
     }
 
-    async fn get_azks_from_storage(storage: &S) -> Result<Azks<H>, crate::errors::StorageError> {
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::StorageError> {
         let got = storage
-            .get::<H, Azks<H>>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+            .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
             .await?;
         match got {
             DbRecord::Azks(azks) => Ok(azks),
@@ -237,7 +241,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
     /// Returns the tree nodelabel that corresponds to a version of the akdkey argument.
     /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
     /// or a version that we are retiring.
-    pub(crate) fn get_nodelabel(uname: &AkdKey, stale: bool, version: u64) -> NodeLabel {
+    pub(crate) fn get_nodelabel<H: Hasher>(uname: &AkdKey, stale: bool, version: u64) -> NodeLabel {
         // this function will need to read the VRF key using some function
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
@@ -261,7 +265,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         // unimplemented!()
     }
 
-    async fn create_single_update_proof(
+    async fn create_single_update_proof<H: Hasher>(
         &self,
         uname: &AkdKey,
         user_state: &ValueState,
@@ -270,7 +274,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         let plaintext_value = &user_state.plaintext_val;
         let version = &user_state.version;
 
-        let label_at_ep = Self::get_nodelabel(uname, false, *version);
+        let label_at_ep = Self::get_nodelabel::<H>(uname, false, *version);
 
         let current_azks = self.retrieve_current_azks().await?;
 
@@ -279,7 +283,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
             .await?;
         let mut previous_val_stale_at_ep = Option::None;
         if *version > 1 {
-            let prev_label_at_ep = Self::get_nodelabel(uname, true, *version - 1);
+            let prev_label_at_ep = Self::get_nodelabel::<H>(uname, true, *version - 1);
             previous_val_stale_at_ep = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
@@ -301,7 +305,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
         for ver in version + 1..(1 << next_marker) {
-            let label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let label_for_ver = Self::get_nodelabel::<H>(uname, false, ver);
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
@@ -312,7 +316,7 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
 
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
-            let label_for_ver = Self::get_nodelabel(uname, false, ver);
+            let label_for_ver = Self::get_nodelabel::<H>(uname, false, ver);
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
@@ -333,19 +337,22 @@ impl<S: V2Storage + Sync + Send, H: Hasher + Send + Sync> Directory<S, H> {
 
     /// Gets the azks root hash at the provided epoch. Note that the root hash should exist at any epoch
     /// that the azks existed, so as long as epoch >= 0, we should be fine.
-    pub async fn get_root_hash_at_epoch(
+    pub async fn get_root_hash_at_epoch<H: Hasher>(
         &self,
-        current_azks: &Azks<H>,
+        current_azks: &Azks,
         epoch: u64,
     ) -> Result<H::Digest, AkdError> {
         Ok(current_azks
-            .get_root_hash_at_epoch(&self.storage, epoch)
+            .get_root_hash_at_epoch::<_, H>(&self.storage, epoch)
             .await?)
     }
 
     /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash(&self, current_azks: &Azks<H>) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch(current_azks, self.current_epoch)
+    pub async fn get_root_hash<H: Hasher>(
+        &self,
+        current_azks: &Azks,
+    ) -> Result<H::Digest, AkdError> {
+        self.get_root_hash_at_epoch::<H>(current_azks, self.current_epoch)
             .await
     }
 }
@@ -379,8 +386,8 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher + Sync + Send>(
-    akd_dir: &Directory<S, H>,
+pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher>(
+    akd_dir: &Directory<S>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
@@ -390,7 +397,7 @@ pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher + Sync
     let current_azks = akd_dir.retrieve_current_azks().await?;
     for proof in &history_proof.proofs {
         let hash = akd_dir
-            .get_root_hash_at_epoch(&current_azks, proof.epoch)
+            .get_root_hash_at_epoch::<H>(&current_azks, proof.epoch)
             .await?;
         epoch_hash_map.insert(proof.epoch, hash);
         root_hashes.push(hash);
@@ -407,7 +414,7 @@ pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher + Sync
         } else {
             // cache miss, fetch it
             let hash = akd_dir
-                .get_root_hash_at_epoch(&current_azks, proof.epoch - 1)
+                .get_root_hash_at_epoch::<H>(&current_azks, proof.epoch - 1)
                 .await?;
             previous_root_hashes.push(Some(hash));
         }
@@ -426,6 +433,7 @@ mod tests {
     };
     use winter_crypto::hashers::Blake3_256;
     use winter_math::fields::f128::BaseElement;
+    type Blake3 = Blake3_256<BaseElement>;
 
     // FIXME: #[test]
     #[allow(unused)]
@@ -434,11 +442,10 @@ mod tests {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish(vec![(
+        akd.publish::<Blake3>(vec![(
             AkdKey("hello".to_string()),
             Values("world".to_string()),
         )])
@@ -451,11 +458,10 @@ mod tests {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
             (AkdKey("hello2".to_string()), Values("world2".to_string())),
         ])
@@ -463,7 +469,7 @@ mod tests {
 
         let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
-        let root_hash = akd.get_root_hash(&current_azks).await?;
+        let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
         lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
             AkdKey("hello".to_string()),
@@ -477,41 +483,40 @@ mod tests {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
             (AkdKey("hello2".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
             (AkdKey("hello2".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world3".to_string())),
             (AkdKey("hello2".to_string()), Values("world4".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello3".to_string()), Values("world".to_string())),
             (AkdKey("hello4".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![(
+        akd.publish::<Blake3>(vec![(
             AkdKey("hello".to_string()),
             Values("world_updated".to_string()),
         )])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello3".to_string()), Values("world6".to_string())),
             (AkdKey("hello4".to_string()), Values("world12".to_string())),
         ])
@@ -566,41 +571,40 @@ mod tests {
         let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
         let mut akd = Directory::<
             crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
             (AkdKey("hello2".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world".to_string())),
             (AkdKey("hello2".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello".to_string()), Values("world3".to_string())),
             (AkdKey("hello2".to_string()), Values("world4".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello3".to_string()), Values("world".to_string())),
             (AkdKey("hello4".to_string()), Values("world2".to_string())),
         ])
         .await?;
 
-        akd.publish(vec![(
+        akd.publish::<Blake3>(vec![(
             AkdKey("hello".to_string()),
             Values("world_updated".to_string()),
         )])
         .await?;
 
-        akd.publish(vec![
+        akd.publish::<Blake3>(vec![
             (AkdKey("hello3".to_string()), Values("world6".to_string())),
             (AkdKey("hello4".to_string()), Values("world12".to_string())),
         ])
@@ -610,48 +614,60 @@ mod tests {
 
         let audit_proof_1 = akd.audit(1, 2).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
             audit_proof_1,
         )
         .await?;
 
         let audit_proof_2 = akd.audit(1, 3).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 3).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
+                .await?,
             audit_proof_2,
         )
         .await?;
 
         let audit_proof_3 = akd.audit(1, 4).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 4).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+                .await?,
             audit_proof_3,
         )
         .await?;
 
         let audit_proof_4 = akd.audit(1, 5).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 1).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 5).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 5)
+                .await?,
             audit_proof_4,
         )
         .await?;
 
         let audit_proof_5 = akd.audit(2, 3).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 3).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
+                .await?,
             audit_proof_5,
         )
         .await?;
 
         let audit_proof_6 = akd.audit(2, 4).await?;
         audit_verify::<Blake3_256<BaseElement>>(
-            akd.get_root_hash_at_epoch(&current_azks, 2).await?,
-            akd.get_root_hash_at_epoch(&current_azks, 4).await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+                .await?,
             audit_proof_6,
         )
         .await?;

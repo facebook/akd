@@ -24,6 +24,8 @@ use winter_math::fields::f128::BaseElement;
 mod commands;
 mod directory_host;
 
+type Blake3 = Blake3_256<BaseElement>;
+
 /// applicationModes
 #[derive(StructOpt)]
 enum OtherMode {
@@ -65,11 +67,12 @@ async fn main() {
         );
         let mut directory = Directory::<
             akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await
         .unwrap();
-        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        tokio::spawn(async move {
+            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+        });
         process_input(&cli, &tx, None).await;
     } else {
         // MySQL (the default)
@@ -82,11 +85,12 @@ async fn main() {
             MySqlCacheOptions::Default, // enable caching
         )
         .await;
-        let mut directory =
-            Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
-                .await
-                .unwrap();
-        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        let mut directory = Directory::<AsyncMySqlDatabase>::new::<Blake3>(&mysql_db)
+            .await
+            .unwrap();
+        tokio::spawn(async move {
+            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+        });
         process_input(&cli, &tx, Some(&mysql_db)).await;
     }
 }
