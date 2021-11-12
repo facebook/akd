@@ -37,13 +37,14 @@ pub async fn verify_append_only<H: Hasher + Send + Sync>(
     let inserted = proof.inserted;
 
     let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-    let mut azks = Azks::<H>::new(&db).await?;
-    azks.batch_insert_leaves_helper(&db, unchanged_nodes, true)
+    let mut azks = Azks::new::<_, H>(&db).await?;
+    azks.batch_insert_leaves_helper::<_, H>(&db, unchanged_nodes, true)
         .await?;
-    let computed_start_root_hash: H::Digest = azks.get_root_hash(&db).await?;
+    let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     let mut verified = computed_start_root_hash == start_hash;
-    azks.batch_insert_leaves_helper(&db, inserted, true).await?;
-    let computed_end_root_hash: H::Digest = azks.get_root_hash(&db).await?;
+    azks.batch_insert_leaves_helper::<_, H>(&db, inserted, true)
+        .await?;
+    let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
         return Err(AkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));

@@ -55,9 +55,7 @@ impl CachedItem {
 pub(crate) struct CacheKey(StorageType, u64);
 
 impl CacheKey {
-    pub(crate) fn get_cache_key_for_record<H: winter_crypto::Hasher + Sync + Send>(
-        record: &DbRecord<H>,
-    ) -> Self {
+    pub(crate) fn get_cache_key_for_record(record: &DbRecord) -> Self {
         let mut s = std::collections::hash_map::DefaultHasher::new();
         let ty = match &record {
             DbRecord::Azks(azks) => {
@@ -135,10 +133,7 @@ impl TimedCache {
         }
     }
 
-    pub(crate) async fn hit_test<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
-        &self,
-        key: &St::Key,
-    ) -> Option<DbRecord<H>> {
+    pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         self.clean().await;
 
         let key_copy = key.clone();
@@ -157,27 +152,26 @@ impl TimedCache {
                         // the type is.
                         match St::data_type() {
                             StorageType::Azks => {
-                                if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::append_only_zks::Azks<H>,
-                                >(&item.data)
+                                if let Ok(decoded2) =
+                                    bincode::deserialize::<crate::append_only_zks::Azks>(&item.data)
                                 {
-                                    return Some(DbRecord::Azks::<H>(decoded2));
+                                    return Some(DbRecord::Azks(decoded2));
                                 }
                             }
                             StorageType::HistoryNodeState => {
                                 if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::node_state::HistoryNodeState<H>,
+                                    crate::node_state::HistoryNodeState,
                                 >(&item.data)
                                 {
-                                    return Some(DbRecord::HistoryNodeState::<H>(decoded2));
+                                    return Some(DbRecord::HistoryNodeState(decoded2));
                                 }
                             }
                             StorageType::HistoryTreeNode => {
                                 if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::history_tree_node::HistoryTreeNode<H>,
+                                    crate::history_tree_node::HistoryTreeNode,
                                 >(&item.data)
                                 {
-                                    return Some(DbRecord::HistoryTreeNode::<H>(decoded2));
+                                    return Some(DbRecord::HistoryTreeNode(decoded2));
                                 }
                             }
                             StorageType::ValueState => {
@@ -185,7 +179,7 @@ impl TimedCache {
                                     crate::storage::types::ValueState,
                                 >(&item.data)
                                 {
-                                    return Some(DbRecord::ValueState::<H>(decoded2));
+                                    return Some(DbRecord::ValueState(decoded2));
                                 }
                             }
                         }
@@ -197,9 +191,9 @@ impl TimedCache {
         None
     }
 
-    pub(crate) async fn put<H: winter_crypto::Hasher + Sync + Send>(
+    pub(crate) async fn put(
         &self,
-        record: &DbRecord<H>,
+        record: &DbRecord,
         flush_on_hit: bool,
     ) -> Result<(), StorageError> {
         self.clean().await;
@@ -229,10 +223,7 @@ impl TimedCache {
         }
     }
 
-    pub(crate) async fn batch_put<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        records: &[DbRecord<H>],
-    ) -> Result<(), StorageError> {
+    pub(crate) async fn batch_put(&self, records: &[DbRecord]) -> Result<(), StorageError> {
         self.clean().await;
 
         let mut guard = self.map.write().await;
