@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use std::hash::Hash;
 use std::marker::Send;
+use std::cmp::min;
 
 // This holds the types used in the storage layer
 pub mod tests;
@@ -36,6 +37,27 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// Retrieve an instance of the id of this storable. The combination of the
     /// storable's StorageType and this id are _globally_ unique
     fn get_id(&self) -> Self::Key;
+
+    /// retrieve the binary representation of the id key
+    fn cache_key(&self) -> [u8; 64] {
+        Self::get_cache_key(&self.get_id())
+    }
+
+    /// retrieve the binary representation of the id key
+    fn get_cache_key(key: &Self::Key) -> [u8; 64] {
+        let mut arr: [u8; 64] = [0; 64];
+        let key_vec = Self::get_full_binary_key_id(key);
+        arr[..min(key_vec.len(), 64)].clone_from_slice(&key_vec[..min(key_vec.len(), 64)]);
+        arr
+    }
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_id(&self) -> Vec<u8> {
+        Self::get_full_binary_key_id(&self.get_id())
+    }
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_key_id(key: &Self::Key) -> Vec<u8>;
 }
 
 /// Represents the storage layer for the AKD (with associated configuration if necessary)
@@ -129,7 +151,7 @@ pub trait V1Storage: Clone {
     }
 }
 
-/// FIXME: Needs docs
+/// Updated storage layer with better support of asynchronous work and batched operations
 #[async_trait]
 pub trait V2Storage: Clone {
     /// V1Storage a record in the data layer
@@ -302,15 +324,14 @@ pub trait V2Storage: Clone {
     }
 }
 
-// ===  V2Storage wrapper over V1Storage === //
-/// FIXME: needs docs
+/// V2Storage wrapper over a V1Storage implementation
 pub struct V2FromV1StorageWrapper<S: V1Storage> {
-    /// FIXME: Needs docs
+    /// The V1Storage data layer
     pub db: S,
 }
 
 impl<S: V1Storage> V2FromV1StorageWrapper<S> {
-    /// FIXME: Needs docs
+    /// Instantiate a new V2->V1 Storage Wrapper instance
     pub fn new(storage: S) -> Self {
         Self { db: storage }
     }

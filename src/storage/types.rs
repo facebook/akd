@@ -9,6 +9,7 @@
 
 use crate::node_state::NodeLabel;
 use serde::{Deserialize, Serialize};
+use crate::storage::Storable;
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -57,6 +58,21 @@ impl crate::storage::Storable for ValueState {
     fn get_id(&self) -> ValueStateKey {
         ValueStateKey(self.username.0.clone(), self.epoch)
     }
+
+    fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {
+        let mut result = vec![StorageType::ValueState as u8];
+        let epoch_bytes = key.1.to_be_bytes();
+        for byte in &epoch_bytes {
+            result.push(*byte);
+        }
+        let uname_bytes = key.0.as_bytes();
+        for byte in uname_bytes {
+            result.push(*byte);
+        }
+
+        result
+    }
+
 }
 
 impl ValueState {
@@ -122,4 +138,26 @@ pub enum DbRecord {
     HistoryNodeState(crate::node_state::HistoryNodeState),
     /// The state of the value for a particular key.
     ValueState(crate::storage::types::ValueState),
+}
+
+impl Clone for DbRecord {
+    fn clone(&self) -> Self {
+        match &self {
+            DbRecord::Azks(azks) => DbRecord::Azks(azks.clone()),
+            DbRecord::HistoryNodeState(state) => DbRecord::HistoryNodeState(state.clone()),
+            DbRecord::HistoryTreeNode(node) => DbRecord::HistoryTreeNode(node.clone()),
+            DbRecord::ValueState(state) => DbRecord::ValueState(state.clone()),
+        }
+    }
+}
+
+impl DbRecord {
+    pub(crate) fn cache_key(&self) -> [u8; 64] {
+        match &self {
+            DbRecord::Azks(azks) => azks.cache_key(),
+            DbRecord::HistoryNodeState(state) => state.cache_key(),
+            DbRecord::HistoryTreeNode(node) => node.cache_key(),
+            DbRecord::ValueState(state) => state.cache_key(),
+        }
+    }
 }

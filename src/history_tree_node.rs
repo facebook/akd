@@ -78,6 +78,15 @@ impl Storable for HistoryTreeNode {
     fn get_id(&self) -> NodeKey {
         NodeKey(self.location)
     }
+
+    fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
+        let mut result = vec![StorageType::HistoryTreeNode as u8];
+        let id_bytes = key.0.to_be_bytes();
+        for item in &id_bytes {
+            result.push(*item);
+        }
+        result
+    }
 }
 
 unsafe impl Sync for HistoryTreeNode {}

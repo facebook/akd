@@ -43,8 +43,7 @@
 //! async {
 //! let mut akd = Directory::<
 //!    akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!    Blake3_256<BaseElement>,
-//!    >::new(&db).await.unwrap();
+//!    >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //! };
 //! ```
 //!
@@ -66,10 +65,9 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!          (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!       .await;
 //! };
@@ -93,13 +91,12 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -119,16 +116,15 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
-//!     let root_hash = akd.get_root_hash(&current_azks).await.unwrap();
+//!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!     root_hash,
 //!     AkdKey("hello".to_string()),
@@ -156,13 +152,12 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -182,16 +177,15 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history(&AkdKey("hello".to_string())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
-//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes(&akd, &history_proof).await.unwrap();
+//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>>(&akd, &history_proof).await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
 //!     root_hashes,
 //!     previous_root_hashes,
@@ -218,18 +212,17 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
 //!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//!     let audit_proof = akd.audit(1u64, 2u64).await.unwrap();
+//!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
 //! };
 //! ```
 //! ## Verifying an audit proof
@@ -249,22 +242,21 @@
 //! async {
 //!     let mut akd = Directory::<
 //!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         Blake3_256<BaseElement>,
-//!         >::new(&db).await.unwrap();
+//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
 //!         (AkdKey("hello4".to_string()), Values("world4".to_string())),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//!     let audit_proof = akd.audit(1u64, 2u64).await.unwrap();
+//!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
-//!     let start_root_hash = akd.get_root_hash_at_epoch(&current_azks, 1u64).await.unwrap();
-//!     let end_root_hash = akd.get_root_hash_at_epoch(&current_azks, 2u64).await.unwrap();
+//!     let start_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 1u64).await.unwrap();
+//!     let end_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 2u64).await.unwrap();
 //!     auditor::audit_verify::<Blake3_256<BaseElement>>(
 //!         start_root_hash,
 //!         end_root_hash,

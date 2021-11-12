@@ -432,7 +432,7 @@ impl V2Storage for AsyncMySqlDatabase {
     /// Storage a record in the data layer
     async fn set(&self, record: DbRecord) -> core::result::Result<(), StorageError> {
         if let Some(cache) = &self.cache {
-            let _ = cache.put(&record, true).await;
+            cache.put(&record, true).await;
         }
 
         match self.internal_set(record, None).await {
@@ -515,7 +515,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 let record = DbRecord::from_row::<St>(&mut row)?;
                 if let Some(cache) = &self.cache {
                     // ignore the put fail result (if it fails)
-                    let _ = cache.put(&record, false).await;
+                    cache.put(&record, false).await;
                 }
                 // return
                 return Ok::<Option<DbRecord>, MySqlError>(Some(record));
@@ -553,7 +553,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
             if let Some(cache) = &self.cache {
                 for el in out.iter() {
-                    let _ = cache.put(el, false).await;
+                    cache.put(el, false).await;
                 }
             }
             Ok::<Vec<DbRecord>, MySqlError>(out)
@@ -621,7 +621,7 @@ impl V2Storage for AsyncMySqlDatabase {
             let (_, selected_records) = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
-                    let _ = cache
+                    cache
                         .put(&DbRecord::ValueState(record.clone()), false)
                         .await;
                 }
@@ -702,7 +702,7 @@ impl V2Storage for AsyncMySqlDatabase {
             let item = selected_record.into_iter().next();
             if let Some(value_in_item) = &item {
                 if let Some(cache) = &self.cache {
-                    let _ = cache
+                    cache
                         .put(&DbRecord::ValueState(value_in_item.clone()), false)
                         .await;
                 }

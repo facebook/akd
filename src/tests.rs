@@ -391,12 +391,12 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), 0, &mut num_nodes)
+    root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 0, &mut num_nodes)
         .await?;
-    root.insert_single_leaf(&db, leaf_1.clone(), 0, &mut num_nodes)
+    root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
         .await?;
 
-    let root_val = root.get_value(&db).await?;
+    let root_val = root.get_value::<_, Blake3>(&db).await?;
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -415,7 +415,7 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
         ]),
         hash_label::<Blake3>(root.label),
     ]);
-    assert_eq!(root_val, expected);
+    assert!(root_val == expected, "Root hash not equal to expected");
 
     Ok(())
 }
@@ -493,16 +493,16 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;
 
-    root.insert_single_leaf(&db, new_leaf.clone(), 1, &mut num_nodes)
+    root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_1.clone(), 2, &mut num_nodes)
+    root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
         .await?;
 
-    root.insert_single_leaf(&db, leaf_2.clone(), 3, &mut num_nodes)
+    root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
         .await?;
 
-    let root_val = root.get_value(&db).await?;
+    let root_val = root.get_value::<_, Blake3>(&db).await?;
 
     let expected = Blake3::merge(&[
         Blake3::merge(&[
@@ -511,7 +511,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
         ]),
         hash_label::<Blake3>(root.label),
     ]);
-    assert_eq!(root_val, expected);
+    assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
 }
 
@@ -704,12 +704,12 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
 
     for i in 0..8 {
         let ep: u64 = i.try_into().unwrap();
-        root.insert_single_leaf(&db, leaves[7 - i].clone(), ep + 1, &mut num_nodes)
+        root.insert_single_leaf::<_, Blake3>(&db, leaves[7 - i].clone(), ep + 1, &mut num_nodes)
             .await?;
     }
 
-    let root_val = root.get_value(&db).await?;
+    let root_val = root.get_value::<_, Blake3>(&db).await?;
 
-    assert_eq!(root_val, expected);
+    assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
 }

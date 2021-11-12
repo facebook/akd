@@ -50,6 +50,10 @@ impl Storable for Azks {
     fn get_id(&self) -> u8 {
         1u8
     }
+
+    fn get_full_binary_key_id(key: &u8) -> Vec<u8> {
+        vec![StorageType::Azks as u8, *key]
+    }
 }
 
 unsafe impl Sync for Azks {}
