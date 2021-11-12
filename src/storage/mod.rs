@@ -12,13 +12,16 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
+use std::cmp::min;
 use std::hash::Hash;
-use std::marker::{PhantomData, Send};
-use winter_crypto::Hasher;
+use std::marker::Send;
 
 // This holds the types used in the storage layer
 pub mod tests;
+pub mod transaction;
 pub mod types;
+
+use crate::storage::transaction::Transaction;
 
 /*
 Various implementations supported by the library are imported here and usable at various checkpoints
@@ -37,6 +40,27 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// Retrieve an instance of the id of this storable. The combination of the
     /// storable's StorageType and this id are _globally_ unique
     fn get_id(&self) -> Self::Key;
+
+    /// retrieve the binary representation of the id key
+    fn cache_key(&self) -> [u8; 64] {
+        Self::get_cache_key(&self.get_id())
+    }
+
+    /// retrieve the binary representation of the id key
+    fn get_cache_key(key: &Self::Key) -> [u8; 64] {
+        let mut arr: [u8; 64] = [0; 64];
+        let key_vec = Self::get_full_binary_key_id(key);
+        arr[..min(key_vec.len(), 64)].clone_from_slice(&key_vec[..min(key_vec.len(), 64)]);
+        arr
+    }
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_id(&self) -> Vec<u8> {
+        Self::get_full_binary_key_id(&self.get_id())
+    }
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_key_id(key: &Self::Key) -> Vec<u8>;
 }
 
 /// Represents the storage layer for the AKD (with associated configuration if necessary)
@@ -130,52 +154,50 @@ pub trait V1Storage: Clone {
     }
 }
 
-/// FIXME: Needs docs
+/// Updated storage layer with better support of asynchronous work and batched operations
 #[async_trait]
 pub trait V2Storage: Clone {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool;
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError>;
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError>;
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool;
+
     /// V1Storage a record in the data layer
-    async fn set<H: Hasher + Sync + Send>(&self, record: DbRecord<H>) -> Result<(), StorageError>;
+    async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
     /// Set multiple records in transactional operation
-    async fn batch_set<H: Hasher + Sync + Send>(
-        &self,
-        records: Vec<DbRecord<H>>,
-    ) -> Result<(), StorageError>;
+    async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the data layer
-    async fn get<H: Hasher + Sync + Send, St: Storable>(
-        &self,
-        id: St::Key,
-    ) -> Result<DbRecord<H>, StorageError>;
+    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<H: Hasher + Sync + Send, St: Storable>(
+    async fn get_all<St: Storable>(
         &self,
         num: Option<usize>,
-    ) -> Result<Vec<DbRecord<H>>, StorageError>;
+    ) -> Result<Vec<DbRecord>, StorageError>;
 
     /* User data searching */
 
     /// Add a user state element to the associated user
-    async fn append_user_state<H: Hasher + Sync + Send>(
-        &self,
-        value: &types::ValueState,
-    ) -> Result<(), StorageError>;
+    async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError>;
 
     /// Adds user states
-    async fn append_user_states<H: Hasher + Sync + Send>(
-        &self,
-        values: Vec<types::ValueState>,
-    ) -> Result<(), StorageError>;
+    async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
-    async fn get_user_data<H: Hasher + Sync + Send>(
-        &self,
-        username: &types::AkdKey,
-    ) -> Result<types::KeyData, StorageError>;
+    async fn get_user_data(&self, username: &types::AkdKey)
+        -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
-    async fn get_user_state<H: Hasher + Sync + Send>(
+    async fn get_user_state(
         &self,
         username: &types::AkdKey,
         flag: types::ValueStateRetrievalFlag,
@@ -192,16 +214,15 @@ pub trait V2Storage: Clone {
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks<H>(
+    fn build_azks(
         root: usize,
         latest_epoch: u64,
         num_nodes: usize,
-    ) -> crate::append_only_zks::Azks<H> {
-        crate::append_only_zks::Azks::<H> {
+    ) -> crate::append_only_zks::Azks {
+        crate::append_only_zks::Azks {
             root,
             latest_epoch,
             num_nodes,
-            _h: PhantomData,
         }
     }
 
@@ -219,15 +240,15 @@ pub trait V2Storage: Clone {
     pub(crate) _h: PhantomData<H>,
     */
     /// Build a history tree node from the properties
-    fn build_history_tree_node<H>(
+    fn build_history_tree_node(
         label_val: u64,
         label_len: u32,
         location: usize,
         epochs: Vec<u64>,
         parent: usize,
         node_type: u8,
-    ) -> crate::history_tree_node::HistoryTreeNode<H> {
-        crate::history_tree_node::HistoryTreeNode::<H> {
+    ) -> crate::history_tree_node::HistoryTreeNode {
+        crate::history_tree_node::HistoryTreeNode {
             label: crate::node_state::NodeLabel {
                 val: label_val,
                 len: label_len,
@@ -236,7 +257,6 @@ pub trait V2Storage: Clone {
             epochs,
             parent,
             node_type: crate::history_tree_node::NodeType::from_u8(node_type),
-            _h: PhantomData,
         }
     }
 
@@ -271,14 +291,14 @@ pub trait V2Storage: Clone {
     pub child_states: Vec<HistoryChildState<H, S>>,
     */
     /// Build a history node state from the properties
-    fn build_history_node_state<H>(
+    fn build_history_node_state(
         value: Vec<u8>,
-        child_states: Vec<crate::node_state::HistoryChildState<H>>,
+        child_states: Vec<crate::node_state::HistoryChildState>,
         label_len: u32,
         label_val: u64,
         epoch: u64,
-    ) -> crate::node_state::HistoryNodeState<H> {
-        crate::node_state::HistoryNodeState::<H> {
+    ) -> crate::node_state::HistoryNodeState {
+        crate::node_state::HistoryNodeState {
             value,
             child_states,
             key: crate::node_state::NodeStateKey(
@@ -319,17 +339,20 @@ pub trait V2Storage: Clone {
     }
 }
 
-// ===  V2Storage wrapper over V1Storage === //
-/// FIXME: needs docs
+/// V2Storage wrapper over a V1Storage implementation
 pub struct V2FromV1StorageWrapper<S: V1Storage> {
-    /// FIXME: Needs docs
+    /// The V1Storage data layer
     pub db: S,
+    trans: Transaction,
 }
 
 impl<S: V1Storage> V2FromV1StorageWrapper<S> {
-    /// FIXME: Needs docs
+    /// Instantiate a new V2->V1 Storage Wrapper instance
     pub fn new(storage: S) -> Self {
-        Self { db: storage }
+        Self {
+            db: storage,
+            trans: Transaction::new(),
+        }
     }
 }
 
@@ -337,6 +360,8 @@ impl<S: V1Storage> Clone for V2FromV1StorageWrapper<S> {
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
+            // transactions are not clonable (i.e. cannot be shared across or memory locations). To share a transaction, borrow the storage layer
+            trans: Transaction::new(),
         }
     }
 }
@@ -353,8 +378,36 @@ impl<S: V1Storage + Send + Sync> From<S> for V2FromV1StorageWrapper<S> {
 
 #[async_trait]
 impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool {
+        self.trans.begin_transaction().await
+    }
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+        // this retrieves all the trans operations, and "de-activates" the transaction flag
+        let ops = self.trans.commit_transaction().await?;
+        self.batch_set(ops).await
+    }
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+        self.trans.rollback_transaction().await?;
+        Ok(())
+    }
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool {
+        self.trans.is_transaction_active().await
+    }
+
     /// V1Storage a record in the data layer
-    async fn set<H: Hasher + Sync + Send>(&self, record: DbRecord<H>) -> Result<(), StorageError> {
+    async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
+        if self.is_transaction_active().await {
+            self.trans.set(&record).await;
+            return Ok(());
+        }
+
         let (k, serialized, ty) = match record {
             DbRecord::Azks(azks) => (
                 hex::encode(bincode::serialize(&azks.get_id()).unwrap()),
@@ -384,21 +437,22 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
         }
     }
 
-    async fn batch_set<H: Hasher + Sync + Send>(
-        &self,
-        records: Vec<DbRecord<H>>,
-    ) -> Result<(), StorageError> {
+    async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
         for record in records.into_iter() {
-            self.set::<H>(record).await?
+            self.set(record).await?
         }
         Ok(())
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<H: Hasher + Sync + Send, St: Storable>(
-        &self,
-        id: St::Key,
-    ) -> Result<DbRecord<H>, StorageError> {
+    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+        if self.is_transaction_active().await {
+            if let Some(result) = self.trans.get::<St>(&id).await {
+                // there's a transacted item, return that one since it's "more up to date"
+                return Ok(result);
+            }
+        }
+
         let k: String = hex::encode(bincode::serialize(&id).unwrap());
         match St::data_type() {
             StorageType::Azks => {
@@ -433,10 +487,10 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<H: Hasher + Sync + Send, St: Storable>(
+    async fn get_all<St: Storable>(
         &self,
         num: Option<usize>,
-    ) -> Result<Vec<DbRecord<H>>, StorageError> {
+    ) -> Result<Vec<DbRecord>, StorageError> {
         let datatype = St::data_type();
         let got = self.db.get_all(datatype, num).await?;
         let list = got.iter().fold(Vec::new(), |mut acc, item| {
@@ -464,34 +518,80 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
             }
             acc
         });
-        Ok(list)
+
+        if self.is_transaction_active().await {
+            // check transacted objects
+            let mut updated = vec![];
+            for item in list.into_iter() {
+                match &item {
+                    DbRecord::Azks(azks) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::append_only_zks::Azks>(&azks.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryNodeState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::node_state::HistoryNodeState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryTreeNode(node) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::history_tree_node::HistoryTreeNode>(&node.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::ValueState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::storage::types::ValueState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                }
+                updated.push(item);
+            }
+            Ok(updated)
+        } else {
+            Ok(list)
+        }
     }
 
     /// Add a user state element to the associated user
-    async fn append_user_state<H: Hasher + Sync + Send>(
-        &self,
-        value: &types::ValueState,
-    ) -> Result<(), StorageError> {
-        self.set::<H>(DbRecord::ValueState(value.clone())).await
+    async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError> {
+        self.set(DbRecord::ValueState(value.clone())).await
     }
 
-    async fn append_user_states<H: Hasher + Sync + Send>(
-        &self,
-        values: Vec<types::ValueState>,
-    ) -> Result<(), StorageError> {
+    async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError> {
         for item in values.into_iter() {
-            self.set::<H>(DbRecord::ValueState(item)).await?;
+            self.set(DbRecord::ValueState(item)).await?;
         }
         Ok(())
     }
 
     /// Retrieve the user data for a given user
-    async fn get_user_data<H: Hasher + Sync + Send>(
+    async fn get_user_data(
         &self,
         username: &types::AkdKey,
     ) -> Result<types::KeyData, StorageError> {
         let all = self
-            .get_all::<H, crate::storage::types::ValueState>(None)
+            .get_all::<crate::storage::types::ValueState>(None)
             .await?;
         let mut results = vec![];
         for item in all.into_iter() {
@@ -508,12 +608,12 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
     }
 
     /// Retrieve a specific state for a given user
-    async fn get_user_state<H: Hasher + Sync + Send>(
+    async fn get_user_state(
         &self,
         username: &types::AkdKey,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError> {
-        let intermediate = self.get_user_data::<H>(username).await?.states;
+        let intermediate = self.get_user_data(username).await?.states;
         match flag {
             types::ValueStateRetrievalFlag::MaxEpoch =>
             // retrieve by max epoch

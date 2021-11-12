@@ -1,4 +1,38 @@
 =======================================================
+Test run 6: Nov 12, 2021
+# Commit hash: 845b250c8c0cfaf6a57276c380d2b58efd28a2d6
+# Commit title: In-memory transactions at the storage layer for minimal writes
+=======================================================
+$ cargo run -- flush && cargo run -- bench-publish 10 10
+
+======= Benchmark operation requested =======
+Beginning PUBLISH benchmark of 10 users with 10 updates/user
+INFO: Starting the verifiable directory host
+Benchmark output: Inserted 10 users with 10 updates/user
+Execution time: 2806 ms
+Time-per-user (avg): 280620 µs
+Time-per-op (avg): 28062 µs
+INFO: AKD host shutting down
+
+############################################################################################################
+=======================================================
+Test run 5: Nov 12, 2021
+# Commit hash: 7cce5cf6107dc7d28604575f299dc69e3f64b0b0
+# Commit title: Finishing rewrite from <H> tagged structs to pure structs with generic's on methods
+=======================================================
+$ cargo run -- flush && cargo run -- bench-publish 10 10
+
+======= Benchmark operation requested =======
+Beginning PUBLISH benchmark of 10 users with 10 updates/user
+INFO: Starting the verifiable directory host
+Benchmark output: Inserted 10 users with 10 updates/user
+Execution time: 14274 ms
+Time-per-user (avg): 1427493 µs
+Time-per-op (avg): 142749 µs
+INFO: AKD host shutting down
+
+############################################################################################################
+=======================================================
 # Test run 4: Nov 9, 2021
 # Commit hash: f60b2ecb35d68da96896fc9b5cf6e7384dc7ec6d
 # Commit title: Downgrade mysql_async from 0.28 to 0.23 to match FB Infra
@@ -9,13 +43,13 @@ $ cargo run -- flush && cargo run -- bench-publish 10 10
 Beginning PUBLISH benchmark of 10 users with 10 updates/user
 INFO: Starting the verifiable directory host
 Benchmark output: Inserted 10 users with 10 updates/user
-Execution time: 18798ms
-Time-per-user (avg): 1879804µs
-Time-per-op (avg): 187980µs
+Execution time: 18798 ms
+Time-per-user (avg): 1879804 µs
+Time-per-op (avg): 187980 µs
 INFO: AKD host shutting down
 
 ############################################################################################################
-************ INVALID TEST BELOW ************
+************ INVALID TEST ************
 ### =======================================================
 ### # Test run 3: Nov 8, 2021
 ### # Commit hash: e1a1509a30e2a9399d52cee90d640e9027dddcc0
@@ -28,9 +62,9 @@ INFO: AKD host shutting down
 ### INFO: Starting the verifiable directory host
 ### Benchmark operation completed in ERROR: Failed to publish with error: HistoryTreeNodeErr(DirectionIsNone)
 ### Benchmark output: Inserted 10 users with 10 updates/user
-### Execution time: 554ms
-### Time-per-user (avg): 55403µs
-### Time-per-op (avg): 5540µs
+### Execution time: 554 ms
+### Time-per-user (avg): 55403 µs
+### Time-per-op (avg): 5540 µs
 ### INFO: AKD host shutting down
 
 ############################################################################################################
@@ -44,9 +78,9 @@ $ cargo run -- flush && cargo run -- bench-publish 10 10
 Beginning PUBLISH benchmark of 10 users with 10 updates/user
 INFO: Starting the verifiable directory host
 Benchmark output: Inserted 10 users with 10 updates/user
-Execution time: 26837ms
-Time-per-user (avg): 2683779µs
-Time-per-op (avg): 268377µs
+Execution time: 26837 ms
+Time-per-user (avg): 2683779 µs
+Time-per-op (avg): 268377 µs
 INFO: AKD host shutting down
 
 ############################################################################################################
@@ -61,9 +95,9 @@ $ cargo run -- flush && cargo run -- bench-publish 10 10
 Beginning PUBLISH benchmark of 10 users with 10 updates/user
 INFO: Starting the verifiable directory host
 Benchmark output: Inserted 10 users with 10 updates/user
-Execution time: 26505ms
-Time-per-user (avg): 2650517µs
-Time-per-op (avg): 265051µs
+Execution time: 26505 ms
+Time-per-user (avg): 2650517 µs
+Time-per-op (avg): 265051 µs
 INFO: VKD host shutting down
 
 ############################################################################################################

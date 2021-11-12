@@ -56,19 +56,22 @@ async fn main() {
     let mut existing_keys = Vec::<AkdKey>::new();
 
     let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
-    let mut akd_dir = Directory::<
-        akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>,
-        Blake3_256<BaseElement>,
-    >::new(&db)
-    .await
-    .unwrap();
+    let mut akd_dir =
+        Directory::<akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>>::new::<
+            Blake3_256<BaseElement>,
+        >(&db)
+        .await
+        .unwrap();
 
     // Populating the updates
     let rng: ThreadRng = thread_rng();
     let mut updates = create_keys_and_values(num_init_insertions, rng);
 
     // Publishing updated set with an initial set of users
-    akd_dir.publish(updates.clone()).await.unwrap();
+    akd_dir
+        .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
+        .await
+        .unwrap();
 
     let mut new_keys = updates
         .clone()
@@ -88,7 +91,10 @@ async fn main() {
     println!("*********************************************************************************");
     // Publish measurement
     db.db.clear_stats();
-    akd_dir.publish(updates.clone()).await.unwrap();
+    akd_dir
+        .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
+        .await
+        .unwrap();
 
     db.db.print_hashmap_distribution();
     db.db.print_stats();
@@ -109,7 +115,10 @@ async fn main() {
         let rng: ThreadRng = thread_rng();
         updates = create_random_subset_of_existing_keys(existing_keys.clone(), num_updates, rng);
         updates.append(&mut new_users);
-        akd_dir.publish(updates.clone()).await.unwrap();
+        akd_dir
+            .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
+            .await
+            .unwrap();
         new_keys = new_users
             .clone()
             .iter()
@@ -134,7 +143,10 @@ async fn main() {
         let new_lookup_proof = akd_dir.lookup(lookup_set[i].0.clone()).await.unwrap();
         // Verify this lookup proof
         lookup_verify::<Blake3_256<BaseElement>>(
-            akd_dir.get_root_hash(&current_azks).await.unwrap(),
+            akd_dir
+                .get_root_hash::<Blake3_256<BaseElement>>(&current_azks)
+                .await
+                .unwrap(),
             lookup_set[i].0.clone(),
             new_lookup_proof,
         )
@@ -190,11 +202,11 @@ async fn main() {
             // Verify this lookup proof
             audit_verify::<Blake3_256<BaseElement>>(
                 akd_dir
-                    .get_root_hash_at_epoch(&current_azks, i)
+                    .get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, i)
                     .await
                     .unwrap(),
                 akd_dir
-                    .get_root_hash_at_epoch(&current_azks, j)
+                    .get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, j)
                     .await
                     .unwrap(),
                 audit_proof,

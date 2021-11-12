@@ -7,91 +7,28 @@
 
 //! This module implements a basic async timed cache
 
-use crate::errors::StorageError;
 use crate::storage::DbRecord;
-use crate::storage::{Storable, StorageType};
+use crate::storage::Storable;
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-struct TimedBinaryItem {
-    expiration: Instant,
-    data: Vec<u8>,
-}
-
 pub(crate) struct CachedItem {
-    items: Vec<TimedBinaryItem>,
+    expiration: Instant,
+    data: Vec<DbRecord>,
 }
 
 impl CachedItem {
-    pub(crate) fn empty() -> Self {
-        Self::new(None, Duration::from_millis(1))
-    }
-
-    pub(crate) fn new(v: Option<Vec<u8>>, expire: Duration) -> Self {
-        let expiration = Instant::now() + expire;
-        match v {
-            Some(i_value) => CachedItem {
-                items: vec![TimedBinaryItem {
-                    data: i_value,
-                    expiration,
-                }],
-            },
-            None => CachedItem { items: Vec::new() },
-        }
-    }
-
-    pub(crate) fn append_item(&mut self, item: Vec<u8>, expire: Duration) {
-        let expiration = Instant::now() + expire;
-        self.items.push(TimedBinaryItem {
-            data: item,
-            expiration,
-        });
-    }
-}
-
-#[derive(Hash, Eq, PartialEq, Clone, Copy)]
-pub(crate) struct CacheKey(StorageType, u64);
-
-impl CacheKey {
-    pub(crate) fn get_cache_key_for_record<H: winter_crypto::Hasher + Sync + Send>(
-        record: &DbRecord<H>,
-    ) -> Self {
-        let mut s = std::collections::hash_map::DefaultHasher::new();
-        let ty = match &record {
-            DbRecord::Azks(azks) => {
-                azks.get_id().hash(&mut s);
-                StorageType::Azks
-            }
-            DbRecord::HistoryNodeState(state) => {
-                state.get_id().hash(&mut s);
-                StorageType::HistoryNodeState
-            }
-            DbRecord::HistoryTreeNode(node) => {
-                node.get_id().hash(&mut s);
-                StorageType::HistoryTreeNode
-            }
-            DbRecord::ValueState(value) => {
-                value.get_id().hash(&mut s);
-                StorageType::ValueState
-            }
-        };
-        Self(ty, s.finish())
-    }
-
-    pub(crate) fn get_cache_key_for_storable<St: Storable>(key: &St::Key) -> CacheKey {
-        let mut s = std::collections::hash_map::DefaultHasher::new();
-        key.hash(&mut s);
-        let ty = St::data_type();
-        CacheKey(ty, s.finish())
+    pub(crate) fn append_item(&mut self, item: DbRecord, life: Duration) {
+        self.expiration = Instant::now() + life;
+        self.data.push(item);
     }
 }
 
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
 pub(crate) struct TimedCache {
-    map: Arc<tokio::sync::RwLock<HashMap<CacheKey, CachedItem>>>,
+    map: Arc<tokio::sync::RwLock<HashMap<[u8; 64], CachedItem>>>,
     item_lifetime: Duration,
 }
 
@@ -110,7 +47,7 @@ impl TimedCache {
         let mut keys_to_flush = HashSet::new();
         let r_guard = self.map.read().await;
         for (key, value) in (*r_guard).iter() {
-            if value.items.iter().any(|x| x.expiration < now) {
+            if value.expiration < now {
                 keys_to_flush.insert(key);
             }
         }
@@ -135,61 +72,31 @@ impl TimedCache {
         }
     }
 
-    pub(crate) async fn hit_test<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
-        &self,
-        key: &St::Key,
-    ) -> Option<DbRecord<H>> {
+    pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         self.clean().await;
 
-        let key_copy = key.clone();
-        let cache_key = CacheKey::get_cache_key_for_storable::<St>(key);
+        let cache_key = St::get_cache_key(key);
+        let full_key = St::get_full_binary_key_id(key);
+
         let guard = self.map.read().await;
         let ptr: &HashMap<_, _> = &*guard;
         if let Some(result) = ptr.get(&cache_key) {
-            for item in result.items.iter() {
-                if let Ok(decoded) = bincode::deserialize::<St>(&item.data) {
-                    // compare the full item key
-                    if decoded.get_id() == key_copy.clone() {
-                        // CACHE HIT
-
-                        // Now the fugly part, decode a 2nd time to assert the mastry of Rust's inability
-                        // to cast objects to their underlying type without KNOWING full in advance what
-                        // the type is.
-                        match St::data_type() {
-                            StorageType::Azks => {
-                                if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::append_only_zks::Azks<H>,
-                                >(&item.data)
-                                {
-                                    return Some(DbRecord::Azks::<H>(decoded2));
-                                }
-                            }
-                            StorageType::HistoryNodeState => {
-                                if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::node_state::HistoryNodeState<H>,
-                                >(&item.data)
-                                {
-                                    return Some(DbRecord::HistoryNodeState::<H>(decoded2));
-                                }
-                            }
-                            StorageType::HistoryTreeNode => {
-                                if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::history_tree_node::HistoryTreeNode<H>,
-                                >(&item.data)
-                                {
-                                    return Some(DbRecord::HistoryTreeNode::<H>(decoded2));
-                                }
-                            }
-                            StorageType::ValueState => {
-                                if let Ok(decoded2) = bincode::deserialize::<
-                                    crate::storage::types::ValueState,
-                                >(&item.data)
-                                {
-                                    return Some(DbRecord::ValueState::<H>(decoded2));
-                                }
-                            }
-                        }
+            for item in result.data.iter() {
+                // retrieve the "cache bucket", and then find the matching inner item
+                match &item {
+                    DbRecord::Azks(azks) if azks.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::Azks(azks.clone()))
                     }
+                    DbRecord::HistoryTreeNode(node) if node.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::HistoryTreeNode(node.clone()))
+                    }
+                    DbRecord::HistoryNodeState(state) if state.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::HistoryNodeState(state.clone()))
+                    }
+                    DbRecord::ValueState(value) if value.get_full_binary_id() == full_key => {
+                        return Some(DbRecord::ValueState(value.clone()))
+                    }
+                    _ => {}
                 }
             }
         }
@@ -197,49 +104,34 @@ impl TimedCache {
         None
     }
 
-    pub(crate) async fn put<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        record: &DbRecord<H>,
-        flush_on_hit: bool,
-    ) -> Result<(), StorageError> {
+    pub(crate) async fn put(&self, record: &DbRecord, flush_on_hit: bool) {
         self.clean().await;
 
         let mut guard = self.map.write().await;
-        let key = CacheKey::get_cache_key_for_record(record);
-        let binary = match &record {
-            DbRecord::Azks(azks) => bincode::serialize(azks),
-            DbRecord::HistoryNodeState(state) => bincode::serialize(state),
-            DbRecord::HistoryTreeNode(node) => bincode::serialize(node),
-            DbRecord::ValueState(value) => bincode::serialize(value),
-        };
-        if let Ok(bin) = binary {
-            // insert or replace the value (i.e. invalidate cache because of clash with hashcode)
-            if flush_on_hit {
-                (*guard).insert(key, CachedItem::new(Some(bin), self.item_lifetime));
-            } else {
-                // push a new entry into the cache list at the specified caching location
-                (*guard)
-                    .entry(key)
-                    .or_insert_with(CachedItem::empty)
-                    .append_item(bin, self.item_lifetime);
-            }
-            Ok(())
+        let key = record.cache_key();
+        if flush_on_hit {
+            // overwrite any existing items since a flush is requested
+            let item = CachedItem {
+                expiration: Instant::now() + self.item_lifetime,
+                data: vec![record.clone()],
+            };
+            (*guard).insert(key, item);
         } else {
-            Err(StorageError::SerializationError)
+            (*guard)
+                .entry(key)
+                .or_insert_with(|| CachedItem {
+                    expiration: Instant::now() + self.item_lifetime,
+                    data: vec![],
+                })
+                .append_item(record.clone(), self.item_lifetime);
         }
     }
 
-    pub(crate) async fn batch_put<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        records: &[DbRecord<H>],
-    ) -> Result<(), StorageError> {
+    pub(crate) async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
         let mut guard = self.map.write().await;
-        let mut keys: Vec<CacheKey> = records
-            .iter()
-            .map(|i| CacheKey::get_cache_key_for_record(i))
-            .collect();
+        let mut keys: Vec<[u8; 64]> = records.iter().map(|i| i.cache_key()).collect();
         // remove duplicates
         let mut unique_keys = HashSet::new();
         keys.retain(|e| unique_keys.insert(*e));
@@ -252,23 +144,15 @@ impl TimedCache {
         }
 
         for record in records.iter() {
-            let key = CacheKey::get_cache_key_for_record(record);
-
-            let binary = match &record {
-                DbRecord::Azks(azks) => bincode::serialize(azks),
-                DbRecord::HistoryNodeState(state) => bincode::serialize(state),
-                DbRecord::HistoryTreeNode(node) => bincode::serialize(node),
-                DbRecord::ValueState(value) => bincode::serialize(value),
-            };
-            if let Ok(bin) = binary {
-                // push a new entry into the cache list at the specified caching location
-                (*guard)
-                    .entry(key)
-                    .or_insert_with(CachedItem::empty)
-                    .append_item(bin, self.item_lifetime);
-            }
+            let key = record.cache_key();
+            (*guard)
+                .entry(key)
+                .or_insert_with(|| CachedItem {
+                    expiration: Instant::now() + self.item_lifetime,
+                    data: vec![],
+                })
+                .append_item(record.clone(), self.item_lifetime);
         }
-        Ok(())
     }
 
     #[allow(dead_code)]

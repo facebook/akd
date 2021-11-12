@@ -13,11 +13,11 @@ use crate::storage::types::{
     AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, V2Storage};
+type LocalTransaction = crate::storage::transaction::Transaction;
 use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
 
-use std::marker::Send;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
@@ -62,8 +62,8 @@ pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<Mutex<bool>>,
-    #[allow(clippy::type_complexity)]
     cache: Option<TimedCache>,
+    trans: LocalTransaction,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -95,6 +95,7 @@ impl Clone for AsyncMySqlDatabase {
             pool: self.pool.clone(),
             is_healthy: self.is_healthy.clone(),
             cache: self.cache.clone(),
+            trans: LocalTransaction::new(),
         }
     }
 }
@@ -135,6 +136,7 @@ impl AsyncMySqlDatabase {
             pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
             cache,
+            trans: LocalTransaction::new(),
         }
     }
 
@@ -334,9 +336,9 @@ impl AsyncMySqlDatabase {
     }
 
     /// Storage a record in the data layer
-    async fn internal_set<H: winter_crypto::Hasher + Sync + Send>(
+    async fn internal_set(
         &self,
-        record: DbRecord<H>,
+        record: DbRecord,
         trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
     ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
         let statement_text = record.set_statement();
@@ -359,9 +361,9 @@ impl AsyncMySqlDatabase {
     }
 
     /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
-    async fn internal_batch_set<H: winter_crypto::Hasher + Sync + Send>(
+    async fn internal_batch_set(
         &self,
-        records: Vec<DbRecord<H>>,
+        records: Vec<DbRecord>,
         trans: mysql_async::Transaction<mysql_async::Conn>,
     ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
         let mut mini_tx = trans;
@@ -430,25 +432,56 @@ impl AsyncMySqlDatabase {
 
 #[async_trait]
 impl V2Storage for AsyncMySqlDatabase {
+    /// Start a transaction in the storage layer
+    async fn begin_transaction(&mut self) -> bool {
+        self.trans.begin_transaction().await
+    }
+
+    /// Commit a transaction in the storage layer
+    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+        // this retrieves all the trans operations, and "de-activates" the transaction flag
+        let ops = self.trans.commit_transaction().await?;
+        self.batch_set(ops).await
+    }
+
+    /// Rollback a transaction
+    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+        self.trans.rollback_transaction().await?;
+        Ok(())
+    }
+
+    /// Retrieve a flag determining if there is a transaction active
+    async fn is_transaction_active(&self) -> bool {
+        self.trans.is_transaction_active().await
+    }
+
     /// Storage a record in the data layer
-    async fn set<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        record: DbRecord<H>,
-    ) -> core::result::Result<(), StorageError> {
-        if let Some(cache) = &self.cache {
-            let _ = cache.put(&record, true).await;
+    async fn set(&self, record: DbRecord) -> core::result::Result<(), StorageError> {
+        // we're in a transaction, set the item in the transaction
+        if self.is_transaction_active().await {
+            self.trans.set(&record).await;
+            return Ok(());
         }
 
-        match self.internal_set::<H>(record, None).await {
+        if let Some(cache) = &self.cache {
+            cache.put(&record, true).await;
+        }
+
+        match self.internal_set(record, None).await {
             Ok(_) => Ok(()),
             Err(error) => Err(StorageError::SetError(error.to_string())),
         }
     }
 
-    async fn batch_set<H: winter_crypto::Hasher + Sync + Send>(
-        &self,
-        records: Vec<DbRecord<H>>,
-    ) -> core::result::Result<(), StorageError> {
+    async fn batch_set(&self, records: Vec<DbRecord>) -> core::result::Result<(), StorageError> {
+        // we're in a transaction, set the items in the transaction
+        if self.is_transaction_active().await {
+            for record in records.into_iter() {
+                self.trans.set(&record).await;
+            }
+            return Ok(());
+        }
+
         if let Some(cache) = &self.cache {
             let _ = cache.batch_put(&records).await;
         }
@@ -496,20 +529,25 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
-        &self,
-        id: St::Key,
-    ) -> core::result::Result<DbRecord<H>, StorageError> {
+    async fn get<St: Storable>(&self, id: St::Key) -> core::result::Result<DbRecord, StorageError> {
+        // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
+        // log instead of the raw storage layer
+        if self.is_transaction_active().await {
+            if let Some(result) = self.trans.get::<St>(&id).await {
+                return Ok(result);
+            }
+        }
+
         if let Some(cache) = &self.cache {
-            if let Some(result) = cache.hit_test::<H, St>(&id).await {
+            if let Some(result) = cache.hit_test::<St>(&id).await {
                 return Ok(result);
             }
         }
 
         let result = async {
             let conn = self.get_connection().await?;
-            let statement = DbRecord::<H>::get_specific_statement::<St>();
-            let params = DbRecord::<H>::get_specific_params::<St>(id);
+            let statement = DbRecord::get_specific_statement::<St>();
+            let params = DbRecord::get_specific_params::<St>(id);
             let out = match params {
                 Some(p) => match conn.first_exec(statement, p).await {
                     Err(err) => Err(err),
@@ -522,15 +560,15 @@ impl V2Storage for AsyncMySqlDatabase {
             };
             let result = self.check_for_infra_error(out)?;
             if let Some(mut row) = result {
-                let record = DbRecord::<H>::from_row::<St>(&mut row)?;
+                let record = DbRecord::from_row::<St>(&mut row)?;
                 if let Some(cache) = &self.cache {
                     // ignore the put fail result (if it fails)
-                    let _ = cache.put(&record, false).await;
+                    cache.put(&record, false).await;
                 }
                 // return
-                return Ok::<Option<DbRecord<H>>, MySqlError>(Some(record));
+                return Ok::<Option<DbRecord>, MySqlError>(Some(record));
             }
-            Ok::<Option<DbRecord<H>>, MySqlError>(None)
+            Ok::<Option<DbRecord>, MySqlError>(None)
         };
 
         match result.await {
@@ -541,13 +579,13 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<H: winter_crypto::Hasher + Sync + Send, St: Storable>(
+    async fn get_all<St: Storable>(
         &self,
         num: Option<usize>,
-    ) -> core::result::Result<Vec<DbRecord<H>>, StorageError> {
+    ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         let result = async {
             let conn = self.get_connection().await?;
-            let mut statement = DbRecord::<H>::get_statement::<St>();
+            let mut statement = DbRecord::get_statement::<St>();
             if let Some(limit) = num {
                 statement += format!(" LIMIT {}", limit).as_ref();
             }
@@ -555,7 +593,7 @@ impl V2Storage for AsyncMySqlDatabase {
             let result = self.check_for_infra_error(result)?;
             let (_, out) = result
                 .reduce_and_drop(vec![], |mut acc, mut row| {
-                    if let Ok(result) = DbRecord::<H>::from_row::<St>(&mut row) {
+                    if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
                         acc.push(result);
                     }
                     acc
@@ -563,34 +601,89 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
             if let Some(cache) = &self.cache {
                 for el in out.iter() {
-                    let _ = cache.put(el, false).await;
+                    cache.put(el, false).await;
                 }
             }
-            Ok::<Vec<DbRecord<H>>, MySqlError>(out)
+            Ok::<Vec<DbRecord>, MySqlError>(out)
         };
 
         match result.await {
-            Ok(map) => Ok(map),
+            Ok(list) => {
+                if self.is_transaction_active().await {
+                    // check transacted objects, which might be newer than those from the data-layer
+                    let mut updated = vec![];
+                    for item in list.into_iter() {
+                        match &item {
+                            DbRecord::Azks(azks) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::append_only_zks::Azks>(&azks.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::HistoryNodeState(state) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::node_state::HistoryNodeState>(&state.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::HistoryTreeNode(node) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::history_tree_node::HistoryTreeNode>(
+                                        &node.get_id(),
+                                    )
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                            DbRecord::ValueState(state) => {
+                                if let Some(matching) = self
+                                    .trans
+                                    .get::<crate::storage::types::ValueState>(&state.get_id())
+                                    .await
+                                {
+                                    updated.push(matching);
+                                    continue;
+                                }
+                            }
+                        }
+                        updated.push(item);
+                    }
+                    Ok(updated)
+                } else {
+                    Ok(list)
+                }
+            }
             Err(error) => Err(StorageError::GetError(error.to_string())),
         }
     }
 
-    async fn append_user_state<H: winter_crypto::Hasher + Sync + Send>(
+    async fn append_user_state(
         &self,
         value: &ValueState,
     ) -> core::result::Result<(), StorageError> {
-        self.set(DbRecord::<H>::ValueState(value.clone())).await
+        self.set(DbRecord::ValueState(value.clone())).await
     }
 
-    async fn append_user_states<H: winter_crypto::Hasher + Sync + Send>(
+    async fn append_user_states(
         &self,
         values: Vec<ValueState>,
     ) -> core::result::Result<(), StorageError> {
-        let records = values.into_iter().map(DbRecord::<H>::ValueState).collect();
+        let records = values.into_iter().map(DbRecord::ValueState).collect();
         self.batch_set(records).await
     }
 
-    async fn get_user_data<H: winter_crypto::Hasher + Sync + Send>(
+    async fn get_user_data(
         &self,
         username: &AkdKey,
     ) -> core::result::Result<KeyData, StorageError> {
@@ -631,14 +724,30 @@ impl V2Storage for AsyncMySqlDatabase {
             let (_, selected_records) = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
-                    let _ = cache
-                        .put(&DbRecord::<H>::ValueState(record.clone()), false)
+                    cache
+                        .put(&DbRecord::ValueState(record.clone()), false)
                         .await;
                 }
             }
-            Ok::<KeyData, MySqlError>(KeyData {
-                states: selected_records,
-            })
+            if self.is_transaction_active().await {
+                let mut updated = vec![];
+                for record in selected_records.into_iter() {
+                    if let Some(DbRecord::ValueState(value)) = self
+                        .trans
+                        .get::<crate::storage::types::ValueState>(&record.get_id())
+                        .await
+                    {
+                        updated.push(value);
+                    } else {
+                        updated.push(record);
+                    }
+                }
+                Ok::<KeyData, MySqlError>(KeyData { states: updated })
+            } else {
+                Ok::<KeyData, MySqlError>(KeyData {
+                    states: selected_records,
+                })
+            }
         };
 
         match result.await {
@@ -647,7 +756,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
     }
 
-    async fn get_user_state<H: winter_crypto::Hasher + Sync + Send>(
+    async fn get_user_state(
         &self,
         username: &AkdKey,
         flag: ValueStateRetrievalFlag,
@@ -712,9 +821,21 @@ impl V2Storage for AsyncMySqlDatabase {
             let item = selected_record.into_iter().next();
             if let Some(value_in_item) = &item {
                 if let Some(cache) = &self.cache {
-                    let _ = cache
-                        .put(&DbRecord::<H>::ValueState(value_in_item.clone()), false)
+                    cache
+                        .put(&DbRecord::ValueState(value_in_item.clone()), false)
                         .await;
+                }
+            }
+            // check the transaction log for an updated record
+            if self.is_transaction_active().await {
+                if let Some(found_item) = &item {
+                    if let Some(DbRecord::ValueState(value)) = self
+                        .trans
+                        .get::<crate::storage::types::ValueState>(&found_item.get_id())
+                        .await
+                    {
+                        return Ok::<Option<ValueState>, MySqlError>(Some(value));
+                    }
                 }
             }
             Ok::<Option<ValueState>, MySqlError>(item)
@@ -746,7 +867,7 @@ trait MySqlStorable {
         Self: std::marker::Sized;
 }
 
-impl<H: winter_crypto::Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
+impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `root` = :root, `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
@@ -866,7 +987,7 @@ impl<H: winter_crypto::Hasher + Send + Sync> MySqlStorable for DbRecord<H> {
                     row.take_opt(4),
                 ) {
                     let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: Vec<crate::node_state::HistoryChildState<H>> =
+                    let child_states_decoded: Vec<crate::node_state::HistoryChildState> =
                         bincode::deserialize(&child_states_bin_vec).unwrap();
                     let node_state = AsyncMySqlDatabase::build_history_node_state(
                         value,

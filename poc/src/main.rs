@@ -24,12 +24,15 @@ use winter_math::fields::f128::BaseElement;
 mod commands;
 mod directory_host;
 
+type Blake3 = Blake3_256<BaseElement>;
+
 /// applicationModes
 #[derive(StructOpt)]
 enum OtherMode {
     BenchPublish {
         num_users: u64,
         num_updates_per_user: u64,
+        use_transactions: Option<bool>,
     },
     BenchLookup {
         num_users: u64,
@@ -65,11 +68,12 @@ async fn main() {
         );
         let mut directory = Directory::<
             akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>,
-            Blake3_256<BaseElement>,
-        >::new(&db)
+        >::new::<Blake3>(&db)
         .await
         .unwrap();
-        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        tokio::spawn(async move {
+            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+        });
         process_input(&cli, &tx, None).await;
     } else {
         // MySQL (the default)
@@ -82,11 +86,12 @@ async fn main() {
             MySqlCacheOptions::Default, // enable caching
         )
         .await;
-        let mut directory =
-            Directory::<AsyncMySqlDatabase, Blake3_256<BaseElement>>::new(&mysql_db)
-                .await
-                .unwrap();
-        tokio::spawn(async move { directory_host::init_host(&mut rx, &mut directory).await });
+        let mut directory = Directory::<AsyncMySqlDatabase>::new::<Blake3>(&mysql_db)
+            .await
+            .unwrap();
+        tokio::spawn(async move {
+            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+        });
         process_input(&cli, &tx, Some(&mysql_db)).await;
     }
 }
@@ -102,14 +107,21 @@ async fn process_input(
             OtherMode::BenchPublish {
                 num_users,
                 num_updates_per_user,
+                use_transactions,
             } => {
+                let use_trans = if let Some(tr) = use_transactions {
+                    *tr
+                } else {
+                    true
+                };
+
                 println!("======= Benchmark operation requested ======= ");
                 println!(
                     "Beginning PUBLISH benchmark of {} users with {} updates/user",
                     num_users, num_updates_per_user
                 );
 
-                let users: Vec<String> = (1..*num_users)
+                let users: Vec<String> = (1..=*num_users)
                     .map(|_| {
                         thread_rng()
                             .sample_iter(&Alphanumeric)
@@ -118,7 +130,7 @@ async fn process_input(
                             .collect()
                     })
                     .collect();
-                let data: Vec<String> = (1..*num_updates_per_user)
+                let data: Vec<String> = (1..=*num_updates_per_user)
                     .map(|_| {
                         thread_rng()
                             .sample_iter(&Alphanumeric)
@@ -138,7 +150,7 @@ async fn process_input(
                         .collect();
                     let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                     let rpc = directory_host::Rpc(
-                        directory_host::DirectoryCommand::PublishBatch(user_data),
+                        directory_host::DirectoryCommand::PublishBatch(user_data, use_trans),
                         Some(rpc_tx),
                     );
                     let sent = tx.clone().send(rpc).await;
@@ -149,7 +161,7 @@ async fn process_input(
                     match rpc_rx.await {
                         Err(err) => code = Some(format!("{}", err)),
                         Ok(Err(dir_err)) => code = Some(dir_err),
-                        _ => {}
+                        Ok(Ok(msg)) => println!("{}", msg),
                     }
                     if code.is_some() {
                         break;
@@ -164,7 +176,7 @@ async fn process_input(
 
                 let millis = toc.as_millis();
                 println!(
-                    "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {}ms\nTime-per-user (avg): {}\u{00B5}s\nTime-per-op (avg): {}\u{00B5}s",
+                    "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
                     num_users,
                     num_updates_per_user,
                     toc.as_millis(),

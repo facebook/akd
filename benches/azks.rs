@@ -28,7 +28,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let db = akd::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
 
-    let mut azks1 = runtime.block_on(Azks::<Blake3>::new(&db)).unwrap();
+    let mut azks1 = runtime.block_on(Azks::new::<_, Blake3>(&db)).unwrap();
     let mut insertion_set = Vec::<(NodeLabel, Blake3Digest)>::new();
     for _ in 0..num_nodes {
         let node = NodeLabel::random(&mut rng);
@@ -36,7 +36,9 @@ fn single_insertion(c: &mut Criterion) {
         rng.fill_bytes(&mut input);
         let val = Blake3::hash(&input);
         insertion_set.push((node, val));
-        runtime.block_on(azks1.insert_leaf(&db, node, val)).unwrap();
+        runtime
+            .block_on(azks1.insert_leaf::<_, Blake3>(&db, node, val))
+            .unwrap();
     }
 
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
@@ -47,7 +49,9 @@ fn single_insertion(c: &mut Criterion) {
             let val = Blake3::hash(&input);
 
             let _start = Instant::now();
-            runtime.block_on(azks1.insert_leaf(&db, node, val)).unwrap();
+            runtime
+                .block_on(azks1.insert_leaf::<_, Blake3>(&db, node, val))
+                .unwrap();
         })
     });
 }
