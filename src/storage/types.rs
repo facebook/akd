@@ -106,6 +106,7 @@ pub struct KeyData {
 }
 
 /// Used to retrieve a value's state, for a given key
+#[derive(std::fmt::Debug)]
 pub enum ValueStateRetrievalFlag {
     /// Specific version
     SpecificVersion(u64),
@@ -151,15 +152,6 @@ impl Clone for DbRecord {
 }
 
 impl DbRecord {
-    pub(crate) fn cache_key(&self) -> [u8; 64] {
-        match &self {
-            DbRecord::Azks(azks) => azks.cache_key(),
-            DbRecord::HistoryNodeState(state) => state.cache_key(),
-            DbRecord::HistoryTreeNode(node) => node.cache_key(),
-            DbRecord::ValueState(state) => state.cache_key(),
-        }
-    }
-
     pub(crate) fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),

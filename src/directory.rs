@@ -17,6 +17,7 @@ use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::V2Storage;
 
+use log::error;
 use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
@@ -117,6 +118,7 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
 
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
+                error!("Transaction is already active");
                 return Err(AkdError::HistoryTreeNodeErr(
                     HistoryTreeNodeError::StorageError(StorageError::SetError(
                         "Transaction is already active".to_string(),
@@ -243,9 +245,12 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
             .await?;
         match got {
             DbRecord::Azks(azks) => Ok(azks),
-            _ => Err(crate::errors::StorageError::GetError(String::from(
-                "Not found",
-            ))),
+            _ => {
+                error!("No AZKS can be found. You should re-initialize the directory to create a new one");
+                Err(crate::errors::StorageError::GetError(String::from(
+                    "Not found",
+                )))
+            },
         }
     }
 

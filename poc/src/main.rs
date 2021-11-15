@@ -20,11 +20,17 @@ use tokio::sync::mpsc::*;
 use tokio::time::timeout;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
+use log::{error, info, warn};
 
 mod commands;
 mod directory_host;
+mod logs;
+
+use logs::ConsoleLogger;
 
 type Blake3 = Blake3_256<BaseElement>;
+
+static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger { level: log::Level::Info };
 
 /// applicationModes
 #[derive(StructOpt)]
@@ -59,6 +65,11 @@ struct Cli {
 #[tokio::main]
 async fn main() {
     let cli = Cli::from_args();
+
+    // enable the logger
+    if let Err(err) = log::set_logger(&CONSOLE_LOGGER).map(|()| log::set_max_level(log::LevelFilter::Debug)) {
+        println!("Error setting logger {}", err);
+    }
 
     let (tx, mut rx) = channel(2);
 
@@ -155,7 +166,7 @@ async fn process_input(
                     );
                     let sent = tx.clone().send(rpc).await;
                     if sent.is_err() {
-                        println!("Error sending message to directory");
+                        error!("Error sending message to directory");
                         continue;
                     }
                     match rpc_rx.await {
@@ -169,7 +180,7 @@ async fn process_input(
                 }
 
                 if let Some(err) = code {
-                    println!("Benchmark operation completed in ERROR: {}", err);
+                    error!("Benchmark operation completed in ERROR: {}", err);
                 }
 
                 let toc = tic.elapsed();
@@ -198,9 +209,9 @@ async fn process_input(
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
                     if let Err(error) = mysql_db.delete_data().await {
-                        panic!("Error flushing database: {}", error);
+                        error!("Error flushing database: {}", error);
                     } else {
-                        println!("Database flushed.");
+                        info!("Database flushed.");
                     }
                 }
             }
@@ -222,7 +233,7 @@ async fn process_input(
                 ),
                 Command::InvalidArgs(message) => println!("Invalid arguments: {}", message),
                 Command::Exit => {
-                    println!("Exiting...");
+                    info!("Exiting...");
                     break;
                 }
                 Command::Help => {
@@ -258,7 +269,7 @@ async fn process_input(
                     let rpc = directory_host::Rpc(cmd, Some(rpc_tx));
                     let sent = tx.clone().send(rpc).await;
                     if sent.is_err() {
-                        println!("Error sending message to directory");
+                        warn!("Error sending message to directory");
                         continue;
                     }
                     if cli.debug {
@@ -267,13 +278,13 @@ async fn process_input(
                                 println!("Response: {}", success);
                             }
                             Ok(Err(dir_err)) => {
-                                println!(
-                                    "ERROR: Error in directory processing command: {}",
+                                error!(
+                                    "Error in directory processing command: {}",
                                     dir_err
                                 );
                             }
                             Err(_) => {
-                                println!("ERROR: Failed to receive result from directory");
+                                error!("Failed to receive result from directory");
                             }
                         }
                     } else {
@@ -282,16 +293,16 @@ async fn process_input(
                                 println!("Response: {}", success);
                             }
                             Ok(Ok(Err(dir_err))) => {
-                                println!(
-                                    "ERROR: Error in directory processing command: {}",
+                                error!(
+                                    "Error in directory processing command: {}",
                                     dir_err
                                 );
                             }
                             Ok(Err(_)) => {
-                                println!("ERROR: Failed to receive result from directory");
+                                error!("Failed to receive result from directory");
                             }
                             Err(_) => {
-                                println!("Timeout waiting on receive from directory");
+                                warn!("Timeout waiting on receive from directory");
                             }
                         }
                     }
@@ -308,6 +319,6 @@ async fn process_input(
         ))
         .await;
     if shutdown.is_err() {
-        println!("Error shutting down directory");
+        error!("Error shutting down directory");
     }
 }

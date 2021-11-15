@@ -24,6 +24,7 @@ mysql_async = "0.23.1"
 async-trait = "0.1"
 tokio = { version = "0.2", features = ["full"] }
 async-recursion = "0.3"
+log = { version = "0.4.8", features = ["kv_unstable"] }
 
 [dev-dependencies]
 criterion = "0.3"

@@ -12,7 +12,6 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
-use std::cmp::min;
 use std::hash::Hash;
 use std::marker::Send;
 
@@ -32,7 +31,7 @@ pub mod mysql;
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
-    type Key: Clone + Serialize + Eq + Hash + Send + Sync;
+    type Key: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;
@@ -40,19 +39,6 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// Retrieve an instance of the id of this storable. The combination of the
     /// storable's StorageType and this id are _globally_ unique
     fn get_id(&self) -> Self::Key;
-
-    /// retrieve the binary representation of the id key
-    fn cache_key(&self) -> [u8; 64] {
-        Self::get_cache_key(&self.get_id())
-    }
-
-    /// retrieve the binary representation of the id key
-    fn get_cache_key(key: &Self::Key) -> [u8; 64] {
-        let mut arr: [u8; 64] = [0; 64];
-        let key_vec = Self::get_full_binary_key_id(key);
-        arr[..min(key_vec.len(), 64)].clone_from_slice(&key_vec[..min(key_vec.len(), 64)]);
-        arr
-    }
 
     /// Retrieve the full binary version of a key (for comparisons)
     fn get_full_binary_id(&self) -> Vec<u8> {

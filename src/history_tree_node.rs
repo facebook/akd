@@ -12,7 +12,7 @@ use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, V2Storage};
 use crate::{node_state::*, Direction, ARITY};
-
+use log::debug;
 use async_recursion::async_recursion;
 use serde::{Deserialize, Serialize};
 use std::marker::{Send, Sync};
@@ -65,7 +65,7 @@ pub struct HistoryTreeNode {
 }
 
 /// Parameters are azks_id and location. Represents the key with which to find a node in storage.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, std::fmt::Debug)]
 pub struct NodeKey(pub usize);
 
 impl Storable for HistoryTreeNode {
@@ -198,6 +198,7 @@ impl HistoryTreeNode {
                 return Ok(());
             }
         }
+
         // if a node is the longest common prefix of itself and the leaf, dir_self will be None
         match dir_self {
             Some(_) => {
@@ -205,11 +206,14 @@ impl HistoryTreeNode {
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
+                debug!("BEGIN get parent");
                 let mut parent =
                     HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
+                debug!("BEGIN get direction at epoch {}", epoch);
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
                 let new_node_location = *num_nodes;
 
+                debug!("BEGIN create new node");
                 let mut new_node = HistoryTreeNode::new(
                     lcs_label,
                     new_node_location,
@@ -220,23 +224,29 @@ impl HistoryTreeNode {
                 new_node.write_to_storage(storage).await?;
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
+                debug!("BEGIN update leaf location");
                 new_leaf.parent = new_node.location;
                 new_leaf.write_to_storage(storage).await?;
 
+                debug!("BEGIN update self");
                 self.parent = new_node.location;
                 self.write_to_storage(storage).await?;
 
+                debug!("BEGIN set node child new_node(new_leaf)");
                 new_node
                     .set_node_child::<_, H>(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
+                debug!("BEGIN set node child new_node(self)");
                 new_node
                     .set_node_child::<_, H>(storage, epoch, dir_self, self)
                     .await?;
 
+                debug!("BEGIN set node child parent(new_node)");
                 parent
                     .set_node_child::<_, H>(storage, epoch, self_dir_in_parent, &new_node)
                     .await?;
                 if hashing {
+                    println!("BEGIN update hashes");
                     new_leaf.update_hash::<_, H>(storage, epoch).await?;
                     self.update_hash::<_, H>(storage, epoch).await?;
                     new_node =
@@ -244,13 +254,18 @@ impl HistoryTreeNode {
                             .await?;
                     new_node.update_hash::<_, H>(storage, epoch).await?;
                 }
+                debug!("BEGIN save new_node");
                 new_node.write_to_storage(storage).await?;
+                debug!("BEGIN save parent");
                 parent.write_to_storage(storage).await?;
+                debug!("BEGIN retrieve new self");
                 *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
+                debug!("END insert single leaf (dir_self = Some)");
                 Ok(())
             }
             None => {
                 // case where the current node is equal to the lcs
+                debug!("BEGIN get child at epoch");
                 let child_st = self
                     .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch()?, dir_leaf)
                     .await?;
@@ -260,23 +275,28 @@ impl HistoryTreeNode {
                         Err(HistoryTreeNodeError::CompressionError(self.label))
                     }
                     DummyChildState::Real => {
+                        debug!("BEGIN get child node from storage");
                         let mut child_node =
                             HistoryTreeNode::get_from_storage(storage, NodeKey(child_st.location))
                                 .await?;
+                        debug!("BEGIN insert single leaf helper");
                         child_node
                             .insert_single_leaf_helper::<_, H>(
                                 storage, new_leaf, epoch, num_nodes, hashing,
                             )
                             .await?;
                         if hashing {
+                            debug!("BEGIN update hashes");
                             *self =
                                 HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
                                     .await?;
                             self.update_hash::<_, H>(storage, epoch).await?;
                             self.write_to_storage(storage).await?;
                         }
+                        debug!("BEGIN retrieve self");
                         *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
                             .await?;
+                        debug!("END insert single leaf (dir_self = None)");
                         Ok(())
                     }
                 }
@@ -589,7 +609,8 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<HistoryChildState, HistoryTreeNodeError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::DirectionIsNone),
+            Direction::None =>
+                Err(HistoryTreeNodeError::DirectionIsNone),
             Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
                 .await
                 .map(|curr| curr.get_child_state_in_dir(dir))?),
@@ -754,8 +775,9 @@ pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
     let record = storage
         .get::<HistoryNodeState>(NodeStateKey(node.label, key))
         .await?;
-    match record {
-        DbRecord::HistoryNodeState(state) => Ok(state),
-        _ => Err(StorageError::GetError(String::from("Not found"))),
+    if let DbRecord::HistoryNodeState(state) = record {
+        Ok(state)
+    } else {
+        Err(StorageError::GetError(String::from("Not found")))
     }
 }

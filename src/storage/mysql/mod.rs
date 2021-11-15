@@ -14,6 +14,7 @@ use crate::storage::types::{
 };
 use crate::storage::{Storable, V2Storage};
 type LocalTransaction = crate::storage::transaction::Transaction;
+use log::{debug, warn, error, info};
 use async_trait::async_trait;
 use mysql_async::prelude::*;
 use mysql_async::*;
@@ -166,7 +167,7 @@ impl AsyncMySqlDatabase {
                     let db = self.clone();
                     tokio::task::spawn(async move {
                         if let Err(err) = db.refresh_connection_pool().await {
-                            println!("Error: Error refreshing MySql connection pool: {:?}", err);
+                            error!("Error refreshing MySql connection pool: {:?}", err);
                         }
                     });
                 }
@@ -178,12 +179,10 @@ impl AsyncMySqlDatabase {
     }
 
     async fn get_connection(&self) -> Result<mysql_async::Conn, MySqlError> {
-        let /*mut*/ connection = {
+        let connection = {
             if self.is_healthy() {
                 let connection_pool_guard = self.pool.read().await;
-                let connection_pool: &Pool = &*connection_pool_guard;
-
-                connection_pool.get_conn().await?
+                (*connection_pool_guard).get_conn().await?
             } else {
                 // Connection pool is currently unhealthy and queries are
                 // disallowed. Connection pool is being async refreshed in
@@ -194,12 +193,12 @@ impl AsyncMySqlDatabase {
             }
         };
 
-        // // Ensure we are running in TRADITIONAL mysql mode. TRADITIONAL mysql
-        // // converts many warnings to errors, for example it will reject too
-        // // large blob entries instead of truncating them with a warning.
-        // // This is essential for our system, since SEE relies on all data in our
-        // // XDB being exactly what it wrote.
-        // connection.query("SET SESSION sql_mode = 'TRADITIONAL'").await?;
+        // Ensure we are running in TRADITIONAL mysql mode. TRADITIONAL mysql
+        // converts many warnings to errors, for example it will reject too
+        // large blob entries instead of truncating them with a warning.
+        // This is essential for our system, since SEE relies on all data in our
+        // XDB being exactly what it wrote.
+        let connection = connection.drop_query("SET SESSION sql_mode = 'TRADITIONAL'").await?;
 
         Ok(connection)
     }
@@ -212,13 +211,13 @@ impl AsyncMySqlDatabase {
         {
             let mut is_healthy_guard = self.is_healthy.lock().unwrap();
             if !*is_healthy_guard {
-                println!("Info: Already refreshing MySql connection pool!");
+                info!("Already refreshing MySql connection pool!");
                 return Ok(());
             }
 
             *is_healthy_guard = false;
         }
-        println!("Warn: Refreshing MySql connection pool.");
+        warn!("Refreshing MySql connection pool.");
 
         // Grab early write lock so no new queries can be initiated before
         // connection pool is refreshed.
@@ -262,9 +261,10 @@ impl AsyncMySqlDatabase {
                 return Err(StorageError::Connection(message));
             }
 
-            println!("Warning: Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds", attempts, SQL_RECONNECTION_DELAY_SECS);
+            warn!("Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds", attempts, SQL_RECONNECTION_DELAY_SECS);
 
-            tokio::time::delay_for(tokio::time::Duration::from_secs(
+            tokio::time::delay_for(tokio::time::Duration::from_secs( // TOKIO 0.2.X
+            //tokio::time::sleep(tokio::time::Duration::from_secs( // TOKIO 1.X
                 SQL_RECONNECTION_DELAY_SECS,
             ))
             .await;
@@ -341,6 +341,7 @@ impl AsyncMySqlDatabase {
         record: DbRecord,
         trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
     ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
+        debug!("BEGIN MySQL set");
         let statement_text = record.set_statement();
         let (ntx, out) = match trans {
             Some(tx) => match tx.drop_exec(statement_text, record.set_params()).await {
@@ -357,6 +358,7 @@ impl AsyncMySqlDatabase {
             }
         };
         self.check_for_infra_error(out)?;
+        debug!("END MySQL set");
         Ok(ntx)
     }
 
@@ -367,6 +369,7 @@ impl AsyncMySqlDatabase {
         trans: mysql_async::Transaction<mysql_async::Conn>,
     ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
         let mut mini_tx = trans;
+        debug!("BEGIN MySQL set batch");
         for batch in records.chunks(100) {
             let head = &batch[0];
             let statement = head.set_statement();
@@ -376,6 +379,7 @@ impl AsyncMySqlDatabase {
             let out = prepped.batch(param_groups).await;
             mini_tx = self.check_for_infra_error(out)?.close().await?;
         }
+        debug!("END MySQL set batch");
         Ok(mini_tx)
     }
 
@@ -417,7 +421,7 @@ impl AsyncMySqlDatabase {
             let err = std::str::from_utf8(&result.stderr);
             if let Ok(error_message) = err {
                 if !error_message.is_empty() {
-                    println!("Error executing docker command: {}", error_message);
+                    error!("Error executing docker command: {}", error_message);
                 }
             }
 
@@ -464,7 +468,7 @@ impl V2Storage for AsyncMySqlDatabase {
         }
 
         if let Some(cache) = &self.cache {
-            cache.put(&record, true).await;
+            cache.put(&record).await;
         }
 
         match self.internal_set(record, None).await {
@@ -526,6 +530,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok(_) => Ok(()),
             Err(error) => Err(StorageError::SetError(error.to_string())),
         }
+
     }
 
     /// Retrieve a stored record from the data layer
@@ -544,6 +549,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         }
 
+        debug!("BEGIN MySQL get {:?}", id);
         let result = async {
             let conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
@@ -562,8 +568,7 @@ impl V2Storage for AsyncMySqlDatabase {
             if let Some(mut row) = result {
                 let record = DbRecord::from_row::<St>(&mut row)?;
                 if let Some(cache) = &self.cache {
-                    // ignore the put fail result (if it fails)
-                    cache.put(&record, false).await;
+                    cache.put(&record).await;
                 }
                 // return
                 return Ok::<Option<DbRecord>, MySqlError>(Some(record));
@@ -571,6 +576,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok::<Option<DbRecord>, MySqlError>(None)
         };
 
+        debug!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
             Ok(None) => Err(StorageError::GetError("Not found".to_string())),
@@ -583,6 +589,7 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         num: Option<usize>,
     ) -> core::result::Result<Vec<DbRecord>, StorageError> {
+        debug!("BEGIN MySQL get all {:?}", St::data_type());
         let result = async {
             let conn = self.get_connection().await?;
             let mut statement = DbRecord::get_statement::<St>();
@@ -601,12 +608,13 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
             if let Some(cache) = &self.cache {
                 for el in out.iter() {
-                    cache.put(el, false).await;
+                    cache.put(el).await;
                 }
             }
             Ok::<Vec<DbRecord>, MySqlError>(out)
         };
 
+        debug!("END MySQL get all");
         match result.await {
             Ok(list) => {
                 if self.is_transaction_active().await {
@@ -687,6 +695,7 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         username: &AkdKey,
     ) -> core::result::Result<KeyData, StorageError> {
+        debug!("BEGIN MySQL get user data {:?}", username);
         let result = async {
             let conn = self.get_connection().await?;
             let statement_text =
@@ -725,7 +734,7 @@ impl V2Storage for AsyncMySqlDatabase {
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
                     cache
-                        .put(&DbRecord::ValueState(record.clone()), false)
+                        .put(&DbRecord::ValueState(record.clone()))
                         .await;
                 }
             }
@@ -750,6 +759,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         };
 
+        debug!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -761,6 +771,7 @@ impl V2Storage for AsyncMySqlDatabase {
         username: &AkdKey,
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<ValueState, StorageError> {
+        debug!("BEGIN MySQL get user state {:?}-{:?}", username, flag);
         let result = async {
             let conn = self.get_connection().await?;
             let mut statement_text =
@@ -822,7 +833,7 @@ impl V2Storage for AsyncMySqlDatabase {
             if let Some(value_in_item) = &item {
                 if let Some(cache) = &self.cache {
                     cache
-                        .put(&DbRecord::ValueState(value_in_item.clone()), false)
+                        .put(&DbRecord::ValueState(value_in_item.clone()))
                         .await;
                 }
             }
@@ -840,7 +851,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
             Ok::<Option<ValueState>, MySqlError>(item)
         };
-
+        debug!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),

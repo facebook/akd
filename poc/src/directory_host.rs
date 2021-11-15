@@ -12,6 +12,7 @@ use akd::storage::V2Storage;
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
+use log::{error, info, debug};
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,
@@ -52,7 +53,7 @@ where
     S: V2Storage + Sync + Send,
     H: Hasher,
 {
-    println!("INFO: Starting the verifiable directory host");
+    info!("Starting the verifiable directory host");
 
     while let Some(Rpc(message, channel)) = rx.recv().await {
         match (message, channel) {
@@ -169,10 +170,10 @@ where
                 }
             }
             (_, None) => {
-                println!("ERROR: A channel was not provided to the directory server to process a command!");
+                error!("A channel was not provided to the directory server to process a command!");
             }
         }
     }
 
-    println!("INFO: AKD host shutting down");
+    info!("AKD host shutting down");
 }

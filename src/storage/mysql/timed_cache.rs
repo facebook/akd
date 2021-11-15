@@ -9,26 +9,22 @@
 
 use crate::storage::DbRecord;
 use crate::storage::Storable;
+use log::debug;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
+
 pub(crate) struct CachedItem {
     expiration: Instant,
-    data: Vec<DbRecord>,
-}
-
-impl CachedItem {
-    pub(crate) fn append_item(&mut self, item: DbRecord, life: Duration) {
-        self.expiration = Instant::now() + life;
-        self.data.push(item);
-    }
+    data: DbRecord,
 }
 
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
 pub(crate) struct TimedCache {
-    map: Arc<tokio::sync::RwLock<HashMap<[u8; 64], CachedItem>>>,
+    map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     item_lifetime: Duration,
 }
 
@@ -43,28 +39,28 @@ impl Clone for TimedCache {
 
 impl TimedCache {
     pub(crate) async fn clean(&self) {
+        debug!("BEGIN clean cache");
         let now = Instant::now();
         let mut keys_to_flush = HashSet::new();
-        let r_guard = self.map.read().await;
-        for (key, value) in (*r_guard).iter() {
-            if value.expiration < now {
-                keys_to_flush.insert(key);
-            }
-        }
 
-        // flush the expired items
-        if !keys_to_flush.is_empty() {
-            let mut rw_guard = self.map.write().await;
-            for key in keys_to_flush {
-                (*rw_guard).remove(key);
+        let mut write = self.map.write().await;
+        for (key, value) in write.iter() {
+            if value.expiration < now {
+                keys_to_flush.insert(key.clone());
             }
         }
+        if !keys_to_flush.is_empty() {
+            for key in keys_to_flush.into_iter() {
+                write.remove(&key);
+            }
+        }
+        debug!("END clean cache");
     }
 
     pub(crate) fn new(o_lifetime: Option<Duration>) -> Self {
         let lifetime = match o_lifetime {
             Some(life) if life > Duration::from_secs(1) => life,
-            _ => Duration::from_millis(30000),
+            _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
         };
         Self {
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
@@ -75,89 +71,55 @@ impl TimedCache {
     pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         self.clean().await;
 
-        let cache_key = St::get_cache_key(key);
+        debug!("BEGIN cache retrieve {:?}", key);
         let full_key = St::get_full_binary_key_id(key);
 
         let guard = self.map.read().await;
         let ptr: &HashMap<_, _> = &*guard;
-        if let Some(result) = ptr.get(&cache_key) {
-            for item in result.data.iter() {
-                // retrieve the "cache bucket", and then find the matching inner item
-                match &item {
-                    DbRecord::Azks(azks) if azks.get_full_binary_id() == full_key => {
-                        return Some(DbRecord::Azks(azks.clone()))
-                    }
-                    DbRecord::HistoryTreeNode(node) if node.get_full_binary_id() == full_key => {
-                        return Some(DbRecord::HistoryTreeNode(node.clone()))
-                    }
-                    DbRecord::HistoryNodeState(state) if state.get_full_binary_id() == full_key => {
-                        return Some(DbRecord::HistoryNodeState(state.clone()))
-                    }
-                    DbRecord::ValueState(value) if value.get_full_binary_id() == full_key => {
-                        return Some(DbRecord::ValueState(value.clone()))
-                    }
-                    _ => {}
-                }
-            }
+        debug!("END cache retrieve");
+        if let Some(result) = ptr.get(&full_key) {
+            Some(result.data.clone())
+        } else {
+            None
         }
-
-        None
     }
 
-    pub(crate) async fn put(&self, record: &DbRecord, flush_on_hit: bool) {
+    pub(crate) async fn put(&self, record: &DbRecord) {
         self.clean().await;
 
+        debug!("BEGIN cache put");
         let mut guard = self.map.write().await;
-        let key = record.cache_key();
-        if flush_on_hit {
-            // overwrite any existing items since a flush is requested
-            let item = CachedItem {
-                expiration: Instant::now() + self.item_lifetime,
-                data: vec![record.clone()],
-            };
-            (*guard).insert(key, item);
-        } else {
-            (*guard)
-                .entry(key)
-                .or_insert_with(|| CachedItem {
-                    expiration: Instant::now() + self.item_lifetime,
-                    data: vec![],
-                })
-                .append_item(record.clone(), self.item_lifetime);
-        }
+        let key = record.get_full_binary_id();
+        // overwrite any existing items since a flush is requested
+        let item = CachedItem {
+            expiration: Instant::now() + self.item_lifetime,
+            data: record.clone(),
+        };
+        (*guard).insert(key, item);
+        debug!("END cache put");
     }
 
     pub(crate) async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
+        debug!("BEGIN cache put batch");
         let mut guard = self.map.write().await;
-        let mut keys: Vec<[u8; 64]> = records.iter().map(|i| i.cache_key()).collect();
-        // remove duplicates
-        let mut unique_keys = HashSet::new();
-        keys.retain(|e| unique_keys.insert(*e));
-
-        // clear the keys in this batch update
-        for key in keys.into_iter() {
-            if let std::collections::hash_map::Entry::Occupied(o) = (*guard).entry(key) {
-                o.remove_entry();
-            }
-        }
-
         for record in records.iter() {
-            let key = record.cache_key();
-            (*guard)
-                .entry(key)
-                .or_insert_with(|| CachedItem {
-                    expiration: Instant::now() + self.item_lifetime,
-                    data: vec![],
-                })
-                .append_item(record.clone(), self.item_lifetime);
+            let key = record.get_full_binary_id();
+            let item = CachedItem {
+                expiration: Instant::now() + self.item_lifetime,
+                data: record.clone(),
+            };
+            (*guard).insert(key, item);
         }
+        debug!("END cache put batch");
     }
 
     #[allow(dead_code)]
     pub(crate) async fn flush(&self) {
+        debug!("BEGIN cache flush");
         let mut guard = self.map.write().await;
         (*guard).clear();
+        debug!("END cache flush");
     }
 }
