@@ -5,8 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use log::{Record, Level, Metadata, LevelFilter};
 use colored::*;
+use log::{Level, LevelFilter, Metadata, Record};
 
 pub(crate) struct ConsoleLogger {
     pub(crate) level: Level,

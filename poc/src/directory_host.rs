@@ -9,10 +9,10 @@ use akd::directory::Directory;
 use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::V2Storage;
+use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
-use log::{error, info, debug};
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,

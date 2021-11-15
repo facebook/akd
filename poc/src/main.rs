@@ -11,6 +11,7 @@
 use akd::directory::Directory;
 use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use commands::Command;
+use log::{error, info, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::io::*;
@@ -20,7 +21,6 @@ use tokio::sync::mpsc::*;
 use tokio::time::timeout;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
-use log::{error, info, warn};
 
 mod commands;
 mod directory_host;
@@ -30,7 +30,9 @@ use logs::ConsoleLogger;
 
 type Blake3 = Blake3_256<BaseElement>;
 
-static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger { level: log::Level::Info };
+static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger {
+    level: log::Level::Info,
+};
 
 /// applicationModes
 #[derive(StructOpt)]
@@ -67,7 +69,9 @@ async fn main() {
     let cli = Cli::from_args();
 
     // enable the logger
-    if let Err(err) = log::set_logger(&CONSOLE_LOGGER).map(|()| log::set_max_level(log::LevelFilter::Debug)) {
+    if let Err(err) =
+        log::set_logger(&CONSOLE_LOGGER).map(|()| log::set_max_level(log::LevelFilter::Debug))
+    {
         println!("Error setting logger {}", err);
     }
 
@@ -278,10 +282,7 @@ async fn process_input(
                                 println!("Response: {}", success);
                             }
                             Ok(Err(dir_err)) => {
-                                error!(
-                                    "Error in directory processing command: {}",
-                                    dir_err
-                                );
+                                error!("Error in directory processing command: {}", dir_err);
                             }
                             Err(_) => {
                                 error!("Failed to receive result from directory");
@@ -293,10 +294,7 @@ async fn process_input(
                                 println!("Response: {}", success);
                             }
                             Ok(Ok(Err(dir_err))) => {
-                                error!(
-                                    "Error in directory processing command: {}",
-                                    dir_err
-                                );
+                                error!("Error in directory processing command: {}", dir_err);
                             }
                             Ok(Err(_)) => {
                                 error!("Failed to receive result from directory");
