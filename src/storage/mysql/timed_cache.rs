@@ -44,14 +44,11 @@ impl Clone for TimedCache {
 
 impl TimedCache {
     async fn clean(&self) {
-        let do_clean =
-            {
-                if *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS) < Instant::now() {
-                    true
-                } else {
-                    false
-                }
-            };
+        let do_clean = {
+            // we need the {} brackets in order to release the read lock, since we _may_ acquire a write lock shortly later
+            *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS)
+                < Instant::now()
+        };
         if do_clean {
             debug!("BEGIN clean cache");
             let now = Instant::now();
@@ -88,7 +85,7 @@ impl TimedCache {
     }
 
     pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
-         self.clean().await;
+        self.clean().await;
 
         debug!("BEGIN cache retrieve {:?}", key);
         let full_key = St::get_full_binary_key_id(key);

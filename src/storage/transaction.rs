@@ -41,13 +41,12 @@ impl Transaction {
     pub(crate) async fn begin_transaction(&mut self) -> bool {
         debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
-        let out =
-            if (*guard).active {
-                false
-            } else {
-                (*guard).active = true;
-                true
-            };
+        let out = if (*guard).active {
+            false
+        } else {
+            (*guard).active = true;
+            true
+        };
         debug!("END begin transaction");
         out
     }

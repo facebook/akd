@@ -250,7 +250,7 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                 Err(crate::errors::StorageError::GetError(String::from(
                     "Not found",
                 )))
-            },
+            }
         }
     }
 

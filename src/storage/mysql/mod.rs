@@ -14,8 +14,8 @@ use crate::storage::types::{
 };
 use crate::storage::{Storable, V2Storage};
 type LocalTransaction = crate::storage::transaction::Transaction;
-use log::{debug, warn, error, info};
 use async_trait::async_trait;
+use log::{debug, error, info, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -189,7 +189,9 @@ impl AsyncMySqlDatabase {
                 // background and will soon become healthy, so no action required
 
                 // fail the connection
-                return Err(MySqlError::Driver(mysql_async::error::DriverError::PoolDisconnected));
+                return Err(MySqlError::Driver(
+                    mysql_async::error::DriverError::PoolDisconnected,
+                ));
             }
         };
 
@@ -198,7 +200,9 @@ impl AsyncMySqlDatabase {
         // large blob entries instead of truncating them with a warning.
         // This is essential for our system, since SEE relies on all data in our
         // XDB being exactly what it wrote.
-        let connection = connection.drop_query("SET SESSION sql_mode = 'TRADITIONAL'").await?;
+        let connection = connection
+            .drop_query("SET SESSION sql_mode = 'TRADITIONAL'")
+            .await?;
 
         Ok(connection)
     }
@@ -261,10 +265,14 @@ impl AsyncMySqlDatabase {
                 return Err(StorageError::Connection(message));
             }
 
-            warn!("Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds", attempts, SQL_RECONNECTION_DELAY_SECS);
+            warn!(
+                "Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds",
+                attempts, SQL_RECONNECTION_DELAY_SECS
+            );
 
-            tokio::time::delay_for(tokio::time::Duration::from_secs( // TOKIO 0.2.X
-            //tokio::time::sleep(tokio::time::Duration::from_secs( // TOKIO 1.X
+            tokio::time::delay_for(tokio::time::Duration::from_secs(
+                // TOKIO 0.2.X
+                //tokio::time::sleep(tokio::time::Duration::from_secs( // TOKIO 1.X
                 SQL_RECONNECTION_DELAY_SECS,
             ))
             .await;
@@ -530,7 +538,6 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok(_) => Ok(()),
             Err(error) => Err(StorageError::SetError(error.to_string())),
         }
-
     }
 
     /// Retrieve a stored record from the data layer
@@ -733,9 +740,7 @@ impl V2Storage for AsyncMySqlDatabase {
             let (_, selected_records) = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
-                    cache
-                        .put(&DbRecord::ValueState(record.clone()))
-                        .await;
+                    cache.put(&DbRecord::ValueState(record.clone())).await;
                 }
             }
             if self.is_transaction_active().await {

@@ -12,8 +12,8 @@ use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, V2Storage};
 use crate::{node_state::*, Direction, ARITY};
-use log::debug;
 use async_recursion::async_recursion;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
@@ -609,8 +609,7 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<HistoryChildState, HistoryTreeNodeError> {
         match direction {
-            Direction::None =>
-                Err(HistoryTreeNodeError::DirectionIsNone),
+            Direction::None => Err(HistoryTreeNodeError::DirectionIsNone),
             Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
                 .await
                 .map(|curr| curr.get_child_state_in_dir(dir))?),

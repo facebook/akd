@@ -17,8 +17,8 @@ use crate::serialization::to_digest;
 
 use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
-use log::debug;
 use async_recursion::async_recursion;
+use log::debug;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
@@ -133,21 +133,22 @@ impl Azks {
         for (label, value) in insertion_set {
             let new_leaf_loc = self.num_nodes;
 
-            let new_leaf =
-                if append_only_usage {
-                    get_leaf_node_without_hashing::<H, S>(
-                        storage,
-                        label,
-                        0,
-                        value,
-                        0,
-                        self.latest_epoch,
-                    )
-                    .await?
-                } else {
-                    let out = get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch).await?;
-                    out
-                };
+            let new_leaf = if append_only_usage {
+                get_leaf_node_without_hashing::<H, S>(
+                    storage,
+                    label,
+                    0,
+                    value,
+                    0,
+                    self.latest_epoch,
+                )
+                .await?
+            } else {
+                let out =
+                    get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch)
+                        .await?;
+                out
+            };
 
             debug!("BEGIN insert leaf");
             root_node
