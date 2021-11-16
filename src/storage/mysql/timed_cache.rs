@@ -14,7 +14,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+// item's live for 30s
 const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
+// clean the cache every 15s
+const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
 
 pub(crate) struct CachedItem {
     expiration: Instant,
@@ -25,6 +28,7 @@ pub(crate) struct CachedItem {
 /// expired entries and removes them
 pub(crate) struct TimedCache {
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
+    last_clean: Arc<tokio::sync::RwLock<Instant>>,
     item_lifetime: Duration,
 }
 
@@ -32,29 +36,43 @@ impl Clone for TimedCache {
     fn clone(&self) -> Self {
         TimedCache {
             map: self.map.clone(),
+            last_clean: self.last_clean.clone(),
             item_lifetime: self.item_lifetime,
         }
     }
 }
 
 impl TimedCache {
-    pub(crate) async fn clean(&self) {
-        debug!("BEGIN clean cache");
-        let now = Instant::now();
-        let mut keys_to_flush = HashSet::new();
+    async fn clean(&self) {
+        let do_clean =
+            {
+                if *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS) < Instant::now() {
+                    true
+                } else {
+                    false
+                }
+            };
+        if do_clean {
+            debug!("BEGIN clean cache");
+            let now = Instant::now();
+            let mut keys_to_flush = HashSet::new();
 
-        let mut write = self.map.write().await;
-        for (key, value) in write.iter() {
-            if value.expiration < now {
-                keys_to_flush.insert(key.clone());
+            let mut write = self.map.write().await;
+            for (key, value) in write.iter() {
+                if value.expiration < now {
+                    keys_to_flush.insert(key.clone());
+                }
             }
-        }
-        if !keys_to_flush.is_empty() {
-            for key in keys_to_flush.into_iter() {
-                write.remove(&key);
+            if !keys_to_flush.is_empty() {
+                for key in keys_to_flush.into_iter() {
+                    write.remove(&key);
+                }
             }
+            debug!("END clean cache");
+
+            // update last clean time
+            *(self.last_clean.write().await) = Instant::now();
         }
-        debug!("END clean cache");
     }
 
     pub(crate) fn new(o_lifetime: Option<Duration>) -> Self {
@@ -64,12 +82,13 @@ impl TimedCache {
         };
         Self {
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             item_lifetime: lifetime,
         }
     }
 
     pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
-        self.clean().await;
+         self.clean().await;
 
         debug!("BEGIN cache retrieve {:?}", key);
         let full_key = St::get_full_binary_key_id(key);
@@ -78,10 +97,11 @@ impl TimedCache {
         let ptr: &HashMap<_, _> = &*guard;
         debug!("END cache retrieve");
         if let Some(result) = ptr.get(&full_key) {
-            Some(result.data.clone())
-        } else {
-            None
+            if result.expiration > Instant::now() {
+                return Some(result.data.clone());
+            }
         }
+        None
     }
 
     pub(crate) async fn put(&self, record: &DbRecord) {
