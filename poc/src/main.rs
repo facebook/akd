@@ -78,12 +78,8 @@ async fn main() {
     let (tx, mut rx) = channel(2);
 
     if cli.memory_db {
-        let db = akd::storage::V2FromV1StorageWrapper::new(
-            akd::storage::memory::AsyncInMemoryDatabase::new(),
-        );
-        let mut directory = Directory::<
-            akd::storage::V2FromV1StorageWrapper<akd::storage::memory::AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
+        let db = akd::storage::memory::newdb::AsyncInMemoryDatabase::new();
+        let mut directory = Directory::<_>::new::<Blake3>(&db)
         .await
         .unwrap();
         tokio::spawn(async move {
@@ -101,7 +97,7 @@ async fn main() {
             MySqlCacheOptions::Default, // enable caching
         )
         .await;
-        let mut directory = Directory::<AsyncMySqlDatabase>::new::<Blake3>(&mysql_db)
+        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db)
             .await
             .unwrap();
         tokio::spawn(async move {

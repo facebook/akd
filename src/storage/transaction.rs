@@ -28,6 +28,12 @@ pub struct Transaction {
     num_writes: Arc<tokio::sync::RwLock<u64>>,
 }
 
+impl std::fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a lone transaction")
+    }
+}
+
 impl Transaction {
     pub(crate) fn new() -> Self {
         Self {
