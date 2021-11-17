@@ -125,8 +125,7 @@ impl HistoryTreeNode {
         storage: &S,
         key: NodeKey,
     ) -> Result<HistoryTreeNode, StorageError> {
-        let record = storage.get::<HistoryTreeNode>(key).await?;
-        match record {
+        match storage.get::<HistoryTreeNode>(key).await? {
             DbRecord::HistoryTreeNode(node) => Ok(node),
             _ => Err(StorageError::GetError(String::from("Not found"))),
         }
@@ -192,9 +191,12 @@ impl HistoryTreeNode {
                     let mut new_self: HistoryTreeNode =
                         HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                     new_self.update_hash::<_, H>(storage, epoch).await?;
+                    *self = new_self;
+                } else {
+                    *self =
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                 }
 
-                *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                 return Ok(());
             }
         }
@@ -292,10 +294,12 @@ impl HistoryTreeNode {
                                     .await?;
                             self.update_hash::<_, H>(storage, epoch).await?;
                             self.write_to_storage(storage).await?;
+                        } else {
+                            debug!("BEGIN retrieve self");
+                            *self =
+                                HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
+                                    .await?;
                         }
-                        debug!("BEGIN retrieve self");
-                        *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
-                            .await?;
                         debug!("END insert single leaf (dir_self = None)");
                         Ok(())
                     }
@@ -329,9 +333,7 @@ impl HistoryTreeNode {
                 if self.is_root() {
                     hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
                 }
-                let epoch_state = self.get_state_at_epoch(storage, epoch).await?;
-
-                let mut updated_state = epoch_state;
+                let mut updated_state = self.get_state_at_epoch(storage, epoch).await?;
                 updated_state.value = from_digest::<H>(hash_digest)?;
                 updated_state.key = NodeStateKey(self.label, epoch);
                 set_state_map(storage, updated_state).await?;
@@ -762,8 +764,7 @@ pub(crate) async fn set_state_map<S: V2Storage + Sync + Send>(
     storage: &S,
     val: HistoryNodeState,
 ) -> Result<(), StorageError> {
-    storage.set(DbRecord::HistoryNodeState(val)).await?;
-    Ok(())
+    storage.set(DbRecord::HistoryNodeState(val)).await
 }
 
 pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
@@ -771,10 +772,10 @@ pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
     node: &HistoryTreeNode,
     key: u64,
 ) -> Result<HistoryNodeState, StorageError> {
-    let record = storage
+    if let Ok(DbRecord::HistoryNodeState(state)) = storage
         .get::<HistoryNodeState>(NodeStateKey(node.label, key))
-        .await?;
-    if let DbRecord::HistoryNodeState(state) = record {
+        .await
+    {
         Ok(state)
     } else {
         Err(StorageError::GetError(String::from("Not found")))

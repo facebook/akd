@@ -15,7 +15,7 @@ use crate::storage::types::{
 use crate::storage::{Storable, V2Storage};
 type LocalTransaction = crate::storage::transaction::Transaction;
 use async_trait::async_trait;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -65,6 +65,9 @@ pub struct AsyncMySqlDatabase {
     is_healthy: Arc<Mutex<bool>>,
     cache: Option<TimedCache>,
     trans: LocalTransaction,
+
+    num_reads: Arc<tokio::sync::RwLock<u64>>,
+    num_writes: Arc<tokio::sync::RwLock<u64>>,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -97,6 +100,9 @@ impl Clone for AsyncMySqlDatabase {
             is_healthy: self.is_healthy.clone(),
             cache: self.cache.clone(),
             trans: LocalTransaction::new(),
+
+            num_reads: self.num_reads.clone(),
+            num_writes: self.num_writes.clone(),
         }
     }
 }
@@ -138,6 +144,9 @@ impl AsyncMySqlDatabase {
             is_healthy: healthy,
             cache,
             trans: LocalTransaction::new(),
+
+            num_reads: Arc::new(tokio::sync::RwLock::new(0)),
+            num_writes: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
 
@@ -349,6 +358,8 @@ impl AsyncMySqlDatabase {
         record: DbRecord,
         trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
     ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
+        *(self.num_writes.write().await) += 1;
+
         debug!("BEGIN MySQL set");
         let statement_text = record.set_statement();
         let (ntx, out) = match trans {
@@ -376,6 +387,8 @@ impl AsyncMySqlDatabase {
         records: Vec<DbRecord>,
         trans: mysql_async::Transaction<mysql_async::Conn>,
     ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
+        *(self.num_writes.write().await) += records.len() as u64;
+
         let mut mini_tx = trans;
         debug!("BEGIN MySQL set batch");
         for batch in records.chunks(100) {
@@ -444,6 +457,30 @@ impl AsyncMySqlDatabase {
 
 #[async_trait]
 impl V2Storage for AsyncMySqlDatabase {
+    async fn log_metrics(&self, level: log::Level) {
+        if let Some(cache) = &self.cache {
+            cache.log(level).await
+        }
+
+        self.trans.log_metrics(level).await;
+
+        let mut r = self.num_reads.write().await;
+        let mut w = self.num_writes.write().await;
+
+        let msg = format!("MySQL writes: {}, MySQL reads: {}", *w, *r);
+
+        *r = 0;
+        *w = 0;
+
+        match level {
+            log::Level::Trace => trace!("{}", msg),
+            log::Level::Debug => debug!("{}", msg),
+            log::Level::Info => info!("{}", msg),
+            log::Level::Warn => warn!("{}", msg),
+            _ => error!("{}", msg),
+        }
+    }
+
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool {
         self.trans.begin_transaction().await
@@ -556,6 +593,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         }
 
+        *(self.num_reads.write().await) += 1;
         debug!("BEGIN MySQL get {:?}", id);
         let result = async {
             let conn = self.get_connection().await?;
@@ -596,6 +634,8 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         num: Option<usize>,
     ) -> core::result::Result<Vec<DbRecord>, StorageError> {
+        *(self.num_reads.write().await) += 1;
+
         debug!("BEGIN MySQL get all {:?}", St::data_type());
         let result = async {
             let conn = self.get_connection().await?;
@@ -702,6 +742,8 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         username: &AkdKey,
     ) -> core::result::Result<KeyData, StorageError> {
+        *(self.num_reads.write().await) += 1;
+
         debug!("BEGIN MySQL get user data {:?}", username);
         let result = async {
             let conn = self.get_connection().await?;
@@ -776,6 +818,8 @@ impl V2Storage for AsyncMySqlDatabase {
         username: &AkdKey,
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<ValueState, StorageError> {
+        *(self.num_reads.write().await) += 1;
+
         debug!("BEGIN MySQL get user state {:?}-{:?}", username, flag);
         let result = async {
             let conn = self.get_connection().await?;

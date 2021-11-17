@@ -144,10 +144,8 @@ impl Azks {
                 )
                 .await?
             } else {
-                let out =
-                    get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch)
-                        .await?;
-                out
+                get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch)
+                    .await?
             };
 
             debug!("BEGIN insert leaf");

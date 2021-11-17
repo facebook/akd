@@ -11,7 +11,7 @@ use crate::errors::StorageError;
 use crate::storage::types::DbRecord;
 use crate::storage::Storable;
 
-use log::debug;
+use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -23,6 +23,9 @@ struct TransactionState {
 /// Represents a transaction in the storage layer
 pub struct Transaction {
     state: Arc<tokio::sync::RwLock<TransactionState>>,
+
+    num_reads: Arc<tokio::sync::RwLock<u64>>,
+    num_writes: Arc<tokio::sync::RwLock<u64>>,
 }
 
 impl Transaction {
@@ -32,11 +35,32 @@ impl Transaction {
                 mods: HashMap::new(),
                 active: false,
             })),
+
+            num_reads: Arc::new(tokio::sync::RwLock::new(0)),
+            num_writes: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
 }
 
 impl Transaction {
+    pub(crate) async fn log_metrics(&self, level: log::Level) {
+        let mut r = self.num_reads.write().await;
+        let mut w = self.num_writes.write().await;
+
+        let msg = format!("Transaction writes: {}, Transaction reads: {}", *w, *r);
+
+        *r = 0;
+        *w = 0;
+
+        match level {
+            log::Level::Trace => trace!("{}", msg),
+            log::Level::Debug => debug!("{}", msg),
+            log::Level::Info => info!("{}", msg),
+            log::Level::Warn => warn!("{}", msg),
+            _ => error!("{}", msg),
+        }
+    }
+
     /// Start a transaction in the storage layer
     pub(crate) async fn begin_transaction(&mut self) -> bool {
         debug!("BEGIN begin transaction");
@@ -103,6 +127,9 @@ impl Transaction {
 
         let guard = self.state.read().await;
         let out = (*guard).mods.get(&bin_id).cloned();
+        if out.is_some() {
+            *(self.num_reads.write().await) += 1;
+        }
         debug!("END transaction get");
         out
     }
@@ -113,6 +140,8 @@ impl Transaction {
 
         let mut guard = self.state.write().await;
         (*guard).mods.insert(bin_id, record.clone());
+
+        *(self.num_writes.write().await) += 1;
         debug!("END transaction set");
     }
 }

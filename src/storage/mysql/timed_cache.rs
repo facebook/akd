@@ -9,7 +9,7 @@
 
 use crate::storage::DbRecord;
 use crate::storage::Storable;
-use log::debug;
+use log::{debug, error, info, trace, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -30,6 +30,28 @@ pub(crate) struct TimedCache {
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     item_lifetime: Duration,
+    hit_count: Arc<tokio::sync::RwLock<u64>>,
+}
+
+impl TimedCache {
+    pub(crate) async fn log(&self, level: log::Level) {
+        let mut hit = self.hit_count.write().await;
+        let hit_count = *hit;
+        *hit = 0;
+        let guard = self.map.read().await;
+        let cache_size = (*guard).keys().len();
+        let msg = format!(
+            "Cache hit since last: {}, cached size: {} items",
+            hit_count, cache_size
+        );
+        match level {
+            log::Level::Trace => trace!("{}", msg),
+            log::Level::Debug => debug!("{}", msg),
+            log::Level::Info => info!("{}", msg),
+            log::Level::Warn => warn!("{}", msg),
+            _ => error!("{}", msg),
+        }
+    }
 }
 
 impl Clone for TimedCache {
@@ -38,6 +60,7 @@ impl Clone for TimedCache {
             map: self.map.clone(),
             last_clean: self.last_clean.clone(),
             item_lifetime: self.item_lifetime,
+            hit_count: self.hit_count.clone(),
         }
     }
 }
@@ -81,6 +104,7 @@ impl TimedCache {
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             item_lifetime: lifetime,
+            hit_count: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
 
@@ -94,6 +118,8 @@ impl TimedCache {
         let ptr: &HashMap<_, _> = &*guard;
         debug!("END cache retrieve");
         if let Some(result) = ptr.get(&full_key) {
+            *(self.hit_count.write().await) += 1;
+
             if result.expiration > Instant::now() {
                 return Some(result.data.clone());
             }

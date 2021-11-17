@@ -143,6 +143,9 @@ pub trait V1Storage: Clone {
 /// Updated storage layer with better support of asynchronous work and batched operations
 #[async_trait]
 pub trait V2Storage: Clone {
+    /// Log some information about the cache (hit rate, etc)
+    async fn log_metrics(&self, level: log::Level);
+
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool;
 
@@ -364,6 +367,9 @@ impl<S: V1Storage + Send + Sync> From<S> for V2FromV1StorageWrapper<S> {
 
 #[async_trait]
 impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
+    /// Log some information about the cache (hit rate, etc)
+    async fn log_metrics(&self, _level: log::Level) {}
+
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool {
         self.trans.begin_transaction().await
