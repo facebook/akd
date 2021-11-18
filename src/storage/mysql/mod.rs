@@ -21,7 +21,7 @@ use mysql_async::*;
 
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use tokio::time::Instant;
+use tokio::time::{Instant, Duration};
 
 type MySqlError = mysql_async::error::Error;
 
@@ -68,6 +68,7 @@ pub struct AsyncMySqlDatabase {
 
     num_reads: Arc<tokio::sync::RwLock<u64>>,
     num_writes: Arc<tokio::sync::RwLock<u64>>,
+    time_spent: Arc<tokio::sync::RwLock<Duration>>,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -103,6 +104,7 @@ impl Clone for AsyncMySqlDatabase {
 
             num_reads: self.num_reads.clone(),
             num_writes: self.num_writes.clone(),
+            time_spent: self.time_spent.clone(),
         }
     }
 }
@@ -147,6 +149,7 @@ impl AsyncMySqlDatabase {
 
             num_reads: Arc::new(tokio::sync::RwLock::new(0)),
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
+            time_spent: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0)))
         }
     }
 
@@ -361,6 +364,8 @@ impl AsyncMySqlDatabase {
         *(self.num_writes.write().await) += 1;
 
         debug!("BEGIN MySQL set");
+        let tic = Instant::now();
+
         let statement_text = record.set_statement();
         let (ntx, out) = match trans {
             Some(tx) => match tx.drop_exec(statement_text, record.set_params()).await {
@@ -377,6 +382,9 @@ impl AsyncMySqlDatabase {
             }
         };
         self.check_for_infra_error(out)?;
+        let toc = Instant::now() - tic;
+        *(self.time_spent.write().await) += toc;
+
         debug!("END MySQL set");
         Ok(ntx)
     }
@@ -391,6 +399,7 @@ impl AsyncMySqlDatabase {
 
         let mut mini_tx = trans;
         debug!("BEGIN MySQL set batch");
+        let tic = Instant::now();
         for batch in records.chunks(100) {
             let head = &batch[0];
             let statement = head.set_statement();
@@ -400,6 +409,8 @@ impl AsyncMySqlDatabase {
             let out = prepped.batch(param_groups).await;
             mini_tx = self.check_for_infra_error(out)?.close().await?;
         }
+        let toc = Instant::now() - tic;
+        *(self.time_spent.write().await) += toc;
         debug!("END MySQL set batch");
         Ok(mini_tx)
     }
@@ -466,11 +477,13 @@ impl V2Storage for AsyncMySqlDatabase {
 
         let mut r = self.num_reads.write().await;
         let mut w = self.num_writes.write().await;
+        let mut ts = self.time_spent.write().await;
 
-        let msg = format!("MySQL writes: {}, MySQL reads: {}", *w, *r);
+        let msg = format!("MySQL writes: {}, MySQL reads: {}, Time spent in MySQL op: {} s", *w, *r, (*ts).as_millis());
 
         *r = 0;
         *w = 0;
+        *ts = Duration::from_millis(0);
 
         match level {
             log::Level::Trace => trace!("{}", msg),
@@ -596,6 +609,8 @@ impl V2Storage for AsyncMySqlDatabase {
         *(self.num_reads.write().await) += 1;
         debug!("BEGIN MySQL get {:?}", id);
         let result = async {
+            let tic = Instant::now();
+
             let conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
             let params = DbRecord::get_specific_params::<St>(id);
@@ -609,6 +624,10 @@ impl V2Storage for AsyncMySqlDatabase {
                     Ok((_, result)) => Ok(result),
                 },
             };
+
+            let toc = Instant::now() - tic;
+            *(self.time_spent.write().await) += toc;
+
             let result = self.check_for_infra_error(out)?;
             if let Some(mut row) = result {
                 let record = DbRecord::from_row::<St>(&mut row)?;
@@ -638,6 +657,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
         debug!("BEGIN MySQL get all {:?}", St::data_type());
         let result = async {
+            let tic = Instant::now();
+
             let conn = self.get_connection().await?;
             let mut statement = DbRecord::get_statement::<St>();
             if let Some(limit) = num {
@@ -653,6 +674,9 @@ impl V2Storage for AsyncMySqlDatabase {
                     acc
                 })
                 .await?;
+
+            let toc = Instant::now() - tic;
+            *(self.time_spent.write().await) += toc;
             if let Some(cache) = &self.cache {
                 for el in out.iter() {
                     cache.put(el).await;
@@ -746,6 +770,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
         debug!("BEGIN MySQL get user data {:?}", username);
         let result = async {
+            let tic = Instant::now();
+
             let conn = self.get_connection().await?;
             let statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
@@ -779,6 +805,9 @@ impl V2Storage for AsyncMySqlDatabase {
                     }
                 })
                 .await;
+
+            let toc = Instant::now() - tic;
+            *(self.time_spent.write().await) += toc;
             let (_, selected_records) = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
@@ -822,6 +851,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
         debug!("BEGIN MySQL get user state {:?}-{:?}", username, flag);
         let result = async {
+            let tic = Instant::now();
+
             let conn = self.get_connection().await?;
             let mut statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
@@ -876,6 +907,9 @@ impl V2Storage for AsyncMySqlDatabase {
                     }
                 })
                 .await;
+
+            let toc = Instant::now() - tic;
+            *(self.time_spent.write().await) += toc;
             let (_, selected_record) = self.check_for_infra_error(out)?;
 
             let item = selected_record.into_iter().next();

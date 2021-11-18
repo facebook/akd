@@ -22,6 +22,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct AsyncInMemoryDatabase {
     db: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
+    user_info: Arc<tokio::sync::RwLock<HashMap<String, Vec<ValueState>>>>,
     trans: Transaction,
 }
 
@@ -33,6 +34,7 @@ impl AsyncInMemoryDatabase {
     pub fn new() -> Self {
         Self {
             db: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            user_info: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             trans: Transaction::new(),
         }
     }
@@ -48,6 +50,7 @@ impl Clone for AsyncInMemoryDatabase {
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
+            user_info: self.user_info.clone(),
             trans: Transaction::new(),
         }
     }
@@ -98,16 +101,29 @@ impl V2Storage for AsyncInMemoryDatabase {
             return Ok(());
         }
 
-        let mut guard = self.db.write().await;
-        guard.insert(record.get_full_binary_id(), record);
+        if let DbRecord::ValueState(value_state) = &record {
+            let mut guard = self.user_info.write().await;
+            let username = value_state.username.0.clone();
+            guard.entry(username).or_insert_with(Vec::new).push(value_state.clone());
+        } else {
+            let mut guard = self.db.write().await;
+            guard.insert(record.get_full_binary_id(), record);
+        }
 
         Ok(())
     }
 
     async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
+        let mut u_guard = self.user_info.write().await;
         let mut guard = self.db.write().await;
+
         for record in records.into_iter() {
-            guard.insert(record.get_full_binary_id(), record);
+            if let DbRecord::ValueState(value_state) = &record {
+                let username = value_state.username.0.clone();
+                u_guard.entry(username).or_insert_with(Vec::new).push(value_state.clone());
+            } else {
+                guard.insert(record.get_full_binary_id(), record);
+            }
         }
         Ok(())
     }
@@ -121,7 +137,19 @@ impl V2Storage for AsyncInMemoryDatabase {
             }
         }
         let bin_id = St::get_full_binary_key_id(&id);
-
+        // if the request is for a value state, look in the value state set
+        if St::data_type() == StorageType::ValueState {
+            if let Ok(crate::storage::types::ValueStateKey(username, epoch)) = crate::storage::types::ValueStateKey::from_full_binary(&bin_id) {
+                let u_guard = self.user_info.read().await;
+                if let Some(state) = (*u_guard).get(&username).cloned() {
+                    if let Some(item) = state.iter().find(|&x| x.epoch == epoch) {
+                        return Ok(DbRecord::ValueState(item.clone()));
+                    }
+                }
+                return Err(StorageError::GetError("Not found".to_string()));
+            }
+        }
+        // fallback to regular get/set db
         let guard = self.db.read().await;
         if let Some(result) = (*guard).get(&bin_id).cloned() {
             Ok(result)
@@ -135,22 +163,44 @@ impl V2Storage for AsyncInMemoryDatabase {
         &self,
         num: Option<usize>,
     ) -> Result<Vec<DbRecord>, StorageError> {
-        let guard = self.db.read().await;
         let mut list = vec![];
-        for (_, item) in guard.iter() {
-            let ty = match &item {
-                DbRecord::Azks(_) => StorageType::Azks,
-                DbRecord::HistoryNodeState(_) => StorageType::HistoryNodeState,
-                DbRecord::HistoryTreeNode(_) => StorageType::HistoryTreeNode,
-                DbRecord::ValueState(_) => StorageType::ValueState,
-            };
-            if ty == St::data_type() {
-                list.push(item.clone());
-            }
 
-            if let Some(count) = num {
-                if count > 0 && list.len() >= count {
-                    break;
+        if St::data_type() == StorageType::ValueState {
+            let u_guard = self.user_info.read().await;
+            for (_, item) in u_guard.iter() {
+                for state in item.iter() {
+                    let record = DbRecord::ValueState(state.clone());
+                    list.push(record);
+                    if let Some(count) = num {
+                        if count > 0 && list.len() >= count {
+                            break;
+                        }
+                    }
+                }
+                if let Some(count) = num {
+                    if count > 0 && list.len() >= count {
+                        break;
+                    }
+                }
+            }
+        } else {
+            // fallback to generic lookup for all other data
+            let guard = self.db.read().await;
+            for (_, item) in guard.iter() {
+                let ty = match &item {
+                    DbRecord::Azks(_) => StorageType::Azks,
+                    DbRecord::HistoryNodeState(_) => StorageType::HistoryNodeState,
+                    DbRecord::HistoryTreeNode(_) => StorageType::HistoryTreeNode,
+                    DbRecord::ValueState(_) => StorageType::ValueState,
+                };
+                if ty == St::data_type() {
+                    list.push(item.clone());
+                }
+
+                if let Some(count) = num {
+                    if count > 0 && list.len() >= count {
+                        break;
+                    }
                 }
             }
         }
@@ -221,20 +271,16 @@ impl V2Storage for AsyncInMemoryDatabase {
 
     /// Retrieve the user data for a given user
     async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
-        let guard = self.db.read().await;
-        let mut results = vec![];
-        for (_, item) in guard.iter() {
-            if let DbRecord::ValueState(value_state) = &item {
-                if value_state.username == *username {
-                    results.push(value_state.clone());
-                }
-            }
+        let guard = self.user_info.read().await;
+        if let Some(result) = guard.get(&username.0) {
+            let mut results: Vec<ValueState> = result.iter().map(|item| item.clone()).collect();
+            // return ordered by epoch (from smallest -> largest)
+            results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+
+            Ok(KeyData { states: results })
+        } else {
+            Err(StorageError::GetError("Not found".to_string()))
         }
-
-        // return ordered by epoch (from smallest -> largest)
-        results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
-
-        Ok(KeyData { states: results })
     }
 
     /// Retrieve a specific state for a given user

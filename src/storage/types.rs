@@ -10,6 +10,7 @@
 use crate::node_state::NodeLabel;
 use crate::storage::Storable;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -36,6 +37,21 @@ pub struct Values(pub String);
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ValueStateKey(pub String, pub u64);
+
+impl ValueStateKey {
+    pub(crate) fn from_full_binary(bin: &Vec<u8>) -> Result<ValueStateKey, String> {
+        if bin.len() < 10 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+        let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
+        let epoch = u64::from_be_bytes(epoch_bytes);
+        if let Ok(username) = std::str::from_utf8(&bin[9..]) {
+            Ok(ValueStateKey(username.to_string(), epoch))
+        } else {
+            Err("".to_string())
+        }
+    }
+}
 
 /// The state of the value for a given key, starting at a particular epoch.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
