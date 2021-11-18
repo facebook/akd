@@ -215,10 +215,7 @@ impl V2Storage for AsyncInMemoryDatabase {
     }
 
     async fn append_user_states(&self, values: Vec<ValueState>) -> Result<(), StorageError> {
-        let new_vec = values
-            .into_iter()
-            .map(DbRecord::ValueState)
-            .collect();
+        let new_vec = values.into_iter().map(DbRecord::ValueState).collect();
         self.batch_set(new_vec).await
     }
 
