@@ -13,6 +13,7 @@ use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use winter_crypto::Hasher;
+use tokio::time::Instant;
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,
@@ -61,12 +62,14 @@ where
                 break;
             }
             (DirectoryCommand::Publish(a, b), Some(response)) => {
+                let tic = Instant::now();
                 match directory
                     .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))], false)
                     .await
                 {
                     Ok(_) => {
-                        let msg = format!("PUBLISHED '{}' = '{}'", a, b);
+                        let toc = Instant::now() - tic;
+                        let msg = format!("PUBLISHED '{}' = '{}' in {} s", a, b, toc.as_secs_f64());
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {
@@ -76,6 +79,7 @@ where
                 }
             }
             (DirectoryCommand::PublishBatch(batches, with_trans), Some(response)) => {
+                let tic = Instant::now();
                 let len = batches.len();
                 match directory
                     .publish::<H>(
@@ -88,7 +92,8 @@ where
                     .await
                 {
                     Ok(_) => {
-                        let msg = format!("PUBLISHED {} records", len);
+                        let toc = Instant::now() - tic;
+                        let msg = format!("PUBLISHED {} records in {} s", len, toc.as_secs_f64());
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {

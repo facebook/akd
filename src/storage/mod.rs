@@ -47,6 +47,9 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 
     /// Retrieve the full binary version of a key (for comparisons)
     fn get_full_binary_key_id(key: &Self::Key) -> Vec<u8>;
+
+    /// Reformat a key from the full-binary specification
+    fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
 }
 
 /// Represents the storage layer for the AKD (with associated configuration if necessary)
@@ -143,6 +146,9 @@ pub trait V1Storage: Clone {
 /// Updated storage layer with better support of asynchronous work and batched operations
 #[async_trait]
 pub trait V2Storage: Clone {
+    /// Log some information about the cache (hit rate, etc)
+    async fn log_metrics(&self, level: log::Level);
+
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool;
 
@@ -163,6 +169,12 @@ pub trait V2Storage: Clone {
 
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+
+    /// Retrieve a batch of records by id
+    async fn batch_get<St: Storable>(
+        &self,
+        ids: Vec<St::Key>,
+    ) -> Result<Vec<DbRecord>, StorageError>;
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
     async fn get_all<St: Storable>(
@@ -364,6 +376,9 @@ impl<S: V1Storage + Send + Sync> From<S> for V2FromV1StorageWrapper<S> {
 
 #[async_trait]
 impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
+    /// Log some information about the cache (hit rate, etc)
+    async fn log_metrics(&self, _level: log::Level) {}
+
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool {
         self.trans.begin_transaction().await
@@ -470,6 +485,18 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                 }
             }
         }
+    }
+
+    /// Retrieve a batch of records by id
+    async fn batch_get<St: Storable>(
+        &self,
+        ids: Vec<St::Key>,
+    ) -> Result<Vec<DbRecord>, StorageError> {
+        let mut map = Vec::new();
+        for key in ids.into_iter() {
+            map.push(self.get::<St>(key).await?);
+        }
+        Ok(map)
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results

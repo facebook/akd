@@ -14,6 +14,8 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+pub mod newdb;
+
 // ===== Basic In-Memory database ==== //
 
 /// This struct represents a basic in-memory database.

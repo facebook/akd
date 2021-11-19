@@ -10,6 +10,7 @@
 use crate::node_state::NodeLabel;
 use crate::storage::Storable;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
@@ -72,6 +73,19 @@ impl crate::storage::Storable for ValueState {
 
         result
     }
+
+    fn key_from_full_binary(bin: &[u8]) -> Result<ValueStateKey, String> {
+        if bin.len() < 10 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+        let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
+        let epoch = u64::from_be_bytes(epoch_bytes);
+        if let Ok(username) = std::str::from_utf8(&bin[9..]) {
+            Ok(ValueStateKey(username.to_string(), epoch))
+        } else {
+            Err("Invalid string format".to_string())
+        }
+    }
 }
 
 impl ValueState {
@@ -128,7 +142,7 @@ pub enum ValueStateRetrievalFlag {
 
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum DbRecord {
     /// An Azks
     Azks(crate::append_only_zks::Azks),

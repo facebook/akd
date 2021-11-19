@@ -25,36 +25,50 @@ type HistoryTreeNode = crate::history_tree_node::HistoryTreeNode;
 
 #[tokio::test]
 #[serial]
-async fn async_test_basic_database() {
+async fn test_v1_in_memory_db() {
     let db = AsyncInMemoryDatabase::new();
     async_test_get_and_set_item(&db).await;
     async_test_user_data(&db).await;
-
-    // let db = AsyncInMemoryDbWithCache::new();
-    // async_test_get_and_set_item(&db).await;
-    // async_test_user_data(&db).await;
 }
 
 #[tokio::test]
 #[serial]
-async fn async_test_new_basic_database() {
+async fn test_v1_to_v2_db_wrapper() {
     let mut db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
     async_test_new_get_and_set_item(&db).await;
     async_test_new_user_data(&db).await;
     async_test_transaction(&mut db).await;
-
-    // let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
-    // async_test_new_get_and_set_item(&db).await;
-    // async_test_new_user_data(&db).await;
+    async_test_batch_get_item(&db).await;
 }
 
 #[tokio::test]
 #[serial]
-async fn test_async_mysql_new_db() {
+async fn test_v2_in_memory_db() {
+    let mut db = crate::storage::memory::newdb::AsyncInMemoryDatabase::new();
+    async_test_new_get_and_set_item(&db).await;
+    async_test_new_user_data(&db).await;
+    async_test_transaction(&mut db).await;
+    async_test_batch_get_item(&db).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_mysql_db() {
     if AsyncMySqlDatabase::test_guard() {
+        if let Err(error) = AsyncMySqlDatabase::create_test_db(
+            "localhost",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+        )
+        .await
+        {
+            panic!("Error creating test database: {}", error);
+        }
+
         let mut mysql_db = AsyncMySqlDatabase::new(
             "localhost",
-            "default",
+            "test_db",
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
@@ -70,6 +84,7 @@ async fn test_async_mysql_new_db() {
         async_test_new_get_and_set_item(&mysql_db).await;
         async_test_new_user_data(&mysql_db).await;
         async_test_transaction(&mut mysql_db).await;
+        async_test_batch_get_item(&mysql_db).await;
 
         // clean the test infra
         if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
@@ -149,6 +164,85 @@ async fn async_test_new_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
 
     // === ValueState storage === //
     // TODO: test with this format of user storage
+}
+
+async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
+    let mut rand_users: Vec<String> = vec![];
+    for _ in 0..20 {
+        rand_users.push(
+            thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(30)
+                .map(char::from)
+                .collect(),
+        );
+    }
+
+    let mut data = Vec::new();
+
+    let mut epoch = 1;
+    for value in rand_users.iter() {
+        for user in rand_users.iter() {
+            data.push(DbRecord::ValueState(ValueState {
+                plaintext_val: Values(value.clone()),
+                version: 1u64,
+                label: NodeLabel {
+                    val: 1u64,
+                    len: 1u32,
+                },
+                epoch: epoch,
+                username: AkdKey(user.clone()),
+            }));
+        }
+        epoch += 1;
+    }
+
+    let tic = Instant::now();
+    assert_eq!(Ok(()), storage.batch_set(data.clone()).await);
+    let toc: Duration = Instant::now() - tic;
+    println!("Storage batch op: {} ms", toc.as_millis());
+    let got = storage
+        .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10))
+        .await;
+    if let Err(_) = got {
+        panic!("Failed to retrieve a user after batch insert");
+    }
+
+    let keys: Vec<ValueStateKey> = rand_users
+        .iter()
+        .map(|user| ValueStateKey(user.clone(), 1))
+        .collect();
+    let got_all = storage.batch_get::<ValueState>(keys).await;
+    match got_all {
+        Err(_) => panic!("Failed to retrieve batch of user at specific epochs"),
+        Ok(lst) if lst.len() != rand_users.len() => {
+            panic!(
+                "Retrieved list length does not match input length {} != {}",
+                lst.len(),
+                rand_users.len()
+            );
+        }
+        Ok(results) => {
+            // correct length, now check the values
+            for result in results.into_iter() {
+                // find the initial record with the same username & epoch
+                let initial_record = data
+                    .iter()
+                    .find(|&x| {
+                        if let DbRecord::ValueState(value_state) = &x {
+                            if let DbRecord::ValueState(retrieved_state) = &result {
+                                return value_state.username == retrieved_state.username
+                                    && value_state.epoch == retrieved_state.epoch;
+                            }
+                        }
+                        false
+                    })
+                    .cloned();
+                // assert it matches what was given matches what was retrieved
+                assert_eq!(Some(result), initial_record);
+            }
+        }
+    }
 }
 
 async fn async_test_transaction<S: V2Storage + Sync + Send>(storage: &mut S) {

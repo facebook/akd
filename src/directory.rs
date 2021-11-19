@@ -148,6 +148,8 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
 
         self.current_epoch = next_epoch;
 
+        self.storage.log_metrics(log::Level::Info).await;
+
         Ok(())
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing

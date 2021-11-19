@@ -15,11 +15,12 @@ use crate::{node_state::*, Direction, ARITY};
 use async_recursion::async_recursion;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
-#[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
     /// Nodes with this type only have dummy children.
     Leaf = 1,
@@ -49,7 +50,7 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 /// the past, the older states also need to be stored.
 /// While the states themselves can be stored elsewhere,
 /// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
 pub struct HistoryTreeNode {
     /// The binary label for this node
@@ -86,6 +87,15 @@ impl Storable for HistoryTreeNode {
             result.push(*item);
         }
         result
+    }
+
+    fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
+        if bin.len() < 9 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+
+        let id_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
+        Ok(NodeKey(u64::from_be_bytes(id_bytes) as usize))
     }
 }
 
@@ -125,8 +135,7 @@ impl HistoryTreeNode {
         storage: &S,
         key: NodeKey,
     ) -> Result<HistoryTreeNode, StorageError> {
-        let record = storage.get::<HistoryTreeNode>(key).await?;
-        match record {
+        match storage.get::<HistoryTreeNode>(key).await? {
             DbRecord::HistoryTreeNode(node) => Ok(node),
             _ => Err(StorageError::GetError(String::from("Not found"))),
         }
@@ -192,9 +201,12 @@ impl HistoryTreeNode {
                     let mut new_self: HistoryTreeNode =
                         HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                     new_self.update_hash::<_, H>(storage, epoch).await?;
+                    *self = new_self;
+                } else {
+                    *self =
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                 }
 
-                *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
                 return Ok(());
             }
         }
@@ -292,10 +304,12 @@ impl HistoryTreeNode {
                                     .await?;
                             self.update_hash::<_, H>(storage, epoch).await?;
                             self.write_to_storage(storage).await?;
+                        } else {
+                            debug!("BEGIN retrieve self");
+                            *self =
+                                HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
+                                    .await?;
                         }
-                        debug!("BEGIN retrieve self");
-                        *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
-                            .await?;
                         debug!("END insert single leaf (dir_self = None)");
                         Ok(())
                     }
@@ -329,9 +343,7 @@ impl HistoryTreeNode {
                 if self.is_root() {
                     hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
                 }
-                let epoch_state = self.get_state_at_epoch(storage, epoch).await?;
-
-                let mut updated_state = epoch_state;
+                let mut updated_state = self.get_state_at_epoch(storage, epoch).await?;
                 updated_state.value = from_digest::<H>(hash_digest)?;
                 updated_state.key = NodeStateKey(self.label, epoch);
                 set_state_map(storage, updated_state).await?;
@@ -762,8 +774,7 @@ pub(crate) async fn set_state_map<S: V2Storage + Sync + Send>(
     storage: &S,
     val: HistoryNodeState,
 ) -> Result<(), StorageError> {
-    storage.set(DbRecord::HistoryNodeState(val)).await?;
-    Ok(())
+    storage.set(DbRecord::HistoryNodeState(val)).await
 }
 
 pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
@@ -771,10 +782,10 @@ pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
     node: &HistoryTreeNode,
     key: u64,
 ) -> Result<HistoryNodeState, StorageError> {
-    let record = storage
+    if let Ok(DbRecord::HistoryNodeState(state)) = storage
         .get::<HistoryNodeState>(NodeStateKey(node.label, key))
-        .await?;
-    if let DbRecord::HistoryNodeState(state) = record {
+        .await
+    {
         Ok(state)
     } else {
         Err(StorageError::GetError(String::from("Not found")))
