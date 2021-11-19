@@ -19,9 +19,11 @@ use log::{debug, error, info, trace, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
+use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use tokio::time::{Instant, Duration};
+use tokio::time::{Duration, Instant};
 
 type MySqlError = mysql_async::error::Error;
 
@@ -32,6 +34,7 @@ const TABLE_AZKS: &str = "azks";
 const TABLE_HISTORY_TREE_NODES: &str = "history";
 const TABLE_HISTORY_NODE_STATES: &str = "states";
 const TABLE_USER: &str = "users";
+const TEMP_IDS_TABLE: &str = "temp_ids_table";
 
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
@@ -120,7 +123,7 @@ impl AsyncMySqlDatabase {
         port: Option<u16>,
         cache_options: MySqlCacheOptions,
     ) -> Self {
-        let dport = port.unwrap_or(1u16);
+        let dport = port.unwrap_or(3306u16);
         let mut builder = OptsBuilder::new();
         builder
             .ip_or_hostname(endpoint)
@@ -149,7 +152,7 @@ impl AsyncMySqlDatabase {
 
             num_reads: Arc::new(tokio::sync::RwLock::new(0)),
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
-            time_spent: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0)))
+            time_spent: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
         }
     }
 
@@ -336,7 +339,6 @@ impl AsyncMySqlDatabase {
     }
 
     /// Delete all the data in the tables
-    #[allow(dead_code)]
     pub async fn delete_data(&self) -> core::result::Result<(), MySqlError> {
         let mut conn = self.get_connection().await?;
 
@@ -415,6 +417,28 @@ impl AsyncMySqlDatabase {
         Ok(mini_tx)
     }
 
+    /// Create the test database
+    #[allow(dead_code)]
+    pub(crate) async fn create_test_db<T: Into<String>>(
+        endpoint: T,
+        user: Option<T>,
+        password: Option<T>,
+        port: Option<u16>,
+    ) -> core::result::Result<(), MySqlError> {
+        let dport = port.unwrap_or(3306u16);
+        let mut builder = OptsBuilder::new();
+        builder
+            .ip_or_hostname(endpoint)
+            .user(user)
+            .pass(password)
+            .tcp_port(dport);
+        let opts: Opts = builder.into();
+        let conn = Conn::new(opts).await?;
+        conn.drop_query(r"CREATE DATABASE IF NOT EXISTS test_db").await?;
+
+        Ok(())
+    }
+
     /// Cleanup the test data table
     #[allow(dead_code)]
     pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
@@ -479,7 +503,12 @@ impl V2Storage for AsyncMySqlDatabase {
         let mut w = self.num_writes.write().await;
         let mut ts = self.time_spent.write().await;
 
-        let msg = format!("MySQL writes: {}, MySQL reads: {}, Time spent in MySQL op: {} s", *w, *r, (*ts).as_millis());
+        let msg = format!(
+            "MySQL writes: {}, MySQL reads: {}, Time spent in MySQL op: {} s",
+            *w,
+            *r,
+            (*ts).as_millis()
+        );
 
         *r = 0;
         *w = 0;
@@ -613,7 +642,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             let conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
-            let params = DbRecord::get_specific_params::<St>(id);
+            let params = DbRecord::get_specific_params::<St>(&id);
             let out = match params {
                 Some(p) => match conn.first_exec(statement, p).await {
                     Err(err) => Err(err),
@@ -646,6 +675,118 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok(None) => Err(StorageError::GetError("Not found".to_string())),
             Err(error) => Err(StorageError::GetError(error.to_string())),
         }
+    }
+
+    /// Retrieve a batch of records by id
+    async fn batch_get<St: Storable>(
+        &self,
+        ids: Vec<St::Key>,
+    ) -> Result<Vec<DbRecord>, StorageError> {
+        let mut map = Vec::new();
+
+        let mut key_set: HashSet<St::Key> = HashSet::from_iter(ids.iter().cloned());
+
+        let trans_active = self.is_transaction_active().await;
+        // first check the transaction log & cache records
+        for id in ids.iter() {
+            if trans_active {
+                // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
+                // log instead of the raw storage layer
+                if let Some(result) = self.trans.get::<St>(id).await {
+                    map.push(result);
+                    key_set.remove(id);
+                    continue;
+                }
+            }
+
+            if let Some(cache) = &self.cache {
+                if let Some(result) = cache.hit_test::<St>(id).await {
+                    map.push(result);
+                    key_set.remove(id);
+                    continue;
+                }
+            }
+        }
+
+        if !key_set.is_empty() {
+            // these are items to be retrieved from the backing database
+            let result = async {
+                let tic = Instant::now();
+
+                debug!("BEGIN MySQL get batch");
+                let mut conn = self.get_connection().await?;
+
+                let results =
+                    if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
+                        // Create the temp table
+                        let out = conn.drop_query(create_table_cmd).await;
+                        conn = self.check_for_infra_error(out)?;
+
+                        // Fill temp table
+                        let fill_statement = DbRecord::get_batch_fill_temp_table::<St>();
+                        for batch in key_set.into_iter().collect::<Vec<St::Key>>().chunks(500) {
+                            // unwrapping here because it's safe to do so, since we've already guarded against type = Azks
+                            let param_groups: Vec<mysql_async::Params> = batch
+                                .iter()
+                                .map(|value| DbRecord::get_specific_params::<St>(value).unwrap())
+                                .collect();
+                            let prepped = conn.prepare(fill_statement.clone()).await?;
+                            let out = prepped.batch(param_groups).await;
+                            conn = self.check_for_infra_error(out)?.close().await?;
+                        }
+
+                        // Query the records which intersect (INNER JOIN) with the temp table of ids
+                        let query = DbRecord::get_batch_statement::<St>();
+                        let out = conn.query(query).await;
+                        let result = self.check_for_infra_error(out)?;
+
+                        let (nconn, out) = result
+                            .reduce_and_drop(vec![], |mut acc, mut row| {
+                                if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
+                                    acc.push(result);
+                                }
+                                acc
+                            })
+                            .await?;
+
+                        // drop the temp table
+                        let t_out = nconn
+                            .drop_query(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                            .await;
+                        self.check_for_infra_error(t_out)?;
+
+                        out
+                    } else {
+                        // no results (i.e. AZKS table doesn't support "get by batch ids")
+                        vec![]
+                    };
+
+                debug!("END MySQL get batch");
+                let toc = Instant::now() - tic;
+                *(self.time_spent.write().await) += toc;
+
+                if let Some(cache) = &self.cache {
+                    // insert retrieved records into the cache for faster future access
+                    for el in results.iter() {
+                        cache.put(el).await;
+                    }
+                }
+
+                Ok::<Vec<DbRecord>, mysql_async::error::Error>(results)
+            };
+
+            *(self.num_reads.write().await) += 1;
+
+            match result.await {
+                Ok(result_vec) => {
+                    for item in result_vec.into_iter() {
+                        map.push(item);
+                    }
+                }
+                Err(error) => return Err(StorageError::GetError(error.to_string())),
+            }
+        }
+        Ok(map)
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
@@ -952,9 +1093,15 @@ trait MySqlStorable {
 
     fn get_statement<St: Storable>() -> String;
 
+    fn get_batch_create_temp_table<St: Storable>() -> Option<String>;
+
+    fn get_batch_fill_temp_table<St: Storable>() -> String;
+
+    fn get_batch_statement<St: Storable>() -> String;
+
     fn get_specific_statement<St: Storable>() -> String;
 
-    fn get_specific_params<St: Storable>(key: St::Key) -> Option<mysql_async::Params>;
+    fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params>;
 
     fn from_row<St: Storable>(row: &mut mysql_async::Row) -> core::result::Result<Self, MySqlError>
     where
@@ -1010,6 +1157,89 @@ impl MySqlStorable for DbRecord {
         }
     }
 
+    fn get_batch_create_temp_table<St: Storable>() -> Option<String> {
+        match St::data_type() {
+            StorageType::Azks => None,
+            StorageType::HistoryNodeState => {
+                Some(
+                    format!(
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL)",
+                        TEMP_IDS_TABLE
+                    )
+                )
+            },
+            StorageType::HistoryTreeNode => {
+                Some(
+                    format!(
+                        "CREATE TEMPORARY TABLE `{}`(`location` BIGINT UNSIGNED NOT NULL)",
+                        TEMP_IDS_TABLE
+                    )
+                )
+            },
+            StorageType::ValueState => {
+                Some(
+                    format!(
+                        "CREATE TEMPORARY TABLE `{}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL)",
+                        TEMP_IDS_TABLE
+                    )
+                )
+            },
+        }
+    }
+
+    fn get_batch_fill_temp_table<St: Storable>() -> String {
+        match St::data_type() {
+            StorageType::Azks => "".to_string(),
+            StorageType::HistoryNodeState => {
+                format!(
+                    "INSERT INTO `{}` (`label_len`, `label_val`, `epoch`) VALUES (:label_len, :label_val, :epoch)",
+                    TEMP_IDS_TABLE
+                )
+            }
+            StorageType::HistoryTreeNode => {
+                format!(
+                    "INSERT INTO `{}` (`location`) VALUES (:location)",
+                    TEMP_IDS_TABLE
+                )
+            }
+            StorageType::ValueState => {
+                format!(
+                    "INSERT INTO `{}` (`username`, `epoch`) VALUES (:username, :epoch)",
+                    TEMP_IDS_TABLE
+                )
+            }
+        }
+    }
+
+    fn get_batch_statement<St: Storable>() -> String {
+        match St::data_type() {
+            StorageType::Azks => {
+                format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
+            }
+            StorageType::HistoryNodeState => {
+                format!(
+                    "SELECT a.`label_len`, a.`label_val`, a.`epoch`, a.`value`, a.`child_states` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val` AND ids.`epoch` = a.`epoch`",
+                    TABLE_HISTORY_NODE_STATES,
+                    TEMP_IDS_TABLE
+                )
+            }
+            StorageType::HistoryTreeNode => {
+                format!(
+                    "SELECT a.`location`, a.`label_len`, a.`label_val`, a.`epochs`, a.`parent`, a.`node_type` FROM `{}` a INNER JOIN {} ids ON ids.`location` = a.`location`",
+                    TABLE_HISTORY_TREE_NODES,
+                    TEMP_IDS_TABLE
+                )
+            }
+            StorageType::ValueState => {
+                format!(
+                    "SELECT a.`username`, a.`epoch`, a.`version`, a.`node_label_val`, a.`node_label_len`, a.`data` FROM `{}` a INNER JOIN {} ids ON ids.`username` = a.`username` AND ids.`epoch` = a.`epoch`",
+                    TABLE_USER,
+                    TEMP_IDS_TABLE
+                )
+            }
+        }
+    }
+
     fn get_specific_statement<St: Storable>() -> String {
         match St::data_type() {
             StorageType::Azks => format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS),
@@ -1019,13 +1249,13 @@ impl MySqlStorable for DbRecord {
         }
     }
 
-    fn get_specific_params<St: Storable>(key: St::Key) -> Option<mysql_async::Params> {
-        // TODO: serializing & deserializing just to get type proper type. There MUST be a better way...
+    fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params> {
         match St::data_type() {
             StorageType::Azks => None,
             StorageType::HistoryNodeState => {
-                let bin = bincode::serialize(&key).unwrap();
-                let back: crate::node_state::NodeStateKey = bincode::deserialize(&bin).unwrap();
+                let bin = St::get_full_binary_key_id(key);
+                let back: crate::node_state::NodeStateKey =
+                    crate::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "label_len" => back.0.len,
                     "label_val" => back.0.val,
@@ -1033,16 +1263,17 @@ impl MySqlStorable for DbRecord {
                 }))
             }
             StorageType::HistoryTreeNode => {
-                let bin = bincode::serialize(&key).unwrap();
-                let back: crate::history_tree_node::NodeKey = bincode::deserialize(&bin).unwrap();
+                let bin = St::get_full_binary_key_id(key);
+                let back: crate::history_tree_node::NodeKey =
+                    crate::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "location" => back.0
                 }))
             }
             StorageType::ValueState => {
-                let bin = bincode::serialize(&key).unwrap();
+                let bin = St::get_full_binary_key_id(key);
                 let back: crate::storage::types::ValueStateKey =
-                    bincode::deserialize(&bin).unwrap();
+                    crate::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "username" => back.0,
                     "epoch" => back.1

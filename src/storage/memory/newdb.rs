@@ -9,7 +9,7 @@
 use crate::errors::StorageError;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::{
-    AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
+    AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, V2Storage};
 
@@ -104,7 +104,10 @@ impl V2Storage for AsyncInMemoryDatabase {
         if let DbRecord::ValueState(value_state) = &record {
             let mut guard = self.user_info.write().await;
             let username = value_state.username.0.clone();
-            guard.entry(username).or_insert_with(Vec::new).push(value_state.clone());
+            guard
+                .entry(username)
+                .or_insert_with(Vec::new)
+                .push(value_state.clone());
         } else {
             let mut guard = self.db.write().await;
             guard.insert(record.get_full_binary_id(), record);
@@ -120,7 +123,10 @@ impl V2Storage for AsyncInMemoryDatabase {
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = &record {
                 let username = value_state.username.0.clone();
-                u_guard.entry(username).or_insert_with(Vec::new).push(value_state.clone());
+                u_guard
+                    .entry(username)
+                    .or_insert_with(Vec::new)
+                    .push(value_state.clone());
             } else {
                 guard.insert(record.get_full_binary_id(), record);
             }
@@ -139,7 +145,7 @@ impl V2Storage for AsyncInMemoryDatabase {
         let bin_id = St::get_full_binary_key_id(&id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
-            if let Ok(crate::storage::types::ValueStateKey(username, epoch)) = crate::storage::types::ValueStateKey::from_full_binary(&bin_id) {
+            if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
                 let u_guard = self.user_info.read().await;
                 if let Some(state) = (*u_guard).get(&username).cloned() {
                     if let Some(item) = state.iter().find(|&x| x.epoch == epoch) {
@@ -156,6 +162,18 @@ impl V2Storage for AsyncInMemoryDatabase {
         } else {
             Err(StorageError::GetError("Not found".to_string()))
         }
+    }
+
+    /// Retrieve a batch of records by id
+    async fn batch_get<St: Storable>(
+        &self,
+        ids: Vec<St::Key>,
+    ) -> Result<Vec<DbRecord>, StorageError> {
+        let mut map = Vec::new();
+        for key in ids.into_iter() {
+            map.push(self.get::<St>(key).await?);
+        }
+        Ok(map)
     }
 
     /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
@@ -273,7 +291,7 @@ impl V2Storage for AsyncInMemoryDatabase {
     async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
         let guard = self.user_info.read().await;
         if let Some(result) = guard.get(&username.0) {
-            let mut results: Vec<ValueState> = result.iter().map(|item| item.clone()).collect();
+            let mut results: Vec<ValueState> = result.to_vec();
             // return ordered by epoch (from smallest -> largest)
             results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
 

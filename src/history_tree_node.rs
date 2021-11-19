@@ -15,11 +15,12 @@ use crate::{node_state::*, Direction, ARITY};
 use async_recursion::async_recursion;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
-#[derive(PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum NodeType {
     /// Nodes with this type only have dummy children.
     Leaf = 1,
@@ -49,7 +50,7 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 /// the past, the older states also need to be stored.
 /// While the states themselves can be stored elsewhere,
 /// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
 pub struct HistoryTreeNode {
     /// The binary label for this node
@@ -86,6 +87,15 @@ impl Storable for HistoryTreeNode {
             result.push(*item);
         }
         result
+    }
+
+    fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
+        if bin.len() < 9 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+
+        let id_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
+        Ok(NodeKey(u64::from_be_bytes(id_bytes) as usize))
     }
 }
 

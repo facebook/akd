@@ -128,7 +128,7 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     H::merge_with_int(byte_label_len, label.get_val())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
 /// A HistoryNodeState represents the state of a [crate::history_tree_node::HistoryTreeNode] at a given epoch.
 /// As you may see, when looking at [HistoryChildState], the node needs to include
@@ -177,6 +177,23 @@ impl Storable for HistoryNodeState {
         }
         result
     }
+
+    fn key_from_full_binary(bin: &[u8]) -> Result<NodeStateKey, String> {
+        if bin.len() < 21 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+
+        let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
+        let val_bytes: [u8; 8] = bin[5..=12].try_into().expect("Slice with incorrect length");
+        let epoch_bytes: [u8; 8] = bin[13..=20]
+            .try_into()
+            .expect("Slice with incorrect length");
+        let len = u32::from_be_bytes(len_bytes);
+        let val = u64::from_be_bytes(val_bytes);
+        let epoch = u64::from_be_bytes(epoch_bytes);
+
+        Ok(NodeStateKey(NodeLabel { len, val }, epoch))
+    }
 }
 
 unsafe impl Sync for HistoryNodeState {}
@@ -222,7 +239,7 @@ impl fmt::Display for HistoryNodeState {
 }
 
 ///  Marks whether a child state is real
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq)]
 pub enum DummyChildState {
     /// If this child is dummy. Usually for children of leaves
     Dummy,
@@ -234,7 +251,7 @@ pub enum DummyChildState {
 /// and contains all the information its parent might need about it in an operation.
 /// The dummy_marker represents whether this child was real or a dummy.
 /// In particular, the children of a leaf node are dummies.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq)]
 pub struct HistoryChildState {
     ///  Tells you whether this child is a dummy
     pub dummy_marker: DummyChildState,

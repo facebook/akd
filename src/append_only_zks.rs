@@ -30,7 +30,7 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
 pub struct Azks {
     /// The location of the root
@@ -54,6 +54,10 @@ impl Storable for Azks {
 
     fn get_full_binary_key_id(key: &u8) -> Vec<u8> {
         vec![StorageType::Azks as u8, *key]
+    }
+
+    fn key_from_full_binary(_bin: &[u8]) -> Result<u8, String> {
+        Ok(1u8)
     }
 }
 
