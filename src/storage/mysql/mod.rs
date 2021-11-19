@@ -507,7 +507,7 @@ impl V2Storage for AsyncMySqlDatabase {
             "MySQL writes: {}, MySQL reads: {}, Time spent in MySQL op: {} s",
             *w,
             *r,
-            (*ts).as_millis()
+            (*ts).as_secs_f64()
         );
 
         *r = 0;
