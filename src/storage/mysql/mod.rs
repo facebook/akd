@@ -434,7 +434,8 @@ impl AsyncMySqlDatabase {
             .tcp_port(dport);
         let opts: Opts = builder.into();
         let conn = Conn::new(opts).await?;
-        conn.drop_query(r"CREATE DATABASE IF NOT EXISTS test_db").await?;
+        conn.drop_query(r"CREATE DATABASE IF NOT EXISTS test_db")
+            .await?;
 
         Ok(())
     }

@@ -226,14 +226,18 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
             // correct length, now check the values
             for result in results.into_iter() {
                 // find the initial record with the same username & epoch
-                let initial_record = data.iter().find(|&x| {
-                    if let DbRecord::ValueState(value_state) = &x {
-                        if let DbRecord::ValueState(retrieved_state) = &result {
-                            return value_state.username == retrieved_state.username && value_state.epoch == retrieved_state.epoch;
+                let initial_record = data
+                    .iter()
+                    .find(|&x| {
+                        if let DbRecord::ValueState(value_state) = &x {
+                            if let DbRecord::ValueState(retrieved_state) = &result {
+                                return value_state.username == retrieved_state.username
+                                    && value_state.epoch == retrieved_state.epoch;
+                            }
                         }
-                    }
-                    false
-                }).cloned();
+                        false
+                    })
+                    .cloned();
                 // assert it matches what was given matches what was retrieved
                 assert_eq!(Some(result), initial_record);
             }
