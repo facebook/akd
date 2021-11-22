@@ -57,7 +57,7 @@ async fn main() {
 
     let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
     let mut akd_dir =
-        Directory::<akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDbWithCache>>::new::<
+        Directory::<_>::new::<
             Blake3_256<BaseElement>,
         >(&db)
         .await

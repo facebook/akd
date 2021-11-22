@@ -130,7 +130,7 @@ async fn main() {
     let (tx, mut rx) = channel(2);
 
     if cli.memory_db {
-        let db = akd::storage::memory::newdb::AsyncInMemoryDatabase::new();
+        let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await

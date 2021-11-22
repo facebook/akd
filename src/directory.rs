@@ -471,11 +471,8 @@ mod tests {
     #[allow(unused)]
     #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![(AkdKey("hello".to_string()), Values("world".to_string()))],
@@ -487,11 +484,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simiple_lookup() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -515,11 +509,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -621,11 +612,8 @@ mod tests {
     #[allow(unused)]
     #[tokio::test]
     async fn test_simple_audit() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![

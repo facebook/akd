@@ -374,8 +374,9 @@ impl V2Storage for AsyncInMemoryDatabase {
     ) -> Result<HashMap<AkdKey, ValueState>, StorageError> {
         let mut map = HashMap::new();
         for username in usernames.iter() {
-            let result = self.get_user_state(username, flag).await?;
-            map.insert(AkdKey(result.username.0.clone()), result);
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(AkdKey(result.username.0.clone()), result);
+            }
         }
         Ok(map)
     }
@@ -387,8 +388,9 @@ impl V2Storage for AsyncInMemoryDatabase {
     ) -> Result<HashMap<AkdKey, u64>, StorageError> {
         let mut map = HashMap::new();
         for username in keys.iter() {
-            let result = self.get_user_state(username, flag).await?;
-            map.insert(AkdKey(result.username.0.clone()), result.version);
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(AkdKey(result.username.0.clone()), result.version);
+            }
         }
         Ok(map)
     }
