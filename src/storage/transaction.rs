@@ -28,6 +28,9 @@ pub struct Transaction {
     num_writes: Arc<tokio::sync::RwLock<u64>>,
 }
 
+unsafe impl Send for Transaction {}
+unsafe impl Sync for Transaction {}
+
 impl std::fmt::Debug for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "a lone transaction")
