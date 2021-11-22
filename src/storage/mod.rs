@@ -209,6 +209,13 @@ pub trait V2Storage: Clone {
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError>;
 
+    /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
+    async fn get_user_state_versions(
+        &self,
+        keys: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, u64>, StorageError>;
+
     /* Data Layer Builders */
 
     /*
@@ -705,6 +712,19 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
         for username in usernames.iter() {
             let result = self.get_user_state(username, flag).await?;
             map.insert(types::AkdKey(result.username.0.clone()), result);
+        }
+        Ok(map)
+    }
+
+    async fn get_user_state_versions(
+        &self,
+        keys: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, u64>, StorageError> {
+        let mut map = HashMap::new();
+        for username in keys.iter() {
+            let result = self.get_user_state(username, flag).await?;
+            map.insert(types::AkdKey(result.username.0.clone()), result.version);
         }
         Ok(map)
     }

@@ -379,4 +379,17 @@ impl V2Storage for AsyncInMemoryDatabase {
         }
         Ok(map)
     }
+
+    async fn get_user_state_versions(
+        &self,
+        keys: &[AkdKey],
+        flag: ValueStateRetrievalFlag,
+    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+        let mut map = HashMap::new();
+        for username in keys.iter() {
+            let result = self.get_user_state(username, flag).await?;
+            map.insert(AkdKey(result.username.0.clone()), result.version);
+        }
+        Ok(map)
+    }
 }
