@@ -13,7 +13,7 @@ use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, V2Storage};
 use crate::{node_state::*, Direction, ARITY};
 use async_recursion::async_recursion;
-use log::debug;
+use log::trace;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
@@ -218,14 +218,14 @@ impl HistoryTreeNode {
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
-                debug!("BEGIN get parent");
+                trace!("BEGIN get parent");
                 let mut parent =
                     HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
-                debug!("BEGIN get direction at epoch {}", epoch);
+                trace!("BEGIN get direction at epoch {}", epoch);
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
                 let new_node_location = *num_nodes;
 
-                debug!("BEGIN create new node");
+                trace!("BEGIN create new node");
                 let mut new_node = HistoryTreeNode::new(
                     lcs_label,
                     new_node_location,
@@ -236,24 +236,24 @@ impl HistoryTreeNode {
                 new_node.write_to_storage(storage).await?;
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
-                debug!("BEGIN update leaf location");
+                trace!("BEGIN update leaf location");
                 new_leaf.parent = new_node.location;
                 new_leaf.write_to_storage(storage).await?;
 
-                debug!("BEGIN update self");
+                trace!("BEGIN update self");
                 self.parent = new_node.location;
                 self.write_to_storage(storage).await?;
 
-                debug!("BEGIN set node child new_node(new_leaf)");
+                trace!("BEGIN set node child new_node(new_leaf)");
                 new_node
                     .set_node_child::<_, H>(storage, epoch, dir_leaf, &new_leaf)
                     .await?;
-                debug!("BEGIN set node child new_node(self)");
+                trace!("BEGIN set node child new_node(self)");
                 new_node
                     .set_node_child::<_, H>(storage, epoch, dir_self, self)
                     .await?;
 
-                debug!("BEGIN set node child parent(new_node)");
+                trace!("BEGIN set node child parent(new_node)");
                 parent
                     .set_node_child::<_, H>(storage, epoch, self_dir_in_parent, &new_node)
                     .await?;
@@ -266,18 +266,18 @@ impl HistoryTreeNode {
                             .await?;
                     new_node.update_hash::<_, H>(storage, epoch).await?;
                 }
-                debug!("BEGIN save new_node");
+                trace!("BEGIN save new_node");
                 new_node.write_to_storage(storage).await?;
-                debug!("BEGIN save parent");
+                trace!("BEGIN save parent");
                 parent.write_to_storage(storage).await?;
-                debug!("BEGIN retrieve new self");
+                trace!("BEGIN retrieve new self");
                 *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.location)).await?;
-                debug!("END insert single leaf (dir_self = Some)");
+                trace!("END insert single leaf (dir_self = Some)");
                 Ok(())
             }
             None => {
                 // case where the current node is equal to the lcs
-                debug!("BEGIN get child at epoch");
+                trace!("BEGIN get child at epoch");
                 let child_st = self
                     .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch()?, dir_leaf)
                     .await?;
@@ -287,30 +287,30 @@ impl HistoryTreeNode {
                         Err(HistoryTreeNodeError::CompressionError(self.label))
                     }
                     DummyChildState::Real => {
-                        debug!("BEGIN get child node from storage");
+                        trace!("BEGIN get child node from storage");
                         let mut child_node =
                             HistoryTreeNode::get_from_storage(storage, NodeKey(child_st.location))
                                 .await?;
-                        debug!("BEGIN insert single leaf helper");
+                        trace!("BEGIN insert single leaf helper");
                         child_node
                             .insert_single_leaf_helper::<_, H>(
                                 storage, new_leaf, epoch, num_nodes, hashing,
                             )
                             .await?;
                         if hashing {
-                            debug!("BEGIN update hashes");
+                            trace!("BEGIN update hashes");
                             *self =
                                 HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
                                     .await?;
                             self.update_hash::<_, H>(storage, epoch).await?;
                             self.write_to_storage(storage).await?;
                         } else {
-                            debug!("BEGIN retrieve self");
+                            trace!("BEGIN retrieve self");
                             *self =
                                 HistoryTreeNode::get_from_storage(storage, NodeKey(self.location))
                                     .await?;
                         }
-                        debug!("END insert single leaf (dir_self = None)");
+                        trace!("END insert single leaf (dir_self = None)");
                         Ok(())
                     }
                 }

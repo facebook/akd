@@ -162,7 +162,7 @@ pub trait V2Storage: Clone {
     /// Retrieve a flag determining if there is a transaction active
     async fn is_transaction_active(&self) -> bool;
 
-    /// V1Storage a record in the data layer
+    /// Set a record in the data layer
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
     /// Set multiple records in transactional operation
@@ -188,7 +188,7 @@ pub trait V2Storage: Clone {
     /// Add a user state element to the associated user
     async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError>;
 
-    /// Adds user states
+    /// Append user states to the storage medium
     async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
@@ -272,30 +272,6 @@ pub trait V2Storage: Clone {
             node_type: crate::history_tree_node::NodeType::from_u8(node_type),
         }
     }
-
-    /*HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),*/
-
-    // /*
-    // pub dummy_marker: DummyChildState,
-    // pub location: usize,
-    // pub label: NodeLabel,
-    // pub hash_val: Vec<u8>,
-    // pub epoch_version: u64,
-    // pub(crate) _h: PhantomData<H>,
-    // pub(crate) _s: PhantomData<S>,
-    // */
-    // /// Build a history child state from the properties
-    // fn build_history_child_state<H>(dummy_marker: u8, location: usize, label_val: u64, label_len: u32, hash_val: Vec<u8>, epoch_version: u64)
-    // -> crate::node_state::HistoryChildState::<H> {
-    //     crate::node_state::HistoryChildState::<H> {
-    //         dummy_marker: crate::node_state::DummyChildState::from_u8(dummy_marker),
-    //         location,
-    //         label: crate::node_state::NodeLabel { val: label_val, len: label_len },
-    //         hash_val,
-    //         epoch_version,
-    //         _h: PhantomData,
-    //     }
-    // }
 
     /*
     pub struct NodeStateKey(pub(crate) NodeLabel, pub(crate) usize);

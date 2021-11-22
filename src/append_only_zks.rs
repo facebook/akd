@@ -18,7 +18,7 @@ use crate::serialization::to_digest;
 use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
-use log::debug;
+use log::trace;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
@@ -152,11 +152,11 @@ impl Azks {
                     .await?
             };
 
-            debug!("BEGIN insert leaf");
+            trace!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
                 .await?;
-            debug!("END insert leaf");
+            trace!("END insert leaf");
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;

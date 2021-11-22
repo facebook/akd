@@ -7,3 +7,4 @@ Cargo.lock
 
 /poc/src/.DS_Store
 /poc/target
+/poc/log.txt

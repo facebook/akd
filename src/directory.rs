@@ -76,14 +76,20 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
 
+        let keys: Vec<AkdKey> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
+        // we're only using the maximum "version" of the user's state at the last epoch
+        // they were seen in the directory. Therefore we've minimized the call to only
+        // return a hashmap of AkdKey => u64 and not retrieving the other data which is not
+        // read (i.e. the actual _data_ payload).
+        let all_user_versions_retrieved = self
+            .storage
+            .get_user_state_versions(&keys, ValueStateRetrievalFlag::MaxEpoch)
+            .await?;
+
         for (uname, val) in updates {
-            match self
-                .storage
-                .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
-                .await
-            {
-                Err(_) => {
-                    // No data found for the user
+            match all_user_versions_retrieved.get(&uname) {
+                None => {
+                    // no data found for the user
                     let latest_version = 1;
                     let label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     // Currently there's no blinding factor for the commitment.
@@ -94,12 +100,10 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
                 }
-                Ok(max_user_state) => {
+                Some(previous_version) => {
                     // Data found for the given user
-                    let latest_st = max_user_state;
-                    let previous_version = latest_st.version;
-                    let latest_version = previous_version + 1;
-                    let stale_label = Self::get_nodelabel::<H>(&uname, true, previous_version);
+                    let latest_version = *previous_version + 1;
+                    let stale_label = Self::get_nodelabel::<H>(&uname, true, *previous_version);
                     let fresh_label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));

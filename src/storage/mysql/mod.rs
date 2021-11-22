@@ -237,6 +237,7 @@ impl AsyncMySqlDatabase {
             *is_healthy_guard = false;
         }
         warn!("Refreshing MySql connection pool.");
+        trace!("BEGIN refresh mysql connection pool");
 
         // Grab early write lock so no new queries can be initiated before
         // connection pool is refreshed.
@@ -244,6 +245,7 @@ impl AsyncMySqlDatabase {
         let pool = Self::new_connection_pool(&self.opts, &self.is_healthy).await?;
         *connection_pool_guard = pool;
 
+        trace!("END refresh mysql connection pool");
         Ok(())
     }
 
@@ -333,26 +335,31 @@ impl AsyncMySqlDatabase {
             + " PRIMARY KEY(`username`, `epoch`))";
         tx = tx.drop_query(command).await?;
 
-        // if we got here, we're good to commit. Transaction is supposed to auto-rollback on release
+        // if we got here, we're good to commit. Transaction's will auto-rollback when memory freed if commit wasn't done.
         tx.commit().await?;
         Ok(())
     }
 
     /// Delete all the data in the tables
     pub async fn delete_data(&self) -> core::result::Result<(), MySqlError> {
-        let mut conn = self.get_connection().await?;
+        let conn = self.get_connection().await?;
+        let mut tx = conn
+            .start_transaction(TransactionOptions::default())
+            .await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_AZKS + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_USER + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        let _ = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
+
+        tx.commit().await?;
 
         Ok(())
     }
@@ -365,7 +372,7 @@ impl AsyncMySqlDatabase {
     ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
         *(self.num_writes.write().await) += 1;
 
-        debug!("BEGIN MySQL set");
+        trace!("BEGIN MySQL set");
         let tic = Instant::now();
 
         let statement_text = record.set_statement();
@@ -387,7 +394,7 @@ impl AsyncMySqlDatabase {
         let toc = Instant::now() - tic;
         *(self.time_spent.write().await) += toc;
 
-        debug!("END MySQL set");
+        trace!("END MySQL set");
         Ok(ntx)
     }
 
@@ -400,7 +407,7 @@ impl AsyncMySqlDatabase {
         *(self.num_writes.write().await) += records.len() as u64;
 
         let mut mini_tx = trans;
-        debug!("BEGIN MySQL set batch");
+        trace!("BEGIN MySQL set batch");
         let tic = Instant::now();
         let head = &records[0];
         let statement = head.set_statement();
@@ -416,7 +423,7 @@ impl AsyncMySqlDatabase {
 
         let toc = Instant::now() - tic;
         *(self.time_spent.write().await) += toc;
-        debug!("END MySQL set batch");
+        trace!("END MySQL set batch");
         Ok(mini_tx)
     }
 
@@ -446,19 +453,24 @@ impl AsyncMySqlDatabase {
     /// Cleanup the test data table
     #[allow(dead_code)]
     pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
-        let mut conn = self.get_connection().await?;
+        let conn = self.get_connection().await?;
+        let mut tx = conn
+            .start_transaction(TransactionOptions::default())
+            .await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        conn = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        let _ = conn.drop_query(command).await?;
+        tx = tx.drop_query(command).await?;
+
+        tx.commit().await?;
 
         Ok(())
     }
@@ -609,6 +621,8 @@ impl V2Storage for AsyncMySqlDatabase {
             let mut tx: Transaction<_> = conn
                 .start_transaction(TransactionOptions::default())
                 .await?;
+            // go through each group which is narrowed to a single type
+            // applying the changes on the transaction
             for (_key, value) in groups.into_iter() {
                 if !value.is_empty() {
                     tx = self.internal_batch_set(value, tx).await?;
@@ -633,14 +647,17 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         }
 
+        // check for a cache hit
         if let Some(cache) = &self.cache {
             if let Some(result) = cache.hit_test::<St>(&id).await {
                 return Ok(result);
             }
         }
 
+        // cache miss, log a real sql read op
         *(self.num_reads.write().await) += 1;
-        debug!("BEGIN MySQL get {:?}", id);
+
+        trace!("BEGIN MySQL get {:?}", id);
         let result = async {
             let tic = Instant::now();
 
@@ -673,7 +690,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok::<Option<DbRecord>, MySqlError>(None)
         };
 
-        debug!("END MySQL get");
+        trace!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
             Ok(None) => Err(StorageError::GetError("Not found".to_string())),
@@ -703,6 +720,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 }
             }
 
+            // check if item is cached
             if let Some(cache) = &self.cache {
                 if let Some(result) = cache.hit_test::<St>(id).await {
                     map.push(result);
@@ -713,20 +731,20 @@ impl V2Storage for AsyncMySqlDatabase {
         }
 
         if !key_set.is_empty() {
-            // these are items to be retrieved from the backing database
+            // these are items to be retrieved from the backing database (not in pending transaction or in the object cache)
             let result = async {
                 let tic = Instant::now();
 
-                debug!("BEGIN MySQL get batch");
+                trace!("BEGIN MySQL get batch");
                 let mut conn = self.get_connection().await?;
 
                 let results =
                     if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
-                        // Create the temp table
+                        // Create the temp table of ids
                         let out = conn.drop_query(create_table_cmd).await;
                         conn = self.check_for_infra_error(out)?;
 
-                        // Fill temp table
+                        // Fill temp table with the requested ids
                         let fill_statement = DbRecord::get_batch_fill_temp_table::<St>();
                         let mut prepped = conn.prepare(fill_statement.clone()).await?;
                         for batch in key_set.into_iter().collect::<Vec<St::Key>>().chunks(500) {
@@ -755,7 +773,7 @@ impl V2Storage for AsyncMySqlDatabase {
                             })
                             .await?;
 
-                        // drop the temp table
+                        // drop the temp table of ids
                         let t_out = nconn
                             .drop_query(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
                             .await;
@@ -767,7 +785,7 @@ impl V2Storage for AsyncMySqlDatabase {
                         vec![]
                     };
 
-                debug!("END MySQL get batch");
+                trace!("END MySQL get batch");
                 let toc = Instant::now() - tic;
                 *(self.time_spent.write().await) += toc;
 
@@ -802,7 +820,12 @@ impl V2Storage for AsyncMySqlDatabase {
     ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         *(self.num_reads.write().await) += 1;
 
-        debug!("BEGIN MySQL get all {:?}", St::data_type());
+        // we cannot immediately go to cache or the trans log for these objects
+        // because we don't know in-advance the key of the item that might be in
+        // the data-layer. Therefore, we _first_ need to hit the db and match the objects
+        // to see if there's a later version in at least the transaction log
+
+        trace!("BEGIN MySQL get all {:?}", St::data_type());
         let result = async {
             let tic = Instant::now();
 
@@ -832,7 +855,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok::<Vec<DbRecord>, MySqlError>(out)
         };
 
-        debug!("END MySQL get all");
+        trace!("END MySQL get all");
         match result.await {
             Ok(list) => {
                 if self.is_transaction_active().await {
@@ -913,9 +936,11 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         username: &AkdKey,
     ) -> core::result::Result<KeyData, StorageError> {
-        *(self.num_reads.write().await) += 1;
+        // This is the same as previous logic under "get_all"
 
-        debug!("BEGIN MySQL get user data {:?}", username);
+        *(self.num_reads.write().await) += 1;
+        // DO NOT log the user info, it's PII in the future
+        trace!("BEGIN MySQL get user data");
         let result = async {
             let tic = Instant::now();
 
@@ -982,7 +1007,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         };
 
-        debug!("END MySQL get user data");
+        trace!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -996,7 +1021,7 @@ impl V2Storage for AsyncMySqlDatabase {
     ) -> core::result::Result<ValueState, StorageError> {
         *(self.num_reads.write().await) += 1;
 
-        debug!("BEGIN MySQL get user state {:?}-{:?}", username, flag);
+        trace!("BEGIN MySQL get user state (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
@@ -1079,7 +1104,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
             Ok::<Option<ValueState>, MySqlError>(item)
         };
-        debug!("END MySQL get user state");
+        trace!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
@@ -1096,7 +1121,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
         let mut results = HashMap::new();
 
-        debug!("BEGIN MySQL get user states {:?}", flag);
+        trace!("BEGIN MySQL get user states (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
@@ -1205,7 +1230,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             Ok::<(), MySqlError>(())
         };
-        debug!("END MySQL get user states");
+        trace!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -1221,7 +1246,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
         let mut results = HashMap::new();
 
-        debug!("BEGIN MySQL get user states {:?}", flag);
+        trace!("BEGIN MySQL get user state versions (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
@@ -1330,7 +1355,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             Ok::<(), MySqlError>(())
         };
-        debug!("END MySQL get user states");
+        trace!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
             Err(code) => Err(StorageError::GetError(code.to_string())),
