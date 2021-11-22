@@ -19,7 +19,7 @@ use log::{debug, error, info, trace, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -402,15 +402,18 @@ impl AsyncMySqlDatabase {
         let mut mini_tx = trans;
         debug!("BEGIN MySQL set batch");
         let tic = Instant::now();
+        let head = &records[0];
+        let statement = head.set_statement();
+        let mut prepped = mini_tx.prepare(statement).await?;
+
         for batch in records.chunks(100) {
-            let head = &batch[0];
-            let statement = head.set_statement();
             let param_groups: Vec<mysql_async::Params> =
                 batch.iter().map(|value| value.set_params()).collect();
-            let prepped = mini_tx.prepare(statement).await?;
             let out = prepped.batch(param_groups).await;
-            mini_tx = self.check_for_infra_error(out)?.close().await?;
+            prepped = self.check_for_infra_error(out)?;
         }
+        mini_tx = prepped.close().await?;
+
         let toc = Instant::now() - tic;
         *(self.time_spent.write().await) += toc;
         debug!("END MySQL set batch");
@@ -725,16 +728,18 @@ impl V2Storage for AsyncMySqlDatabase {
 
                         // Fill temp table
                         let fill_statement = DbRecord::get_batch_fill_temp_table::<St>();
+                        let mut prepped = conn.prepare(fill_statement.clone()).await?;
                         for batch in key_set.into_iter().collect::<Vec<St::Key>>().chunks(500) {
                             // unwrapping here because it's safe to do so, since we've already guarded against type = Azks
                             let param_groups: Vec<mysql_async::Params> = batch
                                 .iter()
                                 .map(|value| DbRecord::get_specific_params::<St>(value).unwrap())
                                 .collect();
-                            let prepped = conn.prepare(fill_statement.clone()).await?;
+
                             let out = prepped.batch(param_groups).await;
-                            conn = self.check_for_infra_error(out)?.close().await?;
+                            prepped = self.check_for_infra_error(out)?;
                         }
+                        conn = prepped.close().await?;
 
                         // Query the records which intersect (INNER JOIN) with the temp table of ids
                         let query = DbRecord::get_batch_statement::<St>();
@@ -1013,9 +1018,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     statement_text += " AND `epoch` = :the_epoch";
                 }
                 ValueStateRetrievalFlag::MaxEpoch => statement_text += " ORDER BY `epoch` DESC",
-                ValueStateRetrievalFlag::MaxVersion => statement_text += " ORDER BY `version` DESC",
                 ValueStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
-                ValueStateRetrievalFlag::MinVersion => statement_text += " ORDER BY `version` ASC",
                 ValueStateRetrievalFlag::LeqEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
                     statement_text += " AND `epoch` <= :the_epoch";
@@ -1080,6 +1083,131 @@ impl V2Storage for AsyncMySqlDatabase {
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
+            Err(code) => Err(StorageError::GetError(code.to_string())),
+        }
+    }
+
+    async fn get_user_states(
+        &self,
+        usernames: &[AkdKey],
+        flag: ValueStateRetrievalFlag,
+    ) -> core::result::Result<HashMap<AkdKey, ValueState>, StorageError> {
+        *(self.num_reads.write().await) += 1;
+
+        let mut results = HashMap::new();
+
+        debug!("BEGIN MySQL get user states {:?}", flag);
+        let result = async {
+            let tic = Instant::now();
+
+            let mut conn = self.get_connection().await?;
+
+            let out = conn
+                .drop_query(
+                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL)",
+                )
+                .await;
+            conn = self.check_for_infra_error(out)?;
+
+            let mut prep = conn
+                .prepare("INSERT INTO `search_users` (`username`) VALUES (:username)")
+                .await?;
+            // insert the records
+            for batch in usernames.chunks(500) {
+                let parameters: Vec<_> = batch
+                    .iter()
+                    .map(|username| params! {"username" => username.0.clone()})
+                    .collect();
+                let out = prep.batch(parameters).await;
+                prep = self.check_for_infra_error(out)?;
+            }
+
+            conn = prep.close().await?;
+            // finalize the prepared statement
+
+            // select all records for provided user names
+            let mut params_map = vec![];
+            let (filter, epoch_grouping) = {
+                // apply the specific filter
+                match flag {
+                    ValueStateRetrievalFlag::SpecificVersion(version) => {
+                        params_map.push(("the_version", Value::from(version)));
+                        ("WHERE tmp.`version` = :the_version", "tmp.`epoch`")
+                    }
+                    ValueStateRetrievalFlag::SpecificEpoch(epoch) => {
+                        params_map.push(("the_epoch", Value::from(epoch)));
+                        ("WHERE tmp.`epoch` = :the_epoch", "tmp.`epoch`")
+                    }
+                    ValueStateRetrievalFlag::MaxEpoch => ("", "MAX(tmp.`epoch`)"),
+                    ValueStateRetrievalFlag::MinEpoch => ("", "MIN(tmp.`epoch`)"),
+                    ValueStateRetrievalFlag::LeqEpoch(epoch) => {
+                        params_map.push(("the_epoch", Value::from(epoch)));
+                        (" WHERE tmp.`epoch` <= :the_epoch", "MAX(tmp.`epoch`)")
+                    }
+                }
+            };
+            let select_statement = format!(
+                r"SELECT full.`username`, full.`epoch`, full.`version`, full.`node_label_val`, full.`node_label_len`, full.`data`
+                FROM {} full
+                INNER JOIN (
+                    SELECT tmp.`username`, {} AS `epoch`
+                    FROM {} tmp
+                    INNER JOIN `search_users` su
+                        ON su.`username` = tmp.`username`
+                    {}
+                    GROUP BY tmp.`username`
+                ) epochs
+                    ON epochs.`username` = full.`username`
+                    AND epochs.`epoch` = full.`epoch`
+                ",
+                TABLE_USER, epoch_grouping, TABLE_USER, filter
+            );
+
+            let (nconn, out) = if params_map.is_empty() {
+                let _t = conn.query(select_statement).await;
+                self.check_for_infra_error(_t)?
+                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                        if let Ok(DbRecord::ValueState(state)) =
+                            DbRecord::from_row::<ValueState>(&mut row)
+                        {
+                            acc.push(state);
+                        }
+                        acc
+                    })
+                    .await?
+            } else {
+                let _t = conn
+                    .prep_exec(select_statement, mysql_async::Params::from(params_map))
+                    .await;
+                self.check_for_infra_error(_t)?
+                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                        if let Ok(DbRecord::ValueState(state)) =
+                            DbRecord::from_row::<ValueState>(&mut row)
+                        {
+                            acc.push(state);
+                        }
+                        acc
+                    })
+                    .await?
+            };
+
+            let nout = nconn
+                .drop_query("DROP TEMPORARY TABLE `search_users`")
+                .await;
+            self.check_for_infra_error(nout)?;
+
+            let toc = Instant::now() - tic;
+            *(self.time_spent.write().await) += toc;
+
+            for item in out.into_iter() {
+                results.insert(AkdKey(item.username.0.clone()), item);
+            }
+
+            Ok::<(), MySqlError>(())
+        };
+        debug!("END MySQL get user states");
+        match result.await {
+            Ok(()) => Ok(results),
             Err(code) => Err(StorageError::GetError(code.to_string())),
         }
     }

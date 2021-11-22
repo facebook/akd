@@ -155,28 +155,10 @@ impl V1Storage for AsyncInMemoryDatabase {
                         return Ok(value.clone());
                     }
                 }
-                ValueStateRetrievalFlag::MaxVersion =>
-                // retrieve the max version
-                {
-                    if let Some(value) =
-                        intermediate.iter().max_by(|a, b| a.version.cmp(&b.version))
-                    {
-                        return Ok(value.clone());
-                    }
-                }
                 ValueStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
-                        return Ok(value.clone());
-                    }
-                }
-                ValueStateRetrievalFlag::MinVersion =>
-                // retrieve the min version
-                {
-                    if let Some(value) =
-                        intermediate.iter().min_by(|a, b| a.version.cmp(&b.version))
-                    {
                         return Ok(value.clone());
                     }
                 }
@@ -455,28 +437,10 @@ impl V1Storage for AsyncInMemoryDbWithCache {
                         return Ok(value.clone());
                     }
                 }
-                ValueStateRetrievalFlag::MaxVersion =>
-                // retrieve the max version
-                {
-                    if let Some(value) =
-                        intermediate.iter().max_by(|a, b| a.version.cmp(&b.version))
-                    {
-                        return Ok(value.clone());
-                    }
-                }
                 ValueStateRetrievalFlag::MinEpoch =>
                 // retrieve by min epoch
                 {
                     if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
-                        return Ok(value.clone());
-                    }
-                }
-                ValueStateRetrievalFlag::MinVersion =>
-                // retrieve the min version
-                {
-                    if let Some(value) =
-                        intermediate.iter().min_by(|a, b| a.version.cmp(&b.version))
-                    {
                         return Ok(value.clone());
                     }
                 }

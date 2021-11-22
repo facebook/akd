@@ -243,6 +243,73 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
             }
         }
     }
+
+    let user_keys: Vec<_> = rand_users.iter().map(|user| AkdKey(user.clone())).collect();
+    let got_all_min_states = storage
+        .get_user_states(&user_keys, ValueStateRetrievalFlag::MinEpoch)
+        .await;
+    // should be the same thing as the previous get
+    match got_all_min_states {
+        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {:?}", err),
+        Ok(lst) if lst.len() != rand_users.len() => {
+            panic!(
+                "Retrieved list length does not match input length {} != {}",
+                lst.len(),
+                rand_users.len()
+            );
+        }
+        Ok(results) => {
+            // correct length, now check the values
+            for result in results.into_iter() {
+                // find the initial record with the same username & epoch
+                let initial_record = data
+                    .iter()
+                    .find(|&x| {
+                        if let DbRecord::ValueState(value_state) = &x {
+                            return value_state.username == result.0
+                                && value_state.epoch == result.1.epoch;
+                        }
+                        false
+                    })
+                    .cloned();
+                // assert it matches what was given matches what was retrieved
+                assert_eq!(Some(DbRecord::ValueState(result.1)), initial_record);
+            }
+        }
+    }
+
+    let got_all_max_states = storage
+        .get_user_states(&user_keys, ValueStateRetrievalFlag::MaxEpoch)
+        .await;
+    // should be the same thing as the previous get
+    match got_all_max_states {
+        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {:?}", err),
+        Ok(lst) if lst.len() != rand_users.len() => {
+            panic!(
+                "Retrieved list length does not match input length {} != {}",
+                lst.len(),
+                rand_users.len()
+            );
+        }
+        Ok(results) => {
+            // correct length, now check the values
+            for result in results.into_iter() {
+                // find the initial record with the same username & epoch
+                let initial_record = data
+                    .iter()
+                    .find(|&x| {
+                        if let DbRecord::ValueState(value_state) = &x {
+                            return value_state.username == result.0
+                                && value_state.epoch == result.1.epoch;
+                        }
+                        false
+                    })
+                    .cloned();
+                // assert it matches what was given matches what was retrieved
+                assert_eq!(Some(DbRecord::ValueState(result.1)), initial_record);
+            }
+        }
+    }
 }
 
 async fn async_test_transaction<S: V2Storage + Sync + Send>(storage: &mut S) {
@@ -469,35 +536,9 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
         }),
         specific_result
     );
-    let specific_result = storage
-        .get_user_state(&sample_state.username, ValueStateRetrievalFlag::MinVersion)
-        .await;
-    assert_eq!(
-        Ok(ValueState {
-            epoch: 1,
-            version: 1,
-            label: NodeLabel { val: 1, len: 1 },
-            plaintext_val: Values(rand_value.clone()),
-            username: sample_state.username.clone(),
-        }),
-        specific_result
-    );
 
     let specific_result = storage
         .get_user_state(&sample_state.username, ValueStateRetrievalFlag::MaxEpoch)
-        .await;
-    assert_eq!(
-        Ok(ValueState {
-            epoch: 456,
-            version: 3,
-            label: NodeLabel { val: 1, len: 1 },
-            plaintext_val: Values(rand_value.clone()),
-            username: sample_state.username.clone(),
-        }),
-        specific_result
-    );
-    let specific_result = storage
-        .get_user_state(&sample_state.username, ValueStateRetrievalFlag::MaxVersion)
         .await;
     assert_eq!(
         Ok(ValueState {
@@ -691,35 +732,9 @@ async fn async_test_user_data<S: V1Storage>(storage: &S) {
         }),
         specific_result
     );
-    let specific_result = storage
-        .get_user_state(&username, ValueStateRetrievalFlag::MinVersion)
-        .await;
-    assert_eq!(
-        Ok(ValueState {
-            epoch: 1,
-            version: 1,
-            label: NodeLabel { val: 1, len: 1 },
-            plaintext_val: Values(rand_value.clone()),
-            username: username.clone(),
-        }),
-        specific_result
-    );
 
     let specific_result = storage
         .get_user_state(&username, ValueStateRetrievalFlag::MaxEpoch)
-        .await;
-    assert_eq!(
-        Ok(ValueState {
-            epoch: 456,
-            version: 3,
-            label: NodeLabel { val: 1, len: 1 },
-            plaintext_val: Values(rand_value.clone()),
-            username: username.clone(),
-        }),
-        specific_result
-    );
-    let specific_result = storage
-        .get_user_state(&username, ValueStateRetrievalFlag::MaxVersion)
         .await;
     assert_eq!(
         Ok(ValueState {

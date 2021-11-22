@@ -12,6 +12,7 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::Send;
 
@@ -200,6 +201,13 @@ pub trait V2Storage: Clone {
         username: &types::AkdKey,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
+
+    /// Retrieve all user states for the provided users (batch get user states)
+    async fn get_user_states(
+        &self,
+        usernames: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError>;
 
     /* Data Layer Builders */
 
@@ -635,24 +643,10 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                     return Ok(value.clone());
                 }
             }
-            types::ValueStateRetrievalFlag::MaxVersion =>
-            // retrieve the max version
-            {
-                if let Some(value) = intermediate.iter().max_by(|a, b| a.version.cmp(&b.version)) {
-                    return Ok(value.clone());
-                }
-            }
             types::ValueStateRetrievalFlag::MinEpoch =>
             // retrieve by min epoch
             {
                 if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
-                    return Ok(value.clone());
-                }
-            }
-            types::ValueStateRetrievalFlag::MinVersion =>
-            // retrieve the min version
-            {
-                if let Some(value) = intermediate.iter().min_by(|a, b| a.version.cmp(&b.version)) {
                     return Ok(value.clone());
                 }
             }
@@ -700,5 +694,18 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
             }
         }
         Err(StorageError::GetError(String::from("Not found")))
+    }
+
+    async fn get_user_states(
+        &self,
+        usernames: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError> {
+        let mut map = HashMap::new();
+        for username in usernames.iter() {
+            let result = self.get_user_state(username, flag).await?;
+            map.insert(types::AkdKey(result.username.0.clone()), result);
+        }
+        Ok(map)
     }
 }
