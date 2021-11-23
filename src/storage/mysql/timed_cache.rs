@@ -29,6 +29,7 @@ pub(crate) struct CachedItem {
 pub(crate) struct TimedCache {
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
+    can_clean: Arc<tokio::sync::RwLock<bool>>,
     item_lifetime: Duration,
     hit_count: Arc<tokio::sync::RwLock<u64>>,
 }
@@ -59,6 +60,7 @@ impl Clone for TimedCache {
         TimedCache {
             map: self.map.clone(),
             last_clean: self.last_clean.clone(),
+            can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
             hit_count: self.hit_count.clone(),
         }
@@ -67,6 +69,12 @@ impl Clone for TimedCache {
 
 impl TimedCache {
     async fn clean(&self) {
+        let can_clean_guard = self.can_clean.read().await;
+        if !*can_clean_guard {
+            // cleaning is disabled
+            return;
+        }
+
         let do_clean = {
             // we need the {} brackets in order to release the read lock, since we _may_ acquire a write lock shortly later
             *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS)
@@ -103,6 +111,7 @@ impl TimedCache {
         Self {
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
+            can_clean: Arc::new(tokio::sync::RwLock::new(true)),
             item_lifetime: lifetime,
             hit_count: Arc::new(tokio::sync::RwLock::new(0)),
         }
@@ -120,7 +129,11 @@ impl TimedCache {
         if let Some(result) = ptr.get(&full_key) {
             *(self.hit_count.write().await) += 1;
 
-            if result.expiration > Instant::now() {
+            let ignore_clean = !*self.can_clean.read().await;
+            // if we've disabled cache cleaning, we're in the middle
+            // of an in-memory transaction and should ignore expiration
+            // of cache items until this flag is disabled again
+            if ignore_clean || result.expiration > Instant::now() {
                 return Some(result.data.clone());
             }
         }
@@ -164,5 +177,17 @@ impl TimedCache {
         let mut guard = self.map.write().await;
         (*guard).clear();
         trace!("END cache flush");
+    }
+
+    pub(crate) async fn disable_clean(&self) {
+        debug!("Disabling MySQL object cache cleaning");
+        let mut guard = self.can_clean.write().await;
+        (*guard) = false;
+    }
+
+    pub(crate) async fn enable_clean(&self) {
+        debug!("Enabling MySQL object cache cleaning");
+        let mut guard = self.can_clean.write().await;
+        (*guard) = true;
     }
 }

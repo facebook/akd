@@ -22,7 +22,7 @@ use mysql_async::*;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
 type MySqlError = mysql_async::error::Error;
@@ -65,7 +65,7 @@ pub enum MySqlCacheOptions {
 pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
-    is_healthy: Arc<Mutex<bool>>,
+    is_healthy: Arc<tokio::sync::RwLock<bool>>,
     cache: Option<TimedCache>,
     trans: LocalTransaction,
 
@@ -134,7 +134,7 @@ impl AsyncMySqlDatabase {
         let opts: Opts = builder.into();
 
         #[allow(clippy::mutex_atomic)]
-        let healthy = Arc::new(Mutex::new(false));
+        let healthy = Arc::new(tokio::sync::RwLock::new(false));
         let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
         let cache = match cache_options {
@@ -157,8 +157,8 @@ impl AsyncMySqlDatabase {
     }
 
     /// Determine if the db connection is healthy at present
-    pub fn is_healthy(&self) -> bool {
-        let is_healthy_guard = self.is_healthy.lock().unwrap();
+    pub async fn is_healthy(&self) -> bool {
+        let is_healthy_guard = self.is_healthy.read().await;
         *is_healthy_guard
     }
 
@@ -195,7 +195,7 @@ impl AsyncMySqlDatabase {
 
     async fn get_connection(&self) -> Result<mysql_async::Conn, MySqlError> {
         let connection = {
-            if self.is_healthy() {
+            if self.is_healthy().await {
                 let connection_pool_guard = self.pool.read().await;
                 (*connection_pool_guard).get_conn().await?
             } else {
@@ -228,7 +228,7 @@ impl AsyncMySqlDatabase {
     // "refresh" the pool.
     async fn refresh_connection_pool(&self) -> core::result::Result<(), StorageError> {
         {
-            let mut is_healthy_guard = self.is_healthy.lock().unwrap();
+            let mut is_healthy_guard = self.is_healthy.write().await;
             if !*is_healthy_guard {
                 info!("Already refreshing MySql connection pool!");
                 return Ok(());
@@ -251,7 +251,7 @@ impl AsyncMySqlDatabase {
 
     async fn new_connection_pool(
         opts: &mysql_async::Opts,
-        is_healthy: &Arc<Mutex<bool>>,
+        is_healthy: &Arc<tokio::sync::RwLock<bool>>,
     ) -> core::result::Result<mysql_async::Pool, StorageError> {
         let start = Instant::now();
         let mut attempts = 1;
@@ -265,7 +265,7 @@ impl AsyncMySqlDatabase {
             if let Ok(_conn) = conn {
                 if let Ok(()) = Self::setup_database(_conn).await {
                     // set the healthy flag to true
-                    let mut is_healthy_guard = is_healthy.lock().unwrap();
+                    let mut is_healthy_guard = is_healthy.write().await;
                     *is_healthy_guard = true;
 
                     return Ok(pool);
@@ -541,11 +541,23 @@ impl V2Storage for AsyncMySqlDatabase {
 
     /// Start a transaction in the storage layer
     async fn begin_transaction(&mut self) -> bool {
+        // disable the cache cleaning since we're in a write transaction
+        // and will want to keep cache'd objects for the life of the transaction
+        if let Some(cache) = &self.cache {
+            cache.disable_clean().await;
+        }
+
         self.trans.begin_transaction().await
     }
 
     /// Commit a transaction in the storage layer
     async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+        // The transaction is now complete (or reverted) and therefore we can re-enable
+        // the cache cleaning status
+        if let Some(cache) = &self.cache {
+            cache.enable_clean().await;
+        }
+
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
@@ -553,6 +565,12 @@ impl V2Storage for AsyncMySqlDatabase {
 
     /// Rollback a transaction
     async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+        // The transaction is being reverted and therefore we can re-enable
+        // the cache cleaning status
+        if let Some(cache) = &self.cache {
+            cache.enable_clean().await;
+        }
+
         self.trans.rollback_transaction().await
     }
 

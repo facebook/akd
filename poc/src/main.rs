@@ -229,8 +229,7 @@ async fn process_input(
 
                 if let Some(err) = code {
                     error!("Benchmark operation error {}", err);
-                }
-                else {
+                } else {
                     let toc = tic.elapsed();
 
                     let millis = toc.as_millis();
