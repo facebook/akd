@@ -553,8 +553,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
     /// Rollback a transaction
     async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
-        self.trans.rollback_transaction().await?;
-        Ok(())
+        self.trans.rollback_transaction().await
     }
 
     /// Retrieve a flag determining if there is a transaction active
@@ -581,6 +580,11 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     async fn batch_set(&self, records: Vec<DbRecord>) -> core::result::Result<(), StorageError> {
+        if records.is_empty() {
+            // nothing to do, save the cycles
+            return Ok(());
+        }
+
         // we're in a transaction, set the items in the transaction
         if self.is_transaction_active().await {
             for record in records.into_iter() {
@@ -704,6 +708,11 @@ impl V2Storage for AsyncMySqlDatabase {
         ids: Vec<St::Key>,
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
+
+        if ids.is_empty() {
+            // nothing to retrieve, save the cycles
+            return Ok(map);
+        }
 
         let mut key_set: HashSet<St::Key> = HashSet::from_iter(ids.iter().cloned());
 
@@ -1385,6 +1394,9 @@ trait MySqlStorable {
     fn from_row<St: Storable>(row: &mut mysql_async::Row) -> core::result::Result<Self, MySqlError>
     where
         Self: std::marker::Sized;
+
+    fn serialize_epochs(epochs: &[u64]) -> Vec<u8>;
+    fn deserialize_epochs(bin: &[u8]) -> Option<Vec<u64>>;
 }
 
 impl MySqlStorable for DbRecord {
@@ -1410,7 +1422,7 @@ impl MySqlStorable for DbRecord {
                 )
             }
             DbRecord::HistoryTreeNode(node) => {
-                let bin_data = bincode::serialize(&node.epochs).unwrap();
+                let bin_data = DbRecord::serialize_epochs(&node.epochs);
                 mysql_async::Params::from(
                     params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 },
                 )
@@ -1620,17 +1632,20 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                 ) {
-                    let bin_epochs: Vec<u8> = epochs;
-                    let decoded_epochs: Vec<u64> = bincode::deserialize(&bin_epochs).unwrap();
-                    let node = AsyncMySqlDatabase::build_history_tree_node(
-                        label_val,
-                        label_len,
-                        location,
-                        decoded_epochs,
-                        parent,
-                        node_type,
-                    );
-                    return Ok(DbRecord::HistoryTreeNode(node));
+                    let bin_vec: Vec<u8> = epochs;
+                    if let Some(decoded_epochs) = DbRecord::deserialize_epochs(&bin_vec) {
+                        let node = AsyncMySqlDatabase::build_history_tree_node(
+                            label_val,
+                            label_len,
+                            location,
+                            decoded_epochs,
+                            parent,
+                            node_type,
+                        );
+                        return Ok(DbRecord::HistoryTreeNode(node));
+                    } else {
+                        return Err(MySqlError::from("Deserialization of epochs failed"));
+                    }
                 }
             }
             StorageType::ValueState => {
@@ -1665,6 +1680,30 @@ impl MySqlStorable for DbRecord {
         // fallback
         let err = MySqlError::Driver(mysql_async::error::DriverError::FromRow { row: row.clone() });
         Err(err)
+    }
+
+    fn serialize_epochs(epochs: &[u64]) -> Vec<u8> {
+        let mut results = vec![];
+        for item in epochs {
+            let bytes = (*item).to_be_bytes();
+            results.extend_from_slice(&bytes);
+        }
+        results
+    }
+
+    fn deserialize_epochs(bin: &[u8]) -> Option<Vec<u64>> {
+        if bin.len() % 8 == 0 {
+            // modulo 8 means that we have proper length byte arrays which can be decoded into u64's
+            let mut results = vec![];
+            for chunk in bin.chunks(8) {
+                let mut a: [u8; 8] = Default::default();
+                a.copy_from_slice(chunk);
+                results.push(u64::from_be_bytes(a));
+            }
+            Some(results)
+        } else {
+            None
+        }
     }
 }
 

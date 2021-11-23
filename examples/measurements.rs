@@ -56,10 +56,7 @@ async fn main() {
     let mut existing_keys = Vec::<AkdKey>::new();
 
     let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
-    let mut akd_dir =
-        Directory::<_>::new::<
-            Blake3_256<BaseElement>,
-        >(&db)
+    let mut akd_dir = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
         .await
         .unwrap();
 

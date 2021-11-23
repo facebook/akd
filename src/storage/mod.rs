@@ -227,11 +227,7 @@ pub trait V2Storage: Clone {
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks(
-        root: usize,
-        latest_epoch: u64,
-        num_nodes: usize,
-    ) -> crate::append_only_zks::Azks {
+    fn build_azks(root: u64, latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
         crate::append_only_zks::Azks {
             root,
             latest_epoch,
@@ -256,9 +252,9 @@ pub trait V2Storage: Clone {
     fn build_history_tree_node(
         label_val: u64,
         label_len: u32,
-        location: usize,
+        location: u64,
         epochs: Vec<u64>,
-        parent: usize,
+        parent: u64,
         node_type: u8,
     ) -> crate::history_tree_node::HistoryTreeNode {
         crate::history_tree_node::HistoryTreeNode {

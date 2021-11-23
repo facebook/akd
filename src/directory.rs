@@ -115,7 +115,8 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                 }
             }
         }
-        let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
+        let insertion_set: Vec<(NodeLabel, H::Digest)> =
+            update_set.iter().map(|(x, y)| (*x, *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;

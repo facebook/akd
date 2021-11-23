@@ -34,11 +34,11 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 #[serde(bound = "")]
 pub struct Azks {
     /// The location of the root
-    pub root: usize,
+    pub root: u64,
     /// The latest complete epoch
     pub latest_epoch: u64,
     /// The number of nodes ie the size of this tree
-    pub num_nodes: usize, // The size of the tree
+    pub num_nodes: u64, // The size of the tree
 }
 
 impl Storable for Azks {
@@ -131,7 +131,7 @@ impl Azks {
     ) -> Result<(), AkdError> {
         self.increment_epoch();
 
-        let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
+        let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
         for (label, value) in insertion_set {
@@ -375,7 +375,7 @@ impl Azks {
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, usize), AkdError> {
+    ) -> Result<(MembershipProof<H>, u64), AkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();

@@ -555,7 +555,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
             NodeLabel::new(i.clone(), 3u32),
-            leaves.len(),
+            leaves.len() as u64,
             &i.to_ne_bytes(),
             0,
             7 - i,

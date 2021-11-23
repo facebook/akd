@@ -56,18 +56,18 @@ pub struct HistoryTreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
     /// The location of this node in the storage
-    pub location: usize,
+    pub location: u64,
     /// The epochs this node was updated
     pub epochs: Vec<u64>,
     /// The location of this node's parent
-    pub parent: usize, // The root node is marked its own parent.
+    pub parent: u64, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
     pub node_type: NodeType, // Leaf, Root or Interior
 }
 
 /// Parameters are azks_id and location. Represents the key with which to find a node in storage.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, std::fmt::Debug)]
-pub struct NodeKey(pub usize);
+pub struct NodeKey(pub u64);
 
 impl Storable for HistoryTreeNode {
     type Key = NodeKey;
@@ -95,7 +95,7 @@ impl Storable for HistoryTreeNode {
         }
 
         let id_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
-        Ok(NodeKey(u64::from_be_bytes(id_bytes) as usize))
+        Ok(NodeKey(u64::from_be_bytes(id_bytes)))
     }
 }
 
@@ -114,7 +114,7 @@ impl Clone for HistoryTreeNode {
 }
 
 impl HistoryTreeNode {
-    fn new(label: NodeLabel, location: usize, parent: usize, node_type: NodeType) -> Self {
+    fn new(label: NodeLabel, location: u64, parent: u64, node_type: NodeType) -> Self {
         HistoryTreeNode {
             label,
             location,
@@ -147,20 +147,19 @@ impl HistoryTreeNode {
         storage: &S,
         new_leaf: Self,
         epoch: u64,
-        num_nodes: &mut usize,
+        num_nodes: &mut u64,
     ) -> Result<(), HistoryTreeNodeError> {
         self.insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, true)
             .await
     }
 
-    #[allow(unused)]
     /// Inserts a single leaf node without hashing, creates new nodes where needed
     pub(crate) async fn insert_leaf<S: V2Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
         new_leaf: Self,
         epoch: u64,
-        num_nodes: &mut usize,
+        num_nodes: &mut u64,
     ) -> Result<(), HistoryTreeNodeError> {
         self.insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, false)
             .await
@@ -174,12 +173,12 @@ impl HistoryTreeNode {
         storage: &S,
         mut new_leaf: Self,
         epoch: u64,
-        num_nodes: &mut usize,
+        num_nodes: &mut u64,
         hashing: bool,
     ) -> Result<(), HistoryTreeNodeError> {
         let (lcs_label, dir_leaf, dir_self) = self
             .label
-            .get_longest_common_prefix_and_dirs(new_leaf.get_label());
+            .get_longest_common_prefix_and_dirs(new_leaf.label);
 
         if self.is_root() {
             new_leaf.location = *num_nodes;
@@ -392,9 +391,7 @@ impl HistoryTreeNode {
             let parent =
                 &mut HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
             if parent.get_latest_epoch()? < epoch {
-                let (_, dir_self, _) = parent
-                    .label
-                    .get_longest_common_prefix_and_dirs(self.get_label());
+                let (_, dir_self, _) = parent.label.get_longest_common_prefix_and_dirs(self.label);
                 parent
                     .set_node_child::<_, H>(storage, epoch, dir_self, self)
                     .await?;
@@ -482,7 +479,7 @@ impl HistoryTreeNode {
                 }
             },
             Direction::None => Err(HistoryTreeNodeError::NoDirectionInSettingChild(
-                self.get_label().get_val(),
+                self.label.get_val(),
                 child_node.label.get_val(),
             )),
         }
@@ -534,7 +531,7 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         dir: Direction,
-    ) -> Result<usize, HistoryTreeNodeError> {
+    ) -> Result<u64, HistoryTreeNodeError> {
         Ok(self
             .get_child_at_epoch::<_, H>(storage, epoch, dir)
             .await?
@@ -555,10 +552,6 @@ impl HistoryTreeNode {
         self.epochs[0]
     }
 
-    fn get_label(&self) -> NodeLabel {
-        self.label
-    }
-
     // gets the direction of node, i.e. if it's a left
     // child or right. If not found, return None
     async fn get_direction_at_ep<S: V2Storage + Sync + Send>(
@@ -572,7 +565,7 @@ impl HistoryTreeNode {
         for node_index in 0..ARITY {
             let node_val = state_at_ep.get_child_state_in_dir(node_index);
             let node_label = node_val.label;
-            if node_label == node.get_label() {
+            if node_label == node.label {
                 outcome = Some(node_index)
             }
         }
@@ -603,7 +596,7 @@ impl HistoryTreeNode {
                 } else {
                     let mut chosen_ep = self.get_birth_epoch();
                     for existing_ep in &self.epochs {
-                        if *existing_ep <= epoch {
+                        if *existing_ep <= epoch && *existing_ep > chosen_ep {
                             chosen_ep = *existing_ep;
                         }
                     }
@@ -723,9 +716,9 @@ pub(crate) async fn get_empty_root<H: Hasher, S: V2Storage + Send + Sync>(
 pub(crate) async fn get_leaf_node<H: Hasher, S: V2Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
-    location: usize,
+    location: u64,
     value: &[u8],
-    parent: usize,
+    parent: u64,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
     let node = HistoryTreeNode {
@@ -748,9 +741,9 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: V2Storage + Sync + Send>(
 pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: V2Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
-    location: usize,
+    location: u64,
     value: H::Digest,
-    parent: usize,
+    parent: u64,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
     let node = HistoryTreeNode {
@@ -783,11 +776,15 @@ pub(crate) async fn get_state_map<S: V2Storage + Sync + Send>(
     key: u64,
 ) -> Result<HistoryNodeState, StorageError> {
     if let Ok(DbRecord::HistoryNodeState(state)) = storage
-        .get::<HistoryNodeState>(NodeStateKey(node.label, key))
+        .get::<HistoryNodeState>(get_state_map_key(node, key))
         .await
     {
         Ok(state)
     } else {
         Err(StorageError::GetError(String::from("Not found")))
     }
+}
+
+pub(crate) fn get_state_map_key(node: &HistoryTreeNode, key: u64) -> NodeStateKey {
+    NodeStateKey(node.label, key)
 }
