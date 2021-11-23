@@ -12,8 +12,8 @@ use akd::storage::V2Storage;
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
-use winter_crypto::Hasher;
 use tokio::time::Instant;
+use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,

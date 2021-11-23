@@ -256,7 +256,7 @@ pub struct HistoryChildState {
     ///  Tells you whether this child is a dummy
     pub dummy_marker: DummyChildState,
     /// Says where the child node with this label is located
-    pub location: usize,
+    pub location: u64,
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
@@ -269,16 +269,16 @@ pub struct HistoryChildState {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ChildStateKey(
     pub(crate) Vec<u8>,
-    pub(crate) usize,
-    pub(crate) usize,
-    pub(crate) usize,
+    pub(crate) u64,
+    pub(crate) u64,
+    pub(crate) u64,
 );
 
 unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
-    pub fn new<H: Hasher>(loc: usize, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
+    pub fn new<H: Hasher>(loc: u64, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
         HistoryChildState {
             dummy_marker: DummyChildState::Real,
             location: loc,

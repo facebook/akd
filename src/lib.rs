@@ -39,11 +39,9 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//! let mut akd = Directory::<
-//!    akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!    >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//! let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //! };
 //! ```
 //!
@@ -61,11 +59,9 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!          (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
@@ -87,11 +83,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //!use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -112,11 +106,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //!use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -148,11 +140,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -173,11 +163,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -208,11 +196,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
@@ -238,11 +224,9 @@
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 //! use akd::storage::V2Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+//! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<
-//!         akd::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-//!         >::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
 //!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)

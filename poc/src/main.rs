@@ -10,11 +10,14 @@
 
 use akd::directory::Directory;
 use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
+use clap::arg_enum;
 use commands::Command;
 use log::{error, info, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use std::convert::From;
 use std::io::*;
+use std::str::FromStr;
 use std::time::{Duration, Instant};
 use structopt::StructOpt;
 use tokio::sync::mpsc::*;
@@ -30,9 +33,32 @@ use logs::ConsoleLogger;
 
 type Blake3 = Blake3_256<BaseElement>;
 
-static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger {
-    level: log::Level::Info,
-};
+arg_enum! {
+    #[derive(Debug)]
+    enum PublicLogLevels {
+        Error,
+        Warn,
+        Info,
+        Debug,
+        Trace
+    }
+}
+
+impl PublicLogLevels {
+    pub(crate) fn to_log_level(&self) -> log::Level {
+        match &self {
+            PublicLogLevels::Error => log::Level::Error,
+            PublicLogLevels::Warn => log::Level::Warn,
+            PublicLogLevels::Info => log::Level::Info,
+            PublicLogLevels::Debug => log::Level::Debug,
+            PublicLogLevels::Trace => log::Level::Trace,
+        }
+    }
+}
+
+// static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger {
+//     level: log::Level::Info,
+// };
 
 /// applicationModes
 #[derive(StructOpt)]
@@ -59,6 +85,16 @@ struct Cli {
     #[structopt(long = "debug", short = "d", name = "Enable debugging mode")]
     debug: bool,
 
+    #[structopt(
+        long = "log_level",
+        short = "l",
+        name = "Adjust the console log-level (default = INFO)",
+        possible_values = &PublicLogLevels::variants(),
+        case_insensitive = true,
+        default_value = "Info"
+    )]
+    console_debug: PublicLogLevels,
+
     #[structopt(subcommand)]
     other_mode: Option<OtherMode>,
 }
@@ -66,22 +102,36 @@ struct Cli {
 // MAIN //
 #[tokio::main]
 async fn main() {
+    ConsoleLogger::touch();
+
     let cli = Cli::from_args();
 
-    // enable the logger
-    if let Err(err) =
-        log::set_logger(&CONSOLE_LOGGER).map(|()| log::set_max_level(log::LevelFilter::Debug))
-    {
-        println!("Error setting logger {}", err);
+    // Initialize logging facades
+    let mut loggers: Vec<Box<dyn log::Log>> = vec![Box::new(ConsoleLogger {
+        level: cli.console_debug.to_log_level(),
+    })];
+
+    let level = if cli.debug {
+        // File-logging enabled in debug mode
+        match logs::FileLogger::new("log.txt") {
+            Err(err) => println!("Error initializing file logger {}", err),
+            Ok(flogger) => loggers.push(Box::new(flogger)),
+        }
+        // drop the log level to debug (console has a max-level of "Info")
+        log::Level::Trace
+    } else {
+        cli.console_debug.to_log_level()
+    };
+
+    if let Err(err) = multi_log::MultiLogger::init(loggers, level) {
+        println!("Error initializing multi-logger {}", err);
     }
 
     let (tx, mut rx) = channel(2);
 
     if cli.memory_db {
-        let db = akd::storage::memory::newdb::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_>::new::<Blake3>(&db)
-        .await
-        .unwrap();
+        let db = akd::storage::memory::AsyncInMemoryDatabase::new();
+        let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
         });
@@ -97,9 +147,7 @@ async fn main() {
             MySqlCacheOptions::Default, // enable caching
         )
         .await;
-        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db)
-            .await
-            .unwrap();
+        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
         });
@@ -172,7 +220,7 @@ async fn process_input(
                     match rpc_rx.await {
                         Err(err) => code = Some(format!("{}", err)),
                         Ok(Err(dir_err)) => code = Some(dir_err),
-                        Ok(Ok(msg)) => println!("{}", msg),
+                        Ok(Ok(msg)) => info!("{}", msg),
                     }
                     if code.is_some() {
                         break;
@@ -180,20 +228,20 @@ async fn process_input(
                 }
 
                 if let Some(err) = code {
-                    error!("Benchmark operation completed in ERROR: {}", err);
+                    error!("Benchmark operation error {}", err);
+                } else {
+                    let toc = tic.elapsed();
+
+                    let millis = toc.as_millis();
+                    println!(
+                        "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
+                        num_users,
+                        num_updates_per_user,
+                        toc.as_millis(),
+                        toc.as_micros() / *num_users as u128,
+                        toc.as_micros() / *num_users as u128 / *num_updates_per_user as u128
+                    );
                 }
-
-                let toc = tic.elapsed();
-
-                let millis = toc.as_millis();
-                println!(
-                    "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
-                    num_users,
-                    num_updates_per_user,
-                    toc.as_millis(),
-                    toc.as_micros() / *num_users as u128,
-                    toc.as_micros() / *num_users as u128 / *num_updates_per_user as u128
-                );
             }
             OtherMode::BenchLookup {
                 num_users,

@@ -12,6 +12,7 @@ use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::Send;
 
@@ -161,7 +162,7 @@ pub trait V2Storage: Clone {
     /// Retrieve a flag determining if there is a transaction active
     async fn is_transaction_active(&self) -> bool;
 
-    /// V1Storage a record in the data layer
+    /// Set a record in the data layer
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
     /// Set multiple records in transactional operation
@@ -187,7 +188,7 @@ pub trait V2Storage: Clone {
     /// Add a user state element to the associated user
     async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError>;
 
-    /// Adds user states
+    /// Append user states to the storage medium
     async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
@@ -201,6 +202,20 @@ pub trait V2Storage: Clone {
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
 
+    /// Retrieve all user states for the provided users (batch get user states)
+    async fn get_user_states(
+        &self,
+        usernames: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError>;
+
+    /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
+    async fn get_user_state_versions(
+        &self,
+        keys: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, u64>, StorageError>;
+
     /* Data Layer Builders */
 
     /*
@@ -212,11 +227,7 @@ pub trait V2Storage: Clone {
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks(
-        root: usize,
-        latest_epoch: u64,
-        num_nodes: usize,
-    ) -> crate::append_only_zks::Azks {
+    fn build_azks(root: u64, latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
         crate::append_only_zks::Azks {
             root,
             latest_epoch,
@@ -241,9 +252,9 @@ pub trait V2Storage: Clone {
     fn build_history_tree_node(
         label_val: u64,
         label_len: u32,
-        location: usize,
+        location: u64,
         epochs: Vec<u64>,
-        parent: usize,
+        parent: u64,
         node_type: u8,
     ) -> crate::history_tree_node::HistoryTreeNode {
         crate::history_tree_node::HistoryTreeNode {
@@ -257,30 +268,6 @@ pub trait V2Storage: Clone {
             node_type: crate::history_tree_node::NodeType::from_u8(node_type),
         }
     }
-
-    /*HistoryNodeState(crate::node_state::HistoryNodeState<H, S>),*/
-
-    // /*
-    // pub dummy_marker: DummyChildState,
-    // pub location: usize,
-    // pub label: NodeLabel,
-    // pub hash_val: Vec<u8>,
-    // pub epoch_version: u64,
-    // pub(crate) _h: PhantomData<H>,
-    // pub(crate) _s: PhantomData<S>,
-    // */
-    // /// Build a history child state from the properties
-    // fn build_history_child_state<H>(dummy_marker: u8, location: usize, label_val: u64, label_len: u32, hash_val: Vec<u8>, epoch_version: u64)
-    // -> crate::node_state::HistoryChildState::<H> {
-    //     crate::node_state::HistoryChildState::<H> {
-    //         dummy_marker: crate::node_state::DummyChildState::from_u8(dummy_marker),
-    //         location,
-    //         label: crate::node_state::NodeLabel { val: label_val, len: label_len },
-    //         hash_val,
-    //         epoch_version,
-    //         _h: PhantomData,
-    //     }
-    // }
 
     /*
     pub struct NodeStateKey(pub(crate) NodeLabel, pub(crate) usize);
@@ -635,24 +622,10 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
                     return Ok(value.clone());
                 }
             }
-            types::ValueStateRetrievalFlag::MaxVersion =>
-            // retrieve the max version
-            {
-                if let Some(value) = intermediate.iter().max_by(|a, b| a.version.cmp(&b.version)) {
-                    return Ok(value.clone());
-                }
-            }
             types::ValueStateRetrievalFlag::MinEpoch =>
             // retrieve by min epoch
             {
                 if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
-                    return Ok(value.clone());
-                }
-            }
-            types::ValueStateRetrievalFlag::MinVersion =>
-            // retrieve the min version
-            {
-                if let Some(value) = intermediate.iter().min_by(|a, b| a.version.cmp(&b.version)) {
                     return Ok(value.clone());
                 }
             }
@@ -700,5 +673,33 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
             }
         }
         Err(StorageError::GetError(String::from("Not found")))
+    }
+
+    async fn get_user_states(
+        &self,
+        usernames: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError> {
+        let mut map = HashMap::new();
+        for username in usernames.iter() {
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(types::AkdKey(result.username.0.clone()), result);
+            }
+        }
+        Ok(map)
+    }
+
+    async fn get_user_state_versions(
+        &self,
+        keys: &[types::AkdKey],
+        flag: types::ValueStateRetrievalFlag,
+    ) -> Result<HashMap<types::AkdKey, u64>, StorageError> {
+        let mut map = HashMap::new();
+        for username in keys.iter() {
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(types::AkdKey(result.username.0.clone()), result.version);
+            }
+        }
+        Ok(map)
     }
 }

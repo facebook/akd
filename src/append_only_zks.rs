@@ -18,7 +18,7 @@ use crate::serialization::to_digest;
 use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
-use log::debug;
+use log::trace;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
@@ -34,11 +34,11 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 #[serde(bound = "")]
 pub struct Azks {
     /// The location of the root
-    pub root: usize,
+    pub root: u64,
     /// The latest complete epoch
     pub latest_epoch: u64,
     /// The number of nodes ie the size of this tree
-    pub num_nodes: usize, // The size of the tree
+    pub num_nodes: u64, // The size of the tree
 }
 
 impl Storable for Azks {
@@ -131,7 +131,7 @@ impl Azks {
     ) -> Result<(), AkdError> {
         self.increment_epoch();
 
-        let mut hash_q = KeyedPriorityQueue::<usize, i32>::new();
+        let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
         for (label, value) in insertion_set {
@@ -152,11 +152,11 @@ impl Azks {
                     .await?
             };
 
-            debug!("BEGIN insert leaf");
+            trace!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
                 .await?;
-            debug!("END insert leaf");
+            trace!("END insert leaf");
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
@@ -375,7 +375,7 @@ impl Azks {
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, usize), AkdError> {
+    ) -> Result<(MembershipProof<H>, u64), AkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
@@ -470,7 +470,7 @@ mod tests {
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
 
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -484,7 +484,7 @@ mod tests {
             azks1.insert_leaf::<_, Blake3>(&db, node, val).await?;
         }
 
-        let db2 = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db2 = AsyncInMemoryDatabase::new();
         let mut azks2 = Azks::new::<_, Blake3>(&db2).await?;
 
         azks2
@@ -504,7 +504,7 @@ mod tests {
     async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
 
@@ -520,7 +520,7 @@ mod tests {
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
 
-        let db2 = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db2 = AsyncInMemoryDatabase::new();
         let mut azks2 = Azks::new::<_, Blake3>(&db2).await?;
 
         azks2
@@ -553,7 +553,7 @@ mod tests {
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
             .await?;
@@ -584,7 +584,7 @@ mod tests {
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
             .await?;
@@ -612,7 +612,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
         insertion_set.push((NodeLabel::new(0b0, 64), Blake3::hash(&[])));
         insertion_set.push((NodeLabel::new(0b1 << 63, 64), Blake3::hash(&[])));
@@ -645,7 +645,7 @@ mod tests {
             let input = Blake3Digest::new(input);
             insertion_set.push((node, input));
         }
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         let search_label = insertion_set[num_nodes - 1].0;
         azks.batch_insert_leaves::<_, Blake3>(
@@ -665,7 +665,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -689,7 +689,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
         let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
@@ -728,7 +728,7 @@ mod tests {
             insertion_set_1.push((node, input));
         }
 
-        let db = storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
+        let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_1.clone())
             .await?;

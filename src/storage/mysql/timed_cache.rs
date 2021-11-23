@@ -29,6 +29,7 @@ pub(crate) struct CachedItem {
 pub(crate) struct TimedCache {
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
+    can_clean: Arc<tokio::sync::RwLock<bool>>,
     item_lifetime: Duration,
     hit_count: Arc<tokio::sync::RwLock<u64>>,
 }
@@ -59,6 +60,7 @@ impl Clone for TimedCache {
         TimedCache {
             map: self.map.clone(),
             last_clean: self.last_clean.clone(),
+            can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
             hit_count: self.hit_count.clone(),
         }
@@ -67,13 +69,19 @@ impl Clone for TimedCache {
 
 impl TimedCache {
     async fn clean(&self) {
+        let can_clean_guard = self.can_clean.read().await;
+        if !*can_clean_guard {
+            // cleaning is disabled
+            return;
+        }
+
         let do_clean = {
             // we need the {} brackets in order to release the read lock, since we _may_ acquire a write lock shortly later
             *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS)
                 < Instant::now()
         };
         if do_clean {
-            debug!("BEGIN clean cache");
+            trace!("BEGIN clean cache");
             let now = Instant::now();
             let mut keys_to_flush = HashSet::new();
 
@@ -88,7 +96,7 @@ impl TimedCache {
                     write.remove(&key);
                 }
             }
-            debug!("END clean cache");
+            trace!("END clean cache");
 
             // update last clean time
             *(self.last_clean.write().await) = Instant::now();
@@ -103,6 +111,7 @@ impl TimedCache {
         Self {
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
+            can_clean: Arc::new(tokio::sync::RwLock::new(true)),
             item_lifetime: lifetime,
             hit_count: Arc::new(tokio::sync::RwLock::new(0)),
         }
@@ -111,16 +120,20 @@ impl TimedCache {
     pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         self.clean().await;
 
-        debug!("BEGIN cache retrieve {:?}", key);
+        trace!("BEGIN cache retrieve {:?}", key);
         let full_key = St::get_full_binary_key_id(key);
 
         let guard = self.map.read().await;
         let ptr: &HashMap<_, _> = &*guard;
-        debug!("END cache retrieve");
+        trace!("END cache retrieve");
         if let Some(result) = ptr.get(&full_key) {
             *(self.hit_count.write().await) += 1;
 
-            if result.expiration > Instant::now() {
+            let ignore_clean = !*self.can_clean.read().await;
+            // if we've disabled cache cleaning, we're in the middle
+            // of an in-memory transaction and should ignore expiration
+            // of cache items until this flag is disabled again
+            if ignore_clean || result.expiration > Instant::now() {
                 return Some(result.data.clone());
             }
         }
@@ -130,7 +143,7 @@ impl TimedCache {
     pub(crate) async fn put(&self, record: &DbRecord) {
         self.clean().await;
 
-        debug!("BEGIN cache put");
+        trace!("BEGIN cache put");
         let mut guard = self.map.write().await;
         let key = record.get_full_binary_id();
         // overwrite any existing items since a flush is requested
@@ -139,13 +152,13 @@ impl TimedCache {
             data: record.clone(),
         };
         (*guard).insert(key, item);
-        debug!("END cache put");
+        trace!("END cache put");
     }
 
     pub(crate) async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
-        debug!("BEGIN cache put batch");
+        trace!("BEGIN cache put batch");
         let mut guard = self.map.write().await;
         for record in records.iter() {
             let key = record.get_full_binary_id();
@@ -155,14 +168,26 @@ impl TimedCache {
             };
             (*guard).insert(key, item);
         }
-        debug!("END cache put batch");
+        trace!("END cache put batch");
     }
 
     #[allow(dead_code)]
     pub(crate) async fn flush(&self) {
-        debug!("BEGIN cache flush");
+        trace!("BEGIN cache flush");
         let mut guard = self.map.write().await;
         (*guard).clear();
-        debug!("END cache flush");
+        trace!("END cache flush");
+    }
+
+    pub(crate) async fn disable_clean(&self) {
+        debug!("Disabling MySQL object cache cleaning");
+        let mut guard = self.can_clean.write().await;
+        (*guard) = false;
+    }
+
+    pub(crate) async fn enable_clean(&self) {
+        debug!("Enabling MySQL object cache cleaning");
+        let mut guard = self.can_clean.write().await;
+        (*guard) = true;
     }
 }

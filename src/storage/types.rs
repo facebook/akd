@@ -120,7 +120,7 @@ pub struct KeyData {
 }
 
 /// Used to retrieve a value's state, for a given key
-#[derive(std::fmt::Debug)]
+#[derive(std::fmt::Debug, Clone, Copy)]
 pub enum ValueStateRetrievalFlag {
     /// Specific version
     SpecificVersion(u64),
@@ -130,12 +130,8 @@ pub enum ValueStateRetrievalFlag {
     LeqEpoch(u64),
     /// State at the latest epoch
     MaxEpoch,
-    /// State at the latest version
-    MaxVersion,
     /// State at the earliest epoch
     MinEpoch,
-    /// Earliest version
-    MinVersion,
 }
 
 // == New Data Retrieval Logic == //

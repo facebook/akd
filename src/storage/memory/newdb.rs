@@ -316,24 +316,10 @@ impl V2Storage for AsyncInMemoryDatabase {
                     return Ok(value.clone());
                 }
             }
-            ValueStateRetrievalFlag::MaxVersion =>
-            // retrieve the max version
-            {
-                if let Some(value) = intermediate.iter().max_by(|a, b| a.version.cmp(&b.version)) {
-                    return Ok(value.clone());
-                }
-            }
             ValueStateRetrievalFlag::MinEpoch =>
             // retrieve by min epoch
             {
                 if let Some(value) = intermediate.iter().min_by(|a, b| a.epoch.cmp(&b.epoch)) {
-                    return Ok(value.clone());
-                }
-            }
-            ValueStateRetrievalFlag::MinVersion =>
-            // retrieve the min version
-            {
-                if let Some(value) = intermediate.iter().min_by(|a, b| a.version.cmp(&b.version)) {
                     return Ok(value.clone());
                 }
             }
@@ -379,5 +365,33 @@ impl V2Storage for AsyncInMemoryDatabase {
             }
         }
         Err(StorageError::GetError(String::from("Not found")))
+    }
+
+    async fn get_user_states(
+        &self,
+        usernames: &[AkdKey],
+        flag: ValueStateRetrievalFlag,
+    ) -> Result<HashMap<AkdKey, ValueState>, StorageError> {
+        let mut map = HashMap::new();
+        for username in usernames.iter() {
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(AkdKey(result.username.0.clone()), result);
+            }
+        }
+        Ok(map)
+    }
+
+    async fn get_user_state_versions(
+        &self,
+        keys: &[AkdKey],
+        flag: ValueStateRetrievalFlag,
+    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+        let mut map = HashMap::new();
+        for username in keys.iter() {
+            if let Ok(result) = self.get_user_state(username, flag).await {
+                map.insert(AkdKey(result.username.0.clone()), result.version);
+            }
+        }
+        Ok(map)
     }
 }

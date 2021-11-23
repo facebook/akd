@@ -26,7 +26,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let mut runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let db = akd::storage::V2FromV1StorageWrapper::new(InMemoryDb::new());
+    let db = InMemoryDb::new();
 
     let mut azks1 = runtime.block_on(Azks::new::<_, Blake3>(&db)).unwrap();
     let mut insertion_set = Vec::<(NodeLabel, Blake3Digest)>::new();

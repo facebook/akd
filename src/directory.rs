@@ -76,14 +76,20 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
 
+        let keys: Vec<AkdKey> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
+        // we're only using the maximum "version" of the user's state at the last epoch
+        // they were seen in the directory. Therefore we've minimized the call to only
+        // return a hashmap of AkdKey => u64 and not retrieving the other data which is not
+        // read (i.e. the actual _data_ payload).
+        let all_user_versions_retrieved = self
+            .storage
+            .get_user_state_versions(&keys, ValueStateRetrievalFlag::MaxEpoch)
+            .await?;
+
         for (uname, val) in updates {
-            match self
-                .storage
-                .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
-                .await
-            {
-                Err(_) => {
-                    // No data found for the user
+            match all_user_versions_retrieved.get(&uname) {
+                None => {
+                    // no data found for the user
                     let latest_version = 1;
                     let label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     // Currently there's no blinding factor for the commitment.
@@ -94,12 +100,10 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
                 }
-                Ok(max_user_state) => {
+                Some(previous_version) => {
                     // Data found for the given user
-                    let latest_st = max_user_state;
-                    let previous_version = latest_st.version;
-                    let latest_version = previous_version + 1;
-                    let stale_label = Self::get_nodelabel::<H>(&uname, true, previous_version);
+                    let latest_version = *previous_version + 1;
+                    let stale_label = Self::get_nodelabel::<H>(&uname, true, *previous_version);
                     let fresh_label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
@@ -111,7 +115,8 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                 }
             }
         }
-        let insertion_set = update_set.iter().map(|(x, y)| (*x, *y)).collect();
+        let insertion_set: Vec<(NodeLabel, H::Digest)> =
+            update_set.iter().map(|(x, y)| (*x, *y)).collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
@@ -467,11 +472,8 @@ mod tests {
     #[allow(unused)]
     #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![(AkdKey("hello".to_string()), Values("world".to_string()))],
@@ -483,11 +485,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simiple_lookup() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -511,11 +510,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -617,11 +613,8 @@ mod tests {
     #[allow(unused)]
     #[tokio::test]
     async fn test_simple_audit() -> Result<(), AkdError> {
-        let db = crate::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDatabase::new());
-        let mut akd = Directory::<
-            crate::storage::V2FromV1StorageWrapper<AsyncInMemoryDatabase>,
-        >::new::<Blake3>(&db)
-        .await?;
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
             vec![
