@@ -171,8 +171,8 @@ impl Azks {
         self.increment_epoch();
         self.preload_nodes_for_insertion::<S, H>(storage, insertion_set.clone())
             .await?;
-        storage.log_metrics(log::Level::Info).await;
         println!("***********************PRELOADED***************************");
+        storage.log_metrics(log::Level::Info).await;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
@@ -203,6 +203,10 @@ impl Azks {
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
         }
+
+        println!("***********************PRIORITY QUEUE FILLED***************************");
+        storage.log_metrics(log::Level::Info).await;
+        println!("***********************************************************************");
 
         while !hash_q.is_empty() {
             let (next_node_loc, _) = hash_q

@@ -436,7 +436,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 
     root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
         .await?;
-
+    println!("Here");
     root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
         .await?;
 
