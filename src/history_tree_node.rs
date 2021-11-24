@@ -141,6 +141,23 @@ impl HistoryTreeNode {
         }
     }
 
+    pub(crate) async fn batch_get_from_storage<S: V2Storage + Send + Sync>(
+        storage: &S,
+        keys: Vec<NodeKey>,
+    ) -> Result<Vec<HistoryTreeNode>, StorageError> {
+        // let nodes =  storage.batch_get::<HistoryTreeNode>(keys).await?.iter()
+        // .map(|DbRecord::HistoryTreeNode(node)| node.clone()).collect();
+        let node_records: Vec<DbRecord> =  storage.batch_get::<HistoryTreeNode>(keys).await?;
+        let mut nodes = Vec::<HistoryTreeNode>::new();
+        for node in node_records {
+            match node {
+                DbRecord::HistoryTreeNode(node) => nodes.push(node),
+                _ => {return Err(StorageError::GetError(String::from("Batch get error")));}
+            }
+        }
+        Ok(nodes)
+    }
+
     /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
     pub(crate) async fn insert_single_leaf<S: V2Storage + Sync + Send, H: Hasher>(
         &mut self,

@@ -20,7 +20,7 @@ use mysql_async::prelude::*;
 use mysql_async::*;
 
 use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
+
 use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
@@ -732,7 +732,7 @@ impl V2Storage for AsyncMySqlDatabase {
             return Ok(map);
         }
 
-        let mut key_set: HashSet<St::Key> = HashSet::from_iter(ids.iter().cloned());
+        let mut key_set: HashSet<St::Key> = ids.iter().cloned().collect::<HashSet<_>>();
 
         let trans_active = self.is_transaction_active().await;
         // first check the transaction log & cache records

@@ -19,7 +19,7 @@ use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use log::trace;
-use std::marker::{Send, Sync};
+use std::{marker::{Send, Sync}};//, thread::current};
 use winter_crypto::Hasher;
 
 use serde::{Deserialize, Serialize};
@@ -120,6 +120,26 @@ impl Azks {
             .await
     }
 
+    async fn preload_nodes_for_insertion<S: V2Storage + Sync + Send, H: Hasher>(&self, storage: &S, _insertion_set: Vec<(NodeLabel, H::Digest)>) -> Result<(), AkdError> {
+        let preload_depth = 10;
+        println!("-------------- preload depth = {} -------", preload_depth);
+        let mut current_nodes = vec![NodeKey(self.root)];
+        for _ in 0..preload_depth {
+            let nodes = HistoryTreeNode::batch_get_from_storage(storage, current_nodes.clone()).await?;
+            current_nodes = Vec::<NodeKey>::new();
+            let mut node_states = Vec::<NodeStateKey>::new();
+            for node in nodes {
+                node_states.push(get_state_map_key(&node, node.get_latest_epoch()?));
+                for dir in 0..ARITY {
+                    let child = node.get_child_location_at_epoch::<S, H>(storage, self.latest_epoch, Direction::Some(dir)).await?;
+                    current_nodes.push(NodeKey(child));
+                }
+            }
+            storage.batch_get::<HistoryNodeState>(node_states).await?;
+        }
+        Ok(())
+    }
+
     /// An azks is built both by the [crate::directory::Directory] and the auditor.
     /// However, both constructions have very minor differences, and the append_only_usage
     /// bool keeps track of this.
@@ -130,7 +150,7 @@ impl Azks {
         append_only_usage: bool,
     ) -> Result<(), AkdError> {
         self.increment_epoch();
-
+        self.preload_nodes_for_insertion::<S, H>(storage, insertion_set.clone()).await?;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
