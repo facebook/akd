@@ -133,8 +133,11 @@ impl Azks {
                 HistoryTreeNode::batch_get_from_storage(storage, current_nodes.clone()).await?;
             current_nodes = Vec::<NodeKey>::new();
             let mut node_states = Vec::<NodeStateKey>::new();
-            for node in nodes {
-                node_states.push(get_state_map_key(&node, node.get_latest_epoch()?));
+            for node in &nodes {
+                node_states.push(get_state_map_key(node, node.get_latest_epoch()?));
+            }
+            storage.batch_get::<HistoryNodeState>(node_states).await?;
+            for node in &nodes {
                 for dir in 0..ARITY {
                     let child = node
                         .get_child_location_at_epoch::<S, H>(
@@ -146,7 +149,6 @@ impl Azks {
                     current_nodes.push(NodeKey(child));
                 }
             }
-            storage.batch_get::<HistoryNodeState>(node_states).await?;
         }
         Ok(())
     }
@@ -163,6 +165,8 @@ impl Azks {
         self.increment_epoch();
         self.preload_nodes_for_insertion::<S, H>(storage, insertion_set.clone())
             .await?;
+        storage.log_metrics(log::Level::Info).await;
+        println!("***********************PRELOADED***************************");
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
