@@ -72,7 +72,7 @@ impl Transaction {
 
     /// Start a transaction in the storage layer
     pub(crate) async fn begin_transaction(&mut self) -> bool {
-        trace!("BEGIN begin transaction");
+        debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
         let out = if (*guard).active {
             false
@@ -80,13 +80,13 @@ impl Transaction {
             (*guard).active = true;
             true
         };
-        trace!("END begin transaction");
+        debug!("END begin transaction");
         out
     }
 
     /// Commit a transaction in the storage layer
     pub(crate) async fn commit_transaction(&mut self) -> Result<Vec<DbRecord>, StorageError> {
-        trace!("BEGIN commit transaction");
+        debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
         if !(*guard).active {
@@ -101,13 +101,13 @@ impl Transaction {
         (*guard).mods.clear();
 
         (*guard).active = false;
-        trace!("END commit transaction");
+        debug!("END commit transaction");
         Ok(records)
     }
 
     /// Rollback a transaction
     pub(crate) async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
-        trace!("BEGIN rollback transaction");
+        debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
         if !(*guard).active {
@@ -120,20 +120,20 @@ impl Transaction {
         (*guard).mods.clear();
         (*guard).active = false;
 
-        trace!("END rollback transaction");
+        debug!("END rollback transaction");
         Ok(())
     }
 
     /// Retrieve a flag determining if there is a transaction active
     pub(crate) async fn is_transaction_active(&self) -> bool {
-        trace!("BEGIN is transaction active");
+        debug!("BEGIN is transaction active");
         let out = self.state.read().await.active;
-        trace!("END is transaction active");
+        debug!("END is transaction active");
         out
     }
 
     pub(crate) async fn get<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
-        trace!("BEGIN transaction get {:?}", key);
+        debug!("BEGIN transaction get {:?}", key);
         let bin_id = St::get_full_binary_key_id(key);
 
         let guard = self.state.read().await;
@@ -141,18 +141,18 @@ impl Transaction {
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
-        trace!("END transaction get");
+        debug!("END transaction get");
         out
     }
 
     pub(crate) async fn set(&self, record: &DbRecord) {
-        trace!("BEGIN transaction set");
+        debug!("BEGIN transaction set");
         let bin_id = record.get_full_binary_id();
 
         let mut guard = self.state.write().await;
         (*guard).mods.insert(bin_id, record.clone());
 
         *(self.num_writes.write().await) += 1;
-        trace!("END transaction set");
+        debug!("END transaction set");
     }
 }

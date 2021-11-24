@@ -20,7 +20,6 @@ use mysql_async::prelude::*;
 use mysql_async::*;
 
 use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
@@ -46,6 +45,8 @@ const SELECT_HISTORY_NODE_STATE_DATA: &str =
     "`label_len`, `label_val`, `epoch`, `value`, `child_states`";
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
+
+const MYSQL_EXTENDED_INSERT_DEPTH: usize = 50;
 
 /*
     MySql documentation: https://docs.rs/mysql_async/0.23.1/mysql_async/
@@ -237,7 +238,7 @@ impl AsyncMySqlDatabase {
             *is_healthy_guard = false;
         }
         warn!("Refreshing MySql connection pool.");
-        trace!("BEGIN refresh mysql connection pool");
+        debug!("BEGIN refresh mysql connection pool");
 
         // Grab early write lock so no new queries can be initiated before
         // connection pool is refreshed.
@@ -245,7 +246,7 @@ impl AsyncMySqlDatabase {
         let pool = Self::new_connection_pool(&self.opts, &self.is_healthy).await?;
         *connection_pool_guard = pool;
 
-        trace!("END refresh mysql connection pool");
+        debug!("END refresh mysql connection pool");
         Ok(())
     }
 
@@ -372,7 +373,7 @@ impl AsyncMySqlDatabase {
     ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
         *(self.num_writes.write().await) += 1;
 
-        trace!("BEGIN MySQL set");
+        debug!("BEGIN MySQL set");
         let tic = Instant::now();
 
         let statement_text = record.set_statement();
@@ -394,7 +395,7 @@ impl AsyncMySqlDatabase {
         let toc = Instant::now() - tic;
         *(self.time_spent.write().await) += toc;
 
-        trace!("END MySQL set");
+        debug!("END MySQL set");
         Ok(ntx)
     }
 
@@ -407,23 +408,29 @@ impl AsyncMySqlDatabase {
         *(self.num_writes.write().await) += records.len() as u64;
 
         let mut mini_tx = trans;
-        trace!("BEGIN MySQL set batch");
+        mini_tx = mini_tx.drop_query("SET autocommit=0").await?;
+        mini_tx = mini_tx.drop_query("SET unique_checks=0").await?;
+        mini_tx = mini_tx.drop_query("SET foreign_key_checks=0").await?;
+
+        debug!("BEGIN MySQL set batch");
         let tic = Instant::now();
         let head = &records[0];
         let statement = head.set_statement();
         let mut prepped = mini_tx.prepare(statement).await?;
 
-        for batch in records.chunks(100) {
-            let param_groups: Vec<mysql_async::Params> =
-                batch.iter().map(|value| value.set_params()).collect();
-            let out = prepped.batch(param_groups).await;
-            prepped = self.check_for_infra_error(out)?;
-        }
+        let param_groups: Vec<mysql_async::Params> =
+            records.iter().map(|value| value.set_params()).collect();
+        let out = prepped.batch(param_groups).await;
+        prepped = self.check_for_infra_error(out)?;
         mini_tx = prepped.close().await?;
+
+        mini_tx = mini_tx.drop_query("SET autocommit=1").await?;
+        mini_tx = mini_tx.drop_query("SET unique_checks=1").await?;
+        mini_tx = mini_tx.drop_query("SET foreign_key_checks=1").await?;
 
         let toc = Instant::now() - tic;
         *(self.time_spent.write().await) += toc;
-        trace!("END MySQL set batch");
+        debug!("END MySQL set batch");
         Ok(mini_tx)
     }
 
@@ -679,7 +686,7 @@ impl V2Storage for AsyncMySqlDatabase {
         // cache miss, log a real sql read op
         *(self.num_reads.write().await) += 1;
 
-        trace!("BEGIN MySQL get {:?}", id);
+        debug!("BEGIN MySQL get {:?}", id);
         let result = async {
             let tic = Instant::now();
 
@@ -712,7 +719,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok::<Option<DbRecord>, MySqlError>(None)
         };
 
-        trace!("END MySQL get");
+        debug!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
             Ok(None) => Err(StorageError::GetError("Not found".to_string())),
@@ -732,7 +739,7 @@ impl V2Storage for AsyncMySqlDatabase {
             return Ok(map);
         }
 
-        let mut key_set: HashSet<St::Key> = HashSet::from_iter(ids.iter().cloned());
+        let mut key_set: HashSet<St::Key> = ids.iter().cloned().collect::<HashSet<_>>();
 
         let trans_active = self.is_transaction_active().await;
         // first check the transaction log & cache records
@@ -762,7 +769,9 @@ impl V2Storage for AsyncMySqlDatabase {
             let result = async {
                 let tic = Instant::now();
 
-                trace!("BEGIN MySQL get batch");
+                let key_set_vec: Vec<_> = key_set.into_iter().collect();
+
+                debug!("BEGIN MySQL get batch");
                 let mut conn = self.get_connection().await?;
 
                 let results =
@@ -772,19 +781,50 @@ impl V2Storage for AsyncMySqlDatabase {
                         conn = self.check_for_infra_error(out)?;
 
                         // Fill temp table with the requested ids
-                        let fill_statement = DbRecord::get_batch_fill_temp_table::<St>();
-                        let mut prepped = conn.prepare(fill_statement.clone()).await?;
-                        for batch in key_set.into_iter().collect::<Vec<St::Key>>().chunks(500) {
-                            // unwrapping here because it's safe to do so, since we've already guarded against type = Azks
-                            let param_groups: Vec<mysql_async::Params> = batch
-                                .iter()
-                                .map(|value| DbRecord::get_specific_params::<St>(value).unwrap())
-                                .collect();
+                        let mut tx = conn
+                            .start_transaction(TransactionOptions::default())
+                            .await?;
+                        tx = tx.drop_query("SET autocommit=0").await?;
+                        tx = tx.drop_query("SET unique_checks=0").await?;
+                        tx = tx.drop_query("SET foreign_key_checks=0").await?;
 
-                            let out = prepped.batch(param_groups).await;
-                            prepped = self.check_for_infra_error(out)?;
+                        let mut fallout: Option<Vec<_>> = None;
+                        let mut params = vec![];
+                        for batch in key_set_vec.chunks(MYSQL_EXTENDED_INSERT_DEPTH) {
+                            if batch.len() < MYSQL_EXTENDED_INSERT_DEPTH {
+                                fallout = Some(batch.to_vec());
+                            } else {
+                                params.push(
+                                    DbRecord::get_multi_row_specific_params::<St>(batch).unwrap(),
+                                );
+                            }
                         }
-                        conn = prepped.close().await?;
+
+                        // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
+                        if !params.is_empty() {
+                            let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
+                                MYSQL_EXTENDED_INSERT_DEPTH,
+                            ));
+                            let mut prepped = tx.prepare(fill_statement).await?;
+                            let out = prepped.batch(params).await;
+                            prepped = self.check_for_infra_error(out)?;
+                            tx = prepped.close().await?;
+                        }
+
+                        // insert the remainder as a final statement
+                        if let Some(remainder) = fallout {
+                            let remainder_stmt =
+                                DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
+                            let params_batch =
+                                DbRecord::get_multi_row_specific_params::<St>(&remainder).unwrap();
+                            let out = tx.drop_exec(remainder_stmt, params_batch).await;
+                            tx = self.check_for_infra_error(out)?;
+                        }
+
+                        tx = tx.drop_query("SET autocommit=1").await?;
+                        tx = tx.drop_query("SET unique_checks=1").await?;
+                        tx = tx.drop_query("SET foreign_key_checks=1").await?;
+                        conn = tx.commit().await?;
 
                         // Query the records which intersect (INNER JOIN) with the temp table of ids
                         let query = DbRecord::get_batch_statement::<St>();
@@ -812,7 +852,7 @@ impl V2Storage for AsyncMySqlDatabase {
                         vec![]
                     };
 
-                trace!("END MySQL get batch");
+                debug!("END MySQL get batch");
                 let toc = Instant::now() - tic;
                 *(self.time_spent.write().await) += toc;
 
@@ -852,7 +892,7 @@ impl V2Storage for AsyncMySqlDatabase {
         // the data-layer. Therefore, we _first_ need to hit the db and match the objects
         // to see if there's a later version in at least the transaction log
 
-        trace!("BEGIN MySQL get all {:?}", St::data_type());
+        debug!("BEGIN MySQL get all {:?}", St::data_type());
         let result = async {
             let tic = Instant::now();
 
@@ -882,7 +922,7 @@ impl V2Storage for AsyncMySqlDatabase {
             Ok::<Vec<DbRecord>, MySqlError>(out)
         };
 
-        trace!("END MySQL get all");
+        debug!("END MySQL get all");
         match result.await {
             Ok(list) => {
                 if self.is_transaction_active().await {
@@ -967,7 +1007,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
         *(self.num_reads.write().await) += 1;
         // DO NOT log the user info, it's PII in the future
-        trace!("BEGIN MySQL get user data");
+        debug!("BEGIN MySQL get user data");
         let result = async {
             let tic = Instant::now();
 
@@ -1034,7 +1074,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
         };
 
-        trace!("END MySQL get user data");
+        debug!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -1048,7 +1088,7 @@ impl V2Storage for AsyncMySqlDatabase {
     ) -> core::result::Result<ValueState, StorageError> {
         *(self.num_reads.write().await) += 1;
 
-        trace!("BEGIN MySQL get user state (flag {:?})", flag);
+        debug!("BEGIN MySQL get user state (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
@@ -1131,7 +1171,7 @@ impl V2Storage for AsyncMySqlDatabase {
             }
             Ok::<Option<ValueState>, MySqlError>(item)
         };
-        trace!("END MySQL get user state");
+        debug!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
@@ -1141,41 +1181,111 @@ impl V2Storage for AsyncMySqlDatabase {
 
     async fn get_user_states(
         &self,
-        usernames: &[AkdKey],
+        keys: &[AkdKey],
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<HashMap<AkdKey, ValueState>, StorageError> {
         *(self.num_reads.write().await) += 1;
 
         let mut results = HashMap::new();
 
-        trace!("BEGIN MySQL get user states (flag {:?})", flag);
+        debug!("BEGIN MySQL get user states (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
             let mut conn = self.get_connection().await?;
 
+            debug!("Creating the temporary search username's table");
             let out = conn
                 .drop_query(
-                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL)",
+                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
             conn = self.check_for_infra_error(out)?;
 
-            let mut prep = conn
-                .prepare("INSERT INTO `search_users` (`username`) VALUES (:username)")
+            debug!(
+                "Inserting the query users into the temporary table in batches of {}",
+                MYSQL_EXTENDED_INSERT_DEPTH
+            );
+
+            let mut tx = conn
+                .start_transaction(TransactionOptions::default())
                 .await?;
-            // insert the records
-            for batch in usernames.chunks(500) {
-                let parameters: Vec<_> = batch
-                    .iter()
-                    .map(|username| params! {"username" => username.0.clone()})
-                    .collect();
-                let out = prep.batch(parameters).await;
-                prep = self.check_for_infra_error(out)?;
+            tx = tx.drop_query("SET autocommit=0").await?;
+            tx = tx.drop_query("SET unique_checks=0").await?;
+            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+
+            let mut statement = "INSERT INTO `search_users` (`username`) VALUES ".to_string();
+            for i in 0..MYSQL_EXTENDED_INSERT_DEPTH {
+                if i < MYSQL_EXTENDED_INSERT_DEPTH - 1 {
+                    statement += format!("(:username{}), ", i).as_ref();
+                } else {
+                    statement += format!("(:username{})", i).as_ref();
+                }
             }
 
-            conn = prep.close().await?;
-            // finalize the prepared statement
+            let mut fallout: Option<Vec<_>> = None;
+            let mut params = vec![];
+
+            for batch in keys.chunks(MYSQL_EXTENDED_INSERT_DEPTH) {
+                if batch.len() < MYSQL_EXTENDED_INSERT_DEPTH {
+                    // final batch, use a new query
+                    fallout = Some(batch.to_vec());
+                } else {
+                    let pvec: Vec<_> = batch
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, username)| {
+                            (format!("username{}", idx), Value::from(username.0.clone()))
+                        })
+                        .collect();
+                    params.push(mysql_async::Params::from(pvec));
+                }
+            }
+
+            if !params.is_empty() {
+                // first do the big batch
+                let mut prep = tx.prepare(statement).await?;
+                let out = prep.batch(params).await;
+                prep = self.check_for_infra_error(out)?;
+                tx = prep.close().await?;
+            }
+
+            if let Some(remainder) = fallout {
+                // now there's some remainder that wasn't _exactly_ equal to MYSQL_EXTENDED_INSERT_DEPTH
+                // we do it item-by-item
+                let rlen = remainder.len();
+                let mut remainder_stmt =
+                    "INSERT INTO `search_users` (`username`) VALUES ".to_string();
+                for i in 0..rlen {
+                    if i < rlen - 1 {
+                        remainder_stmt += format!("(:username{}), ", i).as_ref();
+                    } else {
+                        remainder_stmt += format!("(:username{})", i).as_ref();
+                    }
+                }
+
+                // we don't need a prepared statement, since we're only doing this 1 time
+                let users_vec: Vec<_> = remainder
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, username)| {
+                        (format!("username{}", idx), Value::from(username.0.clone()))
+                    })
+                    .collect();
+                let params_batch = mysql_async::Params::from(users_vec);
+                let out = tx.drop_exec(remainder_stmt, params_batch).await;
+                tx = self.check_for_infra_error(out)?;
+            }
+
+            // re-enable all the checks
+            tx = tx.drop_query("SET autocommit=1").await?;
+            tx = tx.drop_query("SET unique_checks=1").await?;
+            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+
+            // commit the transaction
+            conn = tx.commit().await?;
+
+            debug!("Querying records with JOIN");
 
             // select all records for provided user names
             let mut params_map = vec![];
@@ -1257,7 +1367,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             Ok::<(), MySqlError>(())
         };
-        trace!("END MySQL get user states");
+        debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -1273,35 +1383,103 @@ impl V2Storage for AsyncMySqlDatabase {
 
         let mut results = HashMap::new();
 
-        trace!("BEGIN MySQL get user state versions (flag {:?})", flag);
+        debug!("BEGIN MySQL get user state versions (flag {:?})", flag);
         let result = async {
             let tic = Instant::now();
 
             let mut conn = self.get_connection().await?;
 
+            debug!("Creating the temporary search username's table");
             let out = conn
                 .drop_query(
-                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL)",
+                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
             conn = self.check_for_infra_error(out)?;
 
-            let mut prep = conn
-                .prepare("INSERT INTO `search_users` (`username`) VALUES (:username)")
+            debug!(
+                "Inserting the query users into the temporary table in batches of {}",
+                MYSQL_EXTENDED_INSERT_DEPTH
+            );
+
+            let mut tx = conn
+                .start_transaction(TransactionOptions::default())
                 .await?;
-            // insert the records
-            for batch in keys.chunks(500) {
-                let parameters: Vec<_> = batch
-                    .iter()
-                    .map(|username| params! {"username" => username.0.clone()})
-                    .collect();
-                let out = prep.batch(parameters).await;
-                prep = self.check_for_infra_error(out)?;
+            tx = tx.drop_query("SET autocommit=0").await?;
+            tx = tx.drop_query("SET unique_checks=0").await?;
+            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+
+            let mut statement = "INSERT INTO `search_users` (`username`) VALUES ".to_string();
+            for i in 0..MYSQL_EXTENDED_INSERT_DEPTH {
+                if i < MYSQL_EXTENDED_INSERT_DEPTH - 1 {
+                    statement += format!("(:username{}), ", i).as_ref();
+                } else {
+                    statement += format!("(:username{})", i).as_ref();
+                }
             }
 
-            conn = prep.close().await?;
-            // finalize the prepared statement
+            let mut fallout: Option<Vec<_>> = None;
+            let mut params = vec![];
+            for batch in keys.chunks(MYSQL_EXTENDED_INSERT_DEPTH) {
+                if batch.len() < MYSQL_EXTENDED_INSERT_DEPTH {
+                    // final batch, use a new query
+                    fallout = Some(batch.to_vec());
+                } else {
+                    let pvec: Vec<_> = batch
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, username)| {
+                            (format!("username{}", idx), Value::from(username.0.clone()))
+                        })
+                        .collect();
+                    params.push(mysql_async::Params::from(pvec));
+                }
+            }
 
+            if !params.is_empty() {
+                // first do the big batches
+                let mut prep = tx.prepare(statement).await?;
+                let out = prep.batch(params).await;
+                prep = self.check_for_infra_error(out)?;
+                tx = prep.close().await?;
+            }
+
+            if let Some(remainder) = fallout {
+                // now there's some remainder that wasn't _exactly_ equal to MYSQL_EXTENDED_INSERT_DEPTH
+                // we do it item-by-item
+                let rlen = remainder.len();
+                let mut remainder_stmt =
+                    "INSERT INTO `search_users` (`username`) VALUES ".to_string();
+                for i in 0..rlen {
+                    if i < rlen - 1 {
+                        remainder_stmt += format!("(:username{}), ", i).as_ref();
+                    } else {
+                        remainder_stmt += format!("(:username{})", i).as_ref();
+                    }
+                }
+
+                // we don't need a prepared statement, since we're only doing this 1 time
+                let users_vec: Vec<_> = remainder
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, username)| {
+                        (format!("username{}", idx), Value::from(username.0.clone()))
+                    })
+                    .collect();
+                let params_batch = mysql_async::Params::from(users_vec);
+                let out = tx.drop_exec(remainder_stmt, params_batch).await;
+                tx = self.check_for_infra_error(out)?;
+            }
+
+            // re-enable all the checks
+            tx = tx.drop_query("SET autocommit=1").await?;
+            tx = tx.drop_query("SET unique_checks=1").await?;
+            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+
+            // commit the transaction
+            conn = tx.commit().await?;
+
+            debug!("Querying records with JOIN");
             // select all records for provided user names
             let mut params_map = vec![];
             let (filter, epoch_grouping) = {
@@ -1368,6 +1546,12 @@ impl V2Storage for AsyncMySqlDatabase {
                     .await?
             };
 
+            debug!(
+                "Retrieved {} records for {} users in query\nDropping search table...",
+                out.len(),
+                keys.len()
+            );
+
             let nout = nconn
                 .drop_query("DROP TEMPORARY TABLE `search_users`")
                 .await;
@@ -1382,7 +1566,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             Ok::<(), MySqlError>(())
         };
-        trace!("END MySQL get user states");
+        debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
             Err(code) => Err(StorageError::GetError(code.to_string())),
@@ -1401,13 +1585,16 @@ trait MySqlStorable {
 
     fn get_batch_create_temp_table<St: Storable>() -> Option<String>;
 
-    fn get_batch_fill_temp_table<St: Storable>() -> String;
+    fn get_batch_fill_temp_table<St: Storable>(num_items: Option<usize>) -> String;
 
     fn get_batch_statement<St: Storable>() -> String;
 
     fn get_specific_statement<St: Storable>() -> String;
 
     fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params>;
+
+    fn get_multi_row_specific_params<St: Storable>(keys: &[St::Key])
+        -> Option<mysql_async::Params>;
 
     fn from_row<St: Storable>(row: &mut mysql_async::Row) -> core::result::Result<Self, MySqlError>
     where
@@ -1472,7 +1659,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL)",
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -1480,7 +1667,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryTreeNode => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`location` BIGINT UNSIGNED NOT NULL)",
+                        "CREATE TEMPORARY TABLE `{}`(`location` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`location`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -1488,7 +1675,7 @@ impl MySqlStorable for DbRecord {
             StorageType::ValueState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL)",
+                        "CREATE TEMPORARY TABLE `{}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -1496,27 +1683,55 @@ impl MySqlStorable for DbRecord {
         }
     }
 
-    fn get_batch_fill_temp_table<St: Storable>() -> String {
-        match St::data_type() {
+    fn get_batch_fill_temp_table<St: Storable>(num_items: Option<usize>) -> String {
+        let mut statement = match St::data_type() {
             StorageType::Azks => "".to_string(),
             StorageType::HistoryNodeState => {
                 format!(
-                    "INSERT INTO `{}` (`label_len`, `label_val`, `epoch`) VALUES (:label_len, :label_val, :epoch)",
+                    "INSERT INTO `{}` (`label_len`, `label_val`, `epoch`) VALUES ",
                     TEMP_IDS_TABLE
                 )
             }
             StorageType::HistoryTreeNode => {
-                format!(
-                    "INSERT INTO `{}` (`location`) VALUES (:location)",
-                    TEMP_IDS_TABLE
-                )
+                format!("INSERT INTO `{}` (`location`) VALUES ", TEMP_IDS_TABLE)
             }
             StorageType::ValueState => {
                 format!(
-                    "INSERT INTO `{}` (`username`, `epoch`) VALUES (:username, :epoch)",
+                    "INSERT INTO `{}` (`username`, `epoch`) VALUES ",
                     TEMP_IDS_TABLE
                 )
             }
+        };
+        if let Some(item_count) = num_items {
+            for i in 0..item_count {
+                let append = match St::data_type() {
+                    StorageType::Azks => String::from(""),
+                    StorageType::HistoryNodeState => {
+                        format!("(:label_len{}, :label_val{}, :epoch{})", i, i, i)
+                    }
+                    StorageType::HistoryTreeNode => {
+                        format!("(:location{})", i)
+                    }
+                    StorageType::ValueState => {
+                        format!("(:username{}, :epoch{})", i, i)
+                    }
+                };
+                statement = format!("{}{}", statement, append);
+
+                if i < item_count - 1 {
+                    // inner-item, append a comma
+                    statement += ", ";
+                }
+            }
+            statement
+        } else {
+            statement += match St::data_type() {
+                StorageType::Azks => "",
+                StorageType::HistoryNodeState => "(:label_len, :label_val, :epoch)",
+                StorageType::HistoryTreeNode => "(:location)",
+                StorageType::ValueState => "(:username, :epoch)",
+            };
+            statement
         }
     }
 
@@ -1555,6 +1770,66 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => format!("SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val AND `epoch` = :epoch", SELECT_HISTORY_NODE_STATE_DATA, TABLE_HISTORY_NODE_STATES),
             StorageType::HistoryTreeNode => format!("SELECT {} FROM `{}` WHERE `location` = :location", SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES),
             StorageType::ValueState => format!("SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch", SELECT_USER_DATA, TABLE_USER),
+        }
+    }
+
+    fn get_multi_row_specific_params<St: Storable>(
+        keys: &[St::Key],
+    ) -> Option<mysql_async::Params> {
+        match St::data_type() {
+            StorageType::Azks => None,
+            StorageType::HistoryNodeState => {
+                let pvec = keys
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, key)| {
+                        let bin = St::get_full_binary_key_id(key);
+                        let back: crate::node_state::NodeStateKey =
+                            crate::node_state::HistoryNodeState::key_from_full_binary(&bin)
+                                .unwrap();
+                        vec![
+                            (format!("label_len{}", idx), Value::from(back.0.len)),
+                            (format!("label_val{}", idx), Value::from(back.0.val)),
+                            (format!("epoch{}", idx), Value::from(back.1)),
+                        ]
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                Some(mysql_async::Params::from(pvec))
+            }
+            StorageType::HistoryTreeNode => {
+                let pvec = keys
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, key)| {
+                        let bin = St::get_full_binary_key_id(key);
+                        let back: crate::history_tree_node::NodeKey =
+                            crate::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin)
+                                .unwrap();
+                        (format!("location{}", idx), Value::from(back.0))
+                    })
+                    .collect::<Vec<_>>();
+                Some(mysql_async::Params::from(pvec))
+            }
+            StorageType::ValueState => {
+                let pvec = keys
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, key)| {
+                        let bin = St::get_full_binary_key_id(key);
+                        let back: crate::storage::types::ValueStateKey =
+                            crate::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
+                        vec![
+                            (format!("username{}", idx), Value::from(back.0.clone())),
+                            (format!("epoch{}", idx), Value::from(back.1)),
+                        ]
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                Some(mysql_async::Params::from(pvec))
+            }
         }
     }
 
