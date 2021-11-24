@@ -1723,7 +1723,6 @@ impl MySqlStorable for DbRecord {
                     statement += ", ";
                 }
             }
-            statement
         } else {
             statement += match St::data_type() {
                 StorageType::Azks => "",
@@ -1731,8 +1730,8 @@ impl MySqlStorable for DbRecord {
                 StorageType::HistoryTreeNode => "(:location)",
                 StorageType::ValueState => "(:username, :epoch)",
             };
-            statement
         }
+        statement
     }
 
     fn get_batch_statement<St: Storable>() -> String {
