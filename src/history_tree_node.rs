@@ -147,12 +147,14 @@ impl HistoryTreeNode {
     ) -> Result<Vec<HistoryTreeNode>, StorageError> {
         // let nodes =  storage.batch_get::<HistoryTreeNode>(keys).await?.iter()
         // .map(|DbRecord::HistoryTreeNode(node)| node.clone()).collect();
-        let node_records: Vec<DbRecord> =  storage.batch_get::<HistoryTreeNode>(keys).await?;
+        let node_records: Vec<DbRecord> = storage.batch_get::<HistoryTreeNode>(keys).await?;
         let mut nodes = Vec::<HistoryTreeNode>::new();
         for node in node_records {
             match node {
                 DbRecord::HistoryTreeNode(node) => nodes.push(node),
-                _ => {return Err(StorageError::GetError(String::from("Batch get error")));}
+                _ => {
+                    return Err(StorageError::GetError(String::from("Batch get error")));
+                }
             }
         }
         Ok(nodes)
