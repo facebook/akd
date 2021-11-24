@@ -133,10 +133,16 @@ impl Azks {
                 HistoryTreeNode::batch_get_from_storage(storage, current_nodes.clone()).await?;
             current_nodes = Vec::<NodeKey>::new();
             let mut node_states = Vec::<NodeStateKey>::new();
+
+            // This for loop is just getting the keys for states that need to be loaded.
             for node in &nodes {
                 node_states.push(get_state_map_key(node, node.get_latest_epoch()?));
             }
             storage.batch_get::<HistoryNodeState>(node_states).await?;
+
+            // Now that states are loaded in the cache, you can read and access them.
+            // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
+            // individually for each node's state.
             for node in &nodes {
                 for dir in 0..ARITY {
                     let child = node
