@@ -66,7 +66,7 @@ impl NodeLabel {
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
-    fn get_prefix(&self, len: u32) -> Self {
+    pub(crate) fn get_prefix(&self, len: u32) -> Self {
         if len >= self.get_len() {
             return *self;
         }
