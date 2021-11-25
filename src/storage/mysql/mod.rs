@@ -46,7 +46,14 @@ const SELECT_HISTORY_NODE_STATE_DATA: &str =
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
 
-const MYSQL_EXTENDED_INSERT_DEPTH: usize = 50;
+// MySQL's max supported text size is 65535
+// Of the prepared insert's below in this logic,
+// we have a max-string size of 267 + N(190).
+// Assuming 4b/char, we can work out an ABS
+// max multi-row write for the prepared statement as
+// (| 65535 | - | the constant parts |) / | the parts * depth | = ~ max depth of 343
+// This is a conservative value of the estimate ^
+const MYSQL_EXTENDED_INSERT_DEPTH: usize = 200;
 
 /*
     MySql documentation: https://docs.rs/mysql_async/0.23.1/mysql_async/
@@ -72,7 +79,8 @@ pub struct AsyncMySqlDatabase {
 
     num_reads: Arc<tokio::sync::RwLock<u64>>,
     num_writes: Arc<tokio::sync::RwLock<u64>>,
-    time_spent: Arc<tokio::sync::RwLock<Duration>>,
+    time_read: Arc<tokio::sync::RwLock<Duration>>,
+    time_write: Arc<tokio::sync::RwLock<Duration>>,
 }
 
 impl std::fmt::Display for AsyncMySqlDatabase {
@@ -108,7 +116,8 @@ impl Clone for AsyncMySqlDatabase {
 
             num_reads: self.num_reads.clone(),
             num_writes: self.num_writes.clone(),
-            time_spent: self.time_spent.clone(),
+            time_read: self.time_read.clone(),
+            time_write: self.time_write.clone(),
         }
     }
 }
@@ -153,7 +162,8 @@ impl AsyncMySqlDatabase {
 
             num_reads: Arc::new(tokio::sync::RwLock::new(0)),
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
-            time_spent: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
+            time_read: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
+            time_write: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
         }
     }
 
@@ -393,7 +403,7 @@ impl AsyncMySqlDatabase {
         };
         self.check_for_infra_error(out)?;
         let toc = Instant::now() - tic;
-        *(self.time_spent.write().await) += toc;
+        *(self.time_write.write().await) += toc;
 
         debug!("END MySQL set");
         Ok(ntx)
@@ -405,31 +415,61 @@ impl AsyncMySqlDatabase {
         records: Vec<DbRecord>,
         trans: mysql_async::Transaction<mysql_async::Conn>,
     ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
-        *(self.num_writes.write().await) += records.len() as u64;
+        if records.is_empty() {
+            return Ok(trans);
+        }
 
+        *(self.num_writes.write().await) += records.len() as u64;
         let mut mini_tx = trans;
-        mini_tx = mini_tx.drop_query("SET autocommit=0").await?;
-        mini_tx = mini_tx.drop_query("SET unique_checks=0").await?;
-        mini_tx = mini_tx.drop_query("SET foreign_key_checks=0").await?;
 
         debug!("BEGIN MySQL set batch");
         let tic = Instant::now();
         let head = &records[0];
-        let statement = head.set_statement();
-        let mut prepped = mini_tx.prepare(statement).await?;
+        let statement = |i: usize| -> String {
+            match &head {
+                DbRecord::Azks(_) => {
+                    DbRecord::set_batch_statement::<crate::append_only_zks::Azks>(i)
+                }
+                DbRecord::HistoryNodeState(_) => {
+                    DbRecord::set_batch_statement::<crate::node_state::HistoryNodeState>(i)
+                }
+                DbRecord::HistoryTreeNode(_) => {
+                    DbRecord::set_batch_statement::<crate::history_tree_node::HistoryTreeNode>(i)
+                }
+                DbRecord::ValueState(_) => {
+                    DbRecord::set_batch_statement::<crate::storage::types::ValueState>(i)
+                }
+            }
+        };
 
-        let param_groups: Vec<mysql_async::Params> =
-            records.iter().map(|value| value.set_params()).collect();
-        let out = prepped.batch(param_groups).await;
-        prepped = self.check_for_infra_error(out)?;
-        mini_tx = prepped.close().await?;
+        let mut fallout: Option<Vec<_>> = None;
+        let mut params = vec![];
+        for batch in records.chunks(MYSQL_EXTENDED_INSERT_DEPTH) {
+            if batch.len() < MYSQL_EXTENDED_INSERT_DEPTH {
+                fallout = Some(batch.to_vec());
+            } else {
+                params.push(DbRecord::set_batch_params(batch));
+            }
+        }
+        // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
+        if !params.is_empty() {
+            let fill_statement = statement(MYSQL_EXTENDED_INSERT_DEPTH);
+            let mut prepped = mini_tx.prepare(fill_statement).await?;
+            let out = prepped.batch(params).await;
+            prepped = self.check_for_infra_error(out)?;
+            mini_tx = prepped.close().await?;
+        }
 
-        mini_tx = mini_tx.drop_query("SET autocommit=1").await?;
-        mini_tx = mini_tx.drop_query("SET unique_checks=1").await?;
-        mini_tx = mini_tx.drop_query("SET foreign_key_checks=1").await?;
+        // insert the remainder as a final statement
+        if let Some(remainder) = fallout {
+            let remainder_stmt = statement(remainder.len());
+            let params_batch = DbRecord::set_batch_params(&remainder);
+            let out = mini_tx.drop_exec(remainder_stmt, params_batch).await;
+            mini_tx = self.check_for_infra_error(out)?;
+        }
 
         let toc = Instant::now() - tic;
-        *(self.time_spent.write().await) += toc;
+        *(self.time_write.write().await) += toc;
         debug!("END MySQL set batch");
         Ok(mini_tx)
     }
@@ -522,20 +562,77 @@ impl V2Storage for AsyncMySqlDatabase {
 
         self.trans.log_metrics(level).await;
 
+        let mut tree_size = "Tree size: Query err".to_string();
+        let mut node_state_size = "Node state count: Query err".to_string();
+        let mut value_state_size = "Value state count: Query err".to_string();
+        if let Ok(conn) = self.get_connection().await {
+            let query_text = format!("SELECT COUNT(`location`) FROM {}", TABLE_HISTORY_TREE_NODES);
+            if let Ok(results) = conn.query(query_text).await {
+                if let Ok((conn2, mapped)) = results
+                    .map_and_drop(|row| {
+                        let count: u64 = mysql_async::from_row(row);
+                        count
+                    })
+                    .await
+                {
+                    if let Some(count) = mapped.first() {
+                        tree_size = format!("Tree size: {}", count);
+                    }
+
+                    let query_text =
+                        format!("SELECT COUNT(`epoch`) FROM {}", TABLE_HISTORY_NODE_STATES);
+                    if let Ok(results) = conn2.query(query_text).await {
+                        if let Ok((conn3, mapped)) = results
+                            .map_and_drop(|row| {
+                                let count: u64 = mysql_async::from_row(row);
+                                count
+                            })
+                            .await
+                        {
+                            if let Some(count) = mapped.first() {
+                                node_state_size = format!("Node state count: {}", count);
+                            }
+
+                            let query_text = format!("SELECT COUNT(`epoch`) FROM {}", TABLE_USER);
+                            if let Ok(results) = conn3.query(query_text).await {
+                                if let Ok((_, mapped)) = results
+                                    .map_and_drop(|row| {
+                                        let count: u64 = mysql_async::from_row(row);
+                                        count
+                                    })
+                                    .await
+                                {
+                                    if let Some(count) = mapped.first() {
+                                        value_state_size = format!("Value state count: {}", count);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut r = self.num_reads.write().await;
         let mut w = self.num_writes.write().await;
-        let mut ts = self.time_spent.write().await;
+        let mut tr = self.time_read.write().await;
+        let mut tw = self.time_write.write().await;
 
         let msg = format!(
-            "MySQL writes: {}, MySQL reads: {}, Time spent in MySQL op: {} s",
+            "MySQL writes: {}, MySQL reads: {}, Time read: {} s, Time write: {} s\n\t{}\n\t{}\n\t{}",
             *w,
             *r,
-            (*ts).as_secs_f64()
+            (*tr).as_secs_f64(),
+            (*tw).as_secs_f64(),
+            tree_size,
+            node_state_size,
+            value_state_size,
         );
 
         *r = 0;
         *w = 0;
-        *ts = Duration::from_millis(0);
+        *tr = Duration::from_millis(0);
+        *tw = Duration::from_millis(0);
 
         match level {
             log::Level::Trace => trace!("{}", msg),
@@ -652,11 +749,20 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
             // go through each group which is narrowed to a single type
             // applying the changes on the transaction
+            tx = tx.drop_query("SET autocommit=0").await?;
+            tx = tx.drop_query("SET unique_checks=0").await?;
+            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+
             for (_key, value) in groups.into_iter() {
                 if !value.is_empty() {
                     tx = self.internal_batch_set(value, tx).await?;
                 }
             }
+
+            tx = tx.drop_query("SET autocommit=1").await?;
+            tx = tx.drop_query("SET unique_checks=1").await?;
+            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+
             tx.commit().await?;
             Ok::<(), MySqlError>(())
         };
@@ -705,7 +811,7 @@ impl V2Storage for AsyncMySqlDatabase {
             };
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
 
             let result = self.check_for_infra_error(out)?;
             if let Some(mut row) = result {
@@ -854,7 +960,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
                 debug!("END MySQL get batch");
                 let toc = Instant::now() - tic;
-                *(self.time_spent.write().await) += toc;
+                *(self.time_read.write().await) += toc;
 
                 if let Some(cache) = &self.cache {
                     // insert retrieved records into the cache for faster future access
@@ -913,7 +1019,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
             if let Some(cache) = &self.cache {
                 for el in out.iter() {
                     cache.put(el).await;
@@ -1046,7 +1152,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await;
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
             let (_, selected_records) = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
@@ -1146,7 +1252,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await;
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
             let (_, selected_record) = self.check_for_infra_error(out)?;
 
             let item = selected_record.into_iter().next();
@@ -1359,7 +1465,7 @@ impl V2Storage for AsyncMySqlDatabase {
             self.check_for_infra_error(nout)?;
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
 
             for item in out.into_iter() {
                 results.insert(AkdKey(item.username.0.clone()), item);
@@ -1558,7 +1664,7 @@ impl V2Storage for AsyncMySqlDatabase {
             self.check_for_infra_error(nout)?;
 
             let toc = Instant::now() - tic;
-            *(self.time_spent.write().await) += toc;
+            *(self.time_read.write().await) += toc;
 
             for item in out.into_iter() {
                 results.insert(item.0, item.1);
@@ -1580,6 +1686,10 @@ trait MySqlStorable {
     fn set_statement(&self) -> String;
 
     fn set_params(&self) -> mysql_async::Params;
+
+    fn set_batch_statement<St: Storable>(items: usize) -> String;
+
+    fn set_batch_params(items: &[DbRecord]) -> mysql_async::Params;
 
     fn get_statement<St: Storable>() -> String;
 
@@ -1636,6 +1746,104 @@ impl MySqlStorable for DbRecord {
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone()},
             ),
         }
+    }
+
+    fn set_batch_statement<St: Storable>(items: usize) -> String {
+        let mut parts = "".to_string();
+        for i in 0..items {
+            match St::data_type() {
+                StorageType::HistoryNodeState => {
+                    parts = format!(
+                        "{}(:label_len{}, :label_val{}, :epoch{}, :value{}, :child_states{})",
+                        parts, i, i, i, i, i
+                    );
+                }
+                StorageType::HistoryTreeNode => {
+                    parts = format!("{}(:location{}, :label_len{}, :label_val{}, :epochs{}, :parent{}, :node_type{})", parts, i, i, i, i, i, i);
+                }
+                StorageType::ValueState => {
+                    parts = format!("{}(:username{}, :epoch{}, :version{}, :node_label_val{}, :node_label_len{}, :data{})", parts, i, i, i, i, i, i);
+                }
+                _ => {
+                    // azks
+                }
+            }
+
+            if i < items - 1 {
+                parts += ", ";
+            }
+        }
+
+        match St::data_type() {
+            StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `root` = new.root, `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
+            StorageType::HistoryNodeState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `value` = new.value, `child_states` = new.child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA, parts),
+            StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `epochs` = new.epochs, `parent` = new.parent, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
+            StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {}", TABLE_USER, SELECT_USER_DATA, parts),
+        }
+    }
+
+    fn set_batch_params(items: &[DbRecord]) -> mysql_async::Params {
+        let param_batch = items
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| match &item {
+                DbRecord::Azks(azks) => {
+                    vec![
+                        ("key".to_string(), Value::from(1u8)),
+                        ("root".to_string(), Value::from(azks.root)),
+                        ("epoch".to_string(), Value::from(azks.latest_epoch)),
+                        ("num_nodes".to_string(), Value::from(azks.num_nodes)),
+                    ]
+                }
+                DbRecord::HistoryNodeState(state) => {
+                    let bin_data = bincode::serialize(&state.child_states).unwrap();
+                    let id = state.get_id();
+                    vec![
+                        (format!("label_len{}", idx), Value::from(id.0.len)),
+                        (format!("label_val{}", idx), Value::from(id.0.val)),
+                        (format!("epoch{}", idx), Value::from(id.1)),
+                        (format!("value{}", idx), Value::from(state.value.clone())),
+                        (format!("child_states{}", idx), Value::from(bin_data)),
+                    ]
+                }
+                DbRecord::HistoryTreeNode(node) => {
+                    let bin_data = DbRecord::serialize_epochs(&node.epochs);
+                    vec![
+                        (format!("location{}", idx), Value::from(node.location)),
+                        (format!("label_len{}", idx), Value::from(node.label.len)),
+                        (format!("label_val{}", idx), Value::from(node.label.val)),
+                        (format!("epochs{}", idx), Value::from(bin_data)),
+                        (format!("parent{}", idx), Value::from(node.parent)),
+                        (
+                            format!("node_type{}", idx),
+                            Value::from(node.node_type as u8),
+                        ),
+                    ]
+                }
+                DbRecord::ValueState(state) => {
+                    vec![
+                        (format!("username{}", idx), Value::from(state.get_id().0)),
+                        (format!("epoch{}", idx), Value::from(state.epoch)),
+                        (format!("version{}", idx), Value::from(state.version)),
+                        (
+                            format!("node_label_len{}", idx),
+                            Value::from(state.label.len),
+                        ),
+                        (
+                            format!("node_label_val{}", idx),
+                            Value::from(state.label.val),
+                        ),
+                        (
+                            format!("data{}", idx),
+                            Value::from(state.plaintext_val.0.clone()),
+                        ),
+                    ]
+                }
+            })
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        mysql_async::Params::from(param_batch)
     }
 
     fn get_statement<St: Storable>() -> String {
