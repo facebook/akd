@@ -266,6 +266,7 @@ pub mod node_state;
 pub mod proof_structs;
 mod serialization;
 pub mod storage;
+mod utils;
 
 pub mod auditor;
 pub mod client;
