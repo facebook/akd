@@ -17,7 +17,7 @@ use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::V2Storage;
 
-use log::error;
+use log::{debug, error, info};
 use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
@@ -76,7 +76,10 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
 
-        let keys: Vec<AkdKey> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
+        let mut keys: Vec<AkdKey> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
+        // sort the keys, as inserting in primary-key order is more efficient for MySQL
+        keys.sort_by(|a, b| a.0.cmp(&b.0));
+
         // we're only using the maximum "version" of the user's state at the last epoch
         // they were seen in the directory. Therefore we've minimized the call to only
         // return a hashmap of AkdKey => u64 and not retrieving the other data which is not
@@ -85,6 +88,12 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
             .storage
             .get_user_state_versions(&keys, ValueStateRetrievalFlag::MaxEpoch)
             .await?;
+
+        info!(
+            "Retrieved {} previous user versions of {} requested",
+            all_user_versions_retrieved.len(),
+            keys.len()
+        );
 
         for (uname, val) in updates {
             match all_user_versions_retrieved.get(&uname) {
@@ -131,6 +140,8 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
                 ));
             }
         }
+        info!("Starting database insertion");
+
         current_azks
             .batch_insert_leaves::<_, H>(&self.storage, insertion_set)
             .await?;
@@ -142,12 +153,15 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         }
         self.storage.batch_set(updates).await?;
         if use_transaction {
+            debug!("Committing transaction");
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
                 return Err(AkdError::HistoryTreeNodeErr(
                     HistoryTreeNodeError::StorageError(err),
                 ));
+            } else {
+                debug!("Transaction committed");
             }
         }
 
