@@ -11,6 +11,7 @@
 
 use crate::node_state::NodeLabel;
 use std::collections::HashSet;
+use winter_crypto::Hasher;
 
 // Builds a set of all prefixes of the input labels
 pub(crate) fn build_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLabel> {
@@ -21,4 +22,8 @@ pub(crate) fn build_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLabel> {
         }
     }
     prefixes_set
+}
+
+pub(crate) fn empty_node_hash<H: Hasher>() -> H::Digest {
+    H::hash(&[0u8; 1])
 }

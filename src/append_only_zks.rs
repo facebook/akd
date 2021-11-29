@@ -280,7 +280,7 @@ impl Azks {
             HistoryTreeNode::get_from_storage(storage, NodeKey(lcp_node_id)).await?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
-        let mut longest_prefix_children_values = [H::hash(&[0u8; 1]); ARITY]; // FIXME: this needs to be put in function
+        let mut longest_prefix_children_values = [crate::utils::empty_node_hash::<H>(); ARITY];
         let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
 
         for (i, child) in state.child_states.iter().enumerate() {

@@ -731,7 +731,7 @@ pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
 ) -> Vec<u8> {
     match input {
         Some(child_state) => child_state.hash_val.clone(),
-        None => from_digest::<H>(H::hash(&[0u8])).unwrap(),
+        None => from_digest::<H>(crate::utils::empty_node_hash::<H>()).unwrap(),
     }
 }
 
