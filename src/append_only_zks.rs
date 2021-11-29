@@ -135,7 +135,7 @@ impl Azks {
                 .as_ref(),
         );
 
-        while current_nodes.len() > 0 {
+        while !current_nodes.is_empty() {
             let nodes = HistoryTreeNode::batch_get_from_storage(storage, current_nodes).await?;
 
             current_nodes = Vec::<NodeKey>::new();
@@ -164,12 +164,8 @@ impl Azks {
                             Direction::Some(dir),
                         )
                         .await?;
-
-                    match child {
-                        Some(child) => {
-                            current_nodes.push(NodeKey(child.location));
-                        }
-                        None => {}
+                    if let Some(child) = child {
+                        current_nodes.push(NodeKey(child.location));
                     }
                 }
             }

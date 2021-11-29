@@ -564,10 +564,7 @@ impl HistoryTreeNode {
         Ok(self
             .get_child_at_epoch::<_, H>(storage, epoch, dir)
             .await?
-            .ok_or(HistoryTreeNodeError::NoChildInTreeAtEpoch(
-                epoch,
-                dir.unwrap(),
-            ))?
+            .ok_or_else(|| HistoryTreeNodeError::NoChildInTreeAtEpoch(epoch, dir.unwrap()))?
             .location)
     }
 
@@ -596,13 +593,10 @@ impl HistoryTreeNode {
         let state_at_ep = self.get_state_at_epoch(storage, ep).await?;
         for node_index in 0..ARITY {
             let node_val = state_at_ep.get_child_state_in_dir(node_index);
-            match node_val {
-                Some(node_val) => {
-                    if node_val.label == node.label {
-                        return Ok(Some(node_index));
-                    }
-                },
-                None => {},
+            if let Some(node_val) = node_val {
+                if node_val.label == node.label {
+                    return Ok(Some(node_index));
+                }
             };
         }
         Ok(None)
@@ -732,7 +726,9 @@ impl HistoryTreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(input: &Option<HistoryChildState>) -> Vec<u8> {
+pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
+    input: &Option<HistoryChildState>,
+) -> Vec<u8> {
     match input {
         Some(child_state) => child_state.hash_val.clone(),
         None => from_digest::<H>(H::hash(&[0u8])).unwrap(),
