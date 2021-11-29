@@ -123,14 +123,22 @@ impl Azks {
     async fn preload_nodes_for_insertion<S: V2Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-        _insertion_set: Vec<(NodeLabel, H::Digest)>,
+        insertion_set: Vec<(NodeLabel, H::Digest)>,
     ) -> Result<(), AkdError> {
-        let preload_depth = 10;
-        println!("-------------- preload depth = {} -------", preload_depth);
         let mut current_nodes = vec![NodeKey(self.root)];
-        for _ in 0..preload_depth {
+
+        let prefixes_set = crate::utils::build_prefixes_set(
+            insertion_set
+                .into_iter()
+                .map(|(x, _)| x)
+                .collect::<Vec<NodeLabel>>()
+                .as_ref(),
+        );
+
+        while !current_nodes.is_empty() {
             let nodes =
                 HistoryTreeNode::batch_get_from_storage(storage, current_nodes.clone()).await?;
+
             current_nodes = Vec::<NodeKey>::new();
             let mut node_states = Vec::<NodeStateKey>::new();
 
@@ -144,15 +152,23 @@ impl Azks {
             // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
             // individually for each node's state.
             for node in &nodes {
+                if !prefixes_set.contains(&node.label) {
+                    // Only continue to traverse nodes which are relevant prefixes to insertion_set
+                    continue;
+                }
+
                 for dir in 0..ARITY {
                     let child = node
-                        .get_child_location_at_epoch::<S, H>(
+                        .get_child_at_epoch::<S, H>(
                             storage,
                             self.latest_epoch,
                             Direction::Some(dir),
                         )
                         .await?;
-                    current_nodes.push(NodeKey(child));
+
+                    if child.dummy_marker == DummyChildState::Real {
+                        current_nodes.push(NodeKey(child.location));
+                    }
                 }
             }
         }

@@ -118,7 +118,7 @@ async fn main() {
             Ok(flogger) => loggers.push(Box::new(flogger)),
         }
         // drop the log level to debug (console has a max-level of "Info")
-        log::Level::Trace
+        log::Level::Debug
     } else {
         cli.console_debug.to_log_level()
     };
