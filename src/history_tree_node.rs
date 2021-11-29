@@ -141,6 +141,25 @@ impl HistoryTreeNode {
         }
     }
 
+    pub(crate) async fn batch_get_from_storage<S: V2Storage + Send + Sync>(
+        storage: &S,
+        keys: Vec<NodeKey>,
+    ) -> Result<Vec<HistoryTreeNode>, StorageError> {
+        // let nodes =  storage.batch_get::<HistoryTreeNode>(keys).await?.iter()
+        // .map(|DbRecord::HistoryTreeNode(node)| node.clone()).collect();
+        let node_records: Vec<DbRecord> = storage.batch_get::<HistoryTreeNode>(keys).await?;
+        let mut nodes = Vec::<HistoryTreeNode>::new();
+        for node in node_records {
+            match node {
+                DbRecord::HistoryTreeNode(node) => nodes.push(node),
+                _ => {
+                    return Err(StorageError::GetError(String::from("Batch get error")));
+                }
+            }
+        }
+        Ok(nodes)
+    }
+
     /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
     pub(crate) async fn insert_single_leaf<S: V2Storage + Sync + Send, H: Hasher>(
         &mut self,
@@ -233,6 +252,11 @@ impl HistoryTreeNode {
                 );
                 new_node.epochs.push(epoch);
                 new_node.write_to_storage(storage).await?;
+                set_state_map(
+                    storage,
+                    HistoryNodeState::new::<H>(NodeStateKey(new_node.label, epoch)),
+                )
+                .await?;
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
                 trace!("BEGIN update leaf location");
@@ -390,6 +414,7 @@ impl HistoryTreeNode {
         } else {
             let parent =
                 &mut HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
+
             if parent.get_latest_epoch()? < epoch {
                 let (_, dir_self, _) = parent.label.get_longest_common_prefix_and_dirs(self.label);
                 parent
@@ -398,6 +423,7 @@ impl HistoryTreeNode {
                 parent.write_to_storage(storage).await?;
                 *parent = HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
             }
+
             match get_state_map(storage, parent, epoch).await {
                 Err(_) => Err(HistoryTreeNodeError::ParentNextEpochInvalid(epoch)),
                 Ok(parent_state) => match parent.get_direction_at_ep(storage, self, epoch).await? {
@@ -429,59 +455,71 @@ impl HistoryTreeNode {
         child: &HistoryInsertionNode,
     ) -> Result<(), HistoryTreeNodeError> {
         let (direction, child_node) = child.clone();
-        match direction {
-            Direction::Some(dir) => match get_state_map(storage, self, epoch).await {
-                Ok(HistoryNodeState {
-                    value,
-                    mut child_states,
-                    key: _,
-                }) => {
-                    child_states[dir] = child_node;
-                    set_state_map(
-                        storage,
-                        HistoryNodeState {
-                            value,
-                            child_states,
-                            key: NodeStateKey(self.label, epoch),
-                        },
-                    )
-                    .await?;
-                    Ok(())
+        // It's possible that this node's latest epoch is not the same as
+        // epoch, in which case, you should set the state to include the latest epoch.
+        // We also make sure here, to update the list of epochs.
+        // If you're here, you can be sure that get_state_at_epoch should return a value.
+        // If it doesn't, then you must not have called set_state_map when you created this node.
+        // That is, make sure after every call to HistoryTreeNode::new, there is a call to
+        // set_state_map.
+        if self.get_latest_epoch()? != epoch {
+            set_state_map(
+                storage,
+                match self
+                    .get_state_at_epoch(storage, self.get_latest_epoch()?)
+                    .await
+                {
+                    Ok(mut latest_st) => {
+                        latest_st.key = NodeStateKey(self.label, epoch);
+                        latest_st
+                    }
+                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch)),
+                },
+            )
+            .await?;
+
+            match self.get_latest_epoch() {
+                Ok(latest) => {
+                    if latest != epoch {
+                        self.epochs.push(epoch);
+                    }
                 }
                 Err(_) => {
-                    set_state_map(
-                        storage,
-                        match self
-                            .get_state_at_epoch(storage, self.get_latest_epoch()?)
-                            .await
-                        {
-                            Ok(mut latest_st) => {
-                                latest_st.key = NodeStateKey(self.label, epoch);
-                                latest_st
-                            }
-                            Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch)),
-                        },
-                    )
-                    .await?;
-
-                    match self.get_latest_epoch() {
-                        Ok(latest) => {
-                            if latest != epoch {
-                                self.epochs.push(epoch);
-                            }
-                        }
-                        Err(_) => {
-                            self.epochs.push(epoch);
-                        }
-                    }
-                    self.write_to_storage(storage).await?;
-                    self.set_child::<_, H>(storage, epoch, child).await
+                    self.epochs.push(epoch);
                 }
-            },
-            Direction::None => Err(HistoryTreeNodeError::NoDirectionInSettingChild(
+            }
+            self.write_to_storage(storage).await?;
+            self.set_child::<_, H>(storage, epoch, child).await?;
+            return Ok(());
+        }
+
+        let dir = direction.map_or(
+            Err(HistoryTreeNodeError::NoDirectionInSettingChild(
                 self.label.get_val(),
                 child_node.label.get_val(),
             )),
+            Ok,
+        )?;
+
+        match get_state_map(storage, self, epoch).await {
+            Ok(HistoryNodeState {
+                value,
+                mut child_states,
+                key: _,
+            }) => {
+                child_states[dir] = child_node;
+                set_state_map(
+                    storage,
+                    HistoryNodeState {
+                        value,
+                        child_states,
+                        key: NodeStateKey(self.label, epoch),
+                    },
+                )
+                .await?;
+                Ok(())
+            }
+            Err(e) => Err(HistoryTreeNodeError::from(e)),
         }
     }
 

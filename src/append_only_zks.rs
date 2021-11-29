@@ -19,7 +19,7 @@ use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
 use log::trace;
-use std::marker::{Send, Sync};
+use std::marker::{Send, Sync}; //, thread::current};
 use winter_crypto::Hasher;
 
 use serde::{Deserialize, Serialize};
@@ -120,6 +120,61 @@ impl Azks {
             .await
     }
 
+    async fn preload_nodes_for_insertion<S: V2Storage + Sync + Send, H: Hasher>(
+        &self,
+        storage: &S,
+        insertion_set: Vec<(NodeLabel, H::Digest)>,
+    ) -> Result<(), AkdError> {
+        let mut current_nodes = vec![NodeKey(self.root)];
+
+        let prefixes_set = crate::utils::build_prefixes_set(
+            insertion_set
+                .into_iter()
+                .map(|(x, _)| x)
+                .collect::<Vec<NodeLabel>>()
+                .as_ref(),
+        );
+
+        while !current_nodes.is_empty() {
+            let nodes =
+                HistoryTreeNode::batch_get_from_storage(storage, current_nodes.clone()).await?;
+
+            current_nodes = Vec::<NodeKey>::new();
+            let mut node_states = Vec::<NodeStateKey>::new();
+
+            // This for loop is just getting the keys for states that need to be loaded.
+            for node in &nodes {
+                node_states.push(get_state_map_key(node, node.get_latest_epoch()?));
+            }
+            storage.batch_get::<HistoryNodeState>(node_states).await?;
+
+            // Now that states are loaded in the cache, you can read and access them.
+            // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
+            // individually for each node's state.
+            for node in &nodes {
+                if !prefixes_set.contains(&node.label) {
+                    // Only continue to traverse nodes which are relevant prefixes to insertion_set
+                    continue;
+                }
+
+                for dir in 0..ARITY {
+                    let child = node
+                        .get_child_at_epoch::<S, H>(
+                            storage,
+                            self.latest_epoch,
+                            Direction::Some(dir),
+                        )
+                        .await?;
+
+                    if child.dummy_marker == DummyChildState::Real {
+                        current_nodes.push(NodeKey(child.location));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// An azks is built both by the [crate::directory::Directory] and the auditor.
     /// However, both constructions have very minor differences, and the append_only_usage
     /// bool keeps track of this.
@@ -130,7 +185,10 @@ impl Azks {
         append_only_usage: bool,
     ) -> Result<(), AkdError> {
         self.increment_epoch();
-
+        self.preload_nodes_for_insertion::<S, H>(storage, insertion_set.clone())
+            .await?;
+        println!("***********************PRELOADED***************************");
+        storage.log_metrics(log::Level::Info).await;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
@@ -161,6 +219,10 @@ impl Azks {
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;
         }
+
+        println!("***********************PRIORITY QUEUE FILLED***************************");
+        storage.log_metrics(log::Level::Info).await;
+        println!("***********************************************************************");
 
         while !hash_q.is_empty() {
             let (next_node_loc, _) = hash_q
