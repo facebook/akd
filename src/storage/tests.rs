@@ -161,7 +161,9 @@ async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
         child_states: [None, None],
         key: key,
     };
-    let set_result = storage.set(DbRecord::HistoryNodeState(node_state.clone())).await;
+    let set_result = storage
+        .set(DbRecord::HistoryNodeState(node_state.clone()))
+        .await;
     assert_eq!(Ok(()), set_result);
 
     let get_result = storage.get::<HistoryNodeState>(key).await;
