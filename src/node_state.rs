@@ -141,7 +141,7 @@ pub struct HistoryNodeState {
     /// The hash at this node state
     pub value: Vec<u8>,
     /// The states of the children at this time
-    pub child_states: Vec<HistoryChildState>,
+    pub child_states: [Option<HistoryChildState>; ARITY],
     /// A unique key
     pub key: NodeStateKey,
 }
@@ -224,16 +224,16 @@ unsafe impl Sync for HistoryNodeState {}
 impl HistoryNodeState {
     /// Creates a new [HistoryNodeState]
     pub fn new<H: Hasher>(key: NodeStateKey) -> Self {
-        let children = vec![HistoryChildState::new_dummy::<H>(); ARITY];
+        const INIT: Option<HistoryChildState> = None;
         HistoryNodeState {
             value: from_digest::<H>(H::hash(&[0u8])).unwrap(),
-            child_states: children,
+            child_states: [INIT; ARITY],
             key,
         }
     }
 
     /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
-    pub(crate) fn get_child_state_in_dir(&self, dir: usize) -> HistoryChildState {
+    pub(crate) fn get_child_state_in_dir(&self, dir: usize) -> Option<HistoryChildState> {
         self.child_states[dir].clone()
     }
 }
@@ -255,19 +255,10 @@ impl fmt::Display for HistoryNodeState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "\tvalue = {:?}", self.value).unwrap();
         for i in 0..ARITY {
-            writeln!(f, "\tchildren {}: {:#}", i, self.child_states[i]).unwrap();
+            writeln!(f, "\tchildren {}: {:?}", i, self.child_states[i]).unwrap();
         }
         write!(f, "")
     }
-}
-
-///  Marks whether a child state is real
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq)]
-pub enum DummyChildState {
-    /// If this child is dummy. Usually for children of leaves
-    Dummy,
-    /// If this child is real
-    Real,
 }
 
 /// This struct represents the state of the child of a node at a given epoch
@@ -276,8 +267,6 @@ pub enum DummyChildState {
 /// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Serialize, Deserialize, Eq)]
 pub struct HistoryChildState {
-    ///  Tells you whether this child is a dummy
-    pub dummy_marker: DummyChildState,
     /// Says where the child node with this label is located
     pub location: u64,
     /// Child node's label
@@ -303,24 +292,10 @@ impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
     pub fn new<H: Hasher>(loc: u64, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
         HistoryChildState {
-            dummy_marker: DummyChildState::Real,
             location: loc,
             label,
             hash_val: from_digest::<H>(hash_val).unwrap(),
             epoch_version: ep,
-        }
-    }
-
-    /// Creates a dummy [HistoryChildState] to signify a node not having children.
-    /// Used elsewhere to instantiate a leaf node of the
-    /// [crate::history_tree_node::HistoryTreeNode] type.
-    pub fn new_dummy<H: Hasher>() -> Self {
-        HistoryChildState {
-            dummy_marker: DummyChildState::Dummy,
-            location: 0,
-            label: NodeLabel::new(0, 0),
-            hash_val: from_digest::<H>(H::hash(&[0u8])).unwrap(),
-            epoch_version: 0,
         }
     }
 }
@@ -328,7 +303,6 @@ impl HistoryChildState {
 impl Clone for HistoryChildState {
     fn clone(&self) -> Self {
         Self {
-            dummy_marker: self.dummy_marker,
             location: self.location,
             label: self.label,
             hash_val: self.hash_val.clone(),
@@ -339,8 +313,7 @@ impl Clone for HistoryChildState {
 
 impl PartialEq for HistoryChildState {
     fn eq(&self, other: &Self) -> bool {
-        self.dummy_marker == other.dummy_marker
-            && self.location == other.location
+        self.location == other.location
             && self.label == other.label
             && self.hash_val == other.hash_val
             && self.epoch_version == other.epoch_version

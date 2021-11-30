@@ -9,6 +9,7 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
+use crate::ARITY;
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
@@ -259,7 +260,7 @@ pub trait V2Storage: Clone {
     /// Build a history node state from the properties
     fn build_history_node_state(
         value: Vec<u8>,
-        child_states: Vec<crate::node_state::HistoryChildState>,
+        child_states: [Option<crate::node_state::HistoryChildState>; ARITY],
         label_len: u32,
         label_val: u64,
         epoch: u64,

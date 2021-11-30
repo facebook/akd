@@ -13,6 +13,7 @@ use crate::storage::types::{
     AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, V2Storage};
+use crate::ARITY;
 type LocalTransaction = crate::storage::transaction::Transaction;
 use async_trait::async_trait;
 use log::{debug, error, info, trace, warn};
@@ -1852,8 +1853,8 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                 ) {
                     let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: Vec<crate::node_state::HistoryChildState> =
-                        bincode::deserialize(&child_states_bin_vec).unwrap();
+                    let child_states_decoded: [Option<crate::node_state::HistoryChildState>;
+                        ARITY] = bincode::deserialize(&child_states_bin_vec).unwrap();
                     let node_state = AsyncMySqlDatabase::build_history_node_state(
                         value,
                         child_states_decoded,

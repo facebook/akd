@@ -132,7 +132,7 @@ impl Azks {
         let prefixes_set = crate::utils::build_prefixes_set(
             insertion_set
                 .iter()
-                .map(|(x, _)| x.clone())
+                .map(|(x, _)| *x)
                 .collect::<Vec<NodeLabel>>()
                 .as_ref(),
         );
@@ -170,7 +170,7 @@ impl Azks {
                         )
                         .await?;
 
-                    if child.dummy_marker == DummyChildState::Real {
+                    if let Some(child) = child {
                         current_nodes.push(NodeKey(child.location));
                     }
                 }
@@ -200,7 +200,8 @@ impl Azks {
         );
 
         self.increment_epoch();
-
+        self.preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
+            .await?;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
@@ -290,16 +291,23 @@ impl Azks {
             HistoryTreeNode::get_from_storage(storage, NodeKey(lcp_node_id)).await?;
         let longest_prefix = lcp_node.label;
         let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
-        let mut longest_prefix_children_values = [H::hash(&[]); ARITY];
+        let mut longest_prefix_children_values = [crate::utils::empty_node_hash::<H>(); ARITY];
         let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
 
         for (i, child) in state.child_states.iter().enumerate() {
-            let unwrapped_child: HistoryTreeNode =
-                HistoryTreeNode::get_from_storage(storage, NodeKey(child.location)).await?;
-            longest_prefix_children_labels[i] = unwrapped_child.label;
-            longest_prefix_children_values[i] = unwrapped_child
-                .get_value_without_label_at_epoch::<_, H>(storage, epoch)
-                .await?;
+            match child {
+                None => {
+                    continue;
+                }
+                Some(child) => {
+                    let unwrapped_child: HistoryTreeNode =
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(child.location)).await?;
+                    longest_prefix_children_labels[i] = unwrapped_child.label;
+                    longest_prefix_children_values[i] = unwrapped_child
+                        .get_value_without_label_at_epoch::<_, H>(storage, epoch)
+                        .await?;
+                }
+            }
         }
         Ok(NonMembershipProof {
             label,
@@ -379,24 +387,27 @@ impl Azks {
                 .iter()
                 .map(|x| x.clone())
             {
-                if child_node_state.dummy_marker == DummyChildState::Dummy {
-                    continue;
-                } else {
-                    let child_node = HistoryTreeNode::get_from_storage(
-                        storage,
-                        NodeKey(child_node_state.location),
-                    )
-                    .await?;
-                    let mut rec_output = self
-                        .get_append_only_proof_helper::<_, H>(
+                match child_node_state {
+                    None => {
+                        continue;
+                    }
+                    Some(child_node_state) => {
+                        let child_node = HistoryTreeNode::get_from_storage(
                             storage,
-                            child_node,
-                            start_epoch,
-                            end_epoch,
+                            NodeKey(child_node_state.location),
                         )
                         .await?;
-                    unchanged.append(&mut rec_output.0);
-                    leaves.append(&mut rec_output.1);
+                        let mut rec_output = self
+                            .get_append_only_proof_helper::<_, H>(
+                                storage,
+                                child_node,
+                                start_epoch,
+                                end_epoch,
+                            )
+                            .await?;
+                        unchanged.append(&mut rec_output.0);
+                        leaves.append(&mut rec_output.1);
+                    }
                 }
             }
         }
@@ -465,13 +476,17 @@ impl Azks {
             let mut count = 0;
             let direction = dir.ok_or(AkdError::NoDirectionError)?;
             let next_state = curr_state.get_child_state_in_dir(direction);
-            if next_state.dummy_marker == DummyChildState::Dummy {
+            if next_state == None {
                 break;
             }
             for i in 0..ARITY {
                 if i != dir.ok_or(AkdError::NoDirectionError)? {
-                    labels[count] = curr_state.child_states[i].label;
-                    hashes[count] = to_digest::<H>(&curr_state.child_states[i].hash_val).unwrap();
+                    labels[count] =
+                        optional_history_child_state_to_label(&curr_state.child_states[i]);
+                    hashes[count] = to_digest::<H>(&optional_history_child_state_to_hash::<H>(
+                        &curr_state.child_states[i],
+                    ))
+                    .unwrap();
                     count += 1;
                 }
             }

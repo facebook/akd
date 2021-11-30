@@ -48,7 +48,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
         .map_err(|_| panic!("Child not set in test_set_child_without_hash_at_root"))
         .unwrap();
     assert!(
-        set_child == child_hist_node_1,
+        set_child == Some(child_hist_node_1),
         "Child in direction is not equal to the set value"
     );
     assert!(
@@ -90,7 +90,7 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
         .await;
     match set_child_1 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_1,
+            child_st == Some(child_hist_node_1),
             "Child in 1 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -101,7 +101,7 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
         .await;
     match set_child_2 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_2,
+            child_st == Some(child_hist_node_2),
             "Child in 0 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -163,7 +163,7 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
         .await;
     match set_child_1 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_3,
+            child_st == Some(child_hist_node_3),
             "Child in 1 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -174,7 +174,7 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
         .await;
     match set_child_2 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_4,
+            child_st == Some(child_hist_node_4),
             "Child in 0 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -235,7 +235,7 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
         .await;
     match set_child_1 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_1,
+            child_st == Some(child_hist_node_1),
             "Child in 1 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -246,7 +246,7 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
         .await;
     match set_child_2 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_2,
+            child_st == Some(child_hist_node_2),
             "Child in 0 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -311,7 +311,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
         .await;
     match set_child_1 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_1,
+            child_st == Some(child_hist_node_1),
             "Child in 1 is not equal to the set value = {:?}",
             child_st
         ),
@@ -323,7 +323,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
         .await;
     match set_child_2 {
         Ok(child_st) => assert!(
-            child_st == child_hist_node_2,
+            child_st == Some(child_hist_node_2),
             "Child in 0 is not equal to the set value"
         ),
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
@@ -352,11 +352,13 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     root.write_to_storage(&db).await?;
 
     let mut num_nodes = 1;
-
     root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 0, &mut num_nodes)
         .await?;
+
+    println!("X1.5");
     root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
         .await?;
+    println!("X2");
 
     let root_val = root.get_value::<_, Blake3>(&db).await?;
 
@@ -377,7 +379,7 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
         ]),
         hash_label::<Blake3>(root.label),
     ]);
-    assert!(root_val == expected, "Root hash not equal to expected");
+    assert_eq!(root_val, expected, "Root hash not equal to expected");
 
     Ok(())
 }
