@@ -18,8 +18,9 @@ use crate::serialization::to_digest;
 use crate::storage::types::StorageType;
 use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
 use async_recursion::async_recursion;
-use log::trace;
-use std::marker::{Send, Sync}; //, thread::current};
+use log::{debug, info};
+use std::marker::{Send, Sync};
+use tokio::time::Instant;
 use winter_crypto::Hasher;
 
 use serde::{Deserialize, Serialize};
@@ -123,20 +124,22 @@ impl Azks {
     async fn preload_nodes_for_insertion<S: V2Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-        insertion_set: Vec<(NodeLabel, H::Digest)>,
-    ) -> Result<(), AkdError> {
+        insertion_set: &[(NodeLabel, H::Digest)],
+    ) -> Result<u64, AkdError> {
+        let mut load_count: u64 = 0;
         let mut current_nodes = vec![NodeKey(self.root)];
 
         let prefixes_set = crate::utils::build_prefixes_set(
             insertion_set
-                .into_iter()
-                .map(|(x, _)| x)
+                .iter()
+                .map(|(x, _)| *x)
                 .collect::<Vec<NodeLabel>>()
                 .as_ref(),
         );
 
         while !current_nodes.is_empty() {
             let nodes = HistoryTreeNode::batch_get_from_storage(storage, current_nodes).await?;
+            load_count += nodes.len() as u64;
 
             current_nodes = Vec::<NodeKey>::new();
             let mut node_states = Vec::<NodeStateKey>::new();
@@ -145,7 +148,8 @@ impl Azks {
             for node in &nodes {
                 node_states.push(get_state_map_key(node, node.get_latest_epoch()?));
             }
-            storage.batch_get::<HistoryNodeState>(node_states).await?;
+            let states = storage.batch_get::<HistoryNodeState>(node_states).await?;
+            load_count += states.len() as u64;
 
             // Now that states are loaded in the cache, you can read and access them.
             // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
@@ -164,13 +168,14 @@ impl Azks {
                             Direction::Some(dir),
                         )
                         .await?;
+
                     if let Some(child) = child {
                         current_nodes.push(NodeKey(child.location));
                     }
                 }
             }
         }
-        Ok(())
+        Ok(load_count)
     }
 
     /// An azks is built both by the [crate::directory::Directory] and the auditor.
@@ -182,8 +187,19 @@ impl Azks {
         insertion_set: Vec<(NodeLabel, H::Digest)>,
         append_only_usage: bool,
     ) -> Result<(), AkdError> {
+        let tic = Instant::now();
+        let load_count = self
+            .preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
+            .await?;
+        let toc = Instant::now() - tic;
+        info!(
+            "Preload of tree ({} objects loaded), took {} s",
+            load_count,
+            toc.as_secs_f64()
+        );
+
         self.increment_epoch();
-        self.preload_nodes_for_insertion::<S, H>(storage, insertion_set.clone())
+        self.preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
             .await?;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
@@ -206,11 +222,11 @@ impl Azks {
                     .await?
             };
 
-            trace!("BEGIN insert leaf");
+            debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
                 .await?;
-            trace!("END insert leaf");
+            debug!("END insert leaf");
 
             hash_q.push(new_leaf_loc, priorities);
             priorities -= 1;

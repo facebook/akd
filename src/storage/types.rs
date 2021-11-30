@@ -138,7 +138,7 @@ pub enum ValueStateRetrievalFlag {
 
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum DbRecord {
     /// An Azks
     Azks(crate::append_only_zks::Azks),

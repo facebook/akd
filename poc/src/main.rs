@@ -10,9 +10,10 @@
 
 use akd::directory::Directory;
 use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
+use akd::storage::V2Storage;
 use clap::arg_enum;
 use commands::Command;
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::convert::From;
@@ -56,10 +57,6 @@ impl PublicLogLevels {
     }
 }
 
-// static CONSOLE_LOGGER: ConsoleLogger = ConsoleLogger {
-//     level: log::Level::Info,
-// };
-
 /// applicationModes
 #[derive(StructOpt)]
 enum OtherMode {
@@ -71,6 +68,9 @@ enum OtherMode {
     BenchLookup {
         num_users: u64,
         num_updates_per_user: u64,
+    },
+    BenchDbInsert {
+        num_users: u64,
     },
     Flush,
 }
@@ -97,6 +97,14 @@ struct Cli {
 
     #[structopt(subcommand)]
     other_mode: Option<OtherMode>,
+
+    #[structopt(
+        long = "multirow_size",
+        short = "m",
+        name = "MySQL mutli-row insert size",
+        default_value = "100"
+    )]
+    mysql_insert_depth: usize,
 }
 
 // MAIN //
@@ -145,6 +153,7 @@ async fn main() {
             Option::from("example"),
             Option::from(8001),
             MySqlCacheOptions::Default, // enable caching
+            cli.mysql_insert_depth,
         )
         .await;
         let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
@@ -163,6 +172,47 @@ async fn process_input(
 ) {
     if let Some(other_mode) = &cli.other_mode {
         match other_mode {
+            OtherMode::BenchDbInsert { num_users } => {
+                println!("======= Benchmark operation requested ======= ");
+                println!("Beginning DB INSERT benchmark of {} users", num_users);
+
+                let mut values: Vec<String> = vec![];
+                for _ in 0..*num_users {
+                    values.push(
+                        thread_rng()
+                            .sample_iter(&Alphanumeric)
+                            .take(30)
+                            .map(char::from)
+                            .collect(),
+                    );
+                }
+
+                let mut data = Vec::new();
+                for value in values.iter() {
+                    let state = akd::storage::mysql::AsyncMySqlDatabase::build_user_state(
+                        value.clone(),
+                        value.clone(),
+                        1u64,
+                        1u32,
+                        1u64,
+                        1u64,
+                    );
+                    data.push(akd::storage::types::DbRecord::ValueState(state));
+                }
+
+                if let Some(storage) = db {
+                    debug!("Starting the storage request");
+
+                    let tic = Instant::now();
+                    let len = data.len();
+                    assert_eq!(Ok(()), storage.batch_set(data).await);
+                    let toc: Duration = Instant::now() - tic;
+                    println!("Insert batch of {} items in {} ms", len, toc.as_millis());
+                    storage.log_metrics(log::Level::Warn).await;
+                } else {
+                    error!("Command available with MySQL db's only");
+                }
+            }
             OtherMode::BenchPublish {
                 num_users,
                 num_updates_per_user,
