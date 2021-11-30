@@ -137,9 +137,8 @@ impl Azks {
                 .as_ref(),
         );
 
-        while current_nodes.len() > 0 {
-            let nodes =
-                HistoryTreeNode::batch_get_from_storage(storage, current_nodes).await?;
+        while !current_nodes.is_empty() {
+            let nodes = HistoryTreeNode::batch_get_from_storage(storage, current_nodes).await?;
             load_count += nodes.len() as u64;
 
             current_nodes = Vec::<NodeKey>::new();
