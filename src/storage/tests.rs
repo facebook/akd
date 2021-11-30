@@ -12,7 +12,8 @@ use serial_test::serial;
 use tokio::time::{Duration, Instant};
 
 use crate::errors::StorageError;
-use crate::node_state::NodeLabel;
+use crate::history_tree_node::*;
+use crate::node_state::*;
 use crate::storage::memory::AsyncInMemoryDatabase;
 use crate::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use crate::storage::types::*;
@@ -33,7 +34,6 @@ async fn test_v1_to_v2_db_wrapper() {
     test_user_data(&db).await;
     test_transactions(&mut db).await;
     test_batch_get_items(&db).await;
-    // test_batch_limits(&db).await;
 }
 
 #[tokio::test]
@@ -44,7 +44,6 @@ async fn test_v2_in_memory_db() {
     test_user_data(&db).await;
     test_transactions(&mut db).await;
     test_batch_get_items(&db).await;
-    // test_batch_limits(&db).await;
 }
 
 #[tokio::test]
@@ -82,7 +81,6 @@ async fn test_mysql_db() {
         test_user_data(&mysql_db).await;
         test_transactions(&mut mysql_db).await;
         test_batch_get_items(&mysql_db).await;
-        // test_batch_limits(&mysql_db).await;
 
         // clean the test infra
         if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
@@ -122,16 +120,17 @@ async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     // === HistoryTreeNode storage === //
 
     let node = HistoryTreeNode {
-        label: crate::node_state::NodeLabel { val: 13, len: 1 },
+        label: NodeLabel { val: 13, len: 1 },
         location: 234,
         epochs: vec![123u64, 234u64, 345u64],
         parent: 1,
-        node_type: crate::history_tree_node::NodeType::Leaf,
+        node_type: NodeType::Leaf,
     };
     let mut node2 = node.clone();
     node2.location = 123;
 
-    let key = crate::history_tree_node::NodeKey(234);
+    let key = NodeKey(234);
+    let key2 = NodeKey(123);
 
     let set_result = storage.set(DbRecord::HistoryTreeNode(node.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -150,18 +149,52 @@ async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
         panic!("Failed to retrieve History Tree Node");
     }
 
-    // let get_result = storage.get_all::<HistoryTreeNode>(None).await;
-    // if let Ok(nodes) = get_result {
-    //     assert_eq!(nodes.len(), 2);
-    // } else {
-    //     panic!("Failed to retrieve history tree nodes from database");
-    // }
+    let get_result = storage.get::<HistoryTreeNode>(key2).await;
+    if let Err(err) = get_result {
+        panic!("Failed to retrieve history tree node (2) {:?}", err)
+    }
 
     // === HistoryNodeState storage === //
-    // TODO: test the history node state storage
+    let key = NodeStateKey(NodeLabel { len: 1, val: 1 }, 1);
+    let node_state = HistoryNodeState {
+        value: vec![],
+        child_states: [None, None],
+        key: key,
+    };
+    let set_result = storage.set(DbRecord::HistoryNodeState(node_state.clone())).await;
+    assert_eq!(Ok(()), set_result);
+
+    let get_result = storage.get::<HistoryNodeState>(key).await;
+    if let Ok(DbRecord::HistoryNodeState(got_state)) = get_result {
+        assert_eq!(got_state.value, node_state.value);
+        assert_eq!(got_state.child_states, node_state.child_states);
+        assert_eq!(got_state.key, node_state.key);
+    } else {
+        panic!("Failed to retrieve history node state");
+    }
 
     // === ValueState storage === //
-    // TODO: test with this format of user storage
+    let key = ValueStateKey("test".to_string(), 1);
+    let value = ValueState {
+        username: AkdKey("test".to_string()),
+        epoch: 1,
+        label: NodeLabel { len: 1, val: 1 },
+        version: 1,
+        plaintext_val: Values("abc123".to_string()),
+    };
+    let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
+    assert_eq!(Ok(()), set_result);
+
+    let get_result = storage.get::<ValueState>(key).await;
+    if let Ok(DbRecord::ValueState(got_state)) = get_result {
+        assert_eq!(got_state.username, value.username);
+        assert_eq!(got_state.epoch, value.epoch);
+        assert_eq!(got_state.label, value.label);
+        assert_eq!(got_state.plaintext_val, value.plaintext_val);
+        assert_eq!(got_state.version, value.version);
+    } else {
+        panic!("Failed to retrieve history node state");
+    }
 }
 
 async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
@@ -494,10 +527,7 @@ async fn test_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     );
 
     let specifc_result = storage
-        .get::<crate::storage::types::ValueState>(crate::storage::types::ValueStateKey(
-            sample_state.username.0.clone(),
-            123,
-        ))
+        .get::<ValueState>(ValueStateKey(sample_state.username.0.clone(), 123))
         .await;
     if let Ok(DbRecord::ValueState(state)) = specifc_result {
         assert_eq!(
