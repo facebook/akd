@@ -29,20 +29,22 @@ async fn test_v1_to_v2_db_wrapper() {
     let mut db = crate::storage::V2FromV1StorageWrapper::new(
         crate::storage::memory::AsyncInMemoryDbWithCache::new(),
     );
-    async_test_new_get_and_set_item(&db).await;
-    async_test_new_user_data(&db).await;
-    async_test_transaction(&mut db).await;
-    async_test_batch_get_item(&db).await;
+    test_get_and_set_item(&db).await;
+    test_user_data(&db).await;
+    test_transactions(&mut db).await;
+    test_batch_get_items(&db).await;
+    // test_batch_limits(&db).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_v2_in_memory_db() {
     let mut db = AsyncInMemoryDatabase::new();
-    async_test_new_get_and_set_item(&db).await;
-    async_test_new_user_data(&db).await;
-    async_test_transaction(&mut db).await;
-    async_test_batch_get_item(&db).await;
+    test_get_and_set_item(&db).await;
+    test_user_data(&db).await;
+    test_transactions(&mut db).await;
+    test_batch_get_items(&db).await;
+    // test_batch_limits(&db).await;
 }
 
 #[tokio::test]
@@ -67,6 +69,7 @@ async fn test_mysql_db() {
             Option::from("example"),
             Option::from(8001),
             MySqlCacheOptions::None,
+            200,
         )
         .await;
 
@@ -75,10 +78,11 @@ async fn test_mysql_db() {
         }
 
         // The test cases
-        async_test_new_get_and_set_item(&mysql_db).await;
-        async_test_new_user_data(&mysql_db).await;
-        async_test_transaction(&mut mysql_db).await;
-        async_test_batch_get_item(&mysql_db).await;
+        test_get_and_set_item(&mysql_db).await;
+        test_user_data(&mysql_db).await;
+        test_transactions(&mut mysql_db).await;
+        test_batch_get_items(&mysql_db).await;
+        // test_batch_limits(&mysql_db).await;
 
         // clean the test infra
         if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
@@ -93,7 +97,7 @@ async fn test_mysql_db() {
 }
 
 // *** New Test Helper Functions *** //
-async fn async_test_new_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
+async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     // === Azks storage === //
     let azks = Azks {
         root: 3,
@@ -146,12 +150,12 @@ async fn async_test_new_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
         panic!("Failed to retrieve History Tree Node");
     }
 
-    let get_result = storage.get_all::<HistoryTreeNode>(None).await;
-    if let Ok(nodes) = get_result {
-        assert_eq!(nodes.len(), 2);
-    } else {
-        panic!("Failed to retrieve history tree nodes from database");
-    }
+    // let get_result = storage.get_all::<HistoryTreeNode>(None).await;
+    // if let Ok(nodes) = get_result {
+    //     assert_eq!(nodes.len(), 2);
+    // } else {
+    //     panic!("Failed to retrieve history tree nodes from database");
+    // }
 
     // === HistoryNodeState storage === //
     // TODO: test the history node state storage
@@ -160,7 +164,7 @@ async fn async_test_new_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     // TODO: test with this format of user storage
 }
 
-async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
+async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(
@@ -179,7 +183,7 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
                 plaintext_val: Values(value.clone()),
-                version: 1u64,
+                version: epoch,
                 label: NodeLabel {
                     val: 1u64,
                     len: 1u32,
@@ -240,7 +244,7 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
 
     let user_keys: Vec<_> = rand_users.iter().map(|user| AkdKey(user.clone())).collect();
     let got_all_min_states = storage
-        .get_user_states(&user_keys, ValueStateRetrievalFlag::MinEpoch)
+        .get_user_state_versions(&user_keys, ValueStateRetrievalFlag::MinEpoch)
         .await;
     // should be the same thing as the previous get
     match got_all_min_states {
@@ -261,19 +265,27 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.epoch == result.1.epoch;
+                                && value_state.version == result.1;
                         }
                         false
                     })
-                    .cloned();
+                    .cloned()
+                    .map(|item| {
+                        if let DbRecord::ValueState(value_state) = &item {
+                            value_state.version
+                        } else {
+                            0u64
+                        }
+                    });
+
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(DbRecord::ValueState(result.1)), initial_record);
+                assert_eq!(Some(result.1), initial_record);
             }
         }
     }
 
     let got_all_max_states = storage
-        .get_user_states(&user_keys, ValueStateRetrievalFlag::MaxEpoch)
+        .get_user_state_versions(&user_keys, ValueStateRetrievalFlag::MaxEpoch)
         .await;
     // should be the same thing as the previous get
     match got_all_max_states {
@@ -294,19 +306,26 @@ async fn async_test_batch_get_item<Ns: V2Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.epoch == result.1.epoch;
+                                && value_state.version == result.1;
                         }
                         false
                     })
-                    .cloned();
+                    .cloned()
+                    .map(|item| {
+                        if let DbRecord::ValueState(value_state) = &item {
+                            value_state.version
+                        } else {
+                            0u64
+                        }
+                    });
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(DbRecord::ValueState(result.1)), initial_record);
+                assert_eq!(Some(result.1), initial_record);
             }
         }
     }
 }
 
-async fn async_test_transaction<S: V2Storage + Sync + Send>(storage: &mut S) {
+async fn test_transactions<S: V2Storage + Sync + Send>(storage: &mut S) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(
@@ -377,7 +396,7 @@ async fn async_test_transaction<S: V2Storage + Sync + Send>(storage: &mut S) {
     }
 }
 
-async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
+async fn test_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     let rand_user: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -401,17 +420,23 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     let mut sample_state_2 = sample_state.clone();
     sample_state_2.username = AkdKey("test_user".to_string());
 
-    let result = storage.append_user_state(&sample_state).await;
+    let result = storage
+        .set(DbRecord::ValueState(sample_state.clone()))
+        .await;
     assert_eq!(Ok(()), result);
 
     sample_state.version = 2u64;
     sample_state.epoch = 123u64;
-    let result = storage.append_user_state(&sample_state).await;
+    let result = storage
+        .set(DbRecord::ValueState(sample_state.clone()))
+        .await;
     assert_eq!(Ok(()), result);
 
     sample_state.version = 3u64;
     sample_state.epoch = 456u64;
-    let result = storage.append_user_state(&sample_state).await;
+    let result = storage
+        .set(DbRecord::ValueState(sample_state.clone()))
+        .await;
     assert_eq!(Ok(()), result);
 
     let data = storage.get_user_data(&sample_state.username).await.unwrap();
@@ -559,7 +584,11 @@ async fn async_test_new_user_data<S: V2Storage + Sync + Send>(storage: &S) {
     sample_state_2.epoch = 456;
     vector_of_states.push(sample_state_2.clone());
 
-    let result = storage.append_user_states(vector_of_states).await;
+    let records = vector_of_states
+        .into_iter()
+        .map(DbRecord::ValueState)
+        .collect::<Vec<_>>();
+    let result = storage.batch_set(records).await;
     assert_eq!(Ok(()), result);
 
     let data = storage.get_user_data(&sample_state_2.username).await;

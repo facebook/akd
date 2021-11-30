@@ -177,19 +177,7 @@ pub trait V2Storage: Clone {
         ids: Vec<St::Key>,
     ) -> Result<Vec<DbRecord>, StorageError>;
 
-    /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<St: Storable>(
-        &self,
-        num: Option<usize>,
-    ) -> Result<Vec<DbRecord>, StorageError>;
-
     /* User data searching */
-
-    /// Add a user state element to the associated user
-    async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError>;
-
-    /// Append user states to the storage medium
-    async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError>;
 
     /// Retrieve the user data for a given user
     async fn get_user_data(&self, username: &types::AkdKey)
@@ -201,13 +189,6 @@ pub trait V2Storage: Clone {
         username: &types::AkdKey,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
-
-    /// Retrieve all user states for the provided users (batch get user states)
-    async fn get_user_states(
-        &self,
-        usernames: &[types::AkdKey],
-        flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError>;
 
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
@@ -331,12 +312,99 @@ pub struct V2FromV1StorageWrapper<S: V1Storage> {
     trans: Transaction,
 }
 
-impl<S: V1Storage> V2FromV1StorageWrapper<S> {
+impl<S: V1Storage + Sync + Send> V2FromV1StorageWrapper<S> {
     /// Instantiate a new V2->V1 Storage Wrapper instance
     pub fn new(storage: S) -> Self {
         Self {
             db: storage,
             trans: Transaction::new(),
+        }
+    }
+
+    /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
+    async fn get_all<St: Storable>(
+        &self,
+        num: Option<usize>,
+    ) -> Result<Vec<DbRecord>, StorageError> {
+        let datatype = St::data_type();
+        let got = self.db.get_all(datatype, num).await?;
+        let list = got.iter().fold(Vec::new(), |mut acc, item| {
+            match datatype {
+                StorageType::Azks => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::Azks(item));
+                    }
+                }
+                StorageType::HistoryNodeState => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::HistoryNodeState(item))
+                    }
+                }
+                StorageType::HistoryTreeNode => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::HistoryTreeNode(item))
+                    }
+                }
+                StorageType::ValueState => {
+                    if let Ok(item) = bincode::deserialize(item) {
+                        acc.push(DbRecord::ValueState(item))
+                    }
+                }
+            }
+            acc
+        });
+
+        if self.is_transaction_active().await {
+            // check transacted objects
+            let mut updated = vec![];
+            for item in list.into_iter() {
+                match &item {
+                    DbRecord::Azks(azks) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::append_only_zks::Azks>(&azks.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryNodeState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::node_state::HistoryNodeState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::HistoryTreeNode(node) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::history_tree_node::HistoryTreeNode>(&node.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                    DbRecord::ValueState(state) => {
+                        if let Some(matching) = self
+                            .trans
+                            .get::<crate::storage::types::ValueState>(&state.get_id())
+                            .await
+                        {
+                            updated.push(matching);
+                            continue;
+                        }
+                    }
+                }
+                updated.push(item);
+            }
+            Ok(updated)
+        } else {
+            Ok(list)
         }
     }
 }
@@ -486,105 +554,6 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
         Ok(map)
     }
 
-    /// Retrieve all of the objects of a given type from the storage layer, optionally limiting on "num" results
-    async fn get_all<St: Storable>(
-        &self,
-        num: Option<usize>,
-    ) -> Result<Vec<DbRecord>, StorageError> {
-        let datatype = St::data_type();
-        let got = self.db.get_all(datatype, num).await?;
-        let list = got.iter().fold(Vec::new(), |mut acc, item| {
-            match datatype {
-                StorageType::Azks => {
-                    if let Ok(item) = bincode::deserialize(item) {
-                        acc.push(DbRecord::Azks(item));
-                    }
-                }
-                StorageType::HistoryNodeState => {
-                    if let Ok(item) = bincode::deserialize(item) {
-                        acc.push(DbRecord::HistoryNodeState(item))
-                    }
-                }
-                StorageType::HistoryTreeNode => {
-                    if let Ok(item) = bincode::deserialize(item) {
-                        acc.push(DbRecord::HistoryTreeNode(item))
-                    }
-                }
-                StorageType::ValueState => {
-                    if let Ok(item) = bincode::deserialize(item) {
-                        acc.push(DbRecord::ValueState(item))
-                    }
-                }
-            }
-            acc
-        });
-
-        if self.is_transaction_active().await {
-            // check transacted objects
-            let mut updated = vec![];
-            for item in list.into_iter() {
-                match &item {
-                    DbRecord::Azks(azks) => {
-                        if let Some(matching) = self
-                            .trans
-                            .get::<crate::append_only_zks::Azks>(&azks.get_id())
-                            .await
-                        {
-                            updated.push(matching);
-                            continue;
-                        }
-                    }
-                    DbRecord::HistoryNodeState(state) => {
-                        if let Some(matching) = self
-                            .trans
-                            .get::<crate::node_state::HistoryNodeState>(&state.get_id())
-                            .await
-                        {
-                            updated.push(matching);
-                            continue;
-                        }
-                    }
-                    DbRecord::HistoryTreeNode(node) => {
-                        if let Some(matching) = self
-                            .trans
-                            .get::<crate::history_tree_node::HistoryTreeNode>(&node.get_id())
-                            .await
-                        {
-                            updated.push(matching);
-                            continue;
-                        }
-                    }
-                    DbRecord::ValueState(state) => {
-                        if let Some(matching) = self
-                            .trans
-                            .get::<crate::storage::types::ValueState>(&state.get_id())
-                            .await
-                        {
-                            updated.push(matching);
-                            continue;
-                        }
-                    }
-                }
-                updated.push(item);
-            }
-            Ok(updated)
-        } else {
-            Ok(list)
-        }
-    }
-
-    /// Add a user state element to the associated user
-    async fn append_user_state(&self, value: &types::ValueState) -> Result<(), StorageError> {
-        self.set(DbRecord::ValueState(value.clone())).await
-    }
-
-    async fn append_user_states(&self, values: Vec<types::ValueState>) -> Result<(), StorageError> {
-        for item in values.into_iter() {
-            self.set(DbRecord::ValueState(item)).await?;
-        }
-        Ok(())
-    }
-
     /// Retrieve the user data for a given user
     async fn get_user_data(
         &self,
@@ -673,20 +642,6 @@ impl<S: V1Storage + Send + Sync> V2Storage for V2FromV1StorageWrapper<S> {
             }
         }
         Err(StorageError::GetError(String::from("Not found")))
-    }
-
-    async fn get_user_states(
-        &self,
-        usernames: &[types::AkdKey],
-        flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdKey, types::ValueState>, StorageError> {
-        let mut map = HashMap::new();
-        for username in usernames.iter() {
-            if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(types::AkdKey(result.username.0.clone()), result);
-            }
-        }
-        Ok(map)
     }
 
     async fn get_user_state_versions(
