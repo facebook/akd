@@ -5,6 +5,8 @@ authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "S
 description = "An implementation of an auditable key directory"
 license = "MIT"
 edition = "2018"
+keywords = ["key-transparency", "akd", "verifiable-data-structures"]
+repository = "https://github.com/novifinancial/akd"
 
 [features]
 bench = []
