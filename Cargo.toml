@@ -20,7 +20,7 @@ hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 lazy_static = "1"
 evmap = "10"
-mysql_async = "0.23.1"
+mysql_async = "0.28.1"
 async-trait = "0.1"
 tokio = { version = "0.2", features = ["full"] }
 async-recursion = "0.3"
