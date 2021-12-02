@@ -28,7 +28,7 @@ use tokio::time::{Duration, Instant};
 
 use rayon::prelude::*;
 
-type MySqlError = mysql_async::error::Error;
+type MySqlError = mysql_async::Error;
 
 mod timed_cache;
 use timed_cache::*;
@@ -233,7 +233,7 @@ impl AsyncMySqlDatabase {
 
                 // fail the connection
                 return Err(MySqlError::Driver(
-                    mysql_async::error::DriverError::PoolDisconnected,
+                    mysql_async::DriverError::PoolDisconnected,
                 ));
             }
         };
@@ -328,7 +328,7 @@ impl AsyncMySqlDatabase {
 
     async fn setup_database(conn: mysql_async::Conn) -> core::result::Result<(), MySqlError> {
         let mut tx: mysql_async::Transaction<mysql_async::Conn> = conn
-            .start_transaction(TransactionOptions::default())
+            .start_transaction(TxOpts::default())
             .await?;
         // AZKS table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -372,7 +372,7 @@ impl AsyncMySqlDatabase {
     pub async fn delete_data(&self) -> core::result::Result<(), MySqlError> {
         let conn = self.get_connection().await?;
         let mut tx = conn
-            .start_transaction(TransactionOptions::default())
+            .start_transaction(TxOpts::default())
             .await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_AZKS + "`";
@@ -537,7 +537,7 @@ impl AsyncMySqlDatabase {
     pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
         let conn = self.get_connection().await?;
         let mut tx = conn
-            .start_transaction(TransactionOptions::default())
+            .start_transaction(TxOpts::default())
             .await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
@@ -780,7 +780,7 @@ impl V2Storage for AsyncMySqlDatabase {
         let result = async {
             let conn = self.get_connection().await?;
             let mut tx: Transaction<_> = conn
-                .start_transaction(TransactionOptions::default())
+                .start_transaction(TxOpts::default())
                 .await?;
             // go through each group which is narrowed to a single type
             // applying the changes on the transaction
@@ -952,7 +952,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
                         // Fill temp table with the requested ids
                         let mut tx = conn
-                            .start_transaction(TransactionOptions::default())
+                            .start_transaction(TxOpts::default())
                             .await?;
                         tx = tx.drop_query("SET autocommit=0").await?;
                         tx = tx.drop_query("SET unique_checks=0").await?;
@@ -1033,7 +1033,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     }
                 }
 
-                Ok::<Vec<DbRecord>, mysql_async::error::Error>(results)
+                Ok::<Vec<DbRecord>, mysql_async::Error>(results)
             };
 
             *(self.num_reads.write().await) += 1;
@@ -1259,7 +1259,7 @@ impl V2Storage for AsyncMySqlDatabase {
             );
 
             let mut tx = conn
-                .start_transaction(TransactionOptions::default())
+                .start_transaction(TxOpts::default())
                 .await?;
             tx = tx.drop_query("SET autocommit=0").await?;
             tx = tx.drop_query("SET unique_checks=0").await?;
@@ -1928,7 +1928,7 @@ impl MySqlStorable for DbRecord {
             }
         }
         // fallback
-        let err = MySqlError::Driver(mysql_async::error::DriverError::FromRow { row: row.clone() });
+        let err = MySqlError::Driver(mysql_async::DriverError::FromRow { row: row.clone() });
         Err(err)
     }
 
