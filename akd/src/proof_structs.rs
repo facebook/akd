@@ -19,6 +19,7 @@ pub struct MembershipProof<H: Hasher> {
     pub(crate) label: NodeLabel,
     pub(crate) hash_val: H::Digest,
     pub(crate) parent_labels: Vec<NodeLabel>,
+    #[allow(dead_code)]
     pub(crate) sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
     pub(crate) sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
     pub(crate) dirs: Vec<Direction>,
@@ -28,6 +29,7 @@ pub struct MembershipProof<H: Hasher> {
 /// at a given epoch.
 #[derive(Debug, Clone)]
 pub struct NonMembershipProof<H: Hasher> {
+    #[allow(dead_code)]
     pub(crate) label: NodeLabel,
     pub(crate) longest_prefix: NodeLabel,
     pub(crate) longest_prefix_children_labels: [NodeLabel; ARITY],

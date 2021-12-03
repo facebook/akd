@@ -42,11 +42,16 @@ pub struct ValueStateKey(pub String, pub u64);
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct ValueState {
-    pub(crate) plaintext_val: Values, // This needs to be the plaintext value, to discuss
-    pub(crate) version: u64,          // to discuss
-    pub(crate) label: NodeLabel,
-    pub(crate) epoch: u64,
-    pub(crate) username: AkdKey,
+    /// The plaintext value of the user information in the directory
+    pub plaintext_val: Values, // This needs to be the plaintext value, to discuss
+    /// The version of the user's value-state
+    pub version: u64, // to discuss
+    /// The Node Label
+    pub label: NodeLabel,
+    /// The epoch this value state was published in
+    pub epoch: u64,
+    /// The username associated to this value state (username + epoch is the record key)
+    pub username: AkdKey,
 }
 
 impl crate::storage::Storable for ValueState {
@@ -106,17 +111,12 @@ impl ValueState {
     }
 }
 
-impl evmap::ShallowCopy for ValueState {
-    unsafe fn shallow_copy(&self) -> std::mem::ManuallyDrop<Self> {
-        std::mem::ManuallyDrop::new(self.clone())
-    }
-}
-
 /// Data associated with a given key. That is all the states at the various epochs
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct KeyData {
-    pub(crate) states: Vec<ValueState>,
+    /// The vector of states of key data for a given AkdKey
+    pub states: Vec<ValueState>,
 }
 
 /// Used to retrieve a value's state, for a given key

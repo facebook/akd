@@ -1,0 +1,119 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'akd'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=akd"
+                ],
+                "filter": {
+                    "name": "akd",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug benchmark 'azks'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bench=azks",
+                    "--package=akd"
+                ],
+                "filter": {
+                    "name": "azks",
+                    "kind": "bench"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug MySQL unit tests",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=akd_mysql"
+                ],
+                "filter": {
+                    "name": "akd_mysql",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug POC Repl",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=akd_app",
+                    "--package=akd_app"
+                ],
+                "filter": {
+                    "name": "akd_app",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-d", "--memory"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug POC Publish",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=akd_app",
+                    "--package=akd_app"
+                ],
+                "filter": {
+                    "name": "akd_app",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-d", "--memory", "bench-publish", "100000", "2", "true"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug POC Db Flush",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=akd_app",
+                    "--package=akd_app"
+                ],
+                "filter": {
+                    "name": "akd_app",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-d", "flush"],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
