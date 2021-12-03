@@ -8,7 +8,7 @@
 use akd::directory::Directory;
 use akd::errors::AkdError;
 use akd::storage::types::*;
-use akd::storage::V2Storage;
+use akd::storage::Storage;
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
@@ -36,7 +36,7 @@ async fn get_root_hash<S, H>(
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
-    S: V2Storage + Sync + Send,
+    S: Storage + Sync + Send,
     H: Hasher,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -51,7 +51,7 @@ where
 
 pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S>)
 where
-    S: V2Storage + Sync + Send,
+    S: Storage + Sync + Send,
     H: Hasher,
 {
     info!("Starting the verifiable directory host");

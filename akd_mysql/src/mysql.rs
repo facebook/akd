@@ -12,7 +12,7 @@ use akd::node_state::NodeLabel;
 use akd::storage::types::{
     AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
-use akd::storage::{Storable, V2Storage};
+use akd::storage::{Storable, Storage};
 use akd::ARITY;
 type LocalTransaction = akd::storage::transaction::Transaction;
 use async_trait::async_trait;
@@ -25,8 +25,6 @@ use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
-
-use rayon::prelude::*;
 
 type MySqlError = mysql_async::error::Error;
 
@@ -439,8 +437,9 @@ impl AsyncMySqlDatabase {
         let mut mini_tx = trans;
 
         debug!("BEGIN Computing mysql parameters");
-        let chunked: Vec<_> = records
-            .par_chunks(self.tunable_insert_depth)
+        #[allow(clippy::needless_collect)]
+        let chunked = records
+            .chunks(self.tunable_insert_depth)
             .map(|batch| {
                 if batch.is_empty() {
                     BatchMode::None
@@ -450,16 +449,14 @@ impl AsyncMySqlDatabase {
                     BatchMode::Full(DbRecord::set_batch_params(batch))
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
         debug!("END Computing mysql parameters");
 
         debug!("BEGIN MySQL set batch");
         let head = &records[0];
         let statement = |i: usize| -> String {
             match &head {
-                DbRecord::Azks(_) => {
-                    DbRecord::set_batch_statement::<akd::append_only_zks::Azks>(i)
-                }
+                DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::append_only_zks::Azks>(i),
                 DbRecord::HistoryNodeState(_) => {
                     DbRecord::set_batch_statement::<akd::node_state::HistoryNodeState>(i)
                 }
@@ -474,7 +471,7 @@ impl AsyncMySqlDatabase {
 
         let mut params = vec![];
         let mut fallout: Option<(mysql_async::Params, usize)> = None;
-        for item in chunked.into_iter() {
+        for item in chunked {
             match item {
                 BatchMode::Full(part) => params.push(part),
                 BatchMode::Partial(part, count) => fallout = Some((part, count)),
@@ -588,7 +585,7 @@ impl AsyncMySqlDatabase {
 }
 
 #[async_trait]
-impl V2Storage for AsyncMySqlDatabase {
+impl Storage for AsyncMySqlDatabase {
     async fn log_metrics(&self, level: log::Level) {
         if let Some(cache) = &self.cache {
             cache.log_metrics(level).await
@@ -1741,8 +1738,7 @@ impl MySqlStorable for DbRecord {
                     .map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
                         let back: akd::node_state::NodeStateKey =
-                        akd::node_state::HistoryNodeState::key_from_full_binary(&bin)
-                                .unwrap();
+                            akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
                         vec![
                             (format!("label_len{}", idx), Value::from(back.0.len)),
                             (format!("label_val{}", idx), Value::from(back.0.val)),
@@ -1761,7 +1757,7 @@ impl MySqlStorable for DbRecord {
                     .map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
                         let back: akd::history_tree_node::NodeKey =
-                        akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin)
+                            akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin)
                                 .unwrap();
                         (format!("location{}", idx), Value::from(back.0))
                     })
@@ -1775,7 +1771,7 @@ impl MySqlStorable for DbRecord {
                     .map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
                         let back: akd::storage::types::ValueStateKey =
-                        akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
+                            akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
                         vec![
                             (format!("username{}", idx), Value::from(back.0.clone())),
                             (format!("epoch{}", idx), Value::from(back.1)),
@@ -1795,7 +1791,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::node_state::NodeStateKey =
-                akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
+                    akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "label_len" => back.0.len,
                     "label_val" => back.0.val,
@@ -1805,7 +1801,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryTreeNode => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::history_tree_node::NodeKey =
-                akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin).unwrap();
+                    akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "location" => back.0
                 }))
@@ -1813,7 +1809,7 @@ impl MySqlStorable for DbRecord {
             StorageType::ValueState => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::storage::types::ValueStateKey =
-                akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
+                    akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
                 Some(mysql_async::Params::from(params! {
                     "username" => back.0,
                     "epoch" => back.1
@@ -1852,8 +1848,8 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                 ) {
                     let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: [Option<akd::node_state::HistoryChildState>;
-                        ARITY] = bincode::deserialize(&child_states_bin_vec).unwrap();
+                    let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
+                        bincode::deserialize(&child_states_bin_vec).unwrap();
                     let node_state = AsyncMySqlDatabase::build_history_node_state(
                         value,
                         child_states_decoded,

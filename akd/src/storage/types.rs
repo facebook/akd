@@ -45,7 +45,7 @@ pub struct ValueState {
     /// The plaintext value of the user information in the directory
     pub plaintext_val: Values, // This needs to be the plaintext value, to discuss
     /// The version of the user's value-state
-    pub version: u64,          // to discuss
+    pub version: u64, // to discuss
     /// The Node Label
     pub label: NodeLabel,
     /// The epoch this value state was published in
@@ -108,12 +108,6 @@ impl ValueState {
             epoch,
             username,
         }
-    }
-}
-
-impl evmap::ShallowCopy for ValueState {
-    unsafe fn shallow_copy(&self) -> std::mem::ManuallyDrop<Self> {
-        std::mem::ManuallyDrop::new(self.clone())
     }
 }
 

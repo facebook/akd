@@ -15,7 +15,7 @@ use crate::proof_structs::*;
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-use crate::storage::V2Storage;
+use crate::storage::Storage;
 
 use log::{debug, error, info};
 use rand::{CryptoRng, RngCore};
@@ -44,7 +44,7 @@ pub struct Directory<S> {
     storage: S,
 }
 
-impl<S: V2Storage + Sync + Send> Directory<S> {
+impl<S: Storage + Sync + Send> Directory<S> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -433,7 +433,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher>(
+pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher>(
     akd_dir: &Directory<S>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {

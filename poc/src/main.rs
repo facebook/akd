@@ -9,11 +9,11 @@
 // of this source tree.
 
 use akd::directory::Directory;
+use akd::storage::Storage;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
-use akd::storage::V2Storage;
 use clap::arg_enum;
 use commands::Command;
-use log::{error, info, warn, debug};
+use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::convert::From;

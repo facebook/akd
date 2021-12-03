@@ -1,5 +1,9 @@
 .vs
-.vscode/
+
+.vscode/**
+!.vscode/launch.json
+
+
 **/*/.DS_Store
 Cargo.lock
 **/Cargo.lock
@@ -7,4 +11,4 @@ Cargo.lock
 
 **/target
 
-/poc/log.txt
+**/log.txt

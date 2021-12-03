@@ -7,14 +7,14 @@
 
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use tokio::time::{Duration, Instant};
 use crate::errors::StorageError;
 use crate::history_tree_node::*;
 use crate::node_state::*;
 use crate::storage::types::*;
-use crate::storage::V2Storage;
+use crate::storage::Storage;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use tokio::time::{Duration, Instant};
 
 type Azks = crate::append_only_zks::Azks;
 type HistoryTreeNode = crate::history_tree_node::HistoryTreeNode;
@@ -23,15 +23,13 @@ type HistoryTreeNode = crate::history_tree_node::HistoryTreeNode;
 
 #[cfg(test)]
 mod memory_storage_tests {
-    use serial_test::serial;
     use crate::storage::memory::AsyncInMemoryDatabase;
+    use serial_test::serial;
 
     #[tokio::test]
     #[serial]
-    async fn test_v1_to_v2_db_wrapper() {
-        let mut db = crate::storage::V2FromV1StorageWrapper::new(
-            crate::storage::memory::AsyncInMemoryDbWithCache::new(),
-        );
+    async fn test_v2_in_memory_db_with_caching() {
+        let mut db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
         crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
     }
 
@@ -47,7 +45,7 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: V2Storage + Sync + Send>(db: &mut S) {
+pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &mut S) {
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -55,7 +53,7 @@ pub async fn run_test_cases_for_storage_impl<S: V2Storage + Sync + Send>(db: &mu
 }
 
 // *** New Test Helper Functions *** //
-async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
+async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === Azks storage === //
     let azks = Azks {
         root: 3,
@@ -119,7 +117,7 @@ async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     let node_state = HistoryNodeState {
         value: vec![],
         child_states: [None, None],
-        key: key,
+        key,
     };
     let set_result = storage
         .set(DbRecord::HistoryNodeState(node_state.clone()))
@@ -159,7 +157,7 @@ async fn test_get_and_set_item<Ns: V2Storage>(storage: &Ns) {
     }
 }
 
-async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
+async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(
@@ -183,7 +181,7 @@ async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
                     val: 1u64,
                     len: 1u32,
                 },
-                epoch: epoch,
+                epoch,
                 username: AkdKey(user.clone()),
             }));
         }
@@ -197,7 +195,7 @@ async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
     let got = storage
         .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10))
         .await;
-    if let Err(_) = got {
+    if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
     }
 
@@ -320,7 +318,7 @@ async fn test_batch_get_items<Ns: V2Storage>(storage: &Ns) {
     }
 }
 
-async fn test_transactions<S: V2Storage + Sync + Send>(storage: &mut S) {
+async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(
@@ -344,7 +342,7 @@ async fn test_transactions<S: V2Storage + Sync + Send>(storage: &mut S) {
                     val: 1u64,
                     len: 1u32,
                 },
-                epoch: epoch,
+                epoch,
                 username: AkdKey(user.clone()),
             }));
         }
@@ -372,12 +370,12 @@ async fn test_transactions<S: V2Storage + Sync + Send>(storage: &mut S) {
     let got = storage
         .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10))
         .await;
-    if let Err(_) = got {
+    if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
     }
 
     let tic = Instant::now();
-    assert_eq!(true, storage.begin_transaction().await);
+    assert!(storage.begin_transaction().await);
     assert_eq!(Ok(()), storage.batch_set(new_data).await);
     assert_eq!(Ok(()), storage.commit_transaction().await);
     let toc: Duration = Instant::now() - tic;
@@ -386,12 +384,12 @@ async fn test_transactions<S: V2Storage + Sync + Send>(storage: &mut S) {
     let got = storage
         .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10 + 10000))
         .await;
-    if let Err(_) = got {
+    if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
     }
 }
 
-async fn test_user_data<S: V2Storage + Sync + Send>(storage: &S) {
+async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
     let rand_user: String = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)

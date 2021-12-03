@@ -55,7 +55,7 @@ async fn main() {
 
     let mut existing_keys = Vec::<AkdKey>::new();
 
-    let db = akd::storage::V2FromV1StorageWrapper::new(AsyncInMemoryDbWithCache::new());
+    let db = AsyncInMemoryDbWithCache::new();
     let mut akd_dir = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
         .await
         .unwrap();
@@ -87,14 +87,14 @@ async fn main() {
     );
     println!("*********************************************************************************");
     // Publish measurement
-    db.db.clear_stats();
+    db.clear_stats().await;
     akd_dir
         .publish::<Blake3_256<BaseElement>>(updates.clone(), false)
         .await
         .unwrap();
 
-    db.db.print_hashmap_distribution();
-    db.db.print_stats();
+    db.print_hashmap_distribution().await;
+    db.print_stats().await;
     new_keys = updates
         .clone()
         .iter()
@@ -131,7 +131,7 @@ async fn main() {
     println!("* Measurements for looking up and verifying lookups for {} users in a directory of {} existing users *", num_lookups, existing_keys.len());
     println!("*****************************************************************************************************");
     // Lookup and verification of lookup measurement
-    db.db.clear_stats();
+    db.clear_stats().await;
 
     let current_azks = akd_dir.retrieve_current_azks().await.unwrap();
 
@@ -150,8 +150,8 @@ async fn main() {
         .unwrap();
     }
 
-    db.db.print_hashmap_distribution();
-    db.db.print_stats();
+    db.print_hashmap_distribution().await;
+    db.print_stats().await;
 
     let num_key_history = 10;
     let rng: ThreadRng = thread_rng();
@@ -161,7 +161,7 @@ async fn main() {
     println!("* Measurements for running and verifying key history of {} users in a directory of {} existing users *", num_key_history, existing_keys.len());
     println!("******************************************************************************************************");
     // Key history and verification measurement
-    db.db.clear_stats();
+    db.clear_stats().await;
 
     for i in 0..num_key_history {
         // Get a new lookup proof for the current user
@@ -180,15 +180,15 @@ async fn main() {
         .unwrap();
     }
 
-    db.db.print_hashmap_distribution();
-    db.db.print_stats();
+    db.print_hashmap_distribution().await;
+    db.print_stats().await;
 
     let total_ep = new_epochs + 2;
     println!("*************************************************************************************************");
     println!("* Measurements for running and verifying audit of {} epochs in a directory of {} existing users *", total_ep, existing_keys.len());
     println!("*************************************************************************************************");
     // Key history and verification measurement
-    db.db.clear_stats();
+    db.clear_stats().await;
 
     let current_azks = akd_dir.retrieve_current_azks().await.unwrap();
 
@@ -213,6 +213,6 @@ async fn main() {
         }
     }
 
-    db.db.print_hashmap_distribution();
-    db.db.print_stats();
+    db.print_hashmap_distribution().await;
+    db.print_stats().await;
 }

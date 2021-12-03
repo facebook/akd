@@ -55,6 +55,12 @@ impl Transaction {
     }
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Transaction {
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
