@@ -27,19 +27,26 @@ type Blake3 = Blake3_256<BaseElement>;
 
 static EPOCH: OnceCell<Instant> = OnceCell::new();
 
+static LOG: OnceCell<u64> = OnceCell::new();
+
 // ================== Logging ================== //
 
 pub(crate) fn log_init(level: Level) {
     EPOCH.get_or_init(Instant::now);
+    LOG.get_or_init(|| {
+        if let Ok(logger) = FileLogger::new(String::from("integration_test.log")) {
+            let loggers: Vec<Box<dyn log::Log>> = vec![Box::new(logger)];
+            let mlogger = multi_log::MultiLogger::new(loggers);
 
-    if let Ok(logger) = FileLogger::new(String::from("test_log.txt")) {
-        let loggers: Vec<Box<dyn log::Log>> = vec![Box::new(logger)];
-        if let Err(err) = multi_log::MultiLogger::init(loggers, level) {
-            panic!("Error initializing multi-logger {}", err);
+            log::set_max_level(level.to_level_filter());
+            if let Err(error) = log::set_boxed_logger(Box::new(mlogger)) {
+                panic!("Error initializing multi-logger {}", error);
+            }
+        } else {
+            panic!("Error creating file logger!");
         }
-    } else {
-        panic!("Error creating file logger!");
-    }
+        0
+    });
 }
 
 pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {

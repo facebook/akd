@@ -121,7 +121,7 @@ async fn main() {
 
     let level = if cli.debug {
         // File-logging enabled in debug mode
-        match logs::FileLogger::new("log.txt") {
+        match logs::FileLogger::new("akd_app.log") {
             Err(err) => println!("Error initializing file logger {}", err),
             Ok(flogger) => loggers.push(Box::new(flogger)),
         }

@@ -6,12 +6,14 @@
 // of this source tree.
 
 use akd_mysql::mysql::*;
-use log::{warn, error};
+use log::{warn, error, info};
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_directory_publish_to_mysql() {
+async fn test_directory_operations() {
     crate::test_util::log_init(log::Level::Info);
+
+    info!("\n\n******** Starting MySQL Directory Operations Integration Test ********\n\n");
 
     if AsyncMySqlDatabase::test_guard() {
         // create the "test" database
@@ -55,4 +57,6 @@ async fn test_directory_publish_to_mysql() {
     } else {
         warn!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
     }
+
+    info!("\n\n******** Completed MySQL Directory Operations Integration Test ********\n\n");
 }

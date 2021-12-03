@@ -9,4 +9,7 @@
 mod test_util;
 
 #[cfg(test)]
-mod mysql_dir_tests;
+mod mysql_tests;
+
+#[cfg(test)]
+mod memory_tests;
