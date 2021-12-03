@@ -40,7 +40,7 @@ jobs:
           command: test
       - name: Cleanup docker container
         run: docker-compose -f docker-compose.yml down -v
-      - name: Dump integration test logs for review
+      - name: Copy integration test logs for review
         run: cat integration_tests/integration_test.log
 
   clippy:
