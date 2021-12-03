@@ -3,7 +3,7 @@ version: '3.3'
 # Use root/example as user/password credentials
 services:
   db:
-    container_name: seemless-test-db
+    container_name: akd-test-db
     image: mysql
     command: --default-authentication-plugin=mysql_native_password
     restart: unless-stopped

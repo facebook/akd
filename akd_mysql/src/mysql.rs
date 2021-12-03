@@ -553,12 +553,45 @@ impl AsyncMySqlDatabase {
         Ok(())
     }
 
+    fn try_dockers() -> std::io::Result<std::process::Output> {
+        let potential_docker_paths = vec![
+            "/usr/local/bin/docker",
+            "/usr/bin/docker",
+            "/sbin/docker",
+            "/bin/docker",
+            "docker",
+        ];
+
+        let mut output = Err(std::io::Error::from_raw_os_error(2));
+
+        for path in potential_docker_paths {
+            output = Command::new(path)
+                .args(["container", "ls", "-f", "name=akd-test-db"])
+                .output();
+            match &output {
+                Ok(result) => {
+                    if let (Ok(out), Ok(err)) = (
+                        std::str::from_utf8(&result.stdout),
+                        std::str::from_utf8(&result.stderr),
+                    ) {
+                        info!("Docker ls output\nSTDOUT: {}\nSTDERR: {}", out, err);
+                    }
+                    break;
+                }
+                Err(err) => {
+                    warn!("Docker ls returned error \"{:?}\"\nTrying next possible docker command location", err);
+                }
+            }
+        }
+
+        output
+    }
+
     /// Determine if the MySQL environment is available for execution (i.e. docker container is running)
     #[allow(dead_code)]
     pub fn test_guard() -> bool {
-        let output = Command::new("/usr/local/bin/docker")
-            .args(["container", "ls", "-f", "name=seemless-test-db"])
-            .output();
+        let output = Self::try_dockers();
+
         // docker threw some kind of error running, assume down
         if let Ok(result) = output {
             // the result will look like
