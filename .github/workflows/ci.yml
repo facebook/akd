@@ -28,11 +28,10 @@ jobs:
         run: docker ps -a
       - name: Verify MySQL db connection
         run: |
-          while ! mysqladmin -P 8001 -h"127.0.0.1" --silent ping; do
-            mysqladmin -P 8001  -h"127.0.0.1" ping --silent
+          while ! docker exec akd-test-db mysql --user=root --password=example -e "SHOW DATABASES" >/dev/null 2>&1; do
             sleep 1
           done
-          echo "MySQL container is up and healthy"
+          echo "MySQL container is up"
       - name: Check logs
         run: docker logs akd-test-db
       - name: Test
@@ -40,7 +39,7 @@ jobs:
         with:
           command: test
       - name: Cleanup docker container
-        run: docker-compose -f docker-compose.yml down
+        run: docker-compose -f docker-compose.yml down -v
 
   clippy:
     name: Clippy
