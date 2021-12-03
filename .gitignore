@@ -12,3 +12,4 @@ Cargo.lock
 **/target
 
 **/log.txt
+integration_tests/test_log.txt
