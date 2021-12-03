@@ -12,4 +12,9 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: example
       MYSQL_DATABASE: default
-    options: --health-cmd="mysqladmin -P 8001 --password=example ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    healthcheck:
+      test: ["CMD", "mysqladmin", "-P", "8001", "--password=example", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
