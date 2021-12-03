@@ -3,6 +3,7 @@ name = "akd_integration_tests"
 version = "0.0.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
+publish = false
 
 [dependencies]
 winter-crypto = "0.1"

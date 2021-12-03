@@ -1,9 +1,10 @@
 [package]
 name = "akd_app"
 default-run = "akd_app"
-version = "0.1.0"
+version = "0.0.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
+publish = false
 
 [dependencies]
 winter-crypto = "0.1"
