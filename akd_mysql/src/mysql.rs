@@ -559,7 +559,7 @@ impl AsyncMySqlDatabase {
             "/usr/bin/docker",
             "/sbin/docker",
             "/bin/docker",
-            "docker"
+            "docker",
         ];
 
         let mut output = Err(std::io::Error::from_raw_os_error(2));
@@ -577,7 +577,7 @@ impl AsyncMySqlDatabase {
                         info!("Docker ls output\nSTDOUT: {}\nSTDERR: {}", out, err);
                     }
                     break;
-                },
+                }
                 Err(err) => {
                     warn!("Docker ls returned error \"{:?}\"\nTrying next possible docker command location", err);
                 }
