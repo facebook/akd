@@ -557,7 +557,7 @@ impl AsyncMySqlDatabase {
     #[allow(dead_code)]
     pub fn test_guard() -> bool {
         let output = Command::new("/usr/local/bin/docker")
-            .args(["container", "ls", "-f", "name=seemless-test-db"])
+            .args(["container", "ls", "-f", "name=akd-test-db"])
             .output();
         // docker threw some kind of error running, assume down
         if let Ok(result) = output {

@@ -22,6 +22,12 @@ jobs:
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
+      - name: Build the docker-compose stack
+        run: docker-compose -f docker-compose.yml up -d
+      - name: Check running containers
+        run: docker ps -a
+      - name: Check logs
+        run: docker logs akd-test-db
       - name: Test
         uses: actions-rs/cargo@v1
         with:
