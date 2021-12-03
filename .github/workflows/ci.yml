@@ -32,7 +32,7 @@ jobs:
             sleep 1
           done
           echo "MySQL container is up"
-      - name: Check logs
+      - name: Check container akd-test-db logs
         run: docker logs akd-test-db
       - name: Test
         uses: actions-rs/cargo@v1
@@ -40,6 +40,8 @@ jobs:
           command: test
       - name: Cleanup docker container
         run: docker-compose -f docker-compose.yml down -v
+      - name: Dump integration test logs for review
+        run: cat integration_tests/integration_test.log
 
   clippy:
     name: Clippy
