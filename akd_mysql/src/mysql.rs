@@ -559,6 +559,15 @@ impl AsyncMySqlDatabase {
         let output = Command::new("/usr/local/bin/docker")
             .args(["container", "ls", "-f", "name=akd-test-db"])
             .output();
+        match &output {
+            Ok(result) => {
+                if let (Ok(out), Ok(err)) = (std::str::from_utf8(&result.stdout), std::str::from_utf8(&result.stderr)) {
+                    info!("Docker ls output\nSTDOUT: {}\nSTDERR: {}", out, err);
+                }
+            },
+            Err(err) => warn!("Docker ls returned error: {:?}", err),
+        }
+
         // docker threw some kind of error running, assume down
         if let Ok(result) = output {
             // the result will look like
