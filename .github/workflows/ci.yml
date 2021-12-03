@@ -28,7 +28,8 @@ jobs:
         run: docker ps -a
       - name: Verify MySQL db connection
         run: |
-          while ! mysqladmin ping -P"8001" --silent; do
+          while ! mysqladmin ping -P 8001 --silent; do
+            mysqladmin ping -P 8001
             sleep 1
           done
           echo "MySQL container is up and healthy"
