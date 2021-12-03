@@ -327,7 +327,7 @@ impl AsyncMySqlDatabase {
     }
 
     async fn setup_database(conn: mysql_async::Conn) -> core::result::Result<(), MySqlError> {
-        let mut tx: mysql_async::Transaction<mysql_async::Conn> = conn
+        let mut tx: mysql_async::Transaction<'a> = conn
             .start_transaction(TxOpts::default())
             .await?;
         // AZKS table
@@ -396,8 +396,8 @@ impl AsyncMySqlDatabase {
     async fn internal_set(
         &self,
         record: DbRecord,
-        trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
-    ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
+        trans: Option<mysql_async::Transaction<'a>>,
+    ) -> core::result::Result<Option<mysql_async::Transaction<'a>>, MySqlError> {
         *(self.num_writes.write().await) += 1;
 
         debug!("BEGIN MySQL set");
@@ -430,8 +430,8 @@ impl AsyncMySqlDatabase {
     async fn internal_batch_set(
         &self,
         records: Vec<DbRecord>,
-        trans: mysql_async::Transaction<mysql_async::Conn>,
-    ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
+        trans: mysql_async::Transaction<'a>,
+    ) -> core::result::Result<mysql_async::Transaction<'a>, MySqlError> {
         if records.is_empty() {
             return Ok(trans);
         }
