@@ -23,9 +23,15 @@ jobs:
           toolchain: ${{matrix.toolchain}}
           override: true
       - name: Build the docker-compose stack
-        run: docker-compose -f docker-compose.ci.yml up -d
+        run: docker-compose -f docker-compose.yml up -d
       - name: Check running containers
         run: docker ps -a
+      - name: Verify MySQL db connection
+        run: |
+          while ! mysqladmin ping -P"8001" --silent; do
+            sleep 1
+          done
+          echo "MySQL container is up and healthy"
       - name: Check logs
         run: docker logs akd-test-db
       - name: Test
@@ -33,7 +39,7 @@ jobs:
         with:
           command: test
       - name: Cleanup docker container
-        run: docker-compose -f docker-compose.ci.yml down
+        run: docker-compose -f docker-compose.yml down
 
   clippy:
     name: Clippy
