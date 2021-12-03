@@ -6,7 +6,7 @@
 // of this source tree.
 
 use akd_mysql::mysql::*;
-use log::{warn, error, info};
+use log::{error, info, warn};
 
 #[tokio::test]
 #[serial_test::serial]

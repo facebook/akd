@@ -9,7 +9,7 @@ extern crate thread_id;
 
 use akd::directory::Directory;
 use akd::storage::types::{AkdKey, Values};
-use log::{Level, Metadata, Record, info};
+use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
