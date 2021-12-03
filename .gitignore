@@ -11,4 +11,4 @@ Cargo.lock
 
 **/target
 
-**/log.txt
+**/*.log

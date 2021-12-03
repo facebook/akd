@@ -507,7 +507,7 @@ impl AsyncMySqlDatabase {
 
     /// Create the test database
     #[allow(dead_code)]
-    pub(crate) async fn create_test_db<T: Into<String>>(
+    pub async fn create_test_db<T: Into<String>>(
         endpoint: T,
         user: Option<T>,
         password: Option<T>,
@@ -530,7 +530,7 @@ impl AsyncMySqlDatabase {
 
     /// Cleanup the test data table
     #[allow(dead_code)]
-    pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
+    pub async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
         let conn = self.get_connection().await?;
         let mut tx = conn
             .start_transaction(TransactionOptions::default())
@@ -555,7 +555,7 @@ impl AsyncMySqlDatabase {
 
     /// Determine if the MySQL environment is available for execution (i.e. docker container is running)
     #[allow(dead_code)]
-    pub(crate) fn test_guard() -> bool {
+    pub fn test_guard() -> bool {
         let output = Command::new("/usr/local/bin/docker")
             .args(["container", "ls", "-f", "name=seemless-test-db"])
             .output();
