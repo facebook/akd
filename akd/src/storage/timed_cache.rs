@@ -19,14 +19,14 @@ const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
 // clean the cache every 15s
 const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
 
-pub(crate) struct CachedItem {
+struct CachedItem {
     expiration: Instant,
     data: DbRecord,
 }
 
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
-pub(crate) struct TimedCache {
+pub struct TimedCache {
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     can_clean: Arc<tokio::sync::RwLock<bool>>,
@@ -35,7 +35,8 @@ pub(crate) struct TimedCache {
 }
 
 impl TimedCache {
-    pub(crate) async fn log(&self, level: log::Level) {
+    /// Log cache access metrics along with size information
+    pub async fn log_metrics(&self, level: log::Level) {
         let mut hit = self.hit_count.write().await;
         let hit_count = *hit;
         *hit = 0;
@@ -103,7 +104,9 @@ impl TimedCache {
         }
     }
 
-    pub(crate) fn new(o_lifetime: Option<Duration>) -> Self {
+    /// Create a new timed cache instance. You can supply an optional item lifetime parameter
+    /// or take the default (30s)
+    pub fn new(o_lifetime: Option<Duration>) -> Self {
         let lifetime = match o_lifetime {
             Some(life) if life > Duration::from_secs(1) => life,
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
@@ -117,7 +120,8 @@ impl TimedCache {
         }
     }
 
-    pub(crate) async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
+    /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned
+    pub async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         self.clean().await;
 
         debug!("BEGIN cache retrieve {:?}", key);
@@ -140,7 +144,8 @@ impl TimedCache {
         None
     }
 
-    pub(crate) async fn put(&self, record: &DbRecord) {
+    /// Put an item into the cache
+    pub async fn put(&self, record: &DbRecord) {
         self.clean().await;
 
         debug!("BEGIN cache put");
@@ -155,7 +160,8 @@ impl TimedCache {
         debug!("END cache put");
     }
 
-    pub(crate) async fn batch_put(&self, records: &[DbRecord]) {
+    /// Put a batch of items into the cache, utilizing a single write lock
+    pub async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
         debug!("BEGIN cache put batch");
@@ -171,21 +177,23 @@ impl TimedCache {
         debug!("END cache put batch");
     }
 
-    #[allow(dead_code)]
-    pub(crate) async fn flush(&self) {
+    /// Flush the cache
+    pub async fn flush(&self) {
         debug!("BEGIN cache flush");
         let mut guard = self.map.write().await;
         (*guard).clear();
         debug!("END cache flush");
     }
 
-    pub(crate) async fn disable_clean(&self) {
+    /// Disable cache-cleaning (i.e. during a transaction)
+    pub async fn disable_clean(&self) {
         debug!("Disabling MySQL object cache cleaning");
         let mut guard = self.can_clean.write().await;
         (*guard) = false;
     }
 
-    pub(crate) async fn enable_clean(&self) {
+    /// Re-enable cache cleaning (i.e. when a transaction is over)
+    pub async fn enable_clean(&self) {
         debug!("Enabling MySQL object cache cleaning");
         let mut guard = self.can_clean.write().await;
         (*guard) = true;

@@ -1,4 +1,3 @@
-#![cfg(test)]
 // Copyright (c) Facebook, Inc. and its affiliates.
 //
 // This source code is licensed under both the MIT license found in the
@@ -6,16 +5,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! Test utilities of storage layers implementing the storage primatives for AKD
+
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use serial_test::serial;
 use tokio::time::{Duration, Instant};
-
 use crate::errors::StorageError;
 use crate::history_tree_node::*;
 use crate::node_state::*;
-use crate::storage::memory::AsyncInMemoryDatabase;
-use crate::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use crate::storage::types::*;
 use crate::storage::V2Storage;
 
@@ -24,74 +21,37 @@ type HistoryTreeNode = crate::history_tree_node::HistoryTreeNode;
 
 // *** Tests *** //
 
-#[tokio::test]
-#[serial]
-async fn test_v1_to_v2_db_wrapper() {
-    let mut db = crate::storage::V2FromV1StorageWrapper::new(
-        crate::storage::memory::AsyncInMemoryDbWithCache::new(),
-    );
-    test_get_and_set_item(&db).await;
-    test_user_data(&db).await;
-    test_transactions(&mut db).await;
-    test_batch_get_items(&db).await;
-}
+#[cfg(test)]
+mod memory_storage_tests {
+    use serial_test::serial;
+    use crate::storage::memory::AsyncInMemoryDatabase;
 
-#[tokio::test]
-#[serial]
-async fn test_v2_in_memory_db() {
-    let mut db = AsyncInMemoryDatabase::new();
-    test_get_and_set_item(&db).await;
-    test_user_data(&db).await;
-    test_transactions(&mut db).await;
-    test_batch_get_items(&db).await;
-}
-
-#[tokio::test]
-#[serial]
-async fn test_mysql_db() {
-    if AsyncMySqlDatabase::test_guard() {
-        if let Err(error) = AsyncMySqlDatabase::create_test_db(
-            "localhost",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-        )
-        .await
-        {
-            panic!("Error creating test database: {}", error);
-        }
-
-        let mut mysql_db = AsyncMySqlDatabase::new(
-            "localhost",
-            "test_db",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-            MySqlCacheOptions::None,
-            200,
-        )
-        .await;
-
-        if let Err(error) = mysql_db.delete_data().await {
-            println!("Error cleaning mysql prior to test suite: {}", error);
-        }
-
-        // The test cases
-        test_get_and_set_item(&mysql_db).await;
-        test_user_data(&mysql_db).await;
-        test_transactions(&mut mysql_db).await;
-        test_batch_get_items(&mysql_db).await;
-
-        // clean the test infra
-        if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
-            println!(
-                "ERROR: Failed to clean MySQL test database with error {}",
-                error
-            );
-        }
-    } else {
-        println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+    #[tokio::test]
+    #[serial]
+    async fn test_v1_to_v2_db_wrapper() {
+        let mut db = crate::storage::V2FromV1StorageWrapper::new(
+            crate::storage::memory::AsyncInMemoryDbWithCache::new(),
+        );
+        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_v2_in_memory_db() {
+        let mut db = AsyncInMemoryDatabase::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
+    }
+}
+
+// *** Run the test cases for a given data-layer impl *** //
+/// Run the storage-layer test suite for a given storage implementation.
+/// This is public because it can be used by other implemented storage layers
+/// for consistency checks (e.g. mysql, memcached, etc)
+pub async fn run_test_cases_for_storage_impl<S: V2Storage + Sync + Send>(db: &mut S) {
+    test_get_and_set_item(db).await;
+    test_user_data(db).await;
+    test_transactions(db).await;
+    test_batch_get_items(db).await;
 }
 
 // *** New Test Helper Functions *** //

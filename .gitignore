@@ -1,10 +1,10 @@
 .vs
 .vscode/
-src/.DS_Store
-/target
+**/*/.DS_Store
 Cargo.lock
+**/Cargo.lock
 **/*.rs.bk
 
-/poc/src/.DS_Store
-/poc/target
+**/target
+
 /poc/log.txt

@@ -1,0 +1,31 @@
+[package]
+name = "akd_mysql"
+version = "0.3.0"
+authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+description = "A MySQL storage layer implementation for an auditable key directory (AKD)"
+license = "MIT"
+edition = "2018"
+keywords = ["key-transparency", "akd", "verifiable-data-structures", "mysql"]
+repository = "https://github.com/novifinancial/akd"
+
+[features]
+bench = []
+
+[dependencies]
+bincode = "1"
+winter-crypto = "0.1"
+winter-utils = "0.1"
+winter-math = "0.1"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+async-trait = "0.1"
+tokio = { version = "0.2", features = ["full"] }
+async-recursion = "0.3"
+mysql_async = "0.23.1"
+rayon = "1.5.1"
+log = { version = "0.4.8", features = ["kv_unstable"] }
+akd = { path = "../akd" }
+
+[dev-dependencies]
+criterion = "0.3"
+serial_test = "0.5"

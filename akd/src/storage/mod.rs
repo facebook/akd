@@ -18,9 +18,9 @@ use std::hash::Hash;
 use std::marker::Send;
 
 // This holds the types used in the storage layer
-pub mod tests;
 pub mod transaction;
 pub mod types;
+pub mod timed_cache;
 
 use crate::storage::transaction::Transaction;
 
@@ -28,7 +28,8 @@ use crate::storage::transaction::Transaction;
 Various implementations supported by the library are imported here and usable at various checkpoints
 */
 pub mod memory;
-pub mod mysql;
+
+pub mod tests;
 
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {

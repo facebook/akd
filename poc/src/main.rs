@@ -9,7 +9,7 @@
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
+use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use akd::storage::V2Storage;
 use clap::arg_enum;
 use commands::Command;
@@ -189,7 +189,7 @@ async fn process_input(
 
                 let mut data = Vec::new();
                 for value in values.iter() {
-                    let state = akd::storage::mysql::AsyncMySqlDatabase::build_user_state(
+                    let state = akd_mysql::mysql::AsyncMySqlDatabase::build_user_state(
                         value.clone(),
                         value.clone(),
                         1u64,
