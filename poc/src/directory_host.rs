@@ -67,9 +67,16 @@ where
                     .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))], false)
                     .await
                 {
-                    Ok(_) => {
+                    Ok(EpochHash(epoch, hash)) => {
                         let toc = Instant::now() - tic;
-                        let msg = format!("PUBLISHED '{}' = '{}' in {} s", a, b, toc.as_secs_f64());
+                        let msg = format!(
+                            "PUBLISHED '{}' = '{}' in {} s (epoch: {}, root hash: {})",
+                            a,
+                            b,
+                            toc.as_secs_f64(),
+                            epoch,
+                            hex::encode(hash)
+                        );
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {
