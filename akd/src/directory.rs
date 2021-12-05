@@ -14,7 +14,9 @@ use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
-use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values, EpochHash};
+use crate::storage::types::{
+    AkdKey, DbRecord, EpochHash, ValueState, ValueStateRetrievalFlag, Values,
+};
 use crate::storage::Storage;
 
 use log::{debug, error, info};
@@ -165,13 +167,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
         }
 
-        let root_hash = current_azks
-            .get_root_hash::<_, H>(&self.storage)
-            .await?;
-        let result = EpochHash(
-            self.current_epoch,
-            root_hash
-        );
+        let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
+        let result = EpochHash(self.current_epoch, root_hash);
 
         self.current_epoch = next_epoch;
 
