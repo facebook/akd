@@ -66,7 +66,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         })
     }
 
-    /// Updates the directory to inclulde the updated key-value pairs.
+    /// Updates the directory to include the updated key-value pairs.
     pub async fn publish<H: Hasher>(
         &mut self,
         updates: Vec<(AkdKey, Values)>,
