@@ -149,8 +149,7 @@ impl AsyncMySqlDatabase {
         depth: usize,
     ) -> Self {
         let dport = port.unwrap_or(3306u16);
-        let mut builder = OptsBuilder::new();
-        builder
+        let mut builder = OptsBuilder::default()
             .ip_or_hostname(endpoint)
             .db_name(Option::from(database))
             .user(user)
@@ -285,7 +284,7 @@ impl AsyncMySqlDatabase {
         let mut attempts = 1;
 
         loop {
-            let ip = opts.get_ip_or_hostname();
+            let ip = opts.ip_or_hostname();
             let pool_options = opts.clone();
             let pool = Pool::new(pool_options);
             let conn = pool.get_conn().await;
@@ -518,7 +517,7 @@ impl AsyncMySqlDatabase {
         port: Option<u16>,
     ) -> core::result::Result<(), MySqlError> {
         let dport = port.unwrap_or(3306u16);
-        let mut builder = OptsBuilder::new();
+        let mut builder = OptsBuilder::default();
         builder
             .ip_or_hostname(endpoint)
             .user(user)
