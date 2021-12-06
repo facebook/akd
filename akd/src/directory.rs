@@ -168,13 +168,12 @@ impl<S: Storage + Sync + Send> Directory<S> {
         }
 
         let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
-        let result = EpochHash(self.current_epoch, root_hash);
 
         self.current_epoch = next_epoch;
 
         self.storage.log_metrics(log::Level::Info).await;
 
-        Ok(result)
+        Ok(EpochHash(self.current_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
