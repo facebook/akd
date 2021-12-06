@@ -14,9 +14,7 @@ use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
-use crate::storage::types::{
-    AkdKey, DbRecord, EpochHash, ValueState, ValueStateRetrievalFlag, Values,
-};
+use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
 use crate::storage::Storage;
 
 use log::{debug, error, info};
@@ -25,6 +23,10 @@ use rand::{CryptoRng, RngCore};
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
+
+/// Root hash of the tree and its associated epoch
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 
 impl Values {
     /// Gets a random value for a AKD

@@ -6,6 +6,7 @@
 // of this source tree.
 
 use akd::directory::Directory;
+use akd::directory::EpochHash;
 use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::Storage;
