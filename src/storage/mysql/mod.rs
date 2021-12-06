@@ -220,11 +220,11 @@ impl AsyncMySqlDatabase {
         }
     }
 
-    async fn get_connection(&self) -> Result<mysql_async::Conn, MySqlError> {
-        let connection = {
+    async fn get_connection(&self) -> Result<mysql_async::Conn> {
+        let mut connection = {
             if self.is_healthy().await {
                 let connection_pool_guard = self.pool.read().await;
-                (*connection_pool_guard).get_conn().await?
+                connection_pool_guard.get_conn().await?
             } else {
                 // Connection pool is currently unhealthy and queries are
                 // disallowed. Connection pool is being async refreshed in
@@ -369,7 +369,7 @@ impl AsyncMySqlDatabase {
 
     /// Delete all the data in the tables
     pub async fn delete_data(&self) -> core::result::Result<(), MySqlError> {
-        let conn = self.get_connection().await?;
+        let mut conn = self.get_connection().await?;
         let mut tx = conn
             .start_transaction(TxOpts::default())
             .await?;
