@@ -101,7 +101,7 @@ struct Cli {
     #[structopt(
         long = "multirow_size",
         short = "m",
-        name = "MySQL mutli-row insert size",
+        name = "MySQL multi-row insert size",
         default_value = "100"
     )]
     mysql_insert_depth: usize,
