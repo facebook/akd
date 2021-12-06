@@ -12,8 +12,6 @@ use crate::storage::Storable;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
-use winter_crypto::Hasher;
-
 /// Various elements that can be stored
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
 pub enum StorageType {
@@ -39,10 +37,6 @@ pub struct Values(pub String);
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ValueStateKey(pub String, pub u64);
-
-/// Root hash of the tree and its associated epoch
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 
 /// The state of the value for a given key, starting at a particular epoch.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
