@@ -242,10 +242,7 @@ impl AsyncMySqlDatabase {
         // large blob entries instead of truncating them with a warning.
         // This is essential for our system, since SEE relies on all data in our
         // XDB being exactly what it wrote.
-        let connection = connection
-            .drop_query("SET SESSION sql_mode = 'TRADITIONAL'")
-            .await?;
-
+        connection.query_drop("SET SESSION sql_mode = 'TRADITIONAL'").await?;
         Ok(connection)
     }
 
@@ -335,7 +332,7 @@ impl AsyncMySqlDatabase {
             + "` (`key` SMALLINT UNSIGNED NOT NULL, `root` BIGINT UNSIGNED NOT NULL,"
             + " `epoch` BIGINT UNSIGNED NOT NULL, `num_nodes` BIGINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`key`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // History tree nodes table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -344,7 +341,7 @@ impl AsyncMySqlDatabase {
             + " `label_val` BIGINT UNSIGNED NOT NULL, `epochs` VARBINARY(2000),"
             + " `parent` BIGINT UNSIGNED NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`location`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // History node states table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -352,7 +349,7 @@ impl AsyncMySqlDatabase {
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, "
             + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // User data table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -360,7 +357,7 @@ impl AsyncMySqlDatabase {
             + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
             + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
             + " PRIMARY KEY(`username`, `epoch`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // if we got here, we're good to commit. Transaction's will auto-rollback when memory freed if commit wasn't done.
         tx.commit().await?;
@@ -375,16 +372,16 @@ impl AsyncMySqlDatabase {
             .await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_AZKS + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_USER + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         tx.commit().await?;
 
@@ -525,7 +522,7 @@ impl AsyncMySqlDatabase {
             .tcp_port(dport);
         let opts: Opts = builder.into();
         let conn = Conn::new(opts).await?;
-        conn.drop_query(r"CREATE DATABASE IF NOT EXISTS test_db")
+        conn.query_drop(r"CREATE DATABASE IF NOT EXISTS test_db")
             .await?;
 
         Ok(())
@@ -540,16 +537,16 @@ impl AsyncMySqlDatabase {
             .await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         tx.commit().await?;
 
@@ -783,9 +780,9 @@ impl V2Storage for AsyncMySqlDatabase {
                 .await?;
             // go through each group which is narrowed to a single type
             // applying the changes on the transaction
-            tx = tx.drop_query("SET autocommit=0").await?;
-            tx = tx.drop_query("SET unique_checks=0").await?;
-            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+            tx.query_drop("SET autocommit=0").await?;
+            tx.query_drop("SET unique_checks=0").await?;
+            tx.query_drop("SET foreign_key_checks=0").await?;
 
             for (_key, mut value) in groups.into_iter() {
                 if !value.is_empty() {
@@ -822,9 +819,9 @@ impl V2Storage for AsyncMySqlDatabase {
                 }
             }
 
-            tx = tx.drop_query("SET autocommit=1").await?;
-            tx = tx.drop_query("SET unique_checks=1").await?;
-            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+            tx.query_drop("SET autocommit=1").await?;
+            tx.query_drop("SET unique_checks=1").await?;
+            tx.query_drop("SET foreign_key_checks=1").await?;
 
             tx.commit().await?;
             Ok::<(), MySqlError>(())
@@ -946,16 +943,16 @@ impl V2Storage for AsyncMySqlDatabase {
                 let results =
                     if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
                         // Create the temp table of ids
-                        let out = conn.drop_query(create_table_cmd).await;
+                        let out = conn.query_drop(create_table_cmd).await;
                         conn = self.check_for_infra_error(out)?;
 
                         // Fill temp table with the requested ids
                         let mut tx = conn
                             .start_transaction(TxOpts::default())
                             .await?;
-                        tx = tx.drop_query("SET autocommit=0").await?;
-                        tx = tx.drop_query("SET unique_checks=0").await?;
-                        tx = tx.drop_query("SET foreign_key_checks=0").await?;
+                        tx.query_drop("SET autocommit=0").await?;
+                        tx.query_drop("SET unique_checks=0").await?;
+                        tx.query_drop("SET foreign_key_checks=0").await?;
 
                         let mut fallout: Option<Vec<_>> = None;
                         let mut params = vec![];
@@ -990,10 +987,10 @@ impl V2Storage for AsyncMySqlDatabase {
                             tx = self.check_for_infra_error(out)?;
                         }
 
-                        tx = tx.drop_query("SET autocommit=1").await?;
-                        tx = tx.drop_query("SET unique_checks=1").await?;
-                        tx = tx.drop_query("SET foreign_key_checks=1").await?;
-                        conn = tx.commit().await?;
+                        tx.query_drop("SET autocommit=1").await?;
+                        tx.query_drop("SET unique_checks=1").await?;
+                        tx.query_drop("SET foreign_key_checks=1").await?;
+                        tx.commit().await?;
 
                         // Query the records which intersect (INNER JOIN) with the temp table of ids
                         let query = DbRecord::get_batch_statement::<St>();
@@ -1011,7 +1008,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
                         // drop the temp table of ids
                         let t_out = nconn
-                            .drop_query(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                            .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
                             .await;
                         self.check_for_infra_error(t_out)?;
 
@@ -1246,7 +1243,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             debug!("Creating the temporary search username's table");
             let out = conn
-                .drop_query(
+                .query_drop(
                     "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
@@ -1260,9 +1257,9 @@ impl V2Storage for AsyncMySqlDatabase {
             let mut tx = conn
                 .start_transaction(TxOpts::default())
                 .await?;
-            tx = tx.drop_query("SET autocommit=0").await?;
-            tx = tx.drop_query("SET unique_checks=0").await?;
-            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+            tx.query_drop("SET autocommit=0").await?;
+            tx.query_drop("SET unique_checks=0").await?;
+            tx.query_drop("SET foreign_key_checks=0").await?;
 
             let mut statement = "INSERT INTO `search_users` (`username`) VALUES ".to_string();
             for i in 0..self.tunable_insert_depth {
@@ -1327,12 +1324,12 @@ impl V2Storage for AsyncMySqlDatabase {
             }
 
             // re-enable all the checks
-            tx = tx.drop_query("SET autocommit=1").await?;
-            tx = tx.drop_query("SET unique_checks=1").await?;
-            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+            tx.query_drop("SET autocommit=1").await?;
+            tx.query_drop("SET unique_checks=1").await?;
+            tx.query_drop("SET foreign_key_checks=1").await?;
 
             // commit the transaction
-            conn = tx.commit().await?;
+            tx.commit().await?;
 
             debug!("Querying records with JOIN");
             // select all records for provided user names
@@ -1408,7 +1405,7 @@ impl V2Storage for AsyncMySqlDatabase {
             );
 
             let nout = nconn
-                .drop_query("DROP TEMPORARY TABLE `search_users`")
+                .query_drop("DROP TEMPORARY TABLE `search_users`")
                 .await;
             self.check_for_infra_error(nout)?;
 
