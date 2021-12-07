@@ -196,7 +196,9 @@ impl<'a> AsyncMySqlDatabase {
         match result {
             Err(err) => {
                 let is_connection_infra_error: bool = match &err {
-                    MySqlError::Other(_) | MySqlError::Url(_) | MySqlError::Tls(_) => false,
+                    // In mysql_async v0.28.1 TLS errors moved to IoError. Thus we cannot use them here.
+                    // TODO(eoz): Update error handling to take TLS errors into account.
+                    MySqlError::Other(_) | MySqlError::Url(_) /* | mysql_async::IoError::Tls(_) */ => false,
 
                     MySqlError::Driver(_) | MySqlError::Io(_) | MySqlError::Server(_) => true,
                 };
