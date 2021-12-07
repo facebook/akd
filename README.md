@@ -42,4 +42,4 @@ To learn more about contributing to this project, [see this document](./CONTRIBU
 License
 -------
 
-This project is [licensed](./LICENSE) under either Apache 2.0 or MIT, at your option.
+This project is licensed under either [Apache 2.0](./LICENSE-APACHE) or [MIT](./LICENSE-MIT), at your option.
