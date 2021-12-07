@@ -432,7 +432,6 @@ impl<'a> AsyncMySqlDatabase {
         }
 
         *(self.num_writes.write().await) += records.len() as u64;
-        let mut mini_tx = trans;
 
         debug!("BEGIN Computing mysql parameters");
         let chunked: Vec<_> = records
@@ -499,7 +498,7 @@ impl<'a> AsyncMySqlDatabase {
         let toc = Instant::now() - tic;
         *(self.time_write.write().await) += toc;
         debug!("END MySQL set batch");
-        Ok(mini_tx)
+        Ok(trans)
     }
 
     /// Create the test database
@@ -936,7 +935,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
                         // Create the temp table of ids
                         let out = conn.query_drop(create_table_cmd).await;
-                        conn = self.check_for_infra_error(out)?;
+                        self.check_for_infra_error(out)?;
 
                         // Fill temp table with the requested ids
                         let mut tx = conn.start_transaction(TxOpts::default()).await?;
@@ -963,6 +962,9 @@ impl V2Storage for AsyncMySqlDatabase {
                             ));
                             let out = tx.exec_batch(fill_statement, params).await;
                             self.check_for_infra_error(out)?;
+                            // We would need the statement for it. (Possibly) No need for close here.
+                            // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
+                            // tx.close().await?;
                         }
 
                         // insert the remainder as a final statement
@@ -985,7 +987,7 @@ impl V2Storage for AsyncMySqlDatabase {
                         let out = conn.query_iter(query).await;
                         let result = self.check_for_infra_error(out)?;
 
-                        let (nconn, out) = result
+                        let out = result
                             .reduce_and_drop(vec![], |mut acc, mut row| {
                                 if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
                                     acc.push(result);
@@ -995,7 +997,7 @@ impl V2Storage for AsyncMySqlDatabase {
                             .await?;
 
                         // drop the temp table of ids
-                        let t_out = nconn
+                        let t_out = conn
                             .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
                             .await;
                         self.check_for_infra_error(t_out)?;
@@ -1081,7 +1083,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
-            let (_, selected_records) = self.check_for_infra_error(out)?;
+            let selected_records = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
                     cache.put(&DbRecord::ValueState(record.clone())).await;
@@ -1180,7 +1182,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
-            let (_, selected_record) = self.check_for_infra_error(out)?;
+            let selected_record = self.check_for_infra_error(out)?;
 
             let item = selected_record.into_iter().next();
             if let Some(value_in_item) = &item {
@@ -1233,7 +1235,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
-            conn = self.check_for_infra_error(out)?;
+            self.check_for_infra_error(out)?;
 
             debug!(
                 "Inserting the query users into the temporary table in batches of {}",
@@ -1386,9 +1388,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 keys.len()
             );
 
-            let nout = nconn
-                .query_drop("DROP TEMPORARY TABLE `search_users`")
-                .await;
+            let nout = conn.query_drop("DROP TEMPORARY TABLE `search_users`").await;
             self.check_for_infra_error(nout)?;
 
             let toc = Instant::now() - tic;
