@@ -97,11 +97,11 @@ pub struct AsyncMySqlDatabase {
 
 impl std::fmt::Display for AsyncMySqlDatabase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let db_str = match self.opts.get_db_name() {
+        let db_str = match self.opts.db_name() {
             Some(db) => format!("Database {}", db),
             None => String::from(""),
         };
-        let user_str = match self.opts.get_user() {
+        let user_str = match self.opts.user() {
             Some(user) => format!(", User {}", user),
             None => String::from(""),
         };
@@ -109,8 +109,8 @@ impl std::fmt::Display for AsyncMySqlDatabase {
         write!(
             f,
             "Connected to {}:{} ({}{})",
-            self.opts.get_ip_or_hostname(),
-            self.opts.get_tcp_port(),
+            self.opts.ip_or_hostname(),
+            self.opts.tcp_port(),
             db_str,
             user_str
         )
@@ -514,14 +514,13 @@ impl AsyncMySqlDatabase {
         port: Option<u16>,
     ) -> core::result::Result<(), MySqlError> {
         let dport = port.unwrap_or(3306u16);
-        let mut builder = OptsBuilder::default();
-        builder
+        let builder = OptsBuilder::default()
             .ip_or_hostname(endpoint)
             .user(user)
             .pass(password)
             .tcp_port(dport);
-        let opts: Opts = builder.into();
-        let conn = Conn::new(opts).await?;
+        let opts: Opts = Opts::from(builder);
+        let mut conn = Conn::new(opts).await?;
         conn.query_drop(r"CREATE DATABASE IF NOT EXISTS test_db")
             .await?;
 
