@@ -1,12 +1,13 @@
 [package]
 name = "akd"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
+readme = "../README.md"
 
 [features]
 bench = []
