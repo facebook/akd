@@ -26,8 +26,6 @@ use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
-use rayon::prelude::*;
-
 type MySqlError = mysql_async::Error;
 
 use akd::storage::timed_cache::*;
@@ -525,7 +523,7 @@ impl<'a> AsyncMySqlDatabase {
 
     /// Cleanup the test data table
     #[allow(dead_code)]
-    pub(crate) async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
+    pub async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
         let mut conn = self.get_connection().await?;
         let mut tx = conn.start_transaction(TxOpts::default()).await?;
 
