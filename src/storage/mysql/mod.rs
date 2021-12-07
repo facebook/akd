@@ -136,7 +136,7 @@ impl Clone for AsyncMySqlDatabase {
     }
 }
 
-impl AsyncMySqlDatabase {
+impl<'a> AsyncMySqlDatabase {
     /// Creates a new mysql database
     #[allow(unused)]
     pub async fn new<T: Into<String>>(
