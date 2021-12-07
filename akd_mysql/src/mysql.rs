@@ -26,7 +26,7 @@ use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
-type MySqlError = mysql_async::error::Error;
+type MySqlError = mysql_async::Error;
 
 use akd::storage::timed_cache::*;
 
@@ -94,11 +94,11 @@ pub struct AsyncMySqlDatabase {
 
 impl std::fmt::Display for AsyncMySqlDatabase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let db_str = match self.opts.get_db_name() {
+        let db_str = match self.opts.db_name() {
             Some(db) => format!("Database {}", db),
             None => String::from(""),
         };
-        let user_str = match self.opts.get_user() {
+        let user_str = match self.opts.user() {
             Some(user) => format!(", User {}", user),
             None => String::from(""),
         };
@@ -106,8 +106,8 @@ impl std::fmt::Display for AsyncMySqlDatabase {
         write!(
             f,
             "Connected to {}:{} ({}{})",
-            self.opts.get_ip_or_hostname(),
-            self.opts.get_tcp_port(),
+            self.opts.ip_or_hostname(),
+            self.opts.tcp_port(),
             db_str,
             user_str
         )
@@ -133,7 +133,7 @@ impl Clone for AsyncMySqlDatabase {
     }
 }
 
-impl AsyncMySqlDatabase {
+impl<'a> AsyncMySqlDatabase {
     /// Creates a new mysql database
     #[allow(unused)]
     pub async fn new<T: Into<String>>(
@@ -146,8 +146,7 @@ impl AsyncMySqlDatabase {
         depth: usize,
     ) -> Self {
         let dport = port.unwrap_or(3306u16);
-        let mut builder = OptsBuilder::new();
-        builder
+        let mut builder = OptsBuilder::default()
             .ip_or_hostname(endpoint)
             .db_name(Option::from(database))
             .user(user)
@@ -194,7 +193,9 @@ impl AsyncMySqlDatabase {
         match result {
             Err(err) => {
                 let is_connection_infra_error: bool = match &err {
-                    MySqlError::Other(_) | MySqlError::Url(_) | MySqlError::Tls(_) => false,
+                    // In mysql_async v0.28.1 TLS errors moved to IoError. Thus we cannot use them here.
+                    // TODO(eoz): Update error handling to take TLS errors into account.
+                    MySqlError::Other(_) | MySqlError::Url(_) /* | mysql_async::IoError::Tls(_) */ => false,
 
                     MySqlError::Driver(_) | MySqlError::Io(_) | MySqlError::Server(_) => true,
                 };
@@ -218,11 +219,11 @@ impl AsyncMySqlDatabase {
         }
     }
 
-    async fn get_connection(&self) -> Result<mysql_async::Conn, MySqlError> {
-        let connection = {
+    async fn get_connection(&self) -> Result<mysql_async::Conn> {
+        let mut connection = {
             if self.is_healthy().await {
                 let connection_pool_guard = self.pool.read().await;
-                (*connection_pool_guard).get_conn().await?
+                connection_pool_guard.get_conn().await?
             } else {
                 // Connection pool is currently unhealthy and queries are
                 // disallowed. Connection pool is being async refreshed in
@@ -230,7 +231,7 @@ impl AsyncMySqlDatabase {
 
                 // fail the connection
                 return Err(MySqlError::Driver(
-                    mysql_async::error::DriverError::PoolDisconnected,
+                    mysql_async::DriverError::PoolDisconnected,
                 ));
             }
         };
@@ -240,10 +241,9 @@ impl AsyncMySqlDatabase {
         // large blob entries instead of truncating them with a warning.
         // This is essential for our system, since SEE relies on all data in our
         // XDB being exactly what it wrote.
-        let connection = connection
-            .drop_query("SET SESSION sql_mode = 'TRADITIONAL'")
+        connection
+            .query_drop("SET SESSION sql_mode = 'TRADITIONAL'")
             .await?;
-
         Ok(connection)
     }
 
@@ -282,7 +282,7 @@ impl AsyncMySqlDatabase {
         let mut attempts = 1;
 
         loop {
-            let ip = opts.get_ip_or_hostname();
+            let ip = opts.ip_or_hostname();
             let pool_options = opts.clone();
             let pool = Pool::new(pool_options);
             let conn = pool.get_conn().await;
@@ -312,7 +312,7 @@ impl AsyncMySqlDatabase {
                 attempts, SQL_RECONNECTION_DELAY_SECS
             );
 
-            tokio::time::delay_for(tokio::time::Duration::from_secs(
+            tokio::time::sleep(tokio::time::Duration::from_secs(
                 // TOKIO 0.2.X
                 //tokio::time::sleep(tokio::time::Duration::from_secs( // TOKIO 1.X
                 SQL_RECONNECTION_DELAY_SECS,
@@ -323,17 +323,16 @@ impl AsyncMySqlDatabase {
         }
     }
 
-    async fn setup_database(conn: mysql_async::Conn) -> core::result::Result<(), MySqlError> {
-        let mut tx: mysql_async::Transaction<mysql_async::Conn> = conn
-            .start_transaction(TransactionOptions::default())
-            .await?;
+    async fn setup_database(mut conn: mysql_async::Conn) -> core::result::Result<(), MySqlError> {
+        let mut tx: mysql_async::Transaction<'_> =
+            conn.start_transaction(TxOpts::default()).await?;
         // AZKS table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_AZKS
             + "` (`key` SMALLINT UNSIGNED NOT NULL, `root` BIGINT UNSIGNED NOT NULL,"
             + " `epoch` BIGINT UNSIGNED NOT NULL, `num_nodes` BIGINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`key`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // History tree nodes table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -342,7 +341,7 @@ impl AsyncMySqlDatabase {
             + " `label_val` BIGINT UNSIGNED NOT NULL, `epochs` VARBINARY(2000),"
             + " `parent` BIGINT UNSIGNED NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`location`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // History node states table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -350,7 +349,7 @@ impl AsyncMySqlDatabase {
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, "
             + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // User data table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
@@ -358,7 +357,7 @@ impl AsyncMySqlDatabase {
             + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
             + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
             + " PRIMARY KEY(`username`, `epoch`))";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         // if we got here, we're good to commit. Transaction's will auto-rollback when memory freed if commit wasn't done.
         tx.commit().await?;
@@ -367,22 +366,20 @@ impl AsyncMySqlDatabase {
 
     /// Delete all the data in the tables
     pub async fn delete_data(&self) -> core::result::Result<(), MySqlError> {
-        let conn = self.get_connection().await?;
-        let mut tx = conn
-            .start_transaction(TransactionOptions::default())
-            .await?;
+        let mut conn = self.get_connection().await?;
+        let mut tx = conn.start_transaction(TxOpts::default()).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_AZKS + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_USER + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DELETE FROM `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         tx.commit().await?;
 
@@ -393,48 +390,47 @@ impl AsyncMySqlDatabase {
     async fn internal_set(
         &self,
         record: DbRecord,
-        trans: Option<mysql_async::Transaction<mysql_async::Conn>>,
-    ) -> core::result::Result<Option<mysql_async::Transaction<mysql_async::Conn>>, MySqlError> {
+        trans: Option<mysql_async::Transaction<'a>>,
+    ) -> Result<()> {
         *(self.num_writes.write().await) += 1;
 
         debug!("BEGIN MySQL set");
         let tic = Instant::now();
 
         let statement_text = record.set_statement();
-        let (ntx, out) = match trans {
-            Some(tx) => match tx.drop_exec(statement_text, record.set_params()).await {
-                Err(err) => (None, Err(err)),
-                Ok(next_tx) => (Some(next_tx), Ok(())),
+        let out = match trans {
+            Some(mut tx) => match tx.exec_drop(statement_text, record.set_params()).await {
+                Err(err) => Err(err),
+                Ok(next_tx) => Ok(next_tx),
             },
             None => {
-                let conn = self.get_connection().await?;
-                if let Err(err) = conn.drop_exec(statement_text, record.set_params()).await {
-                    (None, Err(err))
+                let mut conn = self.get_connection().await?;
+                if let Err(err) = conn.exec_drop(statement_text, record.set_params()).await {
+                    Err(err)
                 } else {
-                    (None, Ok(()))
+                    Ok(())
                 }
             }
         };
-        self.check_for_infra_error(out)?;
+        let result = self.check_for_infra_error(out)?;
         let toc = Instant::now() - tic;
         *(self.time_write.write().await) += toc;
 
         debug!("END MySQL set");
-        Ok(ntx)
+        Ok(result)
     }
 
     /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
     async fn internal_batch_set(
         &self,
         records: Vec<DbRecord>,
-        trans: mysql_async::Transaction<mysql_async::Conn>,
-    ) -> core::result::Result<mysql_async::Transaction<mysql_async::Conn>, MySqlError> {
+        mut trans: mysql_async::Transaction<'a>,
+    ) -> core::result::Result<mysql_async::Transaction<'a>, MySqlError> {
         if records.is_empty() {
             return Ok(trans);
         }
 
         *(self.num_writes.write().await) += records.len() as u64;
-        let mut mini_tx = trans;
 
         debug!("BEGIN Computing mysql parameters");
         #[allow(clippy::needless_collect)]
@@ -485,24 +481,22 @@ impl AsyncMySqlDatabase {
         // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
         if !params.is_empty() {
             let fill_statement = statement(self.tunable_insert_depth);
-            let mut prepped = mini_tx.prepare(fill_statement).await?;
-            let out = prepped.batch(params).await;
-            prepped = self.check_for_infra_error(out)?;
-            mini_tx = prepped.close().await?;
+            let out = trans.exec_batch(fill_statement, params).await;
+            self.check_for_infra_error(out)?;
         }
 
         // insert the remainder as a final statement
         if let Some((remainder, count)) = fallout {
             debug!("MySQL batch - remainder {} insert", count);
             let remainder_stmt = statement(count);
-            let out = mini_tx.drop_exec(remainder_stmt, remainder).await;
-            mini_tx = self.check_for_infra_error(out)?;
+            let out = trans.exec_drop(remainder_stmt, remainder).await;
+            self.check_for_infra_error(out)?;
         }
 
         let toc = Instant::now() - tic;
         *(self.time_write.write().await) += toc;
         debug!("END MySQL set batch");
-        Ok(mini_tx)
+        Ok(trans)
     }
 
     /// Create the test database
@@ -514,15 +508,14 @@ impl AsyncMySqlDatabase {
         port: Option<u16>,
     ) -> core::result::Result<(), MySqlError> {
         let dport = port.unwrap_or(3306u16);
-        let mut builder = OptsBuilder::new();
-        builder
+        let builder = OptsBuilder::default()
             .ip_or_hostname(endpoint)
             .user(user)
             .pass(password)
             .tcp_port(dport);
-        let opts: Opts = builder.into();
-        let conn = Conn::new(opts).await?;
-        conn.drop_query(r"CREATE DATABASE IF NOT EXISTS test_db")
+        let opts: Opts = Opts::from(builder);
+        let mut conn = Conn::new(opts).await?;
+        conn.query_drop(r"CREATE DATABASE IF NOT EXISTS test_db")
             .await?;
 
         Ok(())
@@ -531,22 +524,20 @@ impl AsyncMySqlDatabase {
     /// Cleanup the test data table
     #[allow(dead_code)]
     pub async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
-        let conn = self.get_connection().await?;
-        let mut tx = conn
-            .start_transaction(TransactionOptions::default())
-            .await?;
+        let mut conn = self.get_connection().await?;
+        let mut tx = conn.start_transaction(TxOpts::default()).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        tx = tx.drop_query(command).await?;
+        tx.query_drop(command).await?;
 
         tx.commit().await?;
 
@@ -629,10 +620,10 @@ impl Storage for AsyncMySqlDatabase {
         let mut tree_size = "Tree size: Query err".to_string();
         let mut node_state_size = "Node state count: Query err".to_string();
         let mut value_state_size = "Value state count: Query err".to_string();
-        if let Ok(conn) = self.get_connection().await {
+        if let Ok(mut conn) = self.get_connection().await {
             let query_text = format!("SELECT COUNT(`location`) FROM {}", TABLE_HISTORY_TREE_NODES);
-            if let Ok(results) = conn.query(query_text).await {
-                if let Ok((conn2, mapped)) = results
+            if let Ok(results) = conn.query_iter(query_text).await {
+                if let Ok(mapped) = results
                     .map_and_drop(|row| {
                         let count: u64 = mysql_async::from_row(row);
                         count
@@ -645,8 +636,8 @@ impl Storage for AsyncMySqlDatabase {
 
                     let query_text =
                         format!("SELECT COUNT(`epoch`) FROM {}", TABLE_HISTORY_NODE_STATES);
-                    if let Ok(results) = conn2.query(query_text).await {
-                        if let Ok((conn3, mapped)) = results
+                    if let Ok(results) = conn.query_iter(query_text).await {
+                        if let Ok(mapped) = results
                             .map_and_drop(|row| {
                                 let count: u64 = mysql_async::from_row(row);
                                 count
@@ -658,8 +649,8 @@ impl Storage for AsyncMySqlDatabase {
                             }
 
                             let query_text = format!("SELECT COUNT(`epoch`) FROM {}", TABLE_USER);
-                            if let Ok(results) = conn3.query(query_text).await {
-                                if let Ok((_, mapped)) = results
+                            if let Ok(results) = conn.query_iter(query_text).await {
+                                if let Ok(mapped) = results
                                     .map_and_drop(|row| {
                                         let count: u64 = mysql_async::from_row(row);
                                         count
@@ -719,7 +710,7 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Commit a transaction in the storage layer
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&mut self) -> core::result::Result<(), StorageError> {
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -732,7 +723,7 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Rollback a transaction
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&mut self) -> core::result::Result<(), StorageError> {
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -807,15 +798,13 @@ impl Storage for AsyncMySqlDatabase {
         }
         // now execute each type'd batch in batch operations
         let result = async {
-            let conn = self.get_connection().await?;
-            let mut tx: Transaction<_> = conn
-                .start_transaction(TransactionOptions::default())
-                .await?;
+            let mut conn = self.get_connection().await?;
+            let mut tx = conn.start_transaction(TxOpts::default()).await?;
             // go through each group which is narrowed to a single type
             // applying the changes on the transaction
-            tx = tx.drop_query("SET autocommit=0").await?;
-            tx = tx.drop_query("SET unique_checks=0").await?;
-            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+            tx.query_drop("SET autocommit=0").await?;
+            tx.query_drop("SET unique_checks=0").await?;
+            tx.query_drop("SET foreign_key_checks=0").await?;
 
             for (_key, mut value) in groups.into_iter() {
                 if !value.is_empty() {
@@ -852,9 +841,9 @@ impl Storage for AsyncMySqlDatabase {
                 }
             }
 
-            tx = tx.drop_query("SET autocommit=1").await?;
-            tx = tx.drop_query("SET unique_checks=1").await?;
-            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+            tx.query_drop("SET autocommit=1").await?;
+            tx.query_drop("SET unique_checks=1").await?;
+            tx.query_drop("SET foreign_key_checks=1").await?;
 
             tx.commit().await?;
             Ok::<(), MySqlError>(())
@@ -889,17 +878,17 @@ impl Storage for AsyncMySqlDatabase {
         let result = async {
             let tic = Instant::now();
 
-            let conn = self.get_connection().await?;
+            let mut conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
             let params = DbRecord::get_specific_params::<St>(&id);
             let out = match params {
-                Some(p) => match conn.first_exec(statement, p).await {
+                Some(p) => match conn.exec_first(statement, p).await {
                     Err(err) => Err(err),
-                    Ok((_, result)) => Ok(result),
+                    Ok(result) => Ok(result),
                 },
-                None => match conn.first(statement).await {
+                None => match conn.query_first(statement).await {
                     Err(err) => Err(err),
-                    Ok((_, result)) => Ok(result),
+                    Ok(result) => Ok(result),
                 },
             };
 
@@ -930,7 +919,7 @@ impl Storage for AsyncMySqlDatabase {
     async fn batch_get<St: Storable>(
         &self,
         ids: Vec<St::Key>,
-    ) -> Result<Vec<DbRecord>, StorageError> {
+    ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
 
         if ids.is_empty() {
@@ -976,16 +965,14 @@ impl Storage for AsyncMySqlDatabase {
                 let results =
                     if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
                         // Create the temp table of ids
-                        let out = conn.drop_query(create_table_cmd).await;
-                        conn = self.check_for_infra_error(out)?;
+                        let out = conn.query_drop(create_table_cmd).await;
+                        self.check_for_infra_error(out)?;
 
                         // Fill temp table with the requested ids
-                        let mut tx = conn
-                            .start_transaction(TransactionOptions::default())
-                            .await?;
-                        tx = tx.drop_query("SET autocommit=0").await?;
-                        tx = tx.drop_query("SET unique_checks=0").await?;
-                        tx = tx.drop_query("SET foreign_key_checks=0").await?;
+                        let mut tx = conn.start_transaction(TxOpts::default()).await?;
+                        tx.query_drop("SET autocommit=0").await?;
+                        tx.query_drop("SET unique_checks=0").await?;
+                        tx.query_drop("SET foreign_key_checks=0").await?;
 
                         let mut fallout: Option<Vec<_>> = None;
                         let mut params = vec![];
@@ -1004,10 +991,11 @@ impl Storage for AsyncMySqlDatabase {
                             let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
                                 self.tunable_insert_depth,
                             ));
-                            let mut prepped = tx.prepare(fill_statement).await?;
-                            let out = prepped.batch(params).await;
-                            prepped = self.check_for_infra_error(out)?;
-                            tx = prepped.close().await?;
+                            let out = tx.exec_batch(fill_statement, params).await;
+                            self.check_for_infra_error(out)?;
+                            // We would need the statement for it. (Possibly) No need for close here.
+                            // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
+                            // tx.close().await?;
                         }
 
                         // insert the remainder as a final statement
@@ -1016,21 +1004,21 @@ impl Storage for AsyncMySqlDatabase {
                                 DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
                             let params_batch =
                                 DbRecord::get_multi_row_specific_params::<St>(&remainder).unwrap();
-                            let out = tx.drop_exec(remainder_stmt, params_batch).await;
-                            tx = self.check_for_infra_error(out)?;
+                            let out = tx.exec_drop(remainder_stmt, params_batch).await;
+                            self.check_for_infra_error(out)?;
                         }
 
-                        tx = tx.drop_query("SET autocommit=1").await?;
-                        tx = tx.drop_query("SET unique_checks=1").await?;
-                        tx = tx.drop_query("SET foreign_key_checks=1").await?;
-                        conn = tx.commit().await?;
+                        tx.query_drop("SET autocommit=1").await?;
+                        tx.query_drop("SET unique_checks=1").await?;
+                        tx.query_drop("SET foreign_key_checks=1").await?;
+                        tx.commit().await?;
 
                         // Query the records which intersect (INNER JOIN) with the temp table of ids
                         let query = DbRecord::get_batch_statement::<St>();
-                        let out = conn.query(query).await;
+                        let out = conn.query_iter(query).await;
                         let result = self.check_for_infra_error(out)?;
 
-                        let (nconn, out) = result
+                        let out = result
                             .reduce_and_drop(vec![], |mut acc, mut row| {
                                 if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
                                     acc.push(result);
@@ -1040,8 +1028,8 @@ impl Storage for AsyncMySqlDatabase {
                             .await?;
 
                         // drop the temp table of ids
-                        let t_out = nconn
-                            .drop_query(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                        let t_out = conn
+                            .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
                             .await;
                         self.check_for_infra_error(t_out)?;
 
@@ -1062,7 +1050,7 @@ impl Storage for AsyncMySqlDatabase {
                     }
                 }
 
-                Ok::<Vec<DbRecord>, mysql_async::error::Error>(results)
+                Ok::<Vec<DbRecord>, mysql_async::Error>(results)
             };
 
             *(self.num_reads.write().await) += 1;
@@ -1091,15 +1079,14 @@ impl Storage for AsyncMySqlDatabase {
         let result = async {
             let tic = Instant::now();
 
-            let conn = self.get_connection().await?;
+            let mut conn = self.get_connection().await?;
             let statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
                     .to_owned()
                     + TABLE_USER
                     + "` WHERE `username` = :the_user";
-            let prepped = conn.prepare(statement_text).await?;
-            let result = prepped
-                .execute(params! { "the_user" => username.0.clone() })
+            let mut result = conn
+                .exec_iter(statement_text, params! { "the_user" => username.0.clone() })
                 .await?;
             let out = result
                 .map(|mut row| {
@@ -1127,7 +1114,7 @@ impl Storage for AsyncMySqlDatabase {
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
-            let (_, selected_records) = self.check_for_infra_error(out)?;
+            let selected_records = self.check_for_infra_error(out)?;
             if let Some(cache) = &self.cache {
                 for record in selected_records.iter() {
                     cache.put(&DbRecord::ValueState(record.clone())).await;
@@ -1172,7 +1159,7 @@ impl Storage for AsyncMySqlDatabase {
         let result = async {
             let tic = Instant::now();
 
-            let conn = self.get_connection().await?;
+            let mut conn = self.get_connection().await?;
             let mut statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
                     .to_owned()
@@ -1199,9 +1186,8 @@ impl Storage for AsyncMySqlDatabase {
 
             // add limit to retrieve only 1 record
             statement_text += " LIMIT 1";
-            let prepped = conn.prepare(statement_text).await?;
-            let out = prepped
-                .execute(mysql_async::Params::from(params_map))
+            let out = conn
+                .exec_iter(statement_text, mysql_async::Params::from(params_map))
                 .await?
                 .map(|mut row| {
                     let (username, epoch, version, node_label_val, node_label_len, data) = (
@@ -1227,7 +1213,7 @@ impl Storage for AsyncMySqlDatabase {
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
-            let (_, selected_record) = self.check_for_infra_error(out)?;
+            let selected_record = self.check_for_infra_error(out)?;
 
             let item = selected_record.into_iter().next();
             if let Some(value_in_item) = &item {
@@ -1263,7 +1249,7 @@ impl Storage for AsyncMySqlDatabase {
         &self,
         keys: &[AkdKey],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+    ) -> core::result::Result<HashMap<AkdKey, u64>, StorageError> {
         *(self.num_reads.write().await) += 1;
 
         let mut results = HashMap::new();
@@ -1276,23 +1262,21 @@ impl Storage for AsyncMySqlDatabase {
 
             debug!("Creating the temporary search username's table");
             let out = conn
-                .drop_query(
+                .query_drop(
                     "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
-            conn = self.check_for_infra_error(out)?;
+            self.check_for_infra_error(out)?;
 
             debug!(
                 "Inserting the query users into the temporary table in batches of {}",
                 self.tunable_insert_depth
             );
 
-            let mut tx = conn
-                .start_transaction(TransactionOptions::default())
-                .await?;
-            tx = tx.drop_query("SET autocommit=0").await?;
-            tx = tx.drop_query("SET unique_checks=0").await?;
-            tx = tx.drop_query("SET foreign_key_checks=0").await?;
+            let mut tx = conn.start_transaction(TxOpts::default()).await?;
+            tx.query_drop("SET autocommit=0").await?;
+            tx.query_drop("SET unique_checks=0").await?;
+            tx.query_drop("SET foreign_key_checks=0").await?;
 
             let mut statement = "INSERT INTO `search_users` (`username`) VALUES ".to_string();
             for i in 0..self.tunable_insert_depth {
@@ -1323,10 +1307,8 @@ impl Storage for AsyncMySqlDatabase {
 
             if !params.is_empty() {
                 // first do the big batches
-                let mut prep = tx.prepare(statement).await?;
-                let out = prep.batch(params).await;
-                prep = self.check_for_infra_error(out)?;
-                tx = prep.close().await?;
+                let out = tx.exec_batch(statement, params).await;
+                self.check_for_infra_error(out)?;
             }
 
             if let Some(remainder) = fallout {
@@ -1352,17 +1334,17 @@ impl Storage for AsyncMySqlDatabase {
                     })
                     .collect();
                 let params_batch = mysql_async::Params::from(users_vec);
-                let out = tx.drop_exec(remainder_stmt, params_batch).await;
-                tx = self.check_for_infra_error(out)?;
+                let out = tx.exec_drop(remainder_stmt, params_batch).await;
+                self.check_for_infra_error(out)?;
             }
 
             // re-enable all the checks
-            tx = tx.drop_query("SET autocommit=1").await?;
-            tx = tx.drop_query("SET unique_checks=1").await?;
-            tx = tx.drop_query("SET foreign_key_checks=1").await?;
+            tx.query_drop("SET autocommit=1").await?;
+            tx.query_drop("SET unique_checks=1").await?;
+            tx.query_drop("SET foreign_key_checks=1").await?;
 
             // commit the transaction
-            conn = tx.commit().await?;
+            tx.commit().await?;
 
             debug!("Querying records with JOIN");
             // select all records for provided user names
@@ -1403,10 +1385,10 @@ impl Storage for AsyncMySqlDatabase {
                 TABLE_USER, epoch_grouping, TABLE_USER, filter
             );
 
-            let (nconn, out) = if params_map.is_empty() {
-                let _t = conn.query(select_statement).await;
+            let out = if params_map.is_empty() {
+                let _t = conn.query_iter(select_statement).await;
                 self.check_for_infra_error(_t)?
-                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                    .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
@@ -1417,10 +1399,10 @@ impl Storage for AsyncMySqlDatabase {
                     .await?
             } else {
                 let _t = conn
-                    .prep_exec(select_statement, mysql_async::Params::from(params_map))
+                    .exec_iter(select_statement, mysql_async::Params::from(params_map))
                     .await;
                 self.check_for_infra_error(_t)?
-                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                    .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
@@ -1437,9 +1419,7 @@ impl Storage for AsyncMySqlDatabase {
                 keys.len()
             );
 
-            let nout = nconn
-                .drop_query("DROP TEMPORARY TABLE `search_users`")
-                .await;
+            let nout = conn.query_drop("DROP TEMPORARY TABLE `search_users`").await;
             self.check_for_infra_error(nout)?;
 
             let toc = Instant::now() - tic;
@@ -1505,25 +1485,21 @@ impl MySqlStorable for DbRecord {
 
     fn set_params(&self) -> mysql_async::Params {
         match &self {
-            DbRecord::Azks(azks) => mysql_async::Params::from(
-                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
-            ),
+            DbRecord::Azks(azks) => {
+                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes }
+            }
             DbRecord::HistoryNodeState(state) => {
                 let bin_data = bincode::serialize(&state.child_states).unwrap();
                 let id = state.get_id();
-                mysql_async::Params::from(
-                    params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data },
-                )
+                params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data }
             }
             DbRecord::HistoryTreeNode(node) => {
                 let bin_data = DbRecord::serialize_epochs(&node.epochs);
-                mysql_async::Params::from(
-                    params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 },
-                )
+                params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 }
             }
-            DbRecord::ValueState(state) => mysql_async::Params::from(
-                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone()},
-            ),
+            DbRecord::ValueState(state) => {
+                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() }
+            }
         }
     }
 
@@ -1825,28 +1801,28 @@ impl MySqlStorable for DbRecord {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::node_state::NodeStateKey =
                     akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "label_len" => back.0.len,
                     "label_val" => back.0.val,
                     "epoch" => back.1
-                }))
+                })
             }
             StorageType::HistoryTreeNode => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::history_tree_node::NodeKey =
                     akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "location" => back.0
-                }))
+                })
             }
             StorageType::ValueState => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::storage::types::ValueStateKey =
                     akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "username" => back.0,
                     "epoch" => back.1
-                }))
+                })
             }
         }
     }
@@ -1956,7 +1932,7 @@ impl MySqlStorable for DbRecord {
             }
         }
         // fallback
-        let err = MySqlError::Driver(mysql_async::error::DriverError::FromRow { row: row.clone() });
+        let err = MySqlError::Driver(mysql_async::DriverError::FromRow { row: row.clone() });
         Err(err)
     }
 
@@ -1985,19 +1961,19 @@ impl MySqlStorable for DbRecord {
     }
 }
 
-trait StorageErrorWrappable<TErr> {
-    fn as_get<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
-    fn as_set<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
+trait StorageErrorWrappable {
+    fn as_get<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
+    fn as_set<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
 }
 
-impl StorageErrorWrappable<MySqlError> for StorageError {
-    fn as_get<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+impl StorageErrorWrappable for StorageError {
+    fn as_get<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
             Err(err) => Err(StorageError::GetError(err.to_string())),
         }
     }
-    fn as_set<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+    fn as_set<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
             Err(err) => Err(StorageError::SetError(err.to_string())),

@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 winter-crypto = "0.1"
 winter-math = "0.1"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "1.10.2", features = ["full"] }
 colored = "2.0.0"
 hex = "0.4.3"
 structopt = "0.3.13"
