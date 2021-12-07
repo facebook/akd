@@ -1357,7 +1357,7 @@ impl V2Storage for AsyncMySqlDatabase {
             let out = if params_map.is_empty() {
                 let _t = conn.query_iter(select_statement).await;
                 self.check_for_infra_error(_t)?
-                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                    .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
@@ -1371,7 +1371,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     .exec_iter(select_statement, mysql_async::Params::from(params_map))
                     .await;
                 self.check_for_infra_error(_t)?
-                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                    .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
