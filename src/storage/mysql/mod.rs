@@ -244,7 +244,9 @@ impl<'a> AsyncMySqlDatabase {
         // large blob entries instead of truncating them with a warning.
         // This is essential for our system, since SEE relies on all data in our
         // XDB being exactly what it wrote.
-        connection.query_drop("SET SESSION sql_mode = 'TRADITIONAL'").await?;
+        connection
+            .query_drop("SET SESSION sql_mode = 'TRADITIONAL'")
+            .await?;
         Ok(connection)
     }
 
