@@ -594,8 +594,8 @@ impl V2Storage for AsyncMySqlDatabase {
         let mut value_state_size = "Value state count: Query err".to_string();
         if let Ok(mut conn) = self.get_connection().await {
             let query_text = format!("SELECT COUNT(`location`) FROM {}", TABLE_HISTORY_TREE_NODES);
-            if let Ok(results) = conn.query(query_text).await {
-                if let Ok((conn2, mapped)) = results
+            if let Ok(results) = conn.query_iter(query_text).await {
+                if let Ok(mapped) = results
                     .map_and_drop(|row| {
                         let count: u64 = mysql_async::from_row(row);
                         count
@@ -608,8 +608,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
                     let query_text =
                         format!("SELECT COUNT(`epoch`) FROM {}", TABLE_HISTORY_NODE_STATES);
-                    if let Ok(results) = conn2.query(query_text).await {
-                        if let Ok((conn3, mapped)) = results
+                    if let Ok(results) = conn.query_iter(query_text).await {
+                        if let Ok(mapped) = results
                             .map_and_drop(|row| {
                                 let count: u64 = mysql_async::from_row(row);
                                 count
@@ -621,8 +621,8 @@ impl V2Storage for AsyncMySqlDatabase {
                             }
 
                             let query_text = format!("SELECT COUNT(`epoch`) FROM {}", TABLE_USER);
-                            if let Ok(results) = conn3.query(query_text).await {
-                                if let Ok((_, mapped)) = results
+                            if let Ok(results) = conn.query_iter(query_text).await {
+                                if let Ok(mapped) = results
                                     .map_and_drop(|row| {
                                         let count: u64 = mysql_async::from_row(row);
                                         count
@@ -986,7 +986,7 @@ impl V2Storage for AsyncMySqlDatabase {
 
                         // Query the records which intersect (INNER JOIN) with the temp table of ids
                         let query = DbRecord::get_batch_statement::<St>();
-                        let out = conn.query(query).await;
+                        let out = conn.query_iter(query).await;
                         let result = self.check_for_infra_error(out)?;
 
                         let (nconn, out) = result
@@ -1157,9 +1157,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
             // add limit to retrieve only 1 record
             statement_text += " LIMIT 1";
-            let prepped = conn.prepare(statement_text).await?;
-            let out = prepped
-                .execute(mysql_async::Params::from(params_map))
+            let out = conn
+                .exec_iter(statement_text, mysql_async::Params::from(params_map))
                 .await?
                 .map(|mut row| {
                     let (username, epoch, version, node_label_val, node_label_len, data) = (
@@ -1359,8 +1358,8 @@ impl V2Storage for AsyncMySqlDatabase {
                 TABLE_USER, epoch_grouping, TABLE_USER, filter
             );
 
-            let (nconn, out) = if params_map.is_empty() {
-                let _t = conn.query(select_statement).await;
+            let out = if params_map.is_empty() {
+                let _t = conn.query_iter(select_statement).await;
                 self.check_for_infra_error(_t)?
                     .reduce_and_drop(vec![], |mut acc, mut row| {
                         if let (Some(Ok(username)), Some(Ok(version))) =
@@ -1373,7 +1372,7 @@ impl V2Storage for AsyncMySqlDatabase {
                     .await?
             } else {
                 let _t = conn
-                    .prep_exec(select_statement, mysql_async::Params::from(params_map))
+                    .exec_iter(select_statement, mysql_async::Params::from(params_map))
                     .await;
                 self.check_for_infra_error(_t)?
                     .reduce_and_drop(vec![], |mut acc, mut row| {
