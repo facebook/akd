@@ -1940,19 +1940,19 @@ impl MySqlStorable for DbRecord {
     }
 }
 
-trait StorageErrorWrappable<TErr> {
-    fn as_get<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
-    fn as_set<T>(result: Result<T, TErr>) -> Result<T, StorageError>;
+trait StorageErrorWrappable {
+    fn as_get<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
+    fn as_set<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
 }
 
-impl StorageErrorWrappable<MySqlError> for StorageError {
-    fn as_get<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+impl StorageErrorWrappable for StorageError {
+    fn as_get<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
             Err(err) => Err(StorageError::GetError(err.to_string())),
         }
     }
-    fn as_set<T>(result: Result<T, MySqlError>) -> Result<T, Self> {
+    fn as_set<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
             Err(err) => Err(StorageError::SetError(err.to_string())),
