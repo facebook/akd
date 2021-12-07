@@ -15,7 +15,7 @@ tokio = { version = "0.2", features = ["full"] }
 akd = { path = "../akd" }
 akd_mysql = { path = "../akd_mysql" }
 serial_test = "*"
-mysql_async = "0.23.1"
+mysql_async = "0.28.1"
 rand = "0.8"
 once_cell = "1"
 thread-id = "3"

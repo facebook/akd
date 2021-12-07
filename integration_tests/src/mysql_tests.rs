@@ -48,7 +48,7 @@ async fn test_directory_operations() {
         crate::test_util::directory_test_suite(&mysql_db, 50).await;
 
         // clean the test infra
-        if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
+        if let Err(mysql_async::Error::Server(error)) = mysql_db.test_cleanup().await {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
