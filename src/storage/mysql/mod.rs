@@ -315,7 +315,7 @@ impl<'a> AsyncMySqlDatabase {
                 attempts, SQL_RECONNECTION_DELAY_SECS
             );
 
-            tokio::time::delay_for(tokio::time::Duration::from_secs(
+            tokio::time::sleep(tokio::time::Duration::from_secs(
                 // TOKIO 0.2.X
                 //tokio::time::sleep(tokio::time::Duration::from_secs( // TOKIO 1.X
                 SQL_RECONNECTION_DELAY_SECS,
