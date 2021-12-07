@@ -1,12 +1,13 @@
 [package]
 name = "akd_mysql"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "A MySQL storage layer implementation for an auditable key directory (AKD)"
 license = "MIT"
 edition = "2018"
 keywords = ["key-transparency", "akd", "mysql", "akd-mysql"]
 repository = "https://github.com/novifinancial/akd"
+license-file = "../LICENSE-MIT"
 
 [features]
 bench = []
