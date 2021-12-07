@@ -83,7 +83,7 @@ async fn test_mysql_db() {
         test_batch_get_items(&mysql_db).await;
 
         // clean the test infra
-        if let Err(mysql_async::error::Error::Server(error)) = mysql_db.test_cleanup().await {
+        if let Err(mysql_async::Error::Server(error)) = mysql_db.test_cleanup().await {
             println!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
