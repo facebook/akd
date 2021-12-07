@@ -1485,25 +1485,21 @@ impl MySqlStorable for DbRecord {
 
     fn set_params(&self) -> mysql_async::Params {
         match &self {
-            DbRecord::Azks(azks) => mysql_async::Params::from(
-                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
-            ),
+            DbRecord::Azks(azks) => {
+                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes }
+            }
             DbRecord::HistoryNodeState(state) => {
                 let bin_data = bincode::serialize(&state.child_states).unwrap();
                 let id = state.get_id();
-                mysql_async::Params::from(
-                    params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data },
-                )
+                params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data }
             }
             DbRecord::HistoryTreeNode(node) => {
                 let bin_data = DbRecord::serialize_epochs(&node.epochs);
-                mysql_async::Params::from(
-                    params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 },
-                )
+                params! { "location" => node.location, "label_len" => node.label.len, "label_val" => node.label.val, "epochs" => bin_data, "parent" => node.parent, "node_type" => node.node_type as u8 }
             }
-            DbRecord::ValueState(state) => mysql_async::Params::from(
-                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone()},
-            ),
+            DbRecord::ValueState(state) => {
+                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() }
+            }
         }
     }
 
@@ -1805,28 +1801,28 @@ impl MySqlStorable for DbRecord {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::node_state::NodeStateKey =
                     akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "label_len" => back.0.len,
                     "label_val" => back.0.val,
                     "epoch" => back.1
-                }))
+                })
             }
             StorageType::HistoryTreeNode => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::history_tree_node::NodeKey =
                     akd::history_tree_node::HistoryTreeNode::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "location" => back.0
-                }))
+                })
             }
             StorageType::ValueState => {
                 let bin = St::get_full_binary_key_id(key);
                 let back: akd::storage::types::ValueStateKey =
                     akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
-                Some(mysql_async::Params::from(params! {
+                Some(params! {
                     "username" => back.0,
                     "epoch" => back.1
-                }))
+                })
             }
         }
     }
