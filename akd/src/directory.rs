@@ -43,6 +43,7 @@ impl AkdKey {
 }
 
 /// The representation of a auditable key directory
+#[derive(Clone)]
 pub struct Directory<S> {
     current_epoch: u64,
     storage: S,

@@ -21,14 +21,14 @@ jobs:
       env:
         CRATES_IO_TOKEN: ${{ secrets.crates_io_token }}
     - name: Dry run publish akd
-      run: cargo publish --dry-run --manifest-path akd/Cargo.toml
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd
     - name: Publish akd
-      run: cargo publish --manifest-path akd/Cargo.toml
+      run: cargo publish --manifest-path Cargo.toml -p akd
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
     - name: Dry run publish akd_mysql
-      run: cargo publish --dry-run --manifest-path akd_mysql/Cargo.toml
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_mysql
     - name: Publish akd_mysql
-      run: cargo publish --manifest-path akd_mysql/Cargo.toml
+      run: cargo publish --manifest-path Cargo.toml -p akd_mysql
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
