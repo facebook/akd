@@ -1,37 +1,8 @@
-[package]
-name = "akd"
-version = "0.2.0"
-authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
-description = "An implementation of an auditable key directory"
-license = "MIT"
-edition = "2018"
+[workspace]
 
-[features]
-bench = []
-
-[dependencies]
-bincode = "1"
-winter-crypto = "0.1"
-winter-utils = "0.1"
-winter-math = "0.1"
-rand = "0.8"
-keyed_priority_queue = "0.3"
-hex = "0.4"
-serde = { version = "1", features = ["derive"] }
-lazy_static = "1"
-evmap = "10"
-mysql_async = "0.28.1"
-async-trait = "0.1"
-tokio = { version = "1.10.2", features = ["full"] }
-async-recursion = "0.3"
-log = { version = "0.4.8", features = ["kv_unstable"] }
-rayon = "1.5.1"
-
-[dev-dependencies]
-criterion = "0.3"
-serial_test = "0.5"
-
-[[bench]]
-name = "azks"
-harness = false
-required-features = ["bench"]
+members = [
+    "akd",
+    "akd_mysql",
+    "poc",
+    "integration_tests"
+]

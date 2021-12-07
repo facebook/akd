@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! Storage module for a auditable key directory
+//! A simple in-memory transaction object to minize data-layer operations
 
 use crate::errors::StorageError;
 use crate::storage::types::DbRecord;
@@ -20,7 +20,10 @@ struct TransactionState {
     active: bool,
 }
 
-/// Represents a transaction in the storage layer
+/// Represents an in-memory transaction, keeping a mutable state
+/// of the changes. When you "commit" this transaction, you return the
+/// collection of values which need to be written to the storage layer
+/// including all mutations. Rollback simply empties the transaction state.
 pub struct Transaction {
     state: Arc<tokio::sync::RwLock<TransactionState>>,
 
@@ -38,7 +41,8 @@ impl std::fmt::Debug for Transaction {
 }
 
 impl Transaction {
-    pub(crate) fn new() -> Self {
+    /// Instantiate a new transaction instance
+    pub fn new() -> Self {
         Self {
             state: Arc::new(tokio::sync::RwLock::new(TransactionState {
                 mods: HashMap::new(),
@@ -51,8 +55,15 @@ impl Transaction {
     }
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Transaction {
-    pub(crate) async fn log_metrics(&self, level: log::Level) {
+    /// Log metrics about the current transaction instance. Metrics will be cleared after log call
+    pub async fn log_metrics(&self, level: log::Level) {
         let mut r = self.num_reads.write().await;
         let mut w = self.num_writes.write().await;
 
@@ -71,7 +82,7 @@ impl Transaction {
     }
 
     /// Start a transaction in the storage layer
-    pub(crate) async fn begin_transaction(&mut self) -> bool {
+    pub async fn begin_transaction(&mut self) -> bool {
         debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
         let out = if (*guard).active {
@@ -85,7 +96,7 @@ impl Transaction {
     }
 
     /// Commit a transaction in the storage layer
-    pub(crate) async fn commit_transaction(&mut self) -> Result<Vec<DbRecord>, StorageError> {
+    pub async fn commit_transaction(&mut self) -> Result<Vec<DbRecord>, StorageError> {
         debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
@@ -106,7 +117,7 @@ impl Transaction {
     }
 
     /// Rollback a transaction
-    pub(crate) async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    pub async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
         debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
@@ -125,14 +136,15 @@ impl Transaction {
     }
 
     /// Retrieve a flag determining if there is a transaction active
-    pub(crate) async fn is_transaction_active(&self) -> bool {
+    pub async fn is_transaction_active(&self) -> bool {
         debug!("BEGIN is transaction active");
         let out = self.state.read().await.active;
         debug!("END is transaction active");
         out
     }
 
-    pub(crate) async fn get<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
+    /// Hit test the current transaction to see if it is currently active
+    pub async fn get<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
         debug!("BEGIN transaction get {:?}", key);
         let bin_id = St::get_full_binary_key_id(key);
 
@@ -145,7 +157,8 @@ impl Transaction {
         out
     }
 
-    pub(crate) async fn set(&self, record: &DbRecord) {
+    /// Set a value in the transaction to be committed at transaction commit time
+    pub async fn set(&self, record: &DbRecord) {
         debug!("BEGIN transaction set");
         let bin_id = record.get_full_binary_id();
 

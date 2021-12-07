@@ -15,7 +15,7 @@ use crate::proof_structs::*;
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
 use crate::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-use crate::storage::V2Storage;
+use crate::storage::Storage;
 
 use log::{debug, error, info};
 use rand::{CryptoRng, RngCore};
@@ -23,6 +23,10 @@ use rand::{CryptoRng, RngCore};
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
+
+/// Root hash of the tree and its associated epoch
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 
 impl Values {
     /// Gets a random value for a AKD
@@ -44,7 +48,7 @@ pub struct Directory<S> {
     storage: S,
 }
 
-impl<S: V2Storage + Sync + Send> Directory<S> {
+impl<S: Storage + Sync + Send> Directory<S> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -66,12 +70,12 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
         })
     }
 
-    /// Updates the directory to inclulde the updated key-value pairs.
+    /// Updates the directory to include the updated key-value pairs.
     pub async fn publish<H: Hasher>(
         &mut self,
         updates: Vec<(AkdKey, Values)>,
         use_transaction: bool,
-    ) -> Result<(), AkdError> {
+    ) -> Result<EpochHash<H>, AkdError> {
         let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
@@ -165,11 +169,13 @@ impl<S: V2Storage + Sync + Send> Directory<S> {
             }
         }
 
+        let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
+
         self.current_epoch = next_epoch;
 
         self.storage.log_metrics(log::Level::Info).await;
 
-        Ok(())
+        Ok(EpochHash(self.current_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
@@ -433,7 +439,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: V2Storage + Sync + Send, H: Hasher>(
+pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher>(
     akd_dir: &Directory<S>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {

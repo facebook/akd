@@ -6,9 +6,10 @@
 // of this source tree.
 
 use akd::directory::Directory;
+use akd::directory::EpochHash;
 use akd::errors::AkdError;
 use akd::storage::types::*;
-use akd::storage::V2Storage;
+use akd::storage::Storage;
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
@@ -36,7 +37,7 @@ async fn get_root_hash<S, H>(
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
-    S: V2Storage + Sync + Send,
+    S: Storage + Sync + Send,
     H: Hasher,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -51,7 +52,7 @@ where
 
 pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S>)
 where
-    S: V2Storage + Sync + Send,
+    S: Storage + Sync + Send,
     H: Hasher,
 {
     info!("Starting the verifiable directory host");
@@ -67,9 +68,16 @@ where
                     .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))], false)
                     .await
                 {
-                    Ok(_) => {
+                    Ok(EpochHash(epoch, hash)) => {
                         let toc = Instant::now() - tic;
-                        let msg = format!("PUBLISHED '{}' = '{}' in {} s", a, b, toc.as_secs_f64());
+                        let msg = format!(
+                            "PUBLISHED '{}' = '{}' in {} s (epoch: {}, root hash: {})",
+                            a,
+                            b,
+                            toc.as_secs_f64(),
+                            epoch,
+                            hex::encode(hash)
+                        );
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {

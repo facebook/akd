@@ -34,7 +34,7 @@
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
@@ -54,7 +54,7 @@
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
@@ -81,7 +81,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //!use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -104,7 +104,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //!use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -138,7 +138,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -161,7 +161,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -194,7 +194,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -222,7 +222,7 @@
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
-//! use akd::storage::V2Storage;
+//! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {

@@ -9,11 +9,11 @@
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::storage::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
-use akd::storage::V2Storage;
+use akd::storage::Storage;
+use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
 use commands::Command;
-use log::{error, info, warn, debug};
+use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::convert::From;
@@ -101,7 +101,7 @@ struct Cli {
     #[structopt(
         long = "multirow_size",
         short = "m",
-        name = "MySQL mutli-row insert size",
+        name = "MySQL multi-row insert size",
         default_value = "100"
     )]
     mysql_insert_depth: usize,
@@ -121,7 +121,7 @@ async fn main() {
 
     let level = if cli.debug {
         // File-logging enabled in debug mode
-        match logs::FileLogger::new("log.txt") {
+        match logs::FileLogger::new("akd_app.log") {
             Err(err) => println!("Error initializing file logger {}", err),
             Ok(flogger) => loggers.push(Box::new(flogger)),
         }
@@ -189,7 +189,7 @@ async fn process_input(
 
                 let mut data = Vec::new();
                 for value in values.iter() {
-                    let state = akd::storage::mysql::AsyncMySqlDatabase::build_user_state(
+                    let state = akd_mysql::mysql::AsyncMySqlDatabase::build_user_state(
                         value.clone(),
                         value.clone(),
                         1u64,

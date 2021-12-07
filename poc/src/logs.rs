@@ -29,7 +29,7 @@ impl ConsoleLogger {
         EPOCH.get_or_init(Instant::now);
     }
 
-    pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {
+    pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record, no_color: bool) {
         let target = {
             if let Some(target_str) = record.target().split(':').last() {
                 if let Some(line) = record.line() {
@@ -65,14 +65,17 @@ impl ConsoleLogger {
             record.args(),
             target
         );
-        let msg = match record.level() {
-            Level::Trace | Level::Debug => msg.white(),
-            Level::Info => msg.blue(),
-            Level::Warn => msg.yellow(),
-            Level::Error => msg.red(),
-        };
-
-        let _ = writeln!(io, "{}", msg);
+        if no_color {
+            let _ = writeln!(io, "{}", msg);
+        } else {
+            let msg = match record.level() {
+                Level::Trace | Level::Debug => msg.white(),
+                Level::Info => msg.blue(),
+                Level::Warn => msg.yellow(),
+                Level::Error => msg.red(),
+            };
+            let _ = writeln!(io, "{}", msg);
+        }
     }
 }
 
@@ -86,7 +89,7 @@ impl log::Log for ConsoleLogger {
             return;
         }
         let mut io = std::io::stdout();
-        ConsoleLogger::format_log_record(&mut io, record);
+        ConsoleLogger::format_log_record(&mut io, record, false);
     }
 
     fn flush(&self) {
@@ -118,7 +121,7 @@ impl log::Log for FileLogger {
             return;
         }
         let mut sink = &*self.sink.lock().unwrap();
-        ConsoleLogger::format_log_record(&mut sink, record);
+        ConsoleLogger::format_log_record(&mut sink, record, true);
     }
 
     fn flush(&self) {

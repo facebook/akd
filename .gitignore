@@ -1,10 +1,14 @@
 .vs
-.vscode/
-src/.DS_Store
-/target
+
+.vscode/**
+!.vscode/launch.json
+
+
+**/*/.DS_Store
 Cargo.lock
+**/Cargo.lock
 **/*.rs.bk
 
-/poc/src/.DS_Store
-/poc/target
-/poc/log.txt
+**/target
+
+**/*.log
