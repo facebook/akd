@@ -679,7 +679,7 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Commit a transaction in the storage layer
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&mut self) -> core::result::Result<(), StorageError> {
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -692,7 +692,7 @@ impl V2Storage for AsyncMySqlDatabase {
     }
 
     /// Rollback a transaction
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&mut self) -> core::result::Result<(), StorageError> {
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -888,7 +888,7 @@ impl V2Storage for AsyncMySqlDatabase {
     async fn batch_get<St: Storable>(
         &self,
         ids: Vec<St::Key>,
-    ) -> Result<Vec<DbRecord>, StorageError> {
+    ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
 
         if ids.is_empty() {
@@ -1218,7 +1218,7 @@ impl V2Storage for AsyncMySqlDatabase {
         &self,
         keys: &[AkdKey],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+    ) -> core::result::Result<HashMap<AkdKey, u64>, StorageError> {
         *(self.num_reads.write().await) += 1;
 
         let mut results = HashMap::new();
