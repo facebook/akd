@@ -5,7 +5,7 @@ authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "S
 description = "A MySQL storage layer implementation for an auditable key directory (AKD)"
 license = "MIT"
 edition = "2018"
-keywords = ["key-transparency", "akd", "verifiable-data-structures", "mysql"]
+keywords = ["key-transparency", "akd", "mysql", "akd-mysql"]
 repository = "https://github.com/novifinancial/akd"
 
 [features]
