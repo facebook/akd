@@ -857,7 +857,7 @@ impl V2Storage for AsyncMySqlDatabase {
                 },
                 None => match conn.query_first(statement).await {
                     Err(err) => Err(err),
-                    Ok((_, result)) => Ok(result),
+                    Ok(result) => Ok(result),
                 },
             };
 
