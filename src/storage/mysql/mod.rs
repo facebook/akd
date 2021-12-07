@@ -392,7 +392,7 @@ impl<'a> AsyncMySqlDatabase {
         &self,
         record: DbRecord,
         trans: Option<mysql_async::Transaction<'a>>,
-    ) -> core::result::Result<Option<mysql_async::Transaction<'a>>, MySqlError> {
+    ) -> Result<()> {
         *(self.num_writes.write().await) += 1;
 
         debug!("BEGIN MySQL set");
@@ -418,7 +418,7 @@ impl<'a> AsyncMySqlDatabase {
         *(self.time_write.write().await) += toc;
 
         debug!("END MySQL set");
-        Ok(ntx)
+        Ok(result)
     }
 
     /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
@@ -484,18 +484,16 @@ impl<'a> AsyncMySqlDatabase {
         // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
         if !params.is_empty() {
             let fill_statement = statement(self.tunable_insert_depth);
-            let mut prepped = mini_tx.prepare(fill_statement).await?;
-            let out = prepped.batch(params).await;
-            prepped = self.check_for_infra_error(out)?;
-            mini_tx = prepped.close().await?;
+            let out = trans.exec_batch(fill_statement, params).await;
+            self.check_for_infra_error(out)?;
         }
 
         // insert the remainder as a final statement
         if let Some((remainder, count)) = fallout {
             debug!("MySQL batch - remainder {} insert", count);
             let remainder_stmt = statement(count);
-            let out = mini_tx.drop_exec(remainder_stmt, remainder).await;
-            mini_tx = self.check_for_infra_error(out)?;
+            let out = trans.exec_drop(remainder_stmt, remainder).await;
+            self.check_for_infra_error(out)?;
         }
 
         let toc = Instant::now() - tic;
@@ -854,11 +852,11 @@ impl V2Storage for AsyncMySqlDatabase {
             let statement = DbRecord::get_specific_statement::<St>();
             let params = DbRecord::get_specific_params::<St>(&id);
             let out = match params {
-                Some(p) => match conn.first_exec(statement, p).await {
+                Some(p) => match conn.exec_first(statement, p).await {
                     Err(err) => Err(err),
-                    Ok((_, result)) => Ok(result),
+                    Ok(result) => Ok(result),
                 },
-                None => match conn.first(statement).await {
+                None => match conn.query_first(statement).await {
                     Err(err) => Err(err),
                     Ok((_, result)) => Ok(result),
                 },
@@ -963,10 +961,8 @@ impl V2Storage for AsyncMySqlDatabase {
                             let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
                                 self.tunable_insert_depth,
                             ));
-                            let mut prepped = tx.prepare(fill_statement).await?;
-                            let out = prepped.batch(params).await;
-                            prepped = self.check_for_infra_error(out)?;
-                            tx = prepped.close().await?;
+                            let out = tx.exec_batch(fill_statement, params).await;
+                            self.check_for_infra_error(out)?;
                         }
 
                         // insert the remainder as a final statement
@@ -975,8 +971,8 @@ impl V2Storage for AsyncMySqlDatabase {
                                 DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
                             let params_batch =
                                 DbRecord::get_multi_row_specific_params::<St>(&remainder).unwrap();
-                            let out = tx.drop_exec(remainder_stmt, params_batch).await;
-                            tx = self.check_for_infra_error(out)?;
+                            let out = tx.exec_drop(remainder_stmt, params_batch).await;
+                            self.check_for_infra_error(out)?;
                         }
 
                         tx.query_drop("SET autocommit=1").await?;
@@ -1278,10 +1274,8 @@ impl V2Storage for AsyncMySqlDatabase {
 
             if !params.is_empty() {
                 // first do the big batches
-                let mut prep = tx.prepare(statement).await?;
-                let out = prep.batch(params).await;
-                prep = self.check_for_infra_error(out)?;
-                tx = prep.close().await?;
+                let out = tx.exec_batch(statement, params).await;
+                self.check_for_infra_error(out)?;
             }
 
             if let Some(remainder) = fallout {
@@ -1307,8 +1301,8 @@ impl V2Storage for AsyncMySqlDatabase {
                     })
                     .collect();
                 let params_batch = mysql_async::Params::from(users_vec);
-                let out = tx.drop_exec(remainder_stmt, params_batch).await;
-                tx = self.check_for_infra_error(out)?;
+                let out = tx.exec_drop(remainder_stmt, params_batch).await;
+                self.check_for_infra_error(out)?;
             }
 
             // re-enable all the checks
