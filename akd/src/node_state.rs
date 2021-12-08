@@ -277,15 +277,6 @@ pub struct HistoryChildState {
     pub epoch_version: u64,
 }
 
-/// parameters are azks_id, node location, epoch, child index
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct ChildStateKey(
-    pub(crate) Vec<u8>,
-    pub(crate) u64,
-    pub(crate) u64,
-    pub(crate) u64,
-);
-
 unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
