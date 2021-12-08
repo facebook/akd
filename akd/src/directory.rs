@@ -249,7 +249,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         }
     }
 
-    /// Returns an AppendOnlyProof for the leaves inseted into the underlying tree between
+    /// Returns an AppendOnlyProof for the leaves inserted into the underlying tree between
     /// the epochs audit_start_ep and audit_end_ep.
     pub async fn audit<H: Hasher>(
         &self,
@@ -505,7 +505,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_simiple_lookup() -> Result<(), AkdError> {
+    async fn test_simple_lookup() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
