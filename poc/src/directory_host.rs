@@ -14,6 +14,7 @@ use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use tokio::time::Instant;
+use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
@@ -76,7 +77,7 @@ where
                             b,
                             toc.as_secs_f64(),
                             epoch,
-                            hex::encode(hash)
+                            hex::encode(hash.as_bytes())
                         );
                         response.send(Ok(msg)).unwrap()
                     }
@@ -169,7 +170,7 @@ where
                 let hash = get_root_hash::<_, H>(directory, o_epoch).await;
                 match hash {
                     Some(Ok(hash)) => {
-                        let msg = format!("Retrieved root hash {}", hex::encode(hash));
+                        let msg = format!("Retrieved root hash {}", hex::encode(hash.as_bytes()));
                         response.send(Ok(msg)).unwrap();
                     }
                     Some(Err(error)) => {
