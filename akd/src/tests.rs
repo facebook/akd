@@ -24,8 +24,6 @@ use crate::{
     *,
 };
 
-use rand::{rngs::OsRng, RngCore};
-
 type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 
 ////////// history_tree_node tests //////
@@ -62,9 +60,6 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
 
 #[tokio::test]
 async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -115,9 +110,6 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
 
 #[tokio::test]
 async fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -188,9 +180,6 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
 
 #[tokio::test]
 async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -261,9 +250,6 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
 //  Test get_child_at_epoch
 #[tokio::test]
 pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let init_ep = 0;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(init_ep)).await?;
@@ -339,9 +325,6 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 
 #[tokio::test]
 async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf =
@@ -386,9 +369,6 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
 #[tokio::test]
 async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf =
@@ -457,9 +437,6 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 
 #[tokio::test]
 async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf =
@@ -544,9 +521,6 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
 
 #[tokio::test]
 async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
-    let mut rng = OsRng;
-    let mut azks_id = vec![0u8; 32];
-    rng.fill_bytes(&mut azks_id);
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     root.write_to_storage(&db).await?;

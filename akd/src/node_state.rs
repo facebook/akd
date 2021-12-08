@@ -124,7 +124,7 @@ impl NodeLabel {
 /// Hashes a label of type NodeLabel using the hash function provided by
 /// the generic type H.
 pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
-    let byte_label_len = H::hash(&label.get_len().to_ne_bytes());
+    let byte_label_len = H::hash(&label.get_len().to_be_bytes());
     H::merge_with_int(byte_label_len, label.get_val())
 }
 
@@ -147,7 +147,7 @@ pub struct HistoryNodeState {
 }
 
 /// This struct is just used for storage access purposes.
-/// parameters are azks_id, node location, and epoch
+/// parameters are node label and epoch
 #[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 pub struct NodeStateKey(pub NodeLabel, pub u64);
 
@@ -276,15 +276,6 @@ pub struct HistoryChildState {
     /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,
 }
-
-/// parameters are azks_id, node location, epoch, child index
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct ChildStateKey(
-    pub(crate) Vec<u8>,
-    pub(crate) u64,
-    pub(crate) u64,
-    pub(crate) u64,
-);
 
 unsafe impl Sync for HistoryChildState {}
 

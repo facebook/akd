@@ -108,28 +108,24 @@ pub trait Storage: Clone {
     /* Data Layer Builders */
 
     /*
-    pub azks_id: [u8; 32],
-    pub root: usize,
     pub latest_epoch: u64,
-    pub num_nodes: usize, // The size of the tree
+    pub num_nodes: u64, // The size of the tree
     _s: PhantomData<S>,
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks(root: u64, latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
+    fn build_azks(latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
         crate::append_only_zks::Azks {
-            root,
             latest_epoch,
             num_nodes,
         }
     }
 
     /*
-    pub azks_id: [u8; 32],
     pub label: NodeLabel,
-    pub location: usize,
+    pub location: u64,
     pub epochs: Vec<u64>,
-    pub parent: usize,
+    pub parent: u64,
     // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
     pub node_type: NodeType,
     // Note that the NodeType along with the parent/children being options

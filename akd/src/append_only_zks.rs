@@ -29,13 +29,14 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
+/// The default location of the azks root
+pub const DEFAULT_AZKS_ROOT: u64 = 0;
+
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(bound = "")]
 pub struct Azks {
-    /// The location of the root
-    pub root: u64,
     /// The latest complete epoch
     pub latest_epoch: u64,
     /// The number of nodes ie the size of this tree
@@ -67,7 +68,6 @@ unsafe impl Sync for Azks {}
 impl Clone for Azks {
     fn clone(&self) -> Self {
         Self {
-            root: self.root,
             latest_epoch: self.latest_epoch,
             num_nodes: self.num_nodes,
         }
@@ -79,7 +79,6 @@ impl Azks {
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
         let root = get_empty_root::<H, S>(storage, Option::Some(0)).await?;
         let azks = Azks {
-            root: 0,
             latest_epoch: 0,
             num_nodes: 1,
         };
@@ -103,7 +102,8 @@ impl Azks {
         let new_leaf =
             get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch).await?;
 
-        let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
+        let mut root_node =
+            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
         root_node
             .insert_single_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
             .await?;
@@ -127,7 +127,7 @@ impl Azks {
         insertion_set: &[(NodeLabel, H::Digest)],
     ) -> Result<u64, AkdError> {
         let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(self.root)];
+        let mut current_nodes = vec![NodeKey(DEFAULT_AZKS_ROOT)];
 
         let prefixes_set = crate::utils::build_prefixes_set(
             insertion_set
@@ -203,7 +203,8 @@ impl Azks {
             .await?;
         let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
         let mut priorities: i32 = 0;
-        let mut root_node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
+        let mut root_node =
+            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
         for (label, value) in insertion_set {
             let new_leaf_loc = self.num_nodes;
 
@@ -335,7 +336,7 @@ impl Azks {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
+        let node = HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
         let (unchanged, leaves) = self
             .get_append_only_proof_helper::<_, H>(storage, node, start_epoch, end_epoch)
             .await?;
@@ -432,7 +433,7 @@ impl Azks {
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
         let root_node: HistoryTreeNode =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
         root_node.get_value_at_epoch::<_, H>(storage, epoch).await
     }
 
@@ -461,7 +462,7 @@ impl Azks {
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
         let mut curr_node: HistoryTreeNode =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(self.root)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = 0;
