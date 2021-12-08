@@ -109,9 +109,9 @@ pub trait Storage: Clone {
 
     /*
     pub azks_id: [u8; 32],
-    pub root: usize,
+    pub root: u64,
     pub latest_epoch: u64,
-    pub num_nodes: usize, // The size of the tree
+    pub num_nodes: u64, // The size of the tree
     _s: PhantomData<S>,
     _h: PhantomData<H>,
     */
@@ -127,9 +127,9 @@ pub trait Storage: Clone {
     /*
     pub azks_id: [u8; 32],
     pub label: NodeLabel,
-    pub location: usize,
+    pub location: u64,
     pub epochs: Vec<u64>,
-    pub parent: usize,
+    pub parent: u64,
     // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
     pub node_type: NodeType,
     // Note that the NodeType along with the parent/children being options
