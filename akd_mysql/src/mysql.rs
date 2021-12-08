@@ -39,7 +39,7 @@ const TEMP_IDS_TABLE: &str = "temp_ids_table";
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;
 
-const SELECT_AZKS_DATA: &str = "`root`, `epoch`, `num_nodes`";
+const SELECT_AZKS_DATA: &str = "`epoch`, `num_nodes`";
 const SELECT_HISTORY_TREE_NODE_DATA: &str =
     "`location`, `label_len`, `label_val`, `epochs`, `parent`, `node_type`";
 const SELECT_HISTORY_NODE_STATE_DATA: &str =
@@ -329,9 +329,8 @@ impl<'a> AsyncMySqlDatabase {
         // AZKS table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_AZKS
-            + "` (`key` SMALLINT UNSIGNED NOT NULL, `root` BIGINT UNSIGNED NOT NULL,"
-            + " `epoch` BIGINT UNSIGNED NOT NULL, `num_nodes` BIGINT UNSIGNED NOT NULL,"
-            + " PRIMARY KEY (`key`))";
+            + "` (`key` SMALLINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL,"
+            + " `num_nodes` BIGINT UNSIGNED NOT NULL, PRIMARY KEY (`key`))";
         tx.query_drop(command).await?;
 
         // History tree nodes table
@@ -1476,7 +1475,7 @@ trait MySqlStorable {
 impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
-            DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `root` = :root, `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
+            DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
             DbRecord::HistoryNodeState(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :epoch, :value, :child_states) ON DUPLICATE KEY UPDATE `value` = :value, `child_states` = :child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA),
             DbRecord::HistoryTreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:location, :label_len, :label_val, :epochs, :parent, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `epochs` = :epochs, `parent` = :parent, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
             DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
@@ -1486,7 +1485,7 @@ impl MySqlStorable for DbRecord {
     fn set_params(&self) -> mysql_async::Params {
         match &self {
             DbRecord::Azks(azks) => {
-                params! { "key" => 1u8, "root" => azks.root, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes }
+                params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes }
             }
             DbRecord::HistoryNodeState(state) => {
                 let bin_data = bincode::serialize(&state.child_states).unwrap();
@@ -1530,7 +1529,7 @@ impl MySqlStorable for DbRecord {
         }
 
         match St::data_type() {
-            StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :root, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `root` = new.root, `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
+            StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
             StorageType::HistoryNodeState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `value` = new.value, `child_states` = new.child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA, parts),
             StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `epochs` = new.epochs, `parent` = new.parent, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
             StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {}", TABLE_USER, SELECT_USER_DATA, parts),
@@ -1545,7 +1544,6 @@ impl MySqlStorable for DbRecord {
                 DbRecord::Azks(azks) => {
                     vec![
                         ("key".to_string(), Value::from(1u8)),
-                        ("root".to_string(), Value::from(azks.root)),
                         ("epoch".to_string(), Value::from(azks.latest_epoch)),
                         ("num_nodes".to_string(), Value::from(azks.num_nodes)),
                     ]
@@ -1833,11 +1831,9 @@ impl MySqlStorable for DbRecord {
     {
         match St::data_type() {
             StorageType::Azks => {
-                // root, epoch, num_nodes
-                if let (Some(Ok(root)), Some(Ok(epoch)), Some(Ok(num_nodes))) =
-                    (row.take_opt(0), row.take_opt(1), row.take_opt(2))
-                {
-                    let azks = AsyncMySqlDatabase::build_azks(root, epoch, num_nodes);
+                // epoch, num_nodes
+                if let (Some(Ok(epoch)), Some(Ok(num_nodes))) = (row.take_opt(0), row.take_opt(1)) {
+                    let azks = AsyncMySqlDatabase::build_azks(epoch, num_nodes);
                     return Ok(DbRecord::Azks(azks));
                 }
             }

@@ -56,7 +56,6 @@ pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &mut 
 async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === Azks storage === //
     let azks = Azks {
-        root: 3,
         latest_epoch: 34,
         num_nodes: 10,
     };
@@ -68,7 +67,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
         .await;
     if let Ok(DbRecord::Azks(got_azks)) = get_result {
-        assert_eq!(got_azks.root, azks.root);
         assert_eq!(got_azks.latest_epoch, azks.latest_epoch);
         assert_eq!(got_azks.num_nodes, azks.num_nodes);
     } else {

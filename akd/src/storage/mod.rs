@@ -108,16 +108,14 @@ pub trait Storage: Clone {
     /* Data Layer Builders */
 
     /*
-    pub root: u64,
     pub latest_epoch: u64,
     pub num_nodes: u64, // The size of the tree
     _s: PhantomData<S>,
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks(root: u64, latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
+    fn build_azks(latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
         crate::append_only_zks::Azks {
-            root,
             latest_epoch,
             num_nodes,
         }
