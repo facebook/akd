@@ -65,7 +65,7 @@ pub struct HistoryTreeNode {
     pub node_type: NodeType, // Leaf, Root or Interior
 }
 
-/// Parameters are azks_id and location. Represents the key with which to find a node in storage.
+/// Represents the location (i.e. key) with which to find a node in storage.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, std::fmt::Debug)]
 pub struct NodeKey(pub u64);
 

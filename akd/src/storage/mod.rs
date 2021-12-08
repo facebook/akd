@@ -108,7 +108,6 @@ pub trait Storage: Clone {
     /* Data Layer Builders */
 
     /*
-    pub azks_id: [u8; 32],
     pub root: u64,
     pub latest_epoch: u64,
     pub num_nodes: u64, // The size of the tree
@@ -125,7 +124,6 @@ pub trait Storage: Clone {
     }
 
     /*
-    pub azks_id: [u8; 32],
     pub label: NodeLabel,
     pub location: u64,
     pub epochs: Vec<u64>,

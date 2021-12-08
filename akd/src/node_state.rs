@@ -147,7 +147,7 @@ pub struct HistoryNodeState {
 }
 
 /// This struct is just used for storage access purposes.
-/// parameters are azks_id, node location, and epoch
+/// parameters are node label and epoch
 #[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 pub struct NodeStateKey(pub NodeLabel, pub u64);
 
