@@ -24,7 +24,7 @@ fn single_insertion(c: &mut Criterion) {
 
     let mut rng: ThreadRng = thread_rng();
 
-    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
 
     let db = InMemoryDb::new();
 
