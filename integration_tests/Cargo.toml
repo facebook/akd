@@ -6,8 +6,8 @@ edition = "2018"
 publish = false
 
 [dependencies]
-winter-crypto = "0.2.0"
-winter-math = "0.2.0"
+winter-crypto = "0.2"
+winter-math = "0.2"
 
 [dev-dependencies]
 log = { version = "0.4.8", features = ["kv_unstable"] }
