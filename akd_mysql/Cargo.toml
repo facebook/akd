@@ -13,9 +13,9 @@ bench = []
 
 [dependencies]
 bincode = "1"
-winter-crypto = "0.2"
-winter-utils = "0.2"
-winter-math = "0.2"
+winter-crypto = "0.2.0"
+winter-utils = "0.2.0"
+winter-math = "0.2.0"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 async-trait = "0.1"
