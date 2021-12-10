@@ -22,12 +22,12 @@ jobs:
         CRATES_IO_TOKEN: ${{ secrets.crates_io_token }}
     - name: Dry run publish AKD
       run: cargo publish --dry-run --manifest-path Cargo.toml -p akd
-    - name: Dry run publish AKD_MYSQL
-      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_mysql
     - name: Publish crate akd
       run: cargo publish --manifest-path Cargo.toml -p akd
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
+    - name: Dry run publish AKD_MYSQL
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_mysql
     - name: Publish crate akd_mysql
       run: cargo publish --manifest-path Cargo.toml -p akd_mysql
       env:
