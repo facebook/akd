@@ -390,16 +390,16 @@ impl<'a> AsyncMySqlDatabase {
         let mut conn = self.get_connection().await?;
         let mut tx = conn.start_transaction(TxOpts::default()).await?;
 
-        let command = "DROP TABLE `".to_owned() + TABLE_AZKS + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
         tx.query_drop(command).await?;
 
-        let command = "DROP TABLE `".to_owned() + TABLE_USER + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
         tx.query_drop(command).await?;
 
-        let command = "DROP TABLE `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
         tx.query_drop(command).await?;
 
-        let command = "DROP TABLE `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
+        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
         tx.query_drop(command).await?;
 
         tx.commit().await?;

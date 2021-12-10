@@ -60,18 +60,20 @@ impl PublicLogLevels {
 /// applicationModes
 #[derive(StructOpt)]
 enum OtherMode {
+    #[structopt(about = "Benchmark publish API")]
     BenchPublish {
         num_users: u64,
         num_updates_per_user: u64,
         use_transactions: Option<bool>,
     },
+    #[structopt(about = "Benchmark lookup API")]
     BenchLookup {
         num_users: u64,
         num_updates_per_user: u64,
     },
-    BenchDbInsert {
-        num_users: u64,
-    },
+    #[structopt(about = "Benchmark database insertion")]
+    BenchDbInsert { num_users: u64 },
+    #[structopt(about = "Flush data from database tables")]
     Flush,
     #[structopt(about = "Drop existing database tables (for schema migration etc.)")]
     Drop,
