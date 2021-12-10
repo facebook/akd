@@ -22,6 +22,7 @@ use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
+use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
 /// Root hash of the tree and its associated epoch
@@ -307,8 +308,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        let label_slice = hashed_label.as_ref();
-        let hashed_label_bytes = convert_byte_slice_to_array(label_slice);
+        let label_slice = hashed_label.as_bytes();
+        let hashed_label_bytes = convert_byte_slice_to_array(&label_slice);
         NodeLabel::new(u64::from_ne_bytes(hashed_label_bytes), 64u32)
     }
 

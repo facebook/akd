@@ -21,7 +21,7 @@ use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
 use tokio::time::Instant;
-use winter_crypto::Hasher;
+use winter_crypto::{Digest, Hasher};
 
 use serde::{Deserialize, Serialize};
 
@@ -99,8 +99,15 @@ impl Azks {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
-        let new_leaf =
-            get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch).await?;
+        let new_leaf = get_leaf_node::<H, S>(
+            storage,
+            label,
+            0,
+            value.as_bytes().as_ref(),
+            0,
+            self.latest_epoch,
+        )
+        .await?;
 
         let mut root_node =
             HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
@@ -219,8 +226,15 @@ impl Azks {
                 )
                 .await?
             } else {
-                get_leaf_node::<H, S>(storage, label, 0, value.as_ref(), 0, self.latest_epoch)
-                    .await?
+                get_leaf_node::<H, S>(
+                    storage,
+                    label,
+                    0,
+                    value.as_bytes().as_ref(),
+                    0,
+                    self.latest_epoch,
+                )
+                .await?
             };
 
             debug!("BEGIN insert leaf");
