@@ -385,6 +385,28 @@ impl<'a> AsyncMySqlDatabase {
         Ok(())
     }
 
+    /// Drop all the tables
+    pub async fn drop_tables(&self) -> core::result::Result<(), MySqlError> {
+        let mut conn = self.get_connection().await?;
+        let mut tx = conn.start_transaction(TxOpts::default()).await?;
+
+        let command = "DROP TABLE `".to_owned() + TABLE_AZKS + "`";
+        tx.query_drop(command).await?;
+
+        let command = "DROP TABLE `".to_owned() + TABLE_USER + "`";
+        tx.query_drop(command).await?;
+
+        let command = "DROP TABLE `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
+        tx.query_drop(command).await?;
+
+        let command = "DROP TABLE `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
+        tx.query_drop(command).await?;
+
+        tx.commit().await?;
+
+        Ok(())
+    }
+
     /// Storage a record in the data layer
     async fn internal_set(
         &self,

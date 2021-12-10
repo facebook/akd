@@ -73,6 +73,8 @@ enum OtherMode {
         num_users: u64,
     },
     Flush,
+    #[structopt(about = "Drop existing database tables (for schema migration etc.)")]
+    Drop,
 }
 
 #[derive(StructOpt)]
@@ -140,6 +142,9 @@ async fn main() {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
+        if let Some(()) = pre_process_input(&cli, &tx, None).await {
+            return;
+        }
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
         });
@@ -156,6 +161,9 @@ async fn main() {
             cli.mysql_insert_depth,
         )
         .await;
+        if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
+            return;
+        }
         let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
@@ -165,6 +173,27 @@ async fn main() {
 }
 
 // Helpers //
+// If () is returned, it means the command execution is complete and CLI should
+// return
+async fn pre_process_input(
+    cli: &Cli,
+    tx: &Sender<directory_host::Rpc>,
+    db: Option<&AsyncMySqlDatabase>,
+) -> Option<()> {
+    if let Some(OtherMode::Drop) = &cli.other_mode {
+        println!("======= Dropping database ======= ");
+        if let Some(mysql_db) = db {
+            if let Err(error) = mysql_db.drop_tables().await {
+                error!("Error dropping database: {}", error);
+            } else {
+                info!("Database dropped.");
+            }
+            return Option::from(());
+        }
+    }
+    None
+}
+
 async fn process_input(
     cli: &Cli,
     tx: &Sender<directory_host::Rpc>,
@@ -310,6 +339,16 @@ async fn process_input(
                         error!("Error flushing database: {}", error);
                     } else {
                         info!("Database flushed.");
+                    }
+                }
+            }
+            OtherMode::Drop => {
+                println!("======= Dropping database ======= ");
+                if let Some(mysql_db) = db {
+                    if let Err(error) = mysql_db.drop_tables().await {
+                        error!("Error dropping database: {}", error);
+                    } else {
+                        info!("Database dropped.");
                     }
                 }
             }
