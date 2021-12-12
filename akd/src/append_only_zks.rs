@@ -230,9 +230,6 @@ impl Azks {
                 .await?
             };
 
-            // TODO(evanau): Remove once certain it's correct
-            assert_eq!(new_leaf.label, label);
-
             debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
