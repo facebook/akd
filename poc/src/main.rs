@@ -69,7 +69,7 @@ enum OtherMode {
     #[structopt(about = "Benchmark lookup API")]
     BenchLookup {
         num_users: u64,
-        num_updates_per_user: u64,
+        num_lookups_per_user: u64,
     },
     #[structopt(about = "Benchmark database insertion")]
     BenchDbInsert { num_users: u64 },
@@ -326,13 +326,81 @@ async fn process_input(
             }
             OtherMode::BenchLookup {
                 num_users,
-                num_updates_per_user,
+                num_lookups_per_user,
             } => {
                 println!("======= Benchmark operation requested ======= ");
                 println!(
-                    "Beginning LOOKUP benchmark of {} users with {} updates/user",
-                    num_users, num_updates_per_user
+                    "Beginning LOOKUP benchmark of {} users with {} lookups/user",
+                    num_users, num_lookups_per_user
                 );
+
+                let user_data: Vec<(String, String)> = (1..=*num_users)
+                    .map(|_| {
+                        (
+                            thread_rng()
+                                .sample_iter(&Alphanumeric)
+                                .take(256)
+                                .map(char::from)
+                                .collect(),
+                            thread_rng()
+                                .sample_iter(&Alphanumeric)
+                                .take(1024)
+                                .map(char::from)
+                                .collect(),
+                        )
+                    })
+                    .collect();
+
+                info!("Inserting {} users", num_users);
+                let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
+                let rpc = directory_host::Rpc(
+                    directory_host::DirectoryCommand::PublishBatch(user_data.clone(), true),
+                    Some(rpc_tx),
+                );
+                let sent = tx.clone().send(rpc).await;
+
+                let tic = Instant::now();
+
+                let mut code = None;
+                for i in 1..=*num_lookups_per_user {
+                    for (user, _) in &user_data {
+                        let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
+                        let rpc = directory_host::Rpc(
+                            directory_host::DirectoryCommand::Lookup(String::from(user)),
+                            Some(rpc_tx),
+                        );
+                        let sent = tx.clone().send(rpc).await;
+                        if sent.is_err() {
+                            error!("Error sending message to directory");
+                            continue;
+                        }
+                        match rpc_rx.await {
+                            Err(err) => code = Some(format!("{}", err)),
+                            Ok(Err(dir_err)) => code = Some(dir_err),
+                            Ok(Ok(msg)) => {}
+                        }
+                        if code.is_some() {
+                            break;
+                        }
+                    }
+                    info!("LOOKUP of {} users complete (iteration {})", num_users, i);
+                }
+
+                if let Some(err) = code {
+                    error!("Benchmark operation error {}", err);
+                } else {
+                    let toc = tic.elapsed();
+
+                    let millis = toc.as_millis();
+                    println!(
+                        "Benchmark output: Looked up and verified {} users with {} lookups/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
+                        num_users,
+                        num_lookups_per_user,
+                        toc.as_millis(),
+                        toc.as_micros() / *num_users as u128,
+                        toc.as_micros() / *num_users as u128 / *num_lookups_per_user as u128
+                    );
+                }
             }
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
