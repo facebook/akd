@@ -55,8 +55,6 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 pub struct HistoryTreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
-    /// The location of this node in the storage
-    pub location: u64,
     /// The epochs this node was updated
     pub epochs: Vec<u64>,
     /// The label of this node's parent
@@ -113,7 +111,6 @@ impl Clone for HistoryTreeNode {
     fn clone(&self) -> Self {
         Self {
             label: self.label,
-            location: self.location,
             epochs: self.epochs.clone(),
             parent: self.parent,
             node_type: self.node_type,
@@ -122,10 +119,9 @@ impl Clone for HistoryTreeNode {
 }
 
 impl HistoryTreeNode {
-    fn new(label: NodeLabel, location: u64, parent: NodeLabel, node_type: NodeType) -> Self {
+    fn new(label: NodeLabel, parent: NodeLabel, node_type: NodeType) -> Self {
         HistoryTreeNode {
             label,
-            location,
             epochs: vec![],
             parent, // Root node is its own parent
             node_type,
@@ -246,15 +242,10 @@ impl HistoryTreeNode {
                     HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
                 debug!("BEGIN get direction at epoch {}", epoch);
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
-                let new_node_location = *num_nodes;
 
                 debug!("BEGIN create new node");
-                let mut new_node = HistoryTreeNode::new(
-                    lcs_label,
-                    new_node_location,
-                    parent.label,
-                    NodeType::Interior,
-                );
+                let mut new_node =
+                    HistoryTreeNode::new(lcs_label, parent.label, NodeType::Interior);
                 new_node.epochs.push(epoch);
                 new_node.write_to_storage(storage).await?;
                 set_state_map(
@@ -264,7 +255,7 @@ impl HistoryTreeNode {
                 .await?;
                 *num_nodes += 1;
                 // Add this node in the correct dir and child node in the other direction
-                debug!("BEGIN update leaf location");
+                debug!("BEGIN update leaf label");
                 new_leaf.parent = new_node.label;
                 new_leaf.write_to_storage(storage).await?;
 
@@ -699,7 +690,6 @@ impl HistoryTreeNode {
         storage: &S,
     ) -> Result<HistoryChildState, HistoryTreeNodeError> {
         Ok(HistoryChildState {
-            location: self.location,
             label: self.label,
             hash_val: from_digest::<H>(H::merge(&[
                 self.get_value::<_, H>(storage).await?,
@@ -715,7 +705,6 @@ impl HistoryTreeNode {
         storage: &S,
     ) -> Result<HistoryChildState, HistoryTreeNodeError> {
         Ok(HistoryChildState {
-            location: self.location,
             label: self.label,
             hash_val: from_digest::<H>(H::merge(&[
                 self.get_value::<_, H>(storage).await?,
@@ -750,7 +739,7 @@ pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     storage: &S,
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
-    let mut node = HistoryTreeNode::new(NodeLabel::root(), 0, NodeLabel::root(), NodeType::Root);
+    let mut node = HistoryTreeNode::new(NodeLabel::root(), NodeLabel::root(), NodeType::Root);
     if let Some(epoch) = ep {
         node.epochs.push(epoch);
         let new_state: HistoryNodeState =
@@ -764,14 +753,12 @@ pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
 pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
-    location: u64,
     value: &[u8],
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
     let node = HistoryTreeNode {
         label,
-        location,
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Leaf,
@@ -789,14 +776,12 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
 pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
-    location: u64,
     value: H::Digest,
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
     let node = HistoryTreeNode {
         label,
-        location,
         epochs: vec![birth_epoch],
         parent,
         node_type: NodeType::Leaf,

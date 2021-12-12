@@ -77,7 +77,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
 
     let node = HistoryTreeNode {
         label: NodeLabel::new(13, 4),
-        location: 234,
         epochs: vec![123u64, 234u64, 345u64],
         parent: NodeLabel::new(1, 1),
         node_type: NodeType::Leaf,

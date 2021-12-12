@@ -126,7 +126,6 @@ pub trait Storage: Clone {
 
     /*
     pub label: NodeLabel,
-    pub location: u64,
     pub epochs: Vec<u64>,
     pub parent: NodeLabel,
     // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
@@ -140,7 +139,6 @@ pub trait Storage: Clone {
     fn build_history_tree_node(
         label_val: u64,
         label_len: u32,
-        location: u64,
         epochs: Vec<u64>,
         parent_label_val: u64,
         parent_label_len: u32,
@@ -148,7 +146,6 @@ pub trait Storage: Clone {
     ) -> HistoryTreeNode {
         HistoryTreeNode {
             label: NodeLabel::new(label_val, label_len),
-            location,
             epochs,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),

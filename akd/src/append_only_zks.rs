@@ -100,7 +100,6 @@ impl Azks {
         let new_leaf = get_leaf_node::<H, S>(
             storage,
             label,
-            0,
             value.as_bytes().as_ref(),
             NodeLabel::root(),
             self.latest_epoch,
@@ -215,7 +214,6 @@ impl Azks {
                 get_leaf_node_without_hashing::<H, S>(
                     storage,
                     label,
-                    0,
                     value,
                     NodeLabel::root(),
                     self.latest_epoch,
@@ -225,7 +223,6 @@ impl Azks {
                 get_leaf_node::<H, S>(
                     storage,
                     label,
-                    0,
                     value.as_bytes().as_ref(),
                     NodeLabel::root(),
                     self.latest_epoch,
