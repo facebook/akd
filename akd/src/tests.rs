@@ -327,11 +327,25 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b0u64, 1u32), 1, &[0u8], 0, 0).await?;
+    let new_leaf = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b0u64, 1u32),
+        1,
+        &[0u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
 
-    let leaf_1 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b1u64, 1u32), 2, &[1u8], 0, 0).await?;
+    let leaf_1 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b1u64, 1u32),
+        2,
+        &[1u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
     root.write_to_storage(&db).await?;
 
     let mut num_nodes = 1;
@@ -371,15 +385,35 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b00u64, 2u32), 1, &[0u8], 0, 1).await?;
+    let new_leaf = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b00u64, 2u32),
+        1,
+        &[0u8],
+        NodeLabel::root(),
+        1,
+    )
+    .await?;
 
-    let leaf_1 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b11u64, 2u32), 2, &[1u8], 0, 2).await?;
+    let leaf_1 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b11u64, 2u32),
+        2,
+        &[1u8],
+        NodeLabel::root(),
+        2,
+    )
+    .await?;
 
-    let leaf_2 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b10u64, 2u32), 3, &[1u8, 1u8], 0, 3)
-            .await?;
+    let leaf_2 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b10u64, 2u32),
+        3,
+        &[1u8, 1u8],
+        NodeLabel::root(),
+        3,
+    )
+    .await?;
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -439,19 +473,45 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNodeError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b000u64, 3u32), 1, &[0u8], 0, 0).await?;
+    let new_leaf = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b000u64, 3u32),
+        1,
+        &[0u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
 
-    let leaf_1 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b111u64, 3u32), 2, &[1u8], 0, 0).await?;
+    let leaf_1 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b111u64, 3u32),
+        2,
+        &[1u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
 
-    let leaf_2 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b100u64, 3u32), 3, &[1u8, 1u8], 0, 0)
-            .await?;
+    let leaf_2 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b100u64, 3u32),
+        3,
+        &[1u8, 1u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
 
-    let leaf_3 =
-        get_leaf_node::<Blake3, _>(&db, NodeLabel::new(0b010u64, 3u32), 4, &[0u8, 1u8], 0, 0)
-            .await?;
+    let leaf_3 = get_leaf_node::<Blake3, _>(
+        &db,
+        NodeLabel::new(0b010u64, 3u32),
+        4,
+        &[0u8, 1u8],
+        NodeLabel::root(),
+        0,
+    )
+    .await?;
 
     let leaf_0_hash = Blake3::merge(&[
         Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&[0b0u8])]),
@@ -533,7 +593,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
             NodeLabel::new(i.clone(), 3u32),
             leaves.len() as u64,
             &i.to_ne_bytes(),
-            0,
+            NodeLabel::root(),
             7 - i,
         )
         .await?;

@@ -33,8 +33,13 @@ pub struct NodeLabel {
 }
 
 impl NodeLabel {
+    /// Creates a new NodeLabel representing the root.
+    pub const fn root() -> Self {
+        Self::new(0, 0)
+    }
+
     /// Creates a new NodeLabel with the given value and len.
-    pub fn new(val: u64, len: u32) -> Self {
+    pub const fn new(val: u64, len: u32) -> Self {
         NodeLabel { val, len }
     }
 
@@ -71,7 +76,7 @@ impl NodeLabel {
             return *self;
         }
         if len == 0 {
-            return Self::new(0, 0);
+            return Self::root();
         }
         Self::new(self.val >> (self.len - len), len)
     }
@@ -215,7 +220,7 @@ impl Storable for HistoryNodeState {
         let val = u64::from_be_bytes(val_bytes);
         let epoch = u64::from_be_bytes(epoch_bytes);
 
-        Ok(NodeStateKey(NodeLabel { len, val }, epoch))
+        Ok(NodeStateKey(NodeLabel::new(val, len), epoch))
     }
 }
 
