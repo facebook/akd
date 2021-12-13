@@ -55,6 +55,12 @@ impl From<StorageError> for HistoryTreeNodeError {
     }
 }
 
+impl std::fmt::Display for AkdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        writeln!(f, "AkdError: {:?}", self)
+    }
+}
+
 /// Errors thown by HistoryTreeNodes
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
