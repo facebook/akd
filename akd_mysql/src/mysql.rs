@@ -542,29 +542,6 @@ impl<'a> AsyncMySqlDatabase {
         Ok(())
     }
 
-    /// Cleanup the test data table
-    #[allow(dead_code)]
-    pub async fn test_cleanup(&self) -> core::result::Result<(), MySqlError> {
-        let mut conn = self.get_connection().await?;
-        let mut tx = conn.start_transaction(TxOpts::default()).await?;
-
-        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_AZKS + "`";
-        tx.query_drop(command).await?;
-
-        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_USER + "`";
-        tx.query_drop(command).await?;
-
-        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_NODE_STATES + "`";
-        tx.query_drop(command).await?;
-
-        let command = "DROP TABLE IF EXISTS `".to_owned() + TABLE_HISTORY_TREE_NODES + "`";
-        tx.query_drop(command).await?;
-
-        tx.commit().await?;
-
-        Ok(())
-    }
-
     fn try_dockers() -> std::io::Result<std::process::Output> {
         let potential_docker_paths = vec![
             "/usr/local/bin/docker",
