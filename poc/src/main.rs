@@ -15,7 +15,8 @@ use clap::arg_enum;
 use commands::Command;
 use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::convert::From;
 use std::io::*;
 use std::str::FromStr;
@@ -208,9 +209,9 @@ async fn process_input(
                 println!("Beginning DB INSERT benchmark of {} users", num_users);
 
                 let mut values: Vec<String> = vec![];
-                for _ in 0..*num_users {
+                for i in 0..*num_users {
                     values.push(
-                        thread_rng()
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(30)
                             .map(char::from)
@@ -262,8 +263,8 @@ async fn process_input(
                 );
 
                 let users: Vec<String> = (1..=*num_users)
-                    .map(|_| {
-                        thread_rng()
+                    .map(|i| {
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(256)
                             .map(char::from)
@@ -271,8 +272,8 @@ async fn process_input(
                     })
                     .collect();
                 let data: Vec<String> = (1..=*num_updates_per_user)
-                    .map(|_| {
-                        thread_rng()
+                    .map(|i| {
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(1024)
                             .map(char::from)
@@ -335,14 +336,14 @@ async fn process_input(
                 );
 
                 let user_data: Vec<(String, String)> = (1..=*num_users)
-                    .map(|_| {
+                    .map(|i| {
                         (
-                            thread_rng()
+                            StdRng::seed_from_u64(i)
                                 .sample_iter(&Alphanumeric)
                                 .take(256)
                                 .map(char::from)
                                 .collect(),
-                            thread_rng()
+                            StdRng::seed_from_u64(i)
                                 .sample_iter(&Alphanumeric)
                                 .take(1024)
                                 .map(char::from)
