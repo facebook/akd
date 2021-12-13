@@ -57,8 +57,10 @@ pub struct HistoryTreeNode {
     pub label: NodeLabel,
     /// The location of this node in the storage
     pub location: u64,
-    /// The epochs this node was updated
-    pub epochs: Vec<u64>,
+    /// The last epoch this node was updated in
+    pub last_epoch: u64,
+    /// The epoch that this node was birthed in
+    pub birth_epoch: u64,
     /// The location of this node's parent
     pub parent: u64, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
@@ -106,7 +108,8 @@ impl Clone for HistoryTreeNode {
         Self {
             label: self.label,
             location: self.location,
-            epochs: self.epochs.clone(),
+            last_epoch: self.last_epoch,
+            birth_epoch: self.birth_epoch,
             parent: self.parent,
             node_type: self.node_type,
         }
@@ -114,11 +117,12 @@ impl Clone for HistoryTreeNode {
 }
 
 impl HistoryTreeNode {
-    fn new(label: NodeLabel, location: u64, parent: u64, node_type: NodeType) -> Self {
+    fn new(label: NodeLabel, location: u64, parent: u64, node_type: NodeType, birth_epoch: u64) -> Self {
         HistoryTreeNode {
             label,
             location,
-            epochs: vec![],
+            birth_epoch,
+            last_epoch: birth_epoch,
             parent, // Root node is its own parent
             node_type,
         }
@@ -248,8 +252,8 @@ impl HistoryTreeNode {
                     new_node_location,
                     parent.location,
                     NodeType::Interior,
+                    epoch,
                 );
-                new_node.epochs.push(epoch);
                 new_node.write_to_storage(storage).await?;
                 set_state_map(
                     storage,
@@ -470,11 +474,11 @@ impl HistoryTreeNode {
             match self.get_latest_epoch() {
                 Ok(latest) => {
                     if latest != epoch {
-                        self.epochs.push(epoch);
+                        self.last_epoch = epoch;
                     }
                 }
                 Err(_) => {
-                    self.epochs.push(epoch);
+                    self.last_epoch = epoch;
                 }
             }
             self.write_to_storage(storage).await?;
@@ -578,7 +582,7 @@ impl HistoryTreeNode {
     }
 
     pub(crate) fn get_birth_epoch(&self) -> u64 {
-        self.epochs[0]
+        self.birth_epoch
     }
 
     // gets the direction of node, i.e. if it's a left
@@ -623,14 +627,31 @@ impl HistoryTreeNode {
                 if self.get_birth_epoch() > epoch {
                     Err(HistoryTreeNodeError::NoChildInTreeAtEpoch(epoch, dir))
                 } else {
-                    let mut chosen_ep = self.get_birth_epoch();
-                    for existing_ep in &self.epochs {
-                        if *existing_ep <= epoch && *existing_ep > chosen_ep {
-                            chosen_ep = *existing_ep;
+                    let chosen_ep = {
+                        if self.last_epoch <= epoch {
+                            // the "last" updated epoch is <= epoch, so it is
+                            // the last valid state at this epoch
+                            Some(self.last_epoch)
+                        } else if self.birth_epoch == epoch {
+                            // we're looking at the state at the birth epoch
+                            Some(self.birth_epoch)
+                        } else {
+                            // Indeterminate, we are somewhere above the
+                            // birth epoch but we're less than the "last" epoch.
+                            // db query is necessary
+                            None
                         }
+                    };
+
+                    if let Some(ep) = chosen_ep {
+                        self.get_child_at_existing_epoch::<_, H>(storage, ep, direction)
+                            .await
+                    } else {
+                        let target_ep = storage.get_epoch_lte_epoch(self.label, epoch).await?;
+                        // DB query for the state <= this epoch value
+                        self.get_child_at_existing_epoch::<_, H>(storage, target_ep, direction)
+                            .await
                     }
-                    self.get_child_at_existing_epoch::<_, H>(storage, chosen_ep, direction)
-                        .await
                 }
             }
         }
@@ -658,13 +679,28 @@ impl HistoryTreeNode {
         if self.get_birth_epoch() > epoch {
             Err(HistoryTreeNodeError::NodeDidNotExistAtEp(self.label, epoch))
         } else {
-            let mut chosen_ep = self.get_birth_epoch();
-            for existing_ep in &self.epochs {
-                if *existing_ep <= epoch {
-                    chosen_ep = *existing_ep;
+            let chosen_ep = {
+                if self.last_epoch <= epoch {
+                    // the "last" updated epoch is <= epoch, so it is
+                    // the last valid state at this epoch
+                    Some(self.last_epoch)
+                } else if self.birth_epoch == epoch {
+                    // we're looking at the state at the birth epoch
+                    Some(self.birth_epoch)
+                } else {
+                    // Indeterminate, we are somewhere above the
+                    // birth epoch but we're less than the "last" epoch.
+                    // db query is necessary
+                    None
                 }
+            };
+            if let Some(ep) = chosen_ep {
+                self.get_state_at_existing_epoch(storage, ep).await
+            } else {
+                let target_ep = storage.get_epoch_lte_epoch(self.label, epoch).await?;
+                // DB query for the state <= this epoch value
+                self.get_state_at_existing_epoch(storage, target_ep).await
             }
-            self.get_state_at_existing_epoch(storage, chosen_ep).await
         }
     }
 
@@ -681,12 +717,7 @@ impl HistoryTreeNode {
     /* Functions for compression-related operations */
 
     pub(crate) fn get_latest_epoch(&self) -> Result<u64, HistoryTreeNodeError> {
-        match self.epochs.len() {
-            0 => Err(HistoryTreeNodeError::NodeCreatedWithoutEpochs(
-                self.label.get_val(),
-            )),
-            n => Ok(self.epochs[n - 1]),
-        }
+        Ok(self.last_epoch)
     }
 
     /////// Helpers /////////
@@ -747,9 +778,10 @@ pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     storage: &S,
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
-    let mut node = HistoryTreeNode::new(NodeLabel::new(0u64, 0u32), 0, 0, NodeType::Root);
+    let mut node = HistoryTreeNode::new(NodeLabel::new(0u64, 0u32), 0, 0, NodeType::Root, 0u64);
     if let Some(epoch) = ep {
-        node.epochs.push(epoch);
+        node.birth_epoch = epoch;
+        node.last_epoch = epoch;
         let new_state: HistoryNodeState =
             HistoryNodeState::new::<H>(NodeStateKey(node.label, epoch));
         set_state_map(storage, new_state).await?;
@@ -769,7 +801,8 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     let node = HistoryTreeNode {
         label,
         location,
-        epochs: vec![birth_epoch],
+        birth_epoch,
+        last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
     };
@@ -794,7 +827,8 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
     let node = HistoryTreeNode {
         label,
         location,
-        epochs: vec![birth_epoch],
+        birth_epoch,
+        last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
     };

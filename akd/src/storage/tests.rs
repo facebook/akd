@@ -78,7 +78,8 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let node = HistoryTreeNode {
         label: NodeLabel { val: 13, len: 1 },
         location: 234,
-        epochs: vec![123u64, 234u64, 345u64],
+        birth_epoch: 123,
+        last_epoch: 234,
         parent: 1,
         node_type: NodeType::Leaf,
     };
@@ -100,7 +101,8 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         assert_eq!(got_node.location, node.location);
         assert_eq!(got_node.parent, node.parent);
         assert_eq!(got_node.node_type, node.node_type);
-        assert_eq!(got_node.epochs, node.epochs);
+        assert_eq!(got_node.birth_epoch, node.birth_epoch);
+        assert_eq!(got_node.last_epoch, node.last_epoch);
     } else {
         panic!("Failed to retrieve History Tree Node");
     }

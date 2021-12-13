@@ -79,6 +79,14 @@ pub trait Storage: Clone {
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
 
+    /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
+    /// was edited
+    async fn get_epoch_lte_epoch(
+        &self,
+        node_label: crate::node_state::NodeLabel,
+        epoch_in_question: u64,
+    ) -> Result<u64, StorageError>;
+
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
@@ -138,7 +146,8 @@ pub trait Storage: Clone {
         label_val: u64,
         label_len: u32,
         location: u64,
-        epochs: Vec<u64>,
+        birth_epoch: u64,
+        last_epoch: u64,
         parent: u64,
         node_type: u8,
     ) -> crate::history_tree_node::HistoryTreeNode {
@@ -148,7 +157,8 @@ pub trait Storage: Clone {
                 len: label_len,
             },
             location,
-            epochs,
+            birth_epoch,
+            last_epoch,
             parent,
             node_type: crate::history_tree_node::NodeType::from_u8(node_type),
         }
