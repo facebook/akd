@@ -29,8 +29,6 @@ use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
-/// The default location of the azks root
-pub const DEFAULT_AZKS_ROOT: u64 = 0;
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
@@ -102,15 +100,14 @@ impl Azks {
         let new_leaf = get_leaf_node::<H, S>(
             storage,
             label,
-            0,
             value.as_bytes().as_ref(),
-            0,
+            NodeLabel::root(),
             self.latest_epoch,
         )
         .await?;
 
         let mut root_node =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         root_node
             .insert_single_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
             .await?;
@@ -134,7 +131,7 @@ impl Azks {
         insertion_set: &[(NodeLabel, H::Digest)],
     ) -> Result<u64, AkdError> {
         let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(DEFAULT_AZKS_ROOT)];
+        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
         let prefixes_set = crate::utils::build_prefixes_set(
             insertion_set
@@ -177,7 +174,7 @@ impl Azks {
                         .await?;
 
                     if let Some(child) = child {
-                        current_nodes.push(NodeKey(child.location));
+                        current_nodes.push(NodeKey(child.label));
                     }
                 }
             }
@@ -208,20 +205,17 @@ impl Azks {
         self.increment_epoch();
         self.preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
             .await?;
-        let mut hash_q = KeyedPriorityQueue::<u64, i32>::new();
+        let mut hash_q = KeyedPriorityQueue::<NodeLabel, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         for (label, value) in insertion_set {
-            let new_leaf_loc = self.num_nodes;
-
             let new_leaf = if append_only_usage {
                 get_leaf_node_without_hashing::<H, S>(
                     storage,
                     label,
-                    0,
                     value,
-                    0,
+                    NodeLabel::root(),
                     self.latest_epoch,
                 )
                 .await?
@@ -229,9 +223,8 @@ impl Azks {
                 get_leaf_node::<H, S>(
                     storage,
                     label,
-                    0,
                     value.as_bytes().as_ref(),
-                    0,
+                    NodeLabel::root(),
                     self.latest_epoch,
                 )
                 .await?
@@ -243,17 +236,17 @@ impl Azks {
                 .await?;
             debug!("END insert leaf");
 
-            hash_q.push(new_leaf_loc, priorities);
+            hash_q.push(label, priorities);
             priorities -= 1;
         }
 
         while !hash_q.is_empty() {
-            let (next_node_loc, _) = hash_q
+            let (next_node_label, _) = hash_q
                 .pop()
                 .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
 
             let mut next_node: HistoryTreeNode =
-                HistoryTreeNode::get_from_storage(storage, NodeKey(next_node_loc)).await?;
+                HistoryTreeNode::get_from_storage(storage, NodeKey(next_node_label)).await?;
 
             next_node
                 .update_hash::<_, H>(storage, self.latest_epoch)
@@ -298,13 +291,13 @@ impl Azks {
         label: NodeLabel,
         epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
-        let (longest_prefix_membership_proof, lcp_node_id) = self
+        let (longest_prefix_membership_proof, lcp_node_label) = self
             .get_membership_proof_and_node(storage, label, epoch)
             .await?;
         let lcp_node: HistoryTreeNode =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(lcp_node_id)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(lcp_node_label)).await?;
         let longest_prefix = lcp_node.label;
-        let mut longest_prefix_children_labels = [NodeLabel::new(0, 0); ARITY];
+        let mut longest_prefix_children_labels = [NodeLabel::root(); ARITY];
         let mut longest_prefix_children_values = [crate::utils::empty_node_hash::<H>(); ARITY];
         let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
 
@@ -315,7 +308,7 @@ impl Azks {
                 }
                 Some(child) => {
                     let unwrapped_child: HistoryTreeNode =
-                        HistoryTreeNode::get_from_storage(storage, NodeKey(child.location)).await?;
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(child.label)).await?;
                     longest_prefix_children_labels[i] = unwrapped_child.label;
                     longest_prefix_children_values[i] = unwrapped_child
                         .get_value_without_label_at_epoch::<_, H>(storage, epoch)
@@ -350,7 +343,7 @@ impl Azks {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
+        let node = HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         let (unchanged, leaves) = self
             .get_append_only_proof_helper::<_, H>(storage, node, start_epoch, end_epoch)
             .await?;
@@ -408,7 +401,7 @@ impl Azks {
                     Some(child_node_state) => {
                         let child_node = HistoryTreeNode::get_from_storage(
                             storage,
-                            NodeKey(child_node_state.location),
+                            NodeKey(child_node_state.label),
                         )
                         .await?;
                         let mut rec_output = self
@@ -447,7 +440,7 @@ impl Azks {
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
         let root_node: HistoryTreeNode =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         root_node.get_value_at_epoch::<_, H>(storage, epoch).await
     }
 
@@ -462,7 +455,7 @@ impl Azks {
         self.latest_epoch = epoch;
     }
 
-    /// This function returns the node location for the node whose label is the longest common
+    /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
     pub async fn get_membership_proof_and_node<S: Storage + Sync + Send, H: Hasher>(
@@ -470,22 +463,22 @@ impl Azks {
         storage: &S,
         label: NodeLabel,
         epoch: u64,
-    ) -> Result<(MembershipProof<H>, u64), AkdError> {
+    ) -> Result<(MembershipProof<H>, NodeLabel), AkdError> {
         let mut parent_labels = Vec::<NodeLabel>::new();
         let mut sibling_labels = Vec::<[NodeLabel; ARITY - 1]>::new();
         let mut sibling_hashes = Vec::<[H::Digest; ARITY - 1]>::new();
         let mut dirs = Vec::<Direction>::new();
         let mut curr_node: HistoryTreeNode =
-            HistoryTreeNode::get_from_storage(storage, NodeKey(DEFAULT_AZKS_ROOT)).await?;
+            HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
-        let mut prev_node = 0;
+        let mut prev_node = NodeLabel::root();
         while !equal && dir.is_some() {
             dirs.push(dir);
             parent_labels.push(curr_node.label);
-            prev_node = curr_node.location;
+            prev_node = curr_node.label;
             let curr_state = curr_node.get_state_at_epoch(storage, epoch).await?;
-            let mut labels = [NodeLabel::new(0, 0); ARITY - 1];
+            let mut labels = [NodeLabel::root(); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
             let direction = dir.ok_or(AkdError::NoDirectionError)?;
@@ -510,7 +503,7 @@ impl Azks {
                 storage,
                 NodeKey(
                     curr_node
-                        .get_child_location_at_epoch::<_, H>(storage, epoch, dir)
+                        .get_child_label_at_epoch::<_, H>(storage, epoch, dir)
                         .await?,
                 ),
             )

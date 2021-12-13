@@ -32,9 +32,32 @@ pub struct NodeLabel {
     pub len: u32,
 }
 
+impl PartialOrd for NodeLabel {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NodeLabel {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        //`label_len`, `label_val`
+        let len_cmp = self.len.cmp(&other.len);
+        if let std::cmp::Ordering::Equal = len_cmp {
+            self.val.cmp(&other.val)
+        } else {
+            len_cmp
+        }
+    }
+}
+
 impl NodeLabel {
+    /// Creates a new NodeLabel representing the root.
+    pub const fn root() -> Self {
+        Self::new(0, 0)
+    }
+
     /// Creates a new NodeLabel with the given value and len.
-    pub fn new(val: u64, len: u32) -> Self {
+    pub const fn new(val: u64, len: u32) -> Self {
         NodeLabel { val, len }
     }
 
@@ -71,7 +94,7 @@ impl NodeLabel {
             return *self;
         }
         if len == 0 {
-            return Self::new(0, 0);
+            return Self::root();
         }
         Self::new(self.val >> (self.len - len), len)
     }
@@ -215,7 +238,7 @@ impl Storable for HistoryNodeState {
         let val = u64::from_be_bytes(val_bytes);
         let epoch = u64::from_be_bytes(epoch_bytes);
 
-        Ok(NodeStateKey(NodeLabel { len, val }, epoch))
+        Ok(NodeStateKey(NodeLabel::new(val, len), epoch))
     }
 }
 
@@ -267,8 +290,6 @@ impl fmt::Display for HistoryNodeState {
 /// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Serialize, Deserialize, Eq)]
 pub struct HistoryChildState {
-    /// Says where the child node with this label is located
-    pub location: u64,
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
@@ -281,9 +302,8 @@ unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
-    pub fn new<H: Hasher>(loc: u64, label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
+    pub fn new<H: Hasher>(label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
         HistoryChildState {
-            location: loc,
             label,
             hash_val: from_digest::<H>(hash_val).unwrap(),
             epoch_version: ep,
@@ -294,7 +314,6 @@ impl HistoryChildState {
 impl Clone for HistoryChildState {
     fn clone(&self) -> Self {
         Self {
-            location: self.location,
             label: self.label,
             hash_val: self.hash_val.clone(),
             epoch_version: self.epoch_version,
@@ -304,8 +323,7 @@ impl Clone for HistoryChildState {
 
 impl PartialEq for HistoryChildState {
     fn eq(&self, other: &Self) -> bool {
-        self.location == other.location
-            && self.label == other.label
+        self.label == other.label
             && self.hash_val == other.hash_val
             && self.epoch_version == other.epoch_version
     }
@@ -315,11 +333,10 @@ impl fmt::Display for HistoryChildState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "\n\t\t location = {:?}
-                \n\t\t label = {:?}
+            "\n\t\t label = {:?}
                 \n\t\t hash = {:?},
                 \n\t\t epoch_version = {:?}\n\n",
-            self.location, self.label, self.hash_val, self.epoch_version
+            self.label, self.hash_val, self.epoch_version
         )
     }
 }
