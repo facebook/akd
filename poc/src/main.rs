@@ -15,7 +15,8 @@ use clap::arg_enum;
 use commands::Command;
 use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::convert::From;
 use std::io::*;
 use std::str::FromStr;
@@ -60,19 +61,23 @@ impl PublicLogLevels {
 /// applicationModes
 #[derive(StructOpt)]
 enum OtherMode {
+    #[structopt(about = "Benchmark publish API")]
     BenchPublish {
         num_users: u64,
         num_updates_per_user: u64,
         use_transactions: Option<bool>,
     },
+    #[structopt(about = "Benchmark lookup API")]
     BenchLookup {
         num_users: u64,
-        num_updates_per_user: u64,
+        num_lookups_per_user: u64,
     },
-    BenchDbInsert {
-        num_users: u64,
-    },
+    #[structopt(about = "Benchmark database insertion")]
+    BenchDbInsert { num_users: u64 },
+    #[structopt(about = "Flush data from database tables")]
     Flush,
+    #[structopt(about = "Drop existing database tables (for schema migration etc.)")]
+    Drop,
 }
 
 #[derive(StructOpt)]
@@ -140,6 +145,9 @@ async fn main() {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
+        if let Some(()) = pre_process_input(&cli, &tx, None).await {
+            return;
+        }
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
         });
@@ -156,6 +164,9 @@ async fn main() {
             cli.mysql_insert_depth,
         )
         .await;
+        if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
+            return;
+        }
         let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
@@ -165,6 +176,27 @@ async fn main() {
 }
 
 // Helpers //
+// If () is returned, it means the command execution is complete and CLI should
+// return
+async fn pre_process_input(
+    cli: &Cli,
+    tx: &Sender<directory_host::Rpc>,
+    db: Option<&AsyncMySqlDatabase>,
+) -> Option<()> {
+    if let Some(OtherMode::Drop) = &cli.other_mode {
+        println!("======= Dropping database ======= ");
+        if let Some(mysql_db) = db {
+            if let Err(error) = mysql_db.drop_tables().await {
+                error!("Error dropping database: {}", error);
+            } else {
+                info!("Database dropped.");
+            }
+            return Option::from(());
+        }
+    }
+    None
+}
+
 async fn process_input(
     cli: &Cli,
     tx: &Sender<directory_host::Rpc>,
@@ -177,9 +209,9 @@ async fn process_input(
                 println!("Beginning DB INSERT benchmark of {} users", num_users);
 
                 let mut values: Vec<String> = vec![];
-                for _ in 0..*num_users {
+                for i in 0..*num_users {
                     values.push(
-                        thread_rng()
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(30)
                             .map(char::from)
@@ -231,8 +263,8 @@ async fn process_input(
                 );
 
                 let users: Vec<String> = (1..=*num_users)
-                    .map(|_| {
-                        thread_rng()
+                    .map(|i| {
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(256)
                             .map(char::from)
@@ -240,8 +272,8 @@ async fn process_input(
                     })
                     .collect();
                 let data: Vec<String> = (1..=*num_updates_per_user)
-                    .map(|_| {
-                        thread_rng()
+                    .map(|i| {
+                        StdRng::seed_from_u64(i)
                             .sample_iter(&Alphanumeric)
                             .take(1024)
                             .map(char::from)
@@ -295,13 +327,81 @@ async fn process_input(
             }
             OtherMode::BenchLookup {
                 num_users,
-                num_updates_per_user,
+                num_lookups_per_user,
             } => {
                 println!("======= Benchmark operation requested ======= ");
                 println!(
-                    "Beginning LOOKUP benchmark of {} users with {} updates/user",
-                    num_users, num_updates_per_user
+                    "Beginning LOOKUP benchmark of {} users with {} lookups/user",
+                    num_users, num_lookups_per_user
                 );
+
+                let user_data: Vec<(String, String)> = (1..=*num_users)
+                    .map(|i| {
+                        (
+                            StdRng::seed_from_u64(i)
+                                .sample_iter(&Alphanumeric)
+                                .take(256)
+                                .map(char::from)
+                                .collect(),
+                            StdRng::seed_from_u64(i)
+                                .sample_iter(&Alphanumeric)
+                                .take(1024)
+                                .map(char::from)
+                                .collect(),
+                        )
+                    })
+                    .collect();
+
+                info!("Inserting {} users", num_users);
+                let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
+                let rpc = directory_host::Rpc(
+                    directory_host::DirectoryCommand::PublishBatch(user_data.clone(), true),
+                    Some(rpc_tx),
+                );
+                let sent = tx.clone().send(rpc).await;
+
+                let tic = Instant::now();
+
+                let mut code = None;
+                for i in 1..=*num_lookups_per_user {
+                    for (user, _) in &user_data {
+                        let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
+                        let rpc = directory_host::Rpc(
+                            directory_host::DirectoryCommand::Lookup(String::from(user)),
+                            Some(rpc_tx),
+                        );
+                        let sent = tx.clone().send(rpc).await;
+                        if sent.is_err() {
+                            error!("Error sending message to directory");
+                            continue;
+                        }
+                        match rpc_rx.await {
+                            Err(err) => code = Some(format!("{}", err)),
+                            Ok(Err(dir_err)) => code = Some(dir_err),
+                            Ok(Ok(msg)) => {}
+                        }
+                        if code.is_some() {
+                            break;
+                        }
+                    }
+                    info!("LOOKUP of {} users complete (iteration {})", num_users, i);
+                }
+
+                if let Some(err) = code {
+                    error!("Benchmark operation error {}", err);
+                } else {
+                    let toc = tic.elapsed();
+
+                    let millis = toc.as_millis();
+                    println!(
+                        "Benchmark output: Looked up and verified {} users with {} lookups/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
+                        num_users,
+                        num_lookups_per_user,
+                        toc.as_millis(),
+                        toc.as_micros() / *num_users as u128,
+                        toc.as_micros() / *num_users as u128 / *num_lookups_per_user as u128
+                    );
+                }
             }
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
@@ -310,6 +410,16 @@ async fn process_input(
                         error!("Error flushing database: {}", error);
                     } else {
                         info!("Database flushed.");
+                    }
+                }
+            }
+            OtherMode::Drop => {
+                println!("======= Dropping database ======= ");
+                if let Some(mysql_db) = db {
+                    if let Err(error) = mysql_db.drop_tables().await {
+                        error!("Error dropping database: {}", error);
+                    } else {
+                        info!("Database dropped.");
                     }
                 }
             }

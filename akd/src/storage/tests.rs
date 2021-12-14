@@ -76,18 +76,17 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === HistoryTreeNode storage === //
 
     let node = HistoryTreeNode {
-        label: NodeLabel { val: 13, len: 1 },
-        location: 234,
+        label: NodeLabel::new(13, 4),
         birth_epoch: 123,
         last_epoch: 234,
-        parent: 1,
+        parent: NodeLabel::new(1, 1),
         node_type: NodeType::Leaf,
     };
     let mut node2 = node.clone();
-    node2.location = 123;
+    node2.label = NodeLabel::new(16, 4);
 
-    let key = NodeKey(234);
-    let key2 = NodeKey(123);
+    let key = NodeKey(NodeLabel::new(13, 4));
+    let key2 = NodeKey(NodeLabel::new(16, 4));
 
     let set_result = storage.set(DbRecord::HistoryTreeNode(node.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -98,7 +97,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let get_result = storage.get::<HistoryTreeNode>(key).await;
     if let Ok(DbRecord::HistoryTreeNode(got_node)) = get_result {
         assert_eq!(got_node.label, node.label);
-        assert_eq!(got_node.location, node.location);
         assert_eq!(got_node.parent, node.parent);
         assert_eq!(got_node.node_type, node.node_type);
         assert_eq!(got_node.birth_epoch, node.birth_epoch);
@@ -113,7 +111,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     }
 
     // === HistoryNodeState storage === //
-    let key = NodeStateKey(NodeLabel { len: 1, val: 1 }, 1);
+    let key = NodeStateKey(NodeLabel::new(1, 1), 1);
     let node_state = HistoryNodeState {
         value: vec![],
         child_states: [None, None],
@@ -138,7 +136,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let value = ValueState {
         username: AkdKey("test".to_string()),
         epoch: 1,
-        label: NodeLabel { len: 1, val: 1 },
+        label: NodeLabel::new(1, 1),
         version: 1,
         plaintext_val: Values("abc123".to_string()),
     };
@@ -479,7 +477,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 123,
             version: 2,
-            label: NodeLabel { val: 1, len: 1 },
+            label: NodeLabel::new(1, 1),
             plaintext_val: Values(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -494,7 +492,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             ValueState {
                 epoch: 123,
                 version: 2,
-                label: NodeLabel { val: 1, len: 1 },
+                label: NodeLabel::new(1, 1),
                 plaintext_val: Values(rand_value.clone()),
                 username: sample_state.username.clone(),
             },
@@ -525,7 +523,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 123,
             version: 2,
-            label: NodeLabel { val: 1, len: 1 },
+            label: NodeLabel::new(1, 1),
             plaintext_val: Values(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -539,7 +537,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 1,
             version: 1,
-            label: NodeLabel { val: 1, len: 1 },
+            label: NodeLabel::new(1, 1),
             plaintext_val: Values(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -553,7 +551,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 456,
             version: 3,
-            label: NodeLabel { val: 1, len: 1 },
+            label: NodeLabel::new(1, 1),
             plaintext_val: Values(rand_value.clone()),
             username: sample_state.username.clone(),
         }),

@@ -7,7 +7,7 @@
 
 // 1. Create a hashmap of all prefixes of all elements of the insertion set
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
-// 3. If so, add child loc to batch set
+// 3. If so, add child label to batch set
 
 use crate::node_state::NodeLabel;
 use std::collections::HashSet;
