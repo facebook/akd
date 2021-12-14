@@ -53,7 +53,10 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
         root.get_latest_epoch().unwrap_or(0) == 1,
         "Latest epochs don't match!"
     );
-    assert!(root.epochs.len() == 1, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
+    assert!(
+        root.birth_epoch == root.last_epoch,
+        "How would the last epoch be different from the birth epoch without an update?"
+    );
 
     Ok(())
 }
@@ -103,7 +106,10 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
     }
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 1, "Latest epochs don't match!");
-    assert!(root.epochs.len() == 1, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
+    assert!(
+        root.birth_epoch == root.last_epoch,
+        "How would the last epoch be different from the birth epoch without an update?"
+    );
 
     Ok(())
 }
@@ -173,7 +179,10 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
     }
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
-    assert!(root.epochs.len() == 2, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
+    assert!(
+        root.birth_epoch < root.last_epoch,
+        "How is the last epoch not higher than the birth epoch after an udpate?"
+    );
 
     Ok(())
 }
@@ -242,7 +251,10 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
     }
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
-    assert!(root.epochs.len() == 2, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
+    assert!(
+        root.birth_epoch < root.last_epoch,
+        "How is the last epoch not higher than the birth epoch after an udpate?"
+    );
 
     Ok(())
 }
@@ -312,7 +324,10 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
     }
     let latest_ep = root.get_latest_epoch();
     assert!(latest_ep.unwrap_or(0) == 4, "Latest epochs don't match!");
-    assert!(root.epochs.len() == 3, "Ask yourself some pressing questions, such as: Why are there random extra epochs in the root?");
+    assert!(
+        root.birth_epoch < root.last_epoch,
+        "How is the last epoch not higher than the birth epoch after an udpate?"
+    );
 
     Ok(())
 }
