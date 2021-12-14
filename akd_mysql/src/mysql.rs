@@ -1448,7 +1448,7 @@ impl Storage for AsyncMySqlDatabase {
 
             let mut conn = self.get_connection().await?;
 
-            let statement = format!("SELECT `epoch` FROM {} WHERE `label_len` = :len AND `label_val` = :val AND `epoch` <= :epoch ORDER BY `epoch` DESC", TABLE_HISTORY_NODE_STATES);
+            let statement = format!("SELECT `epoch` FROM {} WHERE `label_len` = :len AND `label_val` = :val AND `epoch` <= :epoch ORDER BY `epoch` DESC LIMIT 1", TABLE_HISTORY_NODE_STATES);
             let out = conn
                 .exec_first(
                     statement,
