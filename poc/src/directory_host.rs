@@ -124,7 +124,7 @@ where
                                         "WARN: Lookup proof failed verification for '{}'",
                                         a
                                     );
-                                    response.send(Ok(msg)).unwrap();
+                                    response.send(Err(msg)).unwrap();
                                 } else {
                                     let msg = format!("Lookup proof verified for user '{}'", a);
                                     response.send(Ok(msg)).unwrap();
@@ -132,7 +132,7 @@ where
                             }
                             _ => {
                                 let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", a);
-                                response.send(Ok(msg)).unwrap();
+                                response.send(Err(msg)).unwrap();
                             }
                         }
                     }

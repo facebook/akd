@@ -7,8 +7,11 @@
 
 //! Storage module for a auditable key directory
 
+use crate::append_only_zks::Azks;
 use crate::errors::StorageError;
-use crate::storage::types::{DbRecord, StorageType};
+use crate::history_tree_node::{HistoryTreeNode, NodeType};
+use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
+use crate::storage::types::{AkdKey, DbRecord, StorageType, ValueState, Values};
 use crate::ARITY;
 
 use async_trait::async_trait;
@@ -79,6 +82,14 @@ pub trait Storage: Clone {
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
 
+    /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
+    /// was edited
+    async fn get_epoch_lte_epoch(
+        &self,
+        node_label: crate::node_state::NodeLabel,
+        epoch_in_question: u64,
+    ) -> Result<u64, StorageError>;
+
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
@@ -114,8 +125,8 @@ pub trait Storage: Clone {
     _h: PhantomData<H>,
     */
     /// Build an azks instance from the properties
-    fn build_azks(latest_epoch: u64, num_nodes: u64) -> crate::append_only_zks::Azks {
-        crate::append_only_zks::Azks {
+    fn build_azks(latest_epoch: u64, num_nodes: u64) -> Azks {
+        Azks {
             latest_epoch,
             num_nodes,
         }
@@ -123,9 +134,8 @@ pub trait Storage: Clone {
 
     /*
     pub label: NodeLabel,
-    pub location: u64,
     pub epochs: Vec<u64>,
-    pub parent: u64,
+    pub parent: NodeLabel,
     // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
     pub node_type: NodeType,
     // Note that the NodeType along with the parent/children being options
@@ -137,20 +147,18 @@ pub trait Storage: Clone {
     fn build_history_tree_node(
         label_val: u64,
         label_len: u32,
-        location: u64,
-        epochs: Vec<u64>,
-        parent: u64,
+        birth_epoch: u64,
+        last_epoch: u64,
+        parent_label_val: u64,
+        parent_label_len: u32,
         node_type: u8,
-    ) -> crate::history_tree_node::HistoryTreeNode {
-        crate::history_tree_node::HistoryTreeNode {
-            label: crate::node_state::NodeLabel {
-                val: label_val,
-                len: label_len,
-            },
-            location,
-            epochs,
-            parent,
-            node_type: crate::history_tree_node::NodeType::from_u8(node_type),
+    ) -> HistoryTreeNode {
+        HistoryTreeNode {
+            label: NodeLabel::new(label_val, label_len),
+            birth_epoch,
+            last_epoch,
+            parent: NodeLabel::new(parent_label_val, parent_label_len),
+            node_type: NodeType::from_u8(node_type),
         }
     }
 
@@ -163,21 +171,15 @@ pub trait Storage: Clone {
     /// Build a history node state from the properties
     fn build_history_node_state(
         value: Vec<u8>,
-        child_states: [Option<crate::node_state::HistoryChildState>; ARITY],
+        child_states: [Option<HistoryChildState>; ARITY],
         label_len: u32,
         label_val: u64,
         epoch: u64,
-    ) -> crate::node_state::HistoryNodeState {
-        crate::node_state::HistoryNodeState {
+    ) -> HistoryNodeState {
+        HistoryNodeState {
             value,
             child_states,
-            key: crate::node_state::NodeStateKey(
-                crate::node_state::NodeLabel {
-                    val: label_val,
-                    len: label_len,
-                },
-                epoch,
-            ),
+            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
         }
     }
 
@@ -195,16 +197,13 @@ pub trait Storage: Clone {
         label_len: u32,
         label_val: u64,
         epoch: u64,
-    ) -> crate::storage::types::ValueState {
-        crate::storage::types::ValueState {
-            plaintext_val: crate::storage::types::Values(plaintext_val),
+    ) -> ValueState {
+        ValueState {
+            plaintext_val: Values(plaintext_val),
             version,
-            label: crate::node_state::NodeLabel {
-                val: label_val,
-                len: label_len,
-            },
+            label: NodeLabel::new(label_val, label_len),
             epoch,
-            username: crate::storage::types::AkdKey(username),
+            username: AkdKey(username),
         }
     }
 }

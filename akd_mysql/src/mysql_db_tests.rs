@@ -45,7 +45,7 @@ async fn test_mysql_db() {
         akd::storage::tests::run_test_cases_for_storage_impl(&mut mysql_db).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.test_cleanup().await {
+        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
             println!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
