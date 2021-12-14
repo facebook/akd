@@ -23,6 +23,8 @@ pub enum AkdError {
     NoDirectionError,
     /// Thrown when a place where an epoch is needed wasn't provided one.
     NoEpochGiven,
+    /// Thrown when a requested element is not found.
+    NotFoundError(String),
 }
 
 impl From<HistoryTreeNodeError> for AkdError {

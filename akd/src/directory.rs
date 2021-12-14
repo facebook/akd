@@ -264,11 +264,11 @@ impl<S: Storage + Sync + Send> Directory<S> {
     }
 
     /// Retrieves the current azks
-    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::StorageError> {
+    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::get_azks_from_storage(&self.storage).await
     }
 
-    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::StorageError> {
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::AkdError> {
         let got = storage
             .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
             .await?;
@@ -276,8 +276,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
                 error!("No AZKS can be found. You should re-initialize the directory to create a new one");
-                Err(crate::errors::StorageError::GetError(String::from(
-                    "Not found",
+                Err(crate::errors::AkdError::NotFoundError(String::from(
+                    "AZKS not found in storage.",
                 )))
             }
         }
