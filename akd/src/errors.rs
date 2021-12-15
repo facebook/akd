@@ -13,11 +13,11 @@ use crate::node_state::NodeLabel;
 /// Symbolizes a AkdError, thrown by the akd.
 #[derive(Debug)]
 pub enum AkdError {
-    /// Error propogation
+    /// Error propagation
     HistoryTreeNodeErr(HistoryTreeNodeError),
-    /// Error propogation
+    /// Error propagation
     DirectoryErr(DirectoryError),
-    /// Error propogation
+    /// Error propagation
     AzksErr(AzksError),
     /// Thrown when a direction should have been given but isn't
     NoDirectionError,
@@ -80,9 +80,9 @@ pub enum HistoryTreeNodeError {
     NodeDidNotExistAtEp(NodeLabel, u64),
     /// The state of a node did not exist at a given epoch
     NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
-    /// Error propogation
+    /// Error propagation
     StorageError(StorageError),
-    /// Error propogation
+    /// Error propagation
     SerializationError,
 }
 
@@ -166,7 +166,7 @@ pub enum DirectoryError {
     VerifyLookupProof(String),
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
-    /// Error propogation
+    /// Error propagation
     StorageError,
 }
 
