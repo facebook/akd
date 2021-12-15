@@ -191,9 +191,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
         {
             Err(_) => {
                 // Need to throw an error
-                Err(AkdError::DirectoryErr(
-                    DirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
-                ))
+                Err(AkdError::DirectoryErr(DirectoryError::NonExistentUser(
+                    uname.0,
+                    self.current_epoch,
+                )))
             }
             Ok(latest_st) => {
                 // Need to account for the case where the latest state is
@@ -244,9 +245,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::DirectoryErr(
-                DirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
-            ))
+            Err(AkdError::DirectoryErr(DirectoryError::NonExistentUser(
+                username,
+                self.current_epoch,
+            )))
         }
     }
 
