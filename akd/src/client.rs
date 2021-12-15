@@ -28,7 +28,7 @@ pub fn verify_membership<H: Hasher>(
         if final_hash == root_hash {
             return Ok(());
         } else {
-            return Err(AkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+            return Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
                 "Membership proof for root did not verify".to_string(),
             )));
         }
@@ -46,7 +46,7 @@ pub fn verify_membership<H: Hasher>(
     if final_hash == root_hash {
         Ok(())
     } else {
-        return Err(AkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+        return Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
             format!(
                 "Membership proof for label {:?} did not verify",
                 proof.label

@@ -138,28 +138,19 @@ impl fmt::Display for HistoryTreeNodeError {
 /// An error thrown by the Azks data structure.
 #[derive(Debug)]
 pub enum AzksError {
-    /// Popped from the priority queue to update hash but found an empty value
-    PopFromEmptyPriorityQueue(u64),
     /// Membership proof did not verify
-    MembershipProofDidNotVerify(String),
+    VerifyMembershipProof(String),
     /// Append-only proof did not verify
-    AppendOnlyProofDidNotVerify,
+    VerifyAppendOnlyProof,
 }
 
 impl fmt::Display for AzksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PopFromEmptyPriorityQueue(epoch) => {
-                write!(
-                    f,
-                    "Tried to pop from an empty priority queue at ep {:?}",
-                    epoch
-                )
-            }
-            Self::MembershipProofDidNotVerify(error_string) => {
+            Self::VerifyMembershipProof(error_string) => {
                 write!(f, "{}", error_string)
             }
-            Self::AppendOnlyProofDidNotVerify => {
+            Self::VerifyAppendOnlyProof => {
                 write!(f, "Append only proof did not verify!")
             }
         }
