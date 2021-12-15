@@ -145,7 +145,7 @@ impl HistoryTreeNode {
     ) -> Result<HistoryTreeNode, StorageError> {
         match storage.get::<HistoryTreeNode>(key).await? {
             DbRecord::HistoryTreeNode(node) => Ok(node),
-            _ => Err(StorageError::GetError(String::from("Not found"))),
+            _ => Err(StorageError::GetData(String::from("Not found"))),
         }
     }
 
@@ -159,7 +159,7 @@ impl HistoryTreeNode {
             if let DbRecord::HistoryTreeNode(node) = node {
                 nodes.push(node);
             } else {
-                return Err(StorageError::GetError(String::from(
+                return Err(StorageError::GetData(String::from(
                     "Batch retrieve returned types <> HistoryTreeNode",
                 )));
             }
@@ -847,7 +847,7 @@ pub(crate) async fn get_state_map<S: Storage + Sync + Send>(
     {
         Ok(state)
     } else {
-        Err(StorageError::GetError(String::from("Not found")))
+        Err(StorageError::GetData(String::from("Not found")))
     }
 }
 

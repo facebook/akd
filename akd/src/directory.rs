@@ -140,7 +140,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
                 return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(StorageError::SetError(
+                    HistoryTreeNodeError::StorageError(StorageError::SetData(
                         "Transaction is already active".to_string(),
                     )),
                 ));

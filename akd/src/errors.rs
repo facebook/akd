@@ -202,9 +202,9 @@ impl fmt::Display for DirectoryError {
 #[derive(PartialEq, Debug)]
 pub enum StorageError {
     /// An error occurred setting data in the storage layer
-    SetError(String),
+    SetData(String),
     /// An error occurred getting data from the storage layer
-    GetError(String),
-        /// Some kind of storage connection error occurred
+    GetData(String),
+    /// Some kind of storage connection error occurred
     Connection(String),
 }
