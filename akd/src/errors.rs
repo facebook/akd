@@ -14,34 +14,32 @@ use crate::node_state::NodeLabel;
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
-    HistoryTreeNodeErr(HistoryTreeNodeError),
+    HistoryTreeNode(HistoryTreeNodeError),
     /// Error propagation
-    DirectoryErr(DirectoryError),
+    Directory(DirectoryError),
     /// Error propagation
     AzksErr(AzksError),
-    /// Thrown when a direction should have been given but isn't
-    NoDirectionError,
     /// Thrown when a place where an epoch is needed wasn't provided one.
     NoEpochGiven,
-    /// Thrown when a requested element is not found.
-    NotFoundError(String),
+    /// Thrown when the underlying Azks is not found.
+    AzksNotFound(String),
 }
 
 impl From<HistoryTreeNodeError> for AkdError {
     fn from(error: HistoryTreeNodeError) -> Self {
-        Self::HistoryTreeNodeErr(error)
+        Self::HistoryTreeNode(error)
     }
 }
 
 impl From<StorageError> for AkdError {
     fn from(error: StorageError) -> Self {
-        Self::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(error))
+        Self::HistoryTreeNode(HistoryTreeNodeError::Storage(error))
     }
 }
 
 impl From<DirectoryError> for AkdError {
     fn from(error: DirectoryError) -> Self {
-        Self::DirectoryErr(error)
+        Self::Directory(error)
     }
 }
 

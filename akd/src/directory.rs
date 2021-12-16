@@ -139,7 +139,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
-                return Err(AkdError::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
                     StorageError::SetData("Transaction is already active".to_string()),
                 )));
             }
@@ -161,7 +161,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
                     err,
                 )));
             } else {
@@ -189,7 +189,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         {
             Err(_) => {
                 // Need to throw an error
-                Err(AkdError::DirectoryErr(DirectoryError::NonExistentUser(
+                Err(AkdError::Directory(DirectoryError::NonExistentUser(
                     uname.0,
                     self.current_epoch,
                 )))
@@ -243,7 +243,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::DirectoryErr(DirectoryError::NonExistentUser(
+            Err(AkdError::Directory(DirectoryError::NonExistentUser(
                 username,
                 self.current_epoch,
             )))
@@ -276,7 +276,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
                 error!("No AZKS can be found. You should re-initialize the directory to create a new one");
-                Err(crate::errors::AkdError::NotFoundError(String::from(
+                Err(crate::errors::AkdError::AzksNotFound(String::from(
                     "AZKS not found in storage.",
                 )))
             }
