@@ -166,14 +166,18 @@ pub enum DirectoryError {
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
     /// Error propagation
-    StorageError,
+    Storage(StorageError),
 }
 
 impl fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::StorageError => {
-                write!(f, "Error with retrieving value from storage")
+            Self::Storage(storage_error) => {
+                write!(
+                    f,
+                    "Error with retrieving value from storage: {:?}",
+                    storage_error
+                )
             }
             Self::NonExistentUser(uname, ep) => {
                 write!(f, "The user {} did not exist at the epoch {}", uname, ep)
