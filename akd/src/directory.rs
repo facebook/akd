@@ -139,11 +139,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::Storage(StorageError::SetData(
-                        "Transaction is already active".to_string(),
-                    )),
-                ));
+                return Err(AkdError::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(
+                    StorageError::SetData("Transaction is already active".to_string()),
+                )));
             }
         }
         info!("Starting database insertion");
@@ -163,9 +161,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::Storage(err),
-                ));
+                return Err(AkdError::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(
+                    err,
+                )));
             } else {
                 debug!("Transaction committed");
             }
