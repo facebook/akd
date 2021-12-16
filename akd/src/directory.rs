@@ -140,7 +140,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
                 return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(StorageError::SetData(
+                    HistoryTreeNodeError::Storage(StorageError::SetData(
                         "Transaction is already active".to_string(),
                     )),
                 ));
@@ -164,7 +164,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
                 return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(err),
+                    HistoryTreeNodeError::Storage(err),
                 ));
             } else {
                 debug!("Transaction committed");

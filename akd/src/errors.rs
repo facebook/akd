@@ -35,7 +35,7 @@ impl From<HistoryTreeNodeError> for AkdError {
 
 impl From<StorageError> for AkdError {
     fn from(error: StorageError) -> Self {
-        Self::HistoryTreeNodeErr(HistoryTreeNodeError::StorageError(error))
+        Self::HistoryTreeNodeErr(HistoryTreeNodeError::Storage(error))
     }
 }
 
@@ -53,7 +53,7 @@ impl From<AzksError> for AkdError {
 
 impl From<StorageError> for HistoryTreeNodeError {
     fn from(error: StorageError) -> Self {
-        Self::StorageError(error)
+        Self::Storage(error)
     }
 }
 
@@ -66,22 +66,22 @@ impl std::fmt::Display for AkdError {
 /// Errors thown by HistoryTreeNodes
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
-    /// Tried to set a child and the direction given was none.
-    NoDirectionInSettingChild(u64, u64),
-    /// Direction is unexpectedly None
-    DirectionIsNone,
+    /// No direction provided for the node.
+    /// Second parameter is the label of the child attempted to be set
+    /// -- if there is one, otherwise it is None.
+    NoDirection(u64, Option<u64>),
     /// The node didn't have a child in the given epoch
-    NoChildInTreeAtEpoch(u64, usize),
+    NoChildAtEpoch(u64, usize),
     /// The next epoch of this node's parent was invalid
     ParentNextEpochInvalid(u64),
     /// The hash of a parent was attempted to be updated, without setting the calling node as a child.
-    HashUpdateOnlyAllowedAfterNodeInsertion,
-    /// The children of a leaf are always dummy and should not be hashed
-    NodeDidNotExistAtEp(NodeLabel, u64),
+    HashUpdateOrderInconsistent,
+    /// The node did not exist at epoch
+    NonexistentAtEpoch(NodeLabel, u64),
     /// The state of a node did not exist at a given epoch
-    NodeDidNotHaveExistingStateAtEp(NodeLabel, u64),
+    NoStateAtEpoch(NodeLabel, u64),
     /// Error propagation
-    StorageError(StorageError),
+    Storage(StorageError),
     /// Error propagation
     SerializationError,
 }
@@ -89,43 +89,42 @@ pub enum HistoryTreeNodeError {
 impl fmt::Display for HistoryTreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NoDirectionInSettingChild(node_label, child_label) => {
-                write!(
-                    f,
-                    "no direction provided to set the child {} of this node {}",
-                    node_label, child_label
-                )
+            Self::NoDirection(node_label, child_label) => {
+                let mut to_print = format!("no direction provided for the node {}", node_label);
+                // Add child info if given.
+                if let Some(child_label) = child_label {
+                    let child_str = format!(" and child {}", child_label);
+                    to_print.push_str(&child_str);
+                }
+                write!(f, "{}", to_print)
             }
-            Self::NoChildInTreeAtEpoch(epoch, direction) => {
+            Self::NoChildAtEpoch(epoch, direction) => {
                 write!(f, "no node in direction {} at epoch {}", direction, epoch)
-            }
-            Self::DirectionIsNone => {
-                write!(f, "Direction provided is None")
             }
             Self::ParentNextEpochInvalid(epoch) => {
                 write!(f, "Next epoch of parent is invalid, epoch = {}", epoch)
             }
-            Self::HashUpdateOnlyAllowedAfterNodeInsertion => {
+            Self::HashUpdateOrderInconsistent => {
                 write!(
                     f,
                     "Hash update in parent only allowed after node is inserted"
                 )
             }
-            Self::NodeDidNotExistAtEp(label, epoch) => {
+            Self::NonexistentAtEpoch(label, epoch) => {
                 write!(
                     f,
                     "This node, labelled {:?}, did not exist at epoch {:?}.",
                     label, epoch
                 )
             }
-            Self::NodeDidNotHaveExistingStateAtEp(label, epoch) => {
+            Self::NoStateAtEpoch(label, epoch) => {
                 write!(
                     f,
                     "This node, labelled {:?}, did not exist at epoch {:?}.",
                     label, epoch
                 )
             }
-            Self::StorageError(err) => {
+            Self::Storage(err) => {
                 write!(f, "Encountered a storage error: {:?}", err,)
             }
             Self::SerializationError => {
