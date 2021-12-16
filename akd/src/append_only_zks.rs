@@ -490,12 +490,10 @@ impl Azks {
                 break;
             }
             for i in 0..ARITY {
-                if i != dir.ok_or_else(|| {
-                    AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(
-                        curr_node.label.get_val(),
-                        None,
-                    ))
-                })? {
+                let no_direction_error = AkdError::HistoryTreeNode(
+                    HistoryTreeNodeError::NoDirection(curr_node.label.get_val(), None),
+                );
+                if i != dir.ok_or(no_direction_error)? {
                     labels[count] =
                         optional_history_child_state_to_label(&curr_state.child_states[i]);
                     hashes[count] = to_digest::<H>(&optional_history_child_state_to_hash::<H>(
