@@ -61,7 +61,7 @@ impl std::fmt::Display for AkdError {
     }
 }
 
-/// Errors thown by HistoryTreeNodes
+/// Errors thrown by HistoryTreeNodes
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
