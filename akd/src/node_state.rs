@@ -87,7 +87,7 @@ impl NodeLabel {
             return 0;
         }
         let block: usize = (31 - ((self.len - index)/8)).try_into().unwrap();
-        let pos_in_block = 7 - ((self.len - index)%8);
+        let pos_in_block = 8 - ((self.len - index)%8);
         (self.val[block] >> (8 - pos_in_block)) & 1
     }
 
@@ -100,33 +100,42 @@ impl NodeLabel {
             return Self::new([0u8; 32], 0);
         }
         let len_remainder: usize = (len % 8).try_into().unwrap();
-        let self_len_remainder: usize = (self.len % 8).try_into().unwrap();
+        let self_remainder: usize = (self.len % 8).try_into().unwrap();
         let len_not_multiple_of_8: usize = if len_remainder == 0 {0} else {1};
         let len_full_block_num: usize = (len / 8).try_into().unwrap();
         let len_block_num: usize = len_full_block_num + len_not_multiple_of_8;
-        let self_len_not_multiple_of_8: usize = if self_len_remainder == 0 {0} else {1};
-        let self_len_full_block_num: usize = (self.len / 8).try_into().unwrap();
-        let self_len_block_num: usize = self_len_full_block_num + self_len_not_multiple_of_8;
+        let self_not_multiple_of_8: usize = if self_remainder == 0 {0} else {1};
+        let self_full_block_num: usize = (self.len / 8).try_into().unwrap();
+        let self_block_num: usize = self_full_block_num + self_not_multiple_of_8;
+        // You only get to this point if there is at least one block in the
+        // value of each self and the expected output.
         let len_start = 32 - len_block_num;
-        let self_start = 32 - self_len_block_num;
+        let self_start = 32 - self_block_num;
         let mut out_val = [0u8; 32];
-        if len_remainder == self_len_remainder {
+        if len_remainder == self_remainder {
             for i in 0..len_block_num {
                 out_val[len_start + i] = self.val[self_start + i];
             }
         }
-        else if len_remainder > self_len_remainder {
+        else if self_remainder == 0 {
+            out_val[len_start] = self.val[self_start] >> (8 - len_remainder);
+            for i in 1..len_block_num {
+                out_val[len_start + i] = (self.val[self_start + i] >> (8 - len_remainder)) +
+                                         (self.val[self_start + i - 1] << len_remainder);
+            }
+        }
+        else if len_remainder > self_remainder {
             for i in 0..len_block_num {
-                out_val[len_start + i] = (self.val[self_start + i] << (len_remainder - self_len_remainder)) +
-                                         (self.val[self_start + i + 1] >> (7 - (len_remainder - self_len_remainder)));
+                out_val[len_start + i] = (self.val[self_start + i] << (len_remainder - self_remainder)) +
+                                         (self.val[self_start + i + 1] >> (8 - (len_remainder - self_remainder)));
             }
         }
         else {
-            // len_remainder < self_len_remainder
-            out_val[len_start] = self.val[self_start] >> (self_len_remainder - len_remainder);
+            // len_remainder < self_remainder
+            out_val[len_start] = self.val[self_start] >> (self_remainder - len_remainder);
             for i in 1..len_block_num {
-                out_val[len_start + i] = (self.val[self_start + i] >> (self_len_remainder - len_remainder)) +
-                    (self.val[self_start + i - 1] << (7 - (self_len_remainder - len_remainder)));
+                out_val[len_start + i] = (self.val[self_start + i] >> (self_remainder - len_remainder)) +
+                    (self.val[self_start + i - 1] << (8 - (self_remainder - len_remainder)));
             }
         }
         Self::new(out_val, len)
@@ -388,6 +397,49 @@ pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
 mod tests {
     use super::*;
     use rand::rngs::OsRng;
+
+    #[test]
+    pub fn test_byte_arr_from_u64_small() {
+        let val = 10u64;
+        let mut expected = [0u8; 32];
+        expected[31] = 0b1010u8;
+        let computed = byte_arr_from_u64(val);
+        assert!(
+            expected == computed,
+            "Byte from u64 conversion wrong for small u64! Expected {:?} and got {:?}",
+            expected, computed
+        )
+    }
+
+    #[test]
+    pub fn test_byte_arr_from_u64_medium() {
+        let val = 0b101010101010u64;
+        let mut expected = [0u8; 32];
+        expected[31] = 0b10101010u8;
+        expected[30] = 0b1010u8;
+        let computed = byte_arr_from_u64(val);
+        assert!(
+            expected == computed,
+            "Byte from u64 conversion wrong for medium, ~2 byte u64! Expected {:?} and got {:?}",
+            expected, computed
+        )
+    }
+
+
+    #[test]
+    pub fn test_byte_arr_from_u64_larger() {
+        let val = 0b01011010101101010101010u64;
+        let mut expected = [0u8; 32];
+        expected[31] = 0b010101010u8;
+        expected[30] = 0b01011010u8;
+        expected[29] = 0b0101101u8;
+        let computed = byte_arr_from_u64(val);
+        assert!(
+            expected == computed,
+            "Byte from u64 conversion wrong for larger, ~3 byte u64! Expected {:?} and got {:?}",
+            expected, computed
+        )
+    }
 
     // Test for equality
     #[test]
