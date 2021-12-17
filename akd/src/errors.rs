@@ -78,10 +78,10 @@ pub enum HistoryTreeNodeError {
     NonexistentAtEpoch(NodeLabel, u64),
     /// The state of a node did not exist at a given epoch
     NoStateAtEpoch(NodeLabel, u64),
+    /// A data serialization error occured
+    SerializationError,
     /// Error propagation
     Storage(StorageError),
-    /// Error propagation
-    SerializationError,
 }
 
 impl fmt::Display for HistoryTreeNodeError {
