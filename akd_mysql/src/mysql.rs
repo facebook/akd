@@ -24,6 +24,7 @@ use mysql_async::*;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
+use std::convert::TryInto;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
@@ -1096,12 +1097,13 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(4),
                         row.take(5),
                     );
+                    let label_val_vec: Vec<u8> = node_label_val.unwrap();
 
                     ValueState {
                         epoch: epoch.unwrap(),
                         version: version.unwrap(),
                         label: NodeLabel {
-                            val: node_label_val.unwrap(),
+                            val: label_val_vec.try_into().unwrap(),
                             len: node_label_len.unwrap(),
                         },
                         plaintext_val: akd::storage::types::Values(data.unwrap()),
@@ -1196,11 +1198,13 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(4),
                         row.take(5),
                     );
+                    let label_val_vec: Vec<u8> = node_label_val.unwrap();
+
                     ValueState {
                         epoch: epoch.unwrap(),
                         version: version.unwrap(),
                         label: NodeLabel {
-                            val: node_label_val.unwrap(),
+                            val: label_val_vec.try_into().unwrap(),
                             len: node_label_len.unwrap(),
                         },
                         plaintext_val: akd::storage::types::Values(data.unwrap()),
@@ -1888,6 +1892,8 @@ impl MySqlStorable for DbRecord {
     where
         Self: std::marker::Sized,
     {
+        fn cast_err() -> MySqlError {MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())}
+
         match St::data_type() {
             StorageType::Azks => {
                 // epoch, num_nodes
@@ -1911,6 +1917,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(3),
                     row.take_opt(4),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
                     let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
                         bincode::deserialize(&child_states_bin_vec).unwrap();
@@ -1918,7 +1925,7 @@ impl MySqlStorable for DbRecord {
                         value,
                         child_states_decoded,
                         label_len,
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::HistoryNodeState(node_state));
@@ -1943,12 +1950,15 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(5),
                     row.take_opt(6),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
+                    let parent_label_val_vec: Vec<u8> = parent_label_val;
+
                     let node = AsyncMySqlDatabase::build_history_tree_node(
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
                         birth_epoch,
                         last_epoch,
-                        parent_label_val,
+                        parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
                     );
@@ -1972,12 +1982,13 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                 ) {
+                    let node_label_val_vec: Vec<u8> = node_label_val;
                     let state = AsyncMySqlDatabase::build_user_state(
                         username,
                         data,
                         version,
                         node_label_len,
-                        node_label_val,
+                        node_label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::ValueState(state));
