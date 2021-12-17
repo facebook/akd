@@ -145,11 +145,11 @@ pub trait Storage: Clone {
     */
     /// Build a history tree node from the properties
     fn build_history_tree_node(
-        label_val: u64,
+        label_val: [u8; 32],
         label_len: u32,
         birth_epoch: u64,
         last_epoch: u64,
-        parent_label_val: u64,
+        parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
     ) -> HistoryTreeNode {
@@ -173,7 +173,7 @@ pub trait Storage: Clone {
         value: Vec<u8>,
         child_states: [Option<HistoryChildState>; ARITY],
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> HistoryNodeState {
         HistoryNodeState {
@@ -195,7 +195,7 @@ pub trait Storage: Clone {
         plaintext_val: String,
         version: u64,
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> ValueState {
         ValueState {
