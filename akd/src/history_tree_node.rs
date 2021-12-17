@@ -86,7 +86,7 @@ impl Storable for HistoryTreeNode {
         for byte in &len_bytes {
             result.push(*byte);
         }
-        let parts = key.0.val.to_be_bytes();
+        let parts = key.0.val;
         for byte in &parts {
             result.push(*byte);
         }
@@ -94,16 +94,15 @@ impl Storable for HistoryTreeNode {
     }
 
     fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
-        if bin.len() < 13 {
+        if bin.len() < 37 {
             return Err("Not enough bytes to form a proper key".to_string());
         }
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
-        let val_bytes: [u8; 8] = bin[5..=12].try_into().expect("Slice with incorrect length");
+        let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
         let len = u32::from_be_bytes(len_bytes);
-        let val = u64::from_be_bytes(val_bytes);
 
-        Ok(NodeKey(NodeLabel::new(val, len)))
+        Ok(NodeKey(NodeLabel::new(val_bytes, len)))
     }
 }
 

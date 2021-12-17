@@ -10,7 +10,7 @@
 use crate::append_only_zks::Azks;
 use crate::errors::StorageError;
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
+use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey, byte_arr_from_u64};
 use crate::storage::types::{AkdKey, DbRecord, StorageType, ValueState, Values};
 use crate::ARITY;
 
@@ -154,10 +154,10 @@ pub trait Storage: Clone {
         node_type: u8,
     ) -> HistoryTreeNode {
         HistoryTreeNode {
-            label: NodeLabel::new(label_val, label_len),
+            label: NodeLabel::new(byte_arr_from_u64(label_val), label_len),
             birth_epoch,
             last_epoch,
-            parent: NodeLabel::new(parent_label_val, parent_label_len),
+            parent: NodeLabel::new(byte_arr_from_u64(parent_label_val), parent_label_len),
             node_type: NodeType::from_u8(node_type),
         }
     }
@@ -179,7 +179,7 @@ pub trait Storage: Clone {
         HistoryNodeState {
             value,
             child_states,
-            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
+            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(label_val), label_len), epoch),
         }
     }
 
@@ -201,7 +201,7 @@ pub trait Storage: Clone {
         ValueState {
             plaintext_val: Values(plaintext_val),
             version,
-            label: NodeLabel::new(label_val, label_len),
+            label: NodeLabel::new(byte_arr_from_u64(label_val), label_len),
             epoch,
             username: AkdKey(username),
         }

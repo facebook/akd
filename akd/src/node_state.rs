@@ -12,13 +12,14 @@ use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_set::Intersection;
 use std::{
     convert::TryInto,
     fmt::{self, Debug},
 };
 use winter_crypto::Hasher;
 
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 
 /// The NodeLabel struct represents the label for a HistoryTreeNode.
 /// Since the label itself may have any number of zeros pre-pended,
@@ -27,7 +28,7 @@ use rand::{CryptoRng, RngCore};
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
-    pub val: u64,
+    pub val: [u8; 32],
     /// len keeps track of how long the binary string is
     pub len: u32,
 }
@@ -52,12 +53,12 @@ impl Ord for NodeLabel {
 
 impl NodeLabel {
     /// Creates a new NodeLabel representing the root.
-    pub const fn root() -> Self {
-        Self::new(0, 0)
+    pub fn root() -> Self {
+        Self::new([0u8; 32], 0)
     }
 
     /// Creates a new NodeLabel with the given value and len.
-    pub const fn new(val: u64, len: u32) -> Self {
+    pub fn new(val: [u8; 32], len: u32) -> Self {
         NodeLabel { val, len }
     }
 
@@ -67,7 +68,7 @@ impl NodeLabel {
     }
 
     /// Gets the value of a NodeLabel.
-    pub fn get_val(&self) -> u64 {
+    pub fn get_val(&self) -> [u8; 32] {
         self.val
     }
 
@@ -75,17 +76,19 @@ impl NodeLabel {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // FIXME: should we always select length-64 labels?
         Self {
-            val: rng.next_u64(),
-            len: 64,
+            val: rng.gen(),
+            len: 256,
         }
     }
 
     /// Returns the bit at a specified index, and a 0 on an out of range index
-    fn get_bit_at(&self, index: u32) -> u64 {
+    fn get_bit_at(&self, index: u32) -> u8 {
         if index >= self.len {
             return 0;
         }
-        (self.val >> (self.len - index - 1)) & 1
+        let block: usize = (31 - ((self.len - index)/8)).try_into().unwrap();
+        let pos_in_block = 7 - ((self.len - index)%8);
+        (self.val[block] >> (8 - pos_in_block)) & 1
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
@@ -94,9 +97,39 @@ impl NodeLabel {
             return *self;
         }
         if len == 0 {
-            return Self::root();
+            return Self::new([0u8; 32], 0);
         }
-        Self::new(self.val >> (self.len - len), len)
+        let len_remainder: usize = (len % 8).try_into().unwrap();
+        let self_len_remainder: usize = (self.len % 8).try_into().unwrap();
+        let len_not_multiple_of_8: usize = if len_remainder == 0 {0} else {1};
+        let len_full_block_num: usize = (len / 8).try_into().unwrap();
+        let len_block_num: usize = len_full_block_num + len_not_multiple_of_8;
+        let self_len_not_multiple_of_8: usize = if self_len_remainder == 0 {0} else {1};
+        let self_len_full_block_num: usize = (self.len / 8).try_into().unwrap();
+        let self_len_block_num: usize = self_len_full_block_num + self_len_not_multiple_of_8;
+        let len_start = 32 - len_block_num;
+        let self_start = 32 - self_len_block_num;
+        let mut out_val = [0u8; 32];
+        if len_remainder == self_len_remainder {
+            for i in 0..len_block_num {
+                out_val[len_start + i] = self.val[self_start + i];
+            }
+        }
+        else if len_remainder > self_len_remainder {
+            for i in 0..len_block_num {
+                out_val[len_start + i] = (self.val[self_start + i] << (len_remainder - self_len_remainder)) +
+                                         (self.val[self_start + i + 1] >> (7 - (len_remainder - self_len_remainder)));
+            }
+        }
+        else {
+            // len_remainder < self_len_remainder
+            out_val[len_start] = self.val[self_start] >> (self_len_remainder - len_remainder);
+            for i in 1..len_block_num {
+                out_val[len_start + i] = (self.val[self_start + i] >> (self_len_remainder - len_remainder)) +
+                    (self.val[self_start + i - 1] << (7 - (self_len_remainder - len_remainder)));
+            }
+        }
+        Self::new(out_val, len)
     }
 
     /// Takes as input a pointer to the caller and another NodeLabel,
@@ -147,8 +180,9 @@ impl NodeLabel {
 /// Hashes a label of type NodeLabel using the hash function provided by
 /// the generic type H.
 pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
-    let byte_label_len = H::hash(&label.get_len().to_be_bytes());
-    H::merge_with_int(byte_label_len, label.get_val())
+    let byte_label_len = H::hash(&label.get_len().to_ne_bytes());
+    let byte_label_val = H::hash(&label.get_val());
+    H::merge(&[byte_label_len, byte_label_val])
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -215,8 +249,8 @@ impl Storable for HistoryNodeState {
             result.push(*byte);
         }
 
-        let parts: [[u8; 8]; 2] = [key.0.val.to_be_bytes(), key.1.to_be_bytes()];
-        for iarray in &parts {
+        let parts: [&[u8]; 2] = [&key.0.val, &key.1.to_be_bytes()];
+        for iarray in parts {
             for byte in iarray {
                 result.push(*byte);
             }
@@ -225,20 +259,20 @@ impl Storable for HistoryNodeState {
     }
 
     fn key_from_full_binary(bin: &[u8]) -> Result<NodeStateKey, String> {
-        if bin.len() < 21 {
+        if bin.len() < 45 {
             return Err("Not enough bytes to form a proper key".to_string());
         }
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
-        let val_bytes: [u8; 8] = bin[5..=12].try_into().expect("Slice with incorrect length");
-        let epoch_bytes: [u8; 8] = bin[13..=20]
+        let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
+        let epoch_bytes: [u8; 8] = bin[37..=44]
             .try_into()
             .expect("Slice with incorrect length");
         let len = u32::from_be_bytes(len_bytes);
-        let val = u64::from_be_bytes(val_bytes);
+        let val = val_bytes;
         let epoch = u64::from_be_bytes(epoch_bytes);
 
-        Ok(NodeStateKey(NodeLabel::new(val, len), epoch))
+        Ok(NodeStateKey(NodeLabel { len, val }, epoch))
     }
 }
 
@@ -341,6 +375,15 @@ impl fmt::Display for HistoryChildState {
     }
 }
 
+pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
+    let mut output_arr = [0u8; 32];
+    let input_arr = input_int.to_be_bytes();
+    for i in 0..8 {
+        output_arr[24 + i] = input_arr[i];
+    }
+    output_arr
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,8 +392,8 @@ mod tests {
     // Test for equality
     #[test]
     pub fn test_node_label_equal_leading_one() {
-        let label_1 = NodeLabel::new(10000000u64, 8u32);
-        let label_2 = NodeLabel::new(10000000u64, 8u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
         assert!(
             label_1 == label_2,
             "Identical labels with leading one not found equal!"
@@ -359,8 +402,8 @@ mod tests {
 
     #[test]
     pub fn test_node_label_equal_leading_zero() {
-        let label_1 = NodeLabel::new(10000000u64, 9u32);
-        let label_2 = NodeLabel::new(010000000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(010000000u64), 9u32);
         assert!(
             label_1 == label_2,
             "Identical labels with leading zero not found equal!"
@@ -369,15 +412,15 @@ mod tests {
 
     #[test]
     pub fn test_node_label_unequal_values() {
-        let label_1 = NodeLabel::new(10000000u64, 9u32);
-        let label_2 = NodeLabel::new(110000000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(110000000u64), 9u32);
         assert!(label_1 != label_2, "Unequal labels found equal!")
     }
 
     #[test]
     pub fn test_node_label_equal_values_unequal_len() {
-        let label_1 = NodeLabel::new(10000000u64, 8u32);
-        let label_2 = NodeLabel::new(10000000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64), 9u32);
         assert!(
             label_1 != label_2,
             "Identical labels with unequal lengths not found equal!"
@@ -388,9 +431,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_with_self_leading_one() {
-        let label_1 = NodeLabel::new(10000000u64, 8u32);
-        let label_2 = NodeLabel::new(10000000u64, 8u32);
-        let expected = NodeLabel::new(10000000u64, 8u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(10000000u64), 8u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with self with leading one, not equal to itself!"
@@ -399,9 +442,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_with_self_leading_zero() {
-        let label_1 = NodeLabel::new(0b10000000u64, 9u32);
-        let label_2 = NodeLabel::new(0b10000000u64, 9u32);
-        let expected = NodeLabel::new(0b10000000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with self with leading zero, not equal to itself!"
@@ -410,9 +453,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_self_prefix_leading_one() {
-        let label_1 = NodeLabel::new(0b1000u64, 4u32);
-        let label_2 = NodeLabel::new(0b10000000u64, 8u32);
-        let expected = NodeLabel::new(0b1000u64, 4u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b1000u64), 4u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 8u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b1000u64), 4u32);
 
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
@@ -422,9 +465,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_self_prefix_leading_zero() {
-        let label_1 = NodeLabel::new(0b10000000u64, 9u32);
-        let label_2 = NodeLabel::new(0b10000000u64, 9u32);
-        let expected = NodeLabel::new(0b10000000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with self with leading zero, not equal to itself!"
@@ -433,9 +476,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_other_one() {
-        let label_1 = NodeLabel::new(0b10000000u64, 8u32);
-        let label_2 = NodeLabel::new(0b11000000u64, 8u32);
-        let expected = NodeLabel::new(0b1u64, 1u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64), 8u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b1u64), 1u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with other with leading one, not equal to expected!"
@@ -444,9 +487,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_other_zero() {
-        let label_1 = NodeLabel::new(0b10000000u64, 9u32);
-        let label_2 = NodeLabel::new(0b11000000u64, 9u32);
-        let expected = NodeLabel::new(0b1u64, 2u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64), 9u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b1u64), 2u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with other with leading zero, not equal to expected!"
@@ -455,9 +498,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_empty() {
-        let label_1 = NodeLabel::new(0b10000000u64, 9u32);
-        let label_2 = NodeLabel::new(0b11000000u64, 8u32);
-        let expected = NodeLabel::new(0b0u64, 0u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64), 8u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b0u64), 0u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring should be empty!"
@@ -465,9 +508,9 @@ mod tests {
     }
     #[test]
     pub fn test_node_label_lcs_some_leading_one() {
-        let label_1 = NodeLabel::new(0b11010000u64, 8u32);
-        let label_2 = NodeLabel::new(0b11011000u64, 8u32);
-        let expected = NodeLabel::new(0b1101u64, 4u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64), 8u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b1101u64), 4u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with other with leading one, not equal to expected!"
@@ -476,9 +519,9 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_some_leading_zero() {
-        let label_1 = NodeLabel::new(0b11010000u64, 9u32);
-        let label_2 = NodeLabel::new(0b11011000u64, 9u32);
-        let expected = NodeLabel::new(0b1101u64, 5u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64), 9u32);
+        let expected = NodeLabel::new(byte_arr_from_u64(0b1101u64), 5u32);
         assert!(
             label_1.get_longest_common_prefix(label_2) == expected,
             "Longest common substring with other with leading zero, not equal to expected!"
@@ -487,10 +530,10 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_dirs_some_leading_zero() {
-        let label_1 = NodeLabel::new(0b11010000u64, 9u32);
-        let label_2 = NodeLabel::new(0b11011000u64, 9u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64), 9u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64), 9u32);
         let expected = (
-            NodeLabel::new(0b1101u64, 5u32),
+            NodeLabel::new(byte_arr_from_u64(0b1101u64), 5u32),
             Direction::Some(1),
             Direction::Some(0),
         );
@@ -503,10 +546,10 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_dirs_some_leading_one() {
-        let label_1 = NodeLabel::new(0b11010000u64, 8u32);
-        let label_2 = NodeLabel::new(0b11011000u64, 8u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64), 8u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64), 8u32);
         let expected = (
-            NodeLabel::new(0b1101u64, 4u32),
+            NodeLabel::new(byte_arr_from_u64(0b1101u64), 4u32),
             Direction::Some(1),
             Direction::Some(0),
         );
@@ -519,10 +562,10 @@ mod tests {
 
     #[test]
     pub fn test_node_label_lcs_dirs_self_leading_one() {
-        let label_1 = NodeLabel::new(0b1101u64, 4u32);
-        let label_2 = NodeLabel::new(0b11011000u64, 8u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(0b1101u64), 4u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64), 8u32);
         let expected = (
-            NodeLabel::new(0b1101u64, 4u32),
+            NodeLabel::new(byte_arr_from_u64(0b1101u64), 4u32),
             Direction::Some(1),
             Direction::None,
         );
@@ -540,7 +583,7 @@ mod tests {
             let label_1 = NodeLabel::random(&mut rng);
             let pos = i;
             let pos_32 = pos as u32;
-            let label_2 = label_1.get_prefix(pos_32); //NodeLabel::new(0b11011000u64, 1u32);
+            let label_2 = label_1.get_prefix(pos_32); //NodeLabel::new(byte_arr_from_u64(0b11011000u64), 1u32);
             let mut direction = Direction::Some(label_1.get_bit_at(pos).try_into().unwrap());
             if pos == 64 {
                 direction = Direction::None;
@@ -557,8 +600,8 @@ mod tests {
 
     #[test]
     pub fn test_get_dir_example() {
-        let label_1 = NodeLabel::new(10049430782486799941u64, 64u32);
-        let label_2 = NodeLabel::new(23u64, 5u32);
+        let label_1 = NodeLabel::new(byte_arr_from_u64(10049430782486799941u64), 64u32);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(23u64), 5u32);
         let direction = Direction::None;
         let computed = label_2.get_dir(label_1);
         assert!(
@@ -572,12 +615,12 @@ mod tests {
 
     #[test]
     pub fn test_get_prefix_small() {
-        let label_1 = NodeLabel::new(
-            0b1000101101110110110000000000110101110001000000000110011001000101u64,
+        let label_1 = NodeLabel::new(byte_arr_from_u64(
+            0b1000101101110110110000000000110101110001000000000110011001000101u64),
             64u32,
         );
         let prefix_len = 10u32;
-        let label_2 = NodeLabel::new(0b1000101101u64, prefix_len);
+        let label_2 = NodeLabel::new(byte_arr_from_u64(0b1000101101u64), prefix_len);
         let computed = label_1.get_prefix(prefix_len);
         assert!(
             computed == label_2,

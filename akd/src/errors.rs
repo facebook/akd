@@ -59,7 +59,7 @@ impl From<StorageError> for HistoryTreeNodeError {
 #[derive(Debug)]
 pub enum HistoryTreeNodeError {
     /// Tried to set a child and the direction given was none.
-    NoDirectionInSettingChild(u64, u64),
+    NoDirectionInSettingChild([u8; 32], [u8; 32]),
     /// Direction is unexpectedly None
     DirectionIsNone,
     /// The node didn't have a child in the given epoch
@@ -98,7 +98,7 @@ impl fmt::Display for HistoryTreeNodeError {
             Self::NoDirectionInSettingChild(node_label, child_label) => {
                 write!(
                     f,
-                    "no direction provided to set the child {} of this node {}",
+                    "no direction provided to set the child {:?} of this node {:?}",
                     node_label, child_label
                 )
             }

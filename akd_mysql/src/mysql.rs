@@ -1474,7 +1474,7 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get epoch LTE epoch");
         match result.await {
             Ok(u64::MAX) => Err(StorageError::GetError(format!(
-                "Node (val: {}, len: {}) did not exist <= epoch {}",
+                "Node (val: {:?}, len: {}) did not exist <= epoch {}",
                 node_label.val, node_label.len, epoch_in_question
             ))),
             Ok(ep) => Ok(ep),
