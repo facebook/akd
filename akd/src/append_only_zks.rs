@@ -240,11 +240,7 @@ impl Azks {
             priorities -= 1;
         }
 
-        while !hash_q.is_empty() {
-            let (next_node_label, _) = hash_q
-                .pop()
-                .ok_or(AzksError::PopFromEmptyPriorityQueue(self.latest_epoch))?;
-
+        while let Some((next_node_label, _)) = hash_q.pop() {
             let mut next_node: HistoryTreeNode =
                 HistoryTreeNode::get_from_storage(storage, NodeKey(next_node_label)).await?;
 
@@ -481,13 +477,21 @@ impl Azks {
             let mut labels = [NodeLabel::root(); ARITY - 1];
             let mut hashes = [H::hash(&[0u8]); ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or(AkdError::NoDirectionError)?;
+            let direction = dir.ok_or_else(|| {
+                AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(
+                    curr_node.label.get_val(),
+                    None,
+                ))
+            })?;
             let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state == None {
                 break;
             }
             for i in 0..ARITY {
-                if i != dir.ok_or(AkdError::NoDirectionError)? {
+                let no_direction_error = AkdError::HistoryTreeNode(
+                    HistoryTreeNodeError::NoDirection(curr_node.label.get_val(), None),
+                );
+                if i != dir.ok_or(no_direction_error)? {
                     labels[count] =
                         optional_history_child_state_to_label(&curr_state.child_states[i]);
                     hashes[count] = to_digest::<H>(&optional_history_child_state_to_hash::<H>(

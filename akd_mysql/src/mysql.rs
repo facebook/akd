@@ -750,7 +750,7 @@ impl Storage for AsyncMySqlDatabase {
 
         match self.internal_set(record, None).await {
             Ok(_) => Ok(()),
-            Err(error) => Err(StorageError::SetError(error.to_string())),
+            Err(error) => Err(StorageError::SetData(error.to_string())),
         }
     }
 
@@ -848,7 +848,7 @@ impl Storage for AsyncMySqlDatabase {
         };
         match result.await {
             Ok(_) => Ok(()),
-            Err(error) => Err(StorageError::SetError(error.to_string())),
+            Err(error) => Err(StorageError::SetData(error.to_string())),
         }
     }
 
@@ -908,8 +908,8 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
-            Ok(None) => Err(StorageError::GetError("Not found".to_string())),
-            Err(error) => Err(StorageError::GetError(error.to_string())),
+            Ok(None) => Err(StorageError::GetData("Not found".to_string())),
+            Err(error) => Err(StorageError::GetData(error.to_string())),
         }
     }
 
@@ -1059,7 +1059,7 @@ impl Storage for AsyncMySqlDatabase {
                         map.push(item);
                     }
                 }
-                Err(error) => return Err(StorageError::GetError(error.to_string())),
+                Err(error) => return Err(StorageError::GetData(error.to_string())),
             }
         }
         Ok(map)
@@ -1142,7 +1142,7 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
-            Err(code) => Err(StorageError::GetError(code.to_string())),
+            Err(code) => Err(StorageError::GetData(code.to_string())),
         }
     }
 
@@ -1238,8 +1238,8 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
-            Ok(None) => Err(StorageError::GetError(String::from("Not found"))),
-            Err(code) => Err(StorageError::GetError(code.to_string())),
+            Ok(None) => Err(StorageError::GetData(String::from("Not found"))),
+            Err(code) => Err(StorageError::GetData(code.to_string())),
         }
     }
 
@@ -1432,7 +1432,7 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
-            Err(code) => Err(StorageError::GetError(code.to_string())),
+            Err(code) => Err(StorageError::GetData(code.to_string())),
         }
     }
 
@@ -1473,12 +1473,12 @@ impl Storage for AsyncMySqlDatabase {
 
         debug!("END MySQL get epoch LTE epoch");
         match result.await {
-            Ok(u64::MAX) => Err(StorageError::GetError(format!(
+            Ok(u64::MAX) => Err(StorageError::GetData(format!(
                 "Node (val: {}, len: {}) did not exist <= epoch {}",
                 node_label.val, node_label.len, epoch_in_question
             ))),
             Ok(ep) => Ok(ep),
-            Err(code) => Err(StorageError::GetError(code.to_string())),
+            Err(code) => Err(StorageError::GetData(code.to_string())),
         }
     }
 }
@@ -1999,13 +1999,13 @@ impl StorageErrorWrappable for StorageError {
     fn as_get<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::GetError(err.to_string())),
+            Err(err) => Err(StorageError::GetData(err.to_string())),
         }
     }
     fn as_set<T>(result: Result<T>) -> core::result::Result<T, Self> {
         match result {
             Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::SetError(err.to_string())),
+            Err(err) => Err(StorageError::SetData(err.to_string())),
         }
     }
 }

@@ -139,11 +139,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(StorageError::SetError(
-                        "Transaction is already active".to_string(),
-                    )),
-                ));
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
+                    StorageError::SetData("Transaction is already active".to_string()),
+                )));
             }
         }
         info!("Starting database insertion");
@@ -163,9 +161,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(err),
-                ));
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
+                    err,
+                )));
             } else {
                 debug!("Transaction committed");
             }
@@ -191,9 +189,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
         {
             Err(_) => {
                 // Need to throw an error
-                Err(AkdError::DirectoryErr(
-                    DirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
-                ))
+                Err(AkdError::Directory(DirectoryError::NonExistentUser(
+                    uname.0,
+                    self.current_epoch,
+                )))
             }
             Ok(latest_st) => {
                 // Need to account for the case where the latest state is
@@ -244,9 +243,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::DirectoryErr(
-                DirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
-            ))
+            Err(AkdError::Directory(DirectoryError::NonExistentUser(
+                username,
+                self.current_epoch,
+            )))
         }
     }
 
@@ -264,11 +264,11 @@ impl<S: Storage + Sync + Send> Directory<S> {
     }
 
     /// Retrieves the current azks
-    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::StorageError> {
+    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::get_azks_from_storage(&self.storage).await
     }
 
-    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::StorageError> {
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::AkdError> {
         let got = storage
             .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
             .await?;
@@ -276,8 +276,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
                 error!("No AZKS can be found. You should re-initialize the directory to create a new one");
-                Err(crate::errors::StorageError::GetError(String::from(
-                    "Not found",
+                Err(crate::errors::AkdError::AzksNotFound(String::from(
+                    "AZKS not found in storage.",
                 )))
             }
         }

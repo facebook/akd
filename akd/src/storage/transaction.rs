@@ -101,7 +101,7 @@ impl Transaction {
         let mut guard = self.state.write().await;
 
         if !(*guard).active {
-            return Err(StorageError::SetError(
+            return Err(StorageError::SetData(
                 "Transaction not currently active".to_string(),
             ));
         }
@@ -122,7 +122,7 @@ impl Transaction {
         let mut guard = self.state.write().await;
 
         if !(*guard).active {
-            return Err(StorageError::SetError(
+            return Err(StorageError::SetData(
                 "Transaction not currently active".to_string(),
             ));
         }

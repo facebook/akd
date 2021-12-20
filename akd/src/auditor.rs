@@ -47,7 +47,7 @@ pub async fn verify_append_only<H: Hasher + Send + Sync>(
     let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
-        return Err(AkdError::AzksErr(AzksError::AppendOnlyProofDidNotVerify));
+        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
     }
     Ok(())
 }

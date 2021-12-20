@@ -11,6 +11,7 @@ use winter_crypto::Hasher;
 
 use crate::{
     directory::get_marker_version,
+    errors::HistoryTreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
@@ -28,7 +29,7 @@ pub fn verify_membership<H: Hasher>(
         if final_hash == root_hash {
             return Ok(());
         } else {
-            return Err(AkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+            return Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
                 "Membership proof for root did not verify".to_string(),
             )));
         }
@@ -46,7 +47,7 @@ pub fn verify_membership<H: Hasher>(
     if final_hash == root_hash {
         Ok(())
     } else {
-        return Err(AkdError::AzksErr(AzksError::MembershipProofDidNotVerify(
+        return Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
             format!(
                 "Membership proof for label {:?} did not verify",
                 proof.label
@@ -74,9 +75,9 @@ pub fn verify_nonmembership<H: Hasher>(
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
     if !verified {
-        return Err(AkdError::DirectoryErr(
-            DirectoryError::LookupVerificationErr("lcp_hash != longest_prefix_hash".to_string()),
-        ));
+        return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
+            "lcp_hash != longest_prefix_hash".to_string(),
+        )));
     }
     let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
     let _longest_prefix_verified =
@@ -85,9 +86,9 @@ pub fn verify_nonmembership<H: Hasher>(
     // So we can just check that one of the children's lcp is = the proof.longest_prefix
     verified = verified && (proof.longest_prefix == lcp_real);
     if !verified {
-        return Err(AkdError::DirectoryErr(
-            DirectoryError::LookupVerificationErr("longest_prefix != lcp".to_string()),
-        ));
+        return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
+            "longest_prefix != lcp".to_string(),
+        )));
     }
     Ok(verified)
 }
@@ -112,7 +113,7 @@ pub fn lookup_verify<H: Hasher>(
     let existence_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, false, version);
     if existence_label != existence_proof.label {
         return Err(AkdError::DirectoryErr(
-            DirectoryError::LookupVerificationErr(
+            DirectoryError::VerifyLookupProof(
                 "Existence proof label does not match computed label".to_string(),
             ),
         ));
@@ -120,7 +121,7 @@ pub fn lookup_verify<H: Hasher>(
     let non_existence_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, true, version);
     if non_existence_label != freshness_proof.label {
         return Err(AkdError::DirectoryErr(
-            DirectoryError::LookupVerificationErr(
+            DirectoryError::VerifyLookupProof(
                 "Freshness proof label does not match computed label".to_string(),
             ),
         ));
@@ -128,7 +129,7 @@ pub fn lookup_verify<H: Hasher>(
     let marker_label = SeemlessDirectory::<S, H>::get_nodelabel(&uname, false, marker_version);
     if marker_label != marker_proof.label {
         return Err(AkdError::DirectoryErr(
-            DirectoryError::LookupVerificationErr(
+            DirectoryError::VerifyLookupProof(
                 "Marker proof label does not match computed label".to_string(),
             ),
         ));
@@ -177,13 +178,13 @@ fn verify_single_update_proof<H: Hasher>(
     // Need to include vrf verification
     // if label_at_ep != existence_at_ep_label {
     //     return Err(AkdError::DirectoryErr(
-    //         DirectoryError::KeyHistoryVerificationErr(
+    //         DirectoryError::VerifyKeyHistoryProof(
     //             format!("Label of user {:?}'s version {:?} at epoch {:?} does not match the one in the proof",
     //             uname, version, epoch))));
     // }
     verify_membership(root_hash, existence_at_ep)?;
     //     return Err(AkdError::DirectoryErr(
-    //         DirectoryError::KeyHistoryVerificationErr(format!(
+    //         DirectoryError::VerifyKeyHistoryProof(format!(
     //             "Existence proof of user {:?}'s version {:?} at epoch {:?} does not verify",
     //             uname, version, epoch
     //         )),
@@ -198,8 +199,7 @@ fn verify_single_update_proof<H: Hasher>(
             (version - 1),
             epoch
         );
-        let previous_null_err =
-            AkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(err_str));
+        let previous_null_err = AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(err_str));
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
         verify_membership(root_hash, previous_val_stale_at_ep)?;
@@ -209,7 +209,7 @@ fn verify_single_update_proof<H: Hasher>(
         let root_hash = previous_root_hash.ok_or(AkdError::NoEpochGiven)?;
         verify_nonmembership(
             root_hash,
-            non_existence_before_ep.as_ref().ok_or_else(|| AkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(format!(
+            non_existence_before_ep.as_ref().ok_or_else(|| AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(format!(
                 "Non-existence before this epoch proof of user {:?}'s version {:?} at epoch {:?} is None",
                 uname,
                 version,
@@ -223,8 +223,8 @@ fn verify_single_update_proof<H: Hasher>(
     for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
         let pf = &proof.non_existence_of_next_few[i];
         if !verify_nonmembership(root_hash, pf)? {
-            return Err(AkdError::DirectoryErr(
-                DirectoryError::KeyHistoryVerificationErr(
+            return Err(AkdError::Directory(
+                DirectoryError::VerifyKeyHistoryProof(
                     format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     uname, ver, epoch-1))));
         }
@@ -234,8 +234,8 @@ fn verify_single_update_proof<H: Hasher>(
         let ver = 1 << pow;
         let pf = &proof.non_existence_of_future_markers[i];
         if !verify_nonmembership(root_hash, pf)? {
-            return Err(AkdError::DirectoryErr(
-                DirectoryError::KeyHistoryVerificationErr(
+            return Err(AkdError::Directory(
+                DirectoryError::VerifyKeyHistoryProof(
                     format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     uname, ver, epoch-1))));
         }
@@ -251,7 +251,12 @@ fn build_and_hash_layer<H: Hasher>(
     ancestor_hash: H::Digest,
     parent_label: NodeLabel,
 ) -> Result<H::Digest, AkdError> {
-    let direction = dir.ok_or(AkdError::NoDirectionError)?;
+    let direction = dir.ok_or_else(|| {
+        AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(
+            parent_label.get_val(),
+            None,
+        ))
+    })?;
     let mut hashes_as_vec = hashes.to_vec();
     hashes_as_vec.insert(direction, ancestor_hash);
     Ok(hash_layer::<H>(hashes_as_vec, parent_label))
