@@ -240,9 +240,7 @@ impl Azks {
             priorities -= 1;
         }
 
-        while !hash_q.is_empty() {
-            let (next_node_label, _) = hash_q.pop().unwrap();
-
+        while let Some((next_node_label, _)) = hash_q.pop() {
             let mut next_node: HistoryTreeNode =
                 HistoryTreeNode::get_from_storage(storage, NodeKey(next_node_label)).await?;
 
