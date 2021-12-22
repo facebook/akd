@@ -36,12 +36,10 @@ pub fn verify_membership<H: Hasher>(
     }
     let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
     for i in (0..proof.dirs.len()).rev() {
-        final_hash = build_and_hash_layer::<H>(
-            proof.sibling_hashes[i],
-            proof.dirs[i],
-            final_hash,
-            proof.parent_labels[i],
-        )?;
+        // pull the hashes out of the label/hash(es) grouping
+        let hashes = proof.siblings[i].iter().map(|n| n.hash).collect();
+        final_hash =
+            build_and_hash_layer::<H>(hashes, proof.dirs[i], final_hash, proof.parent_labels[i])?;
     }
 
     if final_hash == root_hash {
@@ -63,14 +61,14 @@ pub fn verify_nonmembership<H: Hasher>(
 ) -> Result<bool, AkdError> {
     let mut verified = true;
     let mut lcp_hash = H::hash(&[]);
-    let mut lcp_real = proof.longest_prefix_children_labels[0];
+    let mut lcp_real = proof.longest_prefix_children[0].label;
     for i in 0..ARITY {
         let child_hash = H::merge(&[
-            proof.longest_prefix_children_values[i],
-            hash_label::<H>(proof.longest_prefix_children_labels[i]),
+            proof.longest_prefix_children[i].hash,
+            hash_label::<H>(proof.longest_prefix_children[i].label),
         ]);
         lcp_hash = H::merge(&[lcp_hash, child_hash]);
-        lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children_labels[i]);
+        lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children[i].label);
     }
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
@@ -79,7 +77,7 @@ pub fn verify_nonmembership<H: Hasher>(
             "lcp_hash != longest_prefix_hash".to_string(),
         )));
     }
-    let _sib_len = proof.longest_prefix_membership_proof.sibling_hashes.len();
+    let _sib_len = proof.longest_prefix_membership_proof.siblings.len();
     let _longest_prefix_verified =
         verify_membership(root_hash, &proof.longest_prefix_membership_proof)?;
     // The audit must have checked that this node is indeed the lcp of its children.
@@ -246,7 +244,7 @@ fn verify_single_update_proof<H: Hasher>(
 
 /// Hashes all the children of a node, as well as their labels
 fn build_and_hash_layer<H: Hasher>(
-    hashes: [H::Digest; ARITY - 1],
+    hashes: Vec<H::Digest>,
     dir: Direction,
     ancestor_hash: H::Digest,
     parent_label: NodeLabel,
@@ -257,9 +255,9 @@ fn build_and_hash_layer<H: Hasher>(
             None,
         ))
     })?;
-    let mut hashes_as_vec = hashes.to_vec();
-    hashes_as_vec.insert(direction, ancestor_hash);
-    Ok(hash_layer::<H>(hashes_as_vec, parent_label))
+    let mut hashes_mut = hashes.to_vec();
+    hashes_mut.insert(direction, ancestor_hash);
+    Ok(hash_layer::<H>(hashes_mut, parent_label))
 }
 
 /// Helper for build_and_hash_layer

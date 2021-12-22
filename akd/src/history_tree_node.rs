@@ -813,13 +813,12 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
 
 pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
-    label: NodeLabel,
-    value: H::Digest,
+    node: Node<H>,
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
-    let node = HistoryTreeNode {
-        label,
+    let history_node = HistoryTreeNode {
+        label: node.label,
         birth_epoch,
         last_epoch: birth_epoch,
         parent,
@@ -827,12 +826,12 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
     };
 
     let mut new_state: HistoryNodeState =
-        HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch));
-    new_state.value = from_digest::<H>(value)?;
+        HistoryNodeState::new::<H>(NodeStateKey(history_node.label, birth_epoch));
+    new_state.value = from_digest::<H>(node.hash)?;
 
     set_state_map(storage, new_state).await?;
 
-    Ok(node)
+    Ok(history_node)
 }
 
 pub(crate) async fn set_state_map<S: Storage + Sync + Send>(

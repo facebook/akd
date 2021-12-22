@@ -9,7 +9,7 @@
 
 use crate::append_only_zks::Azks;
 
-use crate::node_state::NodeLabel;
+use crate::node_state::{Node, NodeLabel};
 use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
@@ -78,7 +78,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         updates: Vec<(AkdKey, Values)>,
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
-        let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
+        let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
 
@@ -110,7 +110,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
-                    update_set.push((label, value_to_add));
+                    update_set.push(Node::<H> {
+                        label,
+                        hash: value_to_add,
+                    });
                     let latest_state =
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
@@ -122,16 +125,21 @@ impl<S: Storage + Sync + Send> Directory<S> {
                     let fresh_label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
-                    update_set.push((stale_label, stale_value_to_add));
-                    update_set.push((fresh_label, fresh_value_to_add));
+                    update_set.push(Node::<H> {
+                        label: stale_label,
+                        hash: stale_value_to_add,
+                    });
+                    update_set.push(Node::<H> {
+                        label: fresh_label,
+                        hash: fresh_value_to_add,
+                    });
                     let new_state =
                         ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
                     user_data_update_set.push(new_state);
                 }
             }
         }
-        let insertion_set: Vec<(NodeLabel, H::Digest)> =
-            update_set.iter().map(|(x, y)| (*x, *y)).collect();
+        let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
