@@ -40,6 +40,7 @@ do
     echo "Expected version has not been published. Retrying after a wait."
     wait_time=$((wait_time+1))
     if [[ $wait_time == 42 ]]; then
+	echo "Gave up."
         break
     fi
 done
