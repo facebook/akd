@@ -1,3 +1,4 @@
+#!/bin/bash
 # Finds expected version of a crate in another crate's Cargo.toml file
 get_crate_expected_version_number()
 {
