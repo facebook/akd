@@ -20,6 +20,28 @@ use winter_crypto::Hasher;
 
 use rand::{CryptoRng, RngCore};
 
+/// Represents a node's label & associated hash
+#[derive(Debug)]
+pub struct Node<H: Hasher> {
+    /// the label associated with the accompanying hash
+    pub label: NodeLabel,
+    /// the hash associated to this label
+    pub hash: H::Digest,
+}
+
+// can't use #derive because it doesn't bind correctly
+// #derive and generics are not friendly; might make Debug weird too ...
+// see also:
+// https://users.rust-lang.org/t/why-does-deriving-clone-not-work-in-this-case-but-implementing-manually-does/29075
+// https://github.com/rust-lang/rust/issues/26925
+impl<H: Hasher> Copy for Node<H> {}
+
+impl<H: Hasher> Clone for Node<H> {
+    fn clone(&self) -> Node<H> {
+        *self
+    }
+}
+
 /// The NodeLabel struct represents the label for a HistoryTreeNode.
 /// Since the label itself may have any number of zeros pre-pended,
 /// just using a native type, unless it is a bit-vector, wouldn't work.
