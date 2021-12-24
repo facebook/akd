@@ -417,20 +417,6 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
     (64 - version.leading_zeros() - 1).into()
 }
 
-/// Converts a slice of u8 to an array of length 8. If the
-/// slice is not long enough, just pads with zeros.
-fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
-    let mut out_arr = [0u8; 8];
-    for (count, elt) in slice.iter().enumerate() {
-        if count < 8 {
-            out_arr[count] = *elt;
-        } else {
-            break;
-        }
-    }
-    out_arr
-}
-
 fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
     let mut byte_str = [0u8; 32];
     rng.fill_bytes(&mut byte_str);

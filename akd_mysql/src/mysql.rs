@@ -23,8 +23,8 @@ use mysql_async::*;
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::process::Command;
 use std::convert::TryInto;
+use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
@@ -1892,7 +1892,9 @@ impl MySqlStorable for DbRecord {
     where
         Self: std::marker::Sized,
     {
-        fn cast_err() -> MySqlError {MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())}
+        fn cast_err() -> MySqlError {
+            MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())
+        }
 
         match St::data_type() {
             StorageType::Azks => {
