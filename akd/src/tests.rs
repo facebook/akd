@@ -389,7 +389,7 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b1u64), 1u32),
+        NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
         &[1u8],
         NodeLabel::root(),
         0,
@@ -445,7 +445,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b11u64), 2u32),
+        NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
         &[1u8],
         NodeLabel::root(),
         2,
@@ -454,7 +454,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 
     let leaf_2 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b10u64), 2u32),
+        NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
         &[1u8, 1u8],
         NodeLabel::root(),
         3,
@@ -481,7 +481,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
             Blake3::merge(&[Blake3::hash(&[]), leaf_2_hash]),
             leaf_1_hash,
         ]),
-        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64), 1u32)),
+        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
     ]);
 
     // let mut leaf_1_as_child = leaf_1.to_node_child_state()?;
@@ -530,7 +530,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
 
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b111u64), 3u32),
+        NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
         &[1u8],
         NodeLabel::root(),
         0,
@@ -539,7 +539,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
 
     let leaf_2 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b100u64), 3u32),
+        NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
         &[1u8, 1u8],
         NodeLabel::root(),
         0,
@@ -548,7 +548,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
 
     let leaf_3 = get_leaf_node::<Blake3, _>(
         &db,
-        NodeLabel::new(byte_arr_from_u64(0b010u64), 3u32),
+        NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
         &[0u8, 1u8],
         NodeLabel::root(),
         0,
@@ -579,7 +579,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
             Blake3::merge(&[Blake3::hash(&[]), leaf_2_hash]),
             leaf_1_hash,
         ]),
-        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64), 1u32)),
+        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
     ]);
 
     let _left_child_expected_hash = Blake3::merge(&[
@@ -670,7 +670,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
                 Blake3::merge(&[Blake3::hash(&[]), left_child_hash]),
                 right_child_hash,
             ]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j), 1u32)),
+            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
         ]));
         j += 1;
     }
