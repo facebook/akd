@@ -306,7 +306,7 @@ impl Azks {
         for (i, child) in state.child_states.iter().enumerate() {
             match child {
                 None => {
-                    continue;
+                    longest_prefix_children_values[i] = crate::utils::empty_node_hash::<H>();
                 }
                 Some(child) => {
                     let unwrapped_child: HistoryTreeNode =

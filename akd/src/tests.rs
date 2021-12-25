@@ -630,16 +630,17 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
     let mut leaves = Vec::<HistoryTreeNode>::new();
     let mut leaf_hashes = Vec::new();
     for i in 0u64..8u64 {
+        let leaf_u64 = i.clone() << 61;
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
-            NodeLabel::new(byte_arr_from_u64(i.clone()), 3u32),
-            &i.to_ne_bytes(),
+            NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
+            &leaf_u64.to_ne_bytes(),
             NodeLabel::root(),
             7 - i,
         )
         .await?;
         leaf_hashes.push(Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&i.to_ne_bytes())]),
+            Blake3::merge(&[Blake3::hash(&[]), Blake3::hash(&leaf_u64.to_ne_bytes())]),
             hash_label::<Blake3>(new_leaf.label),
         ]));
         leaves.push(new_leaf);
@@ -655,7 +656,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
                 Blake3::merge(&[Blake3::hash(&[]), left_child_hash]),
                 right_child_hash,
             ]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j), 2u32)),
+            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
         ]));
         j += 1;
     }

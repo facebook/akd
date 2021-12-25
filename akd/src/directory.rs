@@ -309,7 +309,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
         let label_slice = hashed_label.as_bytes();
-        NodeLabel::new(label_slice, 64u32)
+        NodeLabel::new(label_slice, 256u32)
     }
 
     // FIXME: Make a real commitment here, alongwith a blinding factor.
