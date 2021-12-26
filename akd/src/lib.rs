@@ -174,7 +174,9 @@
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>>(&akd, &history_proof).await.unwrap();
+//!     let vrf_pk = akd.get_public_key();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
+//!     &vrf_pk,
 //!     root_hashes,
 //!     previous_root_hashes,
 //!     AkdKey("hello".to_string()),
@@ -258,6 +260,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate rand;
+extern crate vrf;
 
 pub mod append_only_zks;
 pub mod directory;

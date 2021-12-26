@@ -7,13 +7,18 @@
 
 //! Code for a client of a auditable key directory
 
+use vrf::{
+    openssl::{CipherSuite, ECVRF},
+    VRF,
+};
 use winter_crypto::Hasher;
 
 use crate::{
     directory::get_marker_version,
-    errors::{AkdError, AzksError, DirectoryError},
+    errors::{self, AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
+    serialization::from_digest,
     storage::types::AkdKey,
     Direction, ARITY,
 };
@@ -92,6 +97,53 @@ pub fn verify_nonmembership<H: Hasher>(
     Ok(verified)
 }
 
+/// This function is called to verify that a given NodeLabel is indeed
+/// the VRF for a given version (fresh or stale) for a username.
+/// Hence, it also takes as input the server's public key.
+pub fn verify_vrf<H: Hasher>(
+    vrf_pk: &Vec<u8>,
+    uname: &AkdKey,
+    stale: bool,
+    version: u64,
+    pi: Vec<u8>,
+    label: NodeLabel,
+) -> Result<(), AkdError> {
+    // Initialization of VRF context by providing a curve
+    let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+
+    let name_hash_bytes = H::hash(uname.0.as_bytes());
+    let mut stale_bytes = &[1u8];
+    if stale {
+        stale_bytes = &[0u8];
+    }
+
+    let hashed_label = H::merge(&[
+        name_hash_bytes,
+        H::merge_with_int(H::hash(stale_bytes), version),
+    ]);
+    // let label_slice = hashed_label.as_bytes();
+    let message_vec = from_digest::<H>(hashed_label).unwrap();
+    let message: &[u8] = message_vec.as_slice();
+
+    // VRF proof verification (returns VRF hash output)
+    let beta = vrf.verify(&vrf_pk, &pi, &message);
+
+    match beta {
+        Ok(vec) => {
+            if NodeLabel::new(vec_to_u8_arr(vec), 256u32) == label {
+                return Ok(());
+            } else {
+                return Err(errors::AkdError::DirectoryErr(DirectoryError::VRFLabelErr(
+                    "Stale label not equal to the value from the VRF".to_string(),
+                )));
+            }
+        }
+        Err(e) => {
+            return Err(errors::AkdError::DirectoryErr(DirectoryError::VRFErr(e)));
+        }
+    }
+}
+
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
@@ -144,6 +196,7 @@ pub fn lookup_verify<H: Hasher>(
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
 pub fn key_history_verify<H: Hasher>(
+    vrf_pk: &Vec<u8>,
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
     uname: AkdKey,
@@ -152,7 +205,13 @@ pub fn key_history_verify<H: Hasher>(
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof::<H>(root_hash, previous_root_hash, update_proof, &uname)?;
+        verify_single_update_proof::<H>(
+            root_hash,
+            &vrf_pk,
+            previous_root_hash,
+            update_proof,
+            &uname,
+        )?;
     }
     Ok(())
 }
@@ -160,6 +219,7 @@ pub fn key_history_verify<H: Hasher>(
 /// Verifies a single update proof
 fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
+    vrf_pk: &Vec<u8>,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
     uname: &AkdKey,
@@ -203,6 +263,27 @@ fn verify_single_update_proof<H: Hasher>(
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
         verify_membership(root_hash, previous_val_stale_at_ep)?;
+
+        let vrf_err_str = format!(
+            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+            uname,
+            (version - 1),
+            epoch
+        );
+        let vrf_previous_null_err =
+            AkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(vrf_err_str));
+        let previous_val_vrf_proof = proof
+            .previous_val_vrf_proof
+            .as_ref()
+            .ok_or(vrf_previous_null_err)?;
+        verify_vrf::<H>(
+            vrf_pk,
+            uname,
+            true,
+            version - 1,
+            previous_val_vrf_proof.to_vec(),
+            previous_val_stale_at_ep.label,
+        )?;
     }
 
     if epoch > 1 {
@@ -265,4 +346,12 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     }
     new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
     new_hash
+}
+
+fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
+    let mut out_arr = [0u8; 32];
+    for i in 0..vector_u8.len() {
+        out_arr[i] = vector_u8[i];
+    }
+    out_arr
 }

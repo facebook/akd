@@ -98,6 +98,8 @@ pub struct UpdateProof<H: Hasher> {
     pub version: u64,
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof<H>,
+    /// VRF proof for the label for the previous version which became stale
+    pub previous_val_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
     pub previous_val_stale_at_ep: Option<MembershipProof<H>>,
     /// Proof that this value didn't exist prior to this ep

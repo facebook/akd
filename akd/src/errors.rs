@@ -8,6 +8,8 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
+use vrf::openssl::Error;
+
 use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
@@ -212,6 +214,16 @@ pub enum DirectoryError {
     KeyHistoryProofErr(String),
     /// Error propogation
     StorageError,
+    /// Error propagation for errors from the VRF crate
+    VRFErr(Error),
+    /// Error thrown when vrf and NodeLabel not found equal
+    VRFLabelErr(String),
+}
+
+impl From<Error> for DirectoryError {
+    fn from(error: Error) -> Self {
+        Self::VRFErr(error)
+    }
 }
 
 impl fmt::Display for DirectoryError {
@@ -238,6 +250,12 @@ impl fmt::Display for DirectoryError {
                 write!(f, "{}", err_string)
             }
             Self::KeyHistoryProofErr(err_string) => {
+                write!(f, "{}", err_string)
+            }
+            Self::VRFErr(err) => {
+                write!(f, "Encountered a VRF error: {:?}", err,)
+            }
+            Self::VRFLabelErr(err_string) => {
                 write!(f, "{}", err_string)
             }
         }
