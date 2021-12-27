@@ -10,7 +10,7 @@
 
 use winter_crypto::Hasher;
 
-use crate::{node_state::NodeLabel, storage::types::Values, Direction, ARITY};
+use crate::{node_state::Node, node_state::NodeLabel, storage::types::Values, Direction, ARITY};
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
@@ -22,10 +22,9 @@ pub struct MembershipProof<H: Hasher> {
     pub hash_val: H::Digest,
     /// The parent node labels
     pub parent_labels: Vec<NodeLabel>,
-    /// The sibling labels
-    pub sibling_labels: Vec<[NodeLabel; ARITY - 1]>,
+    /// The sibling label/digest tuples
+    pub siblings: Vec<[Node<H>; ARITY - 1]>,
     /// The node sibling hashes
-    pub sibling_hashes: Vec<[H::Digest; ARITY - 1]>,
     /// The directions
     pub dirs: Vec<Direction>,
 }
@@ -39,9 +38,7 @@ pub struct NonMembershipProof<H: Hasher> {
     /// The longest prefix in the tree
     pub longest_prefix: NodeLabel,
     /// The children of the longest prefix
-    pub longest_prefix_children_labels: [NodeLabel; ARITY],
-    /// The values of the longest prefix children
-    pub longest_prefix_children_values: [H::Digest; ARITY],
+    pub longest_prefix_children: [Node<H>; ARITY],
     /// The membership proof of the longest prefix
     pub longest_prefix_membership_proof: MembershipProof<H>,
 }
@@ -54,9 +51,9 @@ pub struct NonMembershipProof<H: Hasher> {
 #[derive(Debug, Clone)]
 pub struct AppendOnlyProof<H: Hasher> {
     /// The inserted nodes & digests
-    pub inserted: Vec<(NodeLabel, H::Digest)>,
+    pub inserted: Vec<Node<H>>,
     /// The unchanged nodes & digests
-    pub unchanged_nodes: Vec<(NodeLabel, H::Digest)>,
+    pub unchanged_nodes: Vec<Node<H>>,
 }
 
 /// Proof that a given label was at a particular state at the given epoch.

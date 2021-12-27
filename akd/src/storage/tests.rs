@@ -509,7 +509,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         )
         .await;
     assert_eq!(
-        Err(StorageError::GetError(String::from("Not found"))),
+        Err(StorageError::GetData(String::from("Not found"))),
         missing_result
     );
 

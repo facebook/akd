@@ -9,7 +9,7 @@
 
 use crate::append_only_zks::Azks;
 
-use crate::node_state::NodeLabel;
+use crate::node_state::{Node, NodeLabel};
 use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
@@ -82,7 +82,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         updates: Vec<(AkdKey, Values)>,
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
-        let mut update_set = Vec::<(NodeLabel, H::Digest)>::new();
+        let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
         let next_epoch = self.current_epoch + 1;
 
@@ -114,7 +114,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
-                    update_set.push((label, value_to_add));
+                    update_set.push(Node::<H> {
+                        label,
+                        hash: value_to_add,
+                    });
                     let latest_state =
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
@@ -126,16 +129,21 @@ impl<S: Storage + Sync + Send> Directory<S> {
                     let fresh_label = Self::get_nodelabel::<H>(&uname, false, latest_version);
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
-                    update_set.push((stale_label, stale_value_to_add));
-                    update_set.push((fresh_label, fresh_value_to_add));
+                    update_set.push(Node::<H> {
+                        label: stale_label,
+                        hash: stale_value_to_add,
+                    });
+                    update_set.push(Node::<H> {
+                        label: fresh_label,
+                        hash: fresh_value_to_add,
+                    });
                     let new_state =
                         ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
                     user_data_update_set.push(new_state);
                 }
             }
         }
-        let insertion_set: Vec<(NodeLabel, H::Digest)> =
-            update_set.iter().map(|(x, y)| (*x, *y)).collect();
+        let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
         // ideally the azks and the state would be updated together.
         // It may also make sense to have a temp version of the server's database
         let mut current_azks = self.retrieve_current_azks().await?;
@@ -143,11 +151,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(StorageError::SetError(
-                        "Transaction is already active".to_string(),
-                    )),
-                ));
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
+                    StorageError::SetData("Transaction is already active".to_string()),
+                )));
             }
         }
         info!("Starting database insertion");
@@ -167,9 +173,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::HistoryTreeNodeErr(
-                    HistoryTreeNodeError::StorageError(err),
-                ));
+                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
+                    err,
+                )));
             } else {
                 debug!("Transaction committed");
             }
@@ -195,9 +201,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
         {
             Err(_) => {
                 // Need to throw an error
-                Err(AkdError::DirectoryErr(
-                    DirectoryError::LookedUpNonExistentUser(uname.0, self.current_epoch),
-                ))
+                Err(AkdError::Directory(DirectoryError::NonExistentUser(
+                    uname.0,
+                    self.current_epoch,
+                )))
             }
             Ok(latest_st) => {
                 // Need to account for the case where the latest state is
@@ -251,9 +258,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::DirectoryErr(
-                DirectoryError::LookedUpNonExistentUser(username, self.current_epoch),
-            ))
+            Err(AkdError::Directory(DirectoryError::NonExistentUser(
+                username,
+                self.current_epoch,
+            )))
         }
     }
 
@@ -271,11 +279,11 @@ impl<S: Storage + Sync + Send> Directory<S> {
     }
 
     /// Retrieves the current azks
-    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::StorageError> {
+    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::get_azks_from_storage(&self.storage).await
     }
 
-    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::StorageError> {
+    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::AkdError> {
         let got = storage
             .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
             .await?;
@@ -283,8 +291,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
                 error!("No AZKS can be found. You should re-initialize the directory to create a new one");
-                Err(crate::errors::StorageError::GetError(String::from(
-                    "Not found",
+                Err(crate::errors::AkdError::AzksNotFound(String::from(
+                    "AZKS not found in storage.",
                 )))
             }
         }
