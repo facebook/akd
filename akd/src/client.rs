@@ -82,9 +82,8 @@ pub fn verify_nonmembership<H: Hasher>(
             "lcp_hash != longest_prefix_hash".to_string(),
         )));
     }
-    let _sib_len = proof.longest_prefix_membership_proof.siblings.len();
-    let _longest_prefix_verified =
-        verify_membership(root_hash, &proof.longest_prefix_membership_proof)?;
+
+    verify_membership(root_hash, &proof.longest_prefix_membership_proof)?;
     // The audit must have checked that this node is indeed the lcp of its children.
     // So we can just check that one of the children's lcp is = the proof.longest_prefix
     verified = verified && (proof.longest_prefix == lcp_real);
