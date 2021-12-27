@@ -117,8 +117,13 @@ where
                         let hash = get_root_hash::<_, H>(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let verification =
-                                    akd::client::lookup_verify(root_hash, AkdKey(a.clone()), proof);
+                                let vrf_pk = directory.get_public_key();
+                                let verification = akd::client::lookup_verify(
+                                    &vrf_pk,
+                                    root_hash,
+                                    AkdKey(a.clone()),
+                                    proof,
+                                );
                                 if verification.is_err() {
                                     let msg = format!(
                                         "WARN: Lookup proof failed verification for '{}'",

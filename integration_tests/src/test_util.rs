@@ -173,7 +173,10 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
-                        if let Err(error) = akd::client::lookup_verify(root_hash, key, proof) {
+                        let vrf_pk = dir.get_public_key();
+                        if let Err(error) =
+                            akd::client::lookup_verify(&vrf_pk, root_hash, key, proof)
+                        {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -191,7 +194,9 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
                             akd::directory::get_key_history_hashes::<_, Blake3>(&dir, &proof)
                                 .await
                                 .unwrap();
+                        let vrf_pk = dir.get_public_key();
                         if let Err(error) = akd::client::key_history_verify::<Blake3>(
+                            &vrf_pk,
                             root_hashes,
                             previous_root_hashes,
                             key,

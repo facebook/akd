@@ -27,7 +27,6 @@ use std::marker::{Send, Sync};
 use vrf::openssl::{CipherSuite, ECVRF};
 use vrf::VRF;
 
-use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
 /// Root hash of the tree and its associated epoch
@@ -206,19 +205,22 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
                 let existent_label = Self::get_nodelabel::<H>(&uname, false, current_version);
-                let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel::<H>(&uname, false, marker_version);
+                let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version);
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
                     plaintext_value: latest_st.plaintext_val,
                     version: current_version,
+                    exisitence_vrf_proof: self.get_label_proof::<H>(&uname, false, current_version),
                     existence_proof: current_azks
                         .get_membership_proof(&self.storage, existent_label, self.current_epoch)
                         .await?,
+                    marker_vrf_proof: self.get_label_proof::<H>(&uname, false, marker_version),
                     marker_proof: current_azks
                         .get_membership_proof(&self.storage, marker_label, self.current_epoch)
                         .await?,
+                    freshness_vrf_proof: self.get_label_proof::<H>(&uname, true, current_version),
                     freshness_proof: current_azks
                         .get_non_membership_proof(
                             &self.storage,
@@ -326,7 +328,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let message: &[u8] = message_vec.as_slice();
 
         // VRF proof and hash output
-        let pi = vrf.prove(&secret_key, &message).unwrap();
+        let pi = vrf.prove(&secret_key, message).unwrap();
         let hash = vec_to_u8_arr(vrf.proof_to_hash(&pi).unwrap());
 
         NodeLabel::new(hash, 256u32)
@@ -360,7 +362,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let message: &[u8] = message_vec.as_slice();
 
         // VRF proof
-        vrf.prove(&secret_key, &message).unwrap()
+        vrf.prove(&secret_key, message).unwrap()
     }
 
     /// Use this function to retrieve the VRF public key for this AKD.
@@ -393,7 +395,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let label_at_ep = Self::get_nodelabel::<H>(uname, false, *version);
 
         let current_azks = self.retrieve_current_azks().await?;
-
+        let existence_vrf_proof = self.get_label_proof::<H>(uname, false, *version);
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -421,6 +423,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let next_marker = get_marker_version(*version) + 1;
         let final_marker = get_marker_version(epoch);
 
+        let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
         for ver in version + 1..(1 << next_marker) {
@@ -429,8 +432,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_next_few.push(non_existence_of_ver);
+            next_few_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver));
         }
 
+        let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
         let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
 
         for marker_power in next_marker..final_marker + 1 {
@@ -440,17 +445,21 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_future_markers.push(non_existence_of_ver);
+            future_marker_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver));
         }
 
         Ok(UpdateProof {
             epoch,
             plaintext_value: plaintext_value.clone(),
             version: *version,
+            existence_vrf_proof,
             existence_at_ep,
             previous_val_vrf_proof,
             previous_val_stale_at_ep,
             non_existence_before_ep,
+            next_few_vrf_proofs,
             non_existence_of_next_few,
+            future_marker_vrf_proofs,
             non_existence_of_future_markers,
         })
     }
@@ -531,9 +540,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher>(
 
 fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
     let mut out_arr = [0u8; 32];
-    for i in 0..vector_u8.len() {
-        out_arr[i] = vector_u8[i];
-    }
+    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..]);
     out_arr
 }
 
@@ -581,7 +588,9 @@ mod tests {
         let lookup_proof = akd.lookup(AkdKey("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+        let vrf_pk = akd.get_public_key();
         lookup_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hash,
             AkdKey("hello".to_string()),
             lookup_proof,

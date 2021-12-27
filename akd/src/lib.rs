@@ -117,10 +117,13 @@
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
+//!     // Get the VRF public key of the server
+//!     let vrf_pk = akd.get_public_key();
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
-//!     root_hash,
-//!     AkdKey("hello".to_string()),
-//!     lookup_proof,
+//!         &vrf_pk,
+//!         root_hash,
+//!         AkdKey("hello".to_string()),
+//!         lookup_proof,
 //!     ).unwrap();
 //! };
 //! ```
