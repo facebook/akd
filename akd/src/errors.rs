@@ -69,7 +69,7 @@ pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
-    NoDirection(u64, Option<u64>),
+    NoDirection(NodeLabel, Option<NodeLabel>),
     /// The node didn't have a child in the given epoch
     NoChildAtEpoch(u64, usize),
     /// The next epoch of this node's parent was invalid
@@ -90,10 +90,10 @@ impl fmt::Display for HistoryTreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoDirection(node_label, child_label) => {
-                let mut to_print = format!("no direction provided for the node {}", node_label);
+                let mut to_print = format!("no direction provided for the node {:?}", node_label);
                 // Add child info if given.
                 if let Some(child_label) = child_label {
-                    let child_str = format!(" and child {}", child_label);
+                    let child_str = format!(" and child {:?}", child_label);
                     to_print.push_str(&child_str);
                 }
                 write!(f, "{}", to_print)
@@ -164,11 +164,9 @@ pub enum DirectoryError {
     /// Lookup proof did not verify
     VerifyLookupProof(String),
     /// Key-History proof did not verify
-    KeyHistoryVerificationErr(String),
-    /// Error generating the key history proof
-    KeyHistoryProofErr(String),
-    /// Error propogation
-    StorageError,
+    VerifyKeyHistoryProof(String),
+    /// Error propagation
+    Storage(StorageError),
     /// Error propagation for errors from the VRF crate
     VRFErr(Error),
     /// Error thrown when vrf and NodeLabel not found equal

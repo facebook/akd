@@ -15,10 +15,8 @@ use winter_crypto::Hasher;
 
 use crate::{
     directory::get_marker_version,
-
     errors::HistoryTreeNodeError,
-    errors::{AkdError, AzksError, DirectoryError},
-  
+    errors::{self, AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     serialization::from_digest,
@@ -134,12 +132,12 @@ pub fn verify_vrf<H: Hasher>(
             if NodeLabel::new(vec_to_u8_arr(vec), 256u32) == label {
                 Ok(())
             } else {
-                Err(errors::AkdError::DirectoryErr(DirectoryError::VRFLabelErr(
+                Err(errors::AkdError::Directory(DirectoryError::VRFLabelErr(
                     "Stale label not equal to the value from the VRF".to_string(),
                 )))
             }
         }
-        Err(e) => Err(errors::AkdError::DirectoryErr(DirectoryError::VRFErr(e))),
+        Err(e) => Err(errors::AkdError::Directory(DirectoryError::VRFErr(e))),
     }
 }
 
@@ -250,7 +248,6 @@ fn verify_single_update_proof<H: Hasher>(
     )?;
     verify_membership(root_hash, existence_at_ep)?;
 
-
     // ***** PART 2 ***************************
     // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
     if version > 1 {
@@ -275,7 +272,7 @@ fn verify_single_update_proof<H: Hasher>(
 
         // Verify the VRF for the stale label corresponding to the previous version for this username
         let vrf_previous_null_err =
-            AkdError::DirectoryErr(DirectoryError::KeyHistoryVerificationErr(vrf_err_str));
+            AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(vrf_err_str));
         let previous_val_vrf_proof = proof
             .previous_val_vrf_proof
             .as_ref()
@@ -350,11 +347,8 @@ fn build_and_hash_layer<H: Hasher>(
     ancestor_hash: H::Digest,
     parent_label: NodeLabel,
 ) -> Result<H::Digest, AkdError> {
-    let direction = dir.ok_or_else(|| {
-        AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(
-            parent_label.get_val(),
-            None,
-        ))
+    let direction = dir.ok_or({
+        AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(parent_label, None))
     })?;
     let mut hashes_mut = hashes.to_vec();
     hashes_mut.insert(direction, ancestor_hash);

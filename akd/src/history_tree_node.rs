@@ -480,8 +480,8 @@ impl HistoryTreeNode {
 
         let dir = direction.map_or(
             Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                Some(child_node.label.get_val()),
+                self.label,
+                Some(child_node.label),
             )),
             Ok,
         )?;
@@ -614,10 +614,7 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                None,
-            )),
+            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
             Direction::Some(dir) => {
                 if self.get_birth_epoch() > epoch {
                     Err(HistoryTreeNodeError::NoChildAtEpoch(epoch, dir))
@@ -659,10 +656,7 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                None,
-            )),
+            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
             Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
                 .await
                 .map(|curr| curr.get_child_state_in_dir(dir))?),

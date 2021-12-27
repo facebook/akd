@@ -300,7 +300,7 @@ impl Storage for AsyncInMemoryDatabase {
         }
 
         Err(StorageError::GetData(format!(
-            "Node (val: {}, len: {}) did not exist <= epoch {}",
+            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
     }
@@ -677,7 +677,7 @@ impl Storage for AsyncInMemoryDbWithCache {
             }
         }
         Err(StorageError::GetData(format!(
-            "Node (val: {}, len: {}) did not exist <= epoch {}",
+            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
     }

@@ -302,7 +302,7 @@ impl Azks {
         for (i, child) in state.child_states.iter().enumerate() {
             match child {
                 None => {
-                    longest_prefix_children_values[i] = crate::utils::empty_node_hash::<H>();
+                    continue;
                 }
                 Some(child) => {
                     let unwrapped_child: HistoryTreeNode =
@@ -483,11 +483,8 @@ impl Azks {
                 hash: H::hash(&[0u8]),
             }; ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or_else(|| {
-                AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(
-                    curr_node.label.get_val(),
-                    None,
-                ))
+            let direction = dir.ok_or({
+                AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(curr_node.label, None))
             })?;
             let next_state = curr_state.get_child_state_in_dir(direction);
             if next_state == None {
@@ -495,7 +492,7 @@ impl Azks {
             }
             for i in 0..ARITY {
                 let no_direction_error = AkdError::HistoryTreeNode(
-                    HistoryTreeNodeError::NoDirection(curr_node.label.get_val(), None),
+                    HistoryTreeNodeError::NoDirection(curr_node.label, None),
                 );
                 if i != dir.ok_or(no_direction_error)? {
                     nodes[count] = Node::<H> {
@@ -717,27 +714,27 @@ mod tests {
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut insertion_set: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set.push((
-            NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set.push((
-            NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set.push((
-            NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set.push((
-            NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set.push((
-            NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-            Blake3::hash(&[]),
-        ));
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+        insertion_set.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
+            hash: Blake3::hash(&[]),
+        });
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set)
             .await?;
@@ -788,22 +785,20 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
-
-        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_1.push((
-            NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            Blake3::hash(&[]),
-        ));
+        let mut insertion_set_1: Vec<Node<Blake3>> = vec![];
+        insertion_set_1.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
+            hash: Blake3::hash(&[]),
+        });
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_1)
             .await?;
         let start_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
-        let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_2.push((
-            NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            Blake3::hash(&[]),
-        ));
-
+        let mut insertion_set_2: Vec<Node<Blake3>> = vec![];
+        insertion_set_2.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
+            hash: Blake3::hash(&[]),
+        });
 
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_2)
             .await?;
@@ -820,30 +815,29 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
-        let mut insertion_set_1: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_1.push((
-            NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set_1.push((
-            NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-            Blake3::hash(&[]),
-        ));
+        let mut insertion_set_1: Vec<Node<Blake3>> = vec![];
+        insertion_set_1.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set_1.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
+            hash: Blake3::hash(&[]),
+        });
 
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_1)
             .await?;
         let start_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
-        let mut insertion_set_2: Vec<(NodeLabel, Blake3Digest)> = vec![];
-        insertion_set_2.push((
-            NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            Blake3::hash(&[]),
-        ));
-        insertion_set_2.push((
-            NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-            Blake3::hash(&[]),
-        ));
-
+        let mut insertion_set_2: Vec<Node<Blake3>> = vec![];
+        insertion_set_2.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b1 << 62), 64),
+            hash: Blake3::hash(&[]),
+        });
+        insertion_set_2.push(Node {
+            label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
+            hash: Blake3::hash(&[]),
+        });
 
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_2)
             .await?;
