@@ -3,6 +3,7 @@
 members = [
     "akd",
     "akd_mysql",
+    "akd_quorum",
     "poc",
     "integration_tests"
 ]
