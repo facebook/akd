@@ -338,17 +338,17 @@ impl<'a> AsyncMySqlDatabase {
         // History tree nodes table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_TREE_NODES
-            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL,"
+            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL,"
             + "  `birth_epoch` BIGINT UNSIGNED NOT NULL,"
             + " `last_epoch` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
-            + " `parent_label_val` BIGINT UNSIGNED NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
+            + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 
         // History node states table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_NODE_STATES
-            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, "
+            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, "
             + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
         tx.query_drop(command).await?;
@@ -357,7 +357,7 @@ impl<'a> AsyncMySqlDatabase {
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_USER
             + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-            + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+            + " `node_label_val` VARBINARY(32) NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
             + " PRIMARY KEY(`username`, `epoch`))";
         tx.query_drop(command).await?;
 
