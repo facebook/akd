@@ -104,12 +104,15 @@ where
     Storage: crate::storage::QuorumStorage<H>,
 {
     /// Create a new Quorum Member with all the fixin's
-    pub fn new(node_id: u64, config: Config, storage: Storage, crypto: Crypto, comms: Comms) -> Self {
+    pub fn new(
+        node_id: u64,
+        config: Config,
+        storage: Storage,
+        crypto: Crypto,
+        comms: Comms,
+    ) -> Self {
         Self {
-            state: NodeState {
-                node_id,
-                config,
-            },
+            state: NodeState { node_id, config },
             storage,
             crypto,
             comms,

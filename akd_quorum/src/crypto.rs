@@ -226,9 +226,9 @@ mod crypto_tests {
     use crate::QuorumOperationError;
 
     use async_trait::async_trait;
+    use rand::{seq::IteratorRandom, thread_rng};
     use shamirsecretsharing::SHARE_SIZE;
     use winter_crypto::Hasher;
-    use rand::{seq::IteratorRandom, thread_rng};
 
     struct TestCryptographer;
 

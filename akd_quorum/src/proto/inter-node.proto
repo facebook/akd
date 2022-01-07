@@ -1,0 +1,62 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
+//
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
+
+// This contains the protobuf definition for inter-node messaging structures
+
+// Note: install a proper version of protobuf-codegen before re-generating
+// protobuf-codegen --version 2.8.1
+// Instructions: https://github.com/stepancheg/rust-protobuf/tree/master/protobuf-codegen
+// MAKE SURE to cargo install the right version: cargo install protobuf-codegen --version =2.8.1
+
+// Command to re-generate (from 'proto' directory):
+// protoc --rust_out . inter-node.proto
+
+syntax = "proto2";
+
+/* NodeLabel represents the label of a history tree node in the AKD tree with a
+ * supplied label-length and label value (location) */
+message NodeLabel {
+    optional uint32 len = 1;
+    optional uint64 val = 2;
+}
+
+/* Node represents the "label" (location) of the node along with its associated hash */
+message Node {
+    optional NodeLabel label = 1;
+    optional bytes hash = 2;
+}
+
+/*
+ * Proof that no leaves were deleted from the initial epoch.
+ * This means that unchanged_nodes should hash to the initial root hash
+ * and the vec of inserted is the set of leaves inserted between these epochs.
+ * If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
+ * as the leaves, it should result in the final root hash.
+*/
+message AppendOnlyProof {
+    repeated Node inserted = 1;
+    repeated Node unchanged = 2;
+}
+
+// ======================================================
+// Verification requests
+// ======================================================
+
+/* VerifyRequest requests that a verification of the append only proof from
+ * (epoch-1) with hash previous_hash to (epoch) with hash new_hash is valid. */
+message VerifyRequest {
+    optional AppendOnlyProof proof = 1;
+    optional bytes previous_hash = 2;
+    optional bytes new_hash = 3;
+    optional uint64 epoch = 4;
+}
+
+/* VerifyResponse will response with their quorum key shard partials
+ * in the event that the proof has verified successfully */
+message VerifyResponse {
+    repeated bytes ShardPartials = 1;
+}

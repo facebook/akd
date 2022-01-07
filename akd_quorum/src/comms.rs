@@ -43,6 +43,8 @@ pub enum CommunicationError {
     ReceiveError(String),
     /// An error occurred processing a nonce
     NonceError(NodeId, Nonce, String),
+    /// A serialization error occurred
+    Serialization(String),
 }
 
 /// Represents a result to an RPC request

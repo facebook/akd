@@ -84,6 +84,8 @@ pub mod crypto;
 pub mod node;
 pub mod storage;
 
+pub(crate) mod proto;
+
 #[derive(Debug, PartialEq)]
 /// A failure occurred encrypting or decrypting a message
 pub enum QuorumOperationError {
