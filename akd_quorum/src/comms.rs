@@ -23,6 +23,14 @@ pub(crate) type Nonce = u128;
 // Structs w/implementations
 // =====================================================
 
+/// Contact information for a node
+pub struct ContactInformation {
+    /// Node ip address
+    pub(crate) ip_address: String,
+    /// Node port
+    pub(crate) port: u16,
+}
+
 /// An encrypted inter-node message
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EncryptedMessage {

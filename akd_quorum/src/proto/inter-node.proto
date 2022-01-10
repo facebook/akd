@@ -42,6 +42,13 @@ message AppendOnlyProof {
     repeated Node unchanged = 2;
 }
 
+/* NodeContact represents the contact information for a specific
+ * node in the quorum set. */
+message NodeContact {
+    optional string ip_address = 1;
+    optional uint32 port = 2;
+}
+
 // ======================================================
 // Verification requests
 // ======================================================
@@ -62,4 +69,52 @@ message VerifyRequest {
 message VerifyResponse {
     optional bytes encrypted_quorum_key_shard = 1;
     optional bytes verified_hash = 2;
+}
+
+/* AddNodeInit starts the adding of a node process which will "test"
+ * the potential new member, and if it adheres to the protocol will
+ * result in the partial encrypted quorum key shard being transmitted
+ * to the leader for processing a new collection of shards.
+*/
+message AddNodeInit {
+    optional bytes public_key = 1;
+    optional NodeContact contact_information = 2;
+}
+
+/* AddNodeTestResult is the response to an add node init call
+ * which contains the resulting pass or failure of a call for a
+ * quorum member to determine if the requesting node should be
+ * included in the quorum set. */
+message AddNodeTestResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+}
+
+/* AddNodeResult is the final result of an add node process and
+ * if it has a resulting shard, then the new member can be enrolled
+ * once enough shards are gathered together to decrypt the quorum key */
+message AddNodeResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
+    optional bytes public_key = 3;
+    optional NodeContact contact_information = 4;
+}
+
+// ======================================================
+// Inter-Node Message Wrapper
+// ======================================================
+
+message InterNodeMessage {
+    enum MessageType {
+        VERIFY_REQUEST = 0;
+        VERIFY_RESPONSE = 1;
+        ADD_NODE_INIT = 2;
+        ADD_NODE_TEST_RESULT = 3;
+        ADD_NODE_RESULT = 4;
+        REMOVE_NODE_INIT = 5;
+        REMOVE_NODE_TEST_RESULT = 6;
+        REMOVE_NODE_RESULT = 7;
+    }
+
+    optional MessageType message_type = 1;
+    optional bytes payload = 2;
 }

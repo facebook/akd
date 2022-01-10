@@ -39,6 +39,8 @@ pub struct MemberInformation {
     pub(crate) public_key: Vec<u8>,
     /// The id of the member node
     pub node_id: NodeId,
+    /// Node contact information (ip/port/etc)
+    pub(crate) contact_information: crate::comms::ContactInformation,
 }
 
 // =====================================================

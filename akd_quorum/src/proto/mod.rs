@@ -256,3 +256,134 @@ where
         }
     }
 }
+
+// ==============================================================
+// Verify Response
+// ==============================================================
+
+impl TryFrom<crate::comms::ContactInformation> for inter_node::NodeContact {
+    type Error = crate::comms::CommunicationError;
+    fn try_from(input: crate::comms::ContactInformation) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_ip_address(input.ip_address);
+        result.set_port(input.port.into());
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::NodeContact> for crate::comms::ContactInformation {
+    type Error = crate::comms::CommunicationError;
+    fn try_from(input: &inter_node::NodeContact) -> Result<Self, Self::Error> {
+        Ok(Self {
+            ip_address: input.get_ip_address().to_string(),
+            port: input.get_port() as u16,
+        })
+    }
+}
+
+// ==============================================================
+// Add Node Init
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::AddNodeInit> for inter_node::AddNodeInit {
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::AddNodeInit,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_contact_information(input.contact_info.try_into()?);
+        result.set_public_key(input.public_key);
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::AddNodeInit> for crate::node::messages::inter_node::AddNodeInit {
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(input: &inter_node::AddNodeInit) -> Result<Self, Self::Error> {
+        Ok(Self {
+            public_key: input.get_public_key().to_vec(),
+            contact_info: input.get_contact_information().try_into()?,
+        })
+    }
+}
+
+// ==============================================================
+// Add Node Test Result
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::AddNodeTestResult>
+    for inter_node::AddNodeTestResult
+{
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::AddNodeTestResult,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        if let Some(key) = input.encrypted_quorum_key_shard {
+            result.set_encrypted_quorum_key_shard(key);
+        }
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::AddNodeTestResult>
+    for crate::node::messages::inter_node::AddNodeTestResult
+{
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(input: &inter_node::AddNodeTestResult) -> Result<Self, Self::Error> {
+        let key = match input.has_encrypted_quorum_key_shard() {
+            true => Some(input.get_encrypted_quorum_key_shard().to_vec()),
+            false => None,
+        };
+        Ok(Self {
+            encrypted_quorum_key_shard: key,
+        })
+    }
+}
+
+// ==============================================================
+// Add Node Result
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::AddNodeResult> for inter_node::AddNodeResult {
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::AddNodeResult,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        if let Some(key) = input.encrypted_quorum_key_shard {
+            result.set_encrypted_quorum_key_shard(key);
+        }
+        result.set_node_id(input.new_member.node_id);
+        result.set_public_key(input.new_member.public_key);
+        result.set_contact_information(input.new_member.contact_information.try_into()?);
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::AddNodeResult> for crate::node::messages::inter_node::AddNodeResult {
+    type Error = crate::comms::CommunicationError;
+
+    fn try_from(input: &inter_node::AddNodeResult) -> Result<Self, Self::Error> {
+        require!(input, has_node_id);
+        require!(input, has_public_key);
+        require!(input, has_contact_information);
+        let key = match input.has_encrypted_quorum_key_shard() {
+            true => Some(input.get_encrypted_quorum_key_shard().to_vec()),
+            false => None,
+        };
+        Ok(Self {
+            encrypted_quorum_key_shard: key,
+            new_member: crate::storage::MemberInformation {
+                node_id: input.get_node_id(),
+                public_key: input.get_public_key().to_vec(),
+                contact_information: input.get_contact_information().try_into()?,
+            },
+        })
+    }
+}

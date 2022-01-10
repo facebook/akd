@@ -8,23 +8,85 @@
 //! This module defines the inter-node and external messages which the quorum handles that are
 //! not defined within the AKD crate.
 
-use crate::comms::NodeId;
-
 // ===========================================================
 // Inter node messages
 // ===========================================================
 pub(crate) mod inter_node {
-    // Verify Request
+    use crate::comms::NodeId;
+
+    // ****************************************
+    // Verify a proof
+    // ****************************************
+
+    /// A request to verify a given append-only proof of the key directory
+    /// initated by a leader process
     pub(crate) struct VerifyRequest<H: winter_crypto::Hasher> {
         pub(crate) append_only_proof: akd::proof_structs::AppendOnlyProof<H>,
         pub(crate) previous_hash: H::Digest,
         pub(crate) new_hash: H::Digest,
         pub(crate) epoch: u64,
     }
-    // Verify Response
+    /// Response to a verification request, which if verified, includes
+    /// the encrypted shard of this quorum key and the hash which was verified,
+    /// encrypted with the requesting node's public key
     pub(crate) struct VerifyResponse<H: winter_crypto::Hasher> {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
         pub(crate) verified_hash: Option<H::Digest>,
+    }
+
+    // ****************************************
+    // Add a node
+    // ****************************************
+
+    /// A request to enroll a new member into the quorum. Includes
+    /// the new member's public key for encrypted communications and
+    /// the contact information (ip/port) for socket communcation
+    pub(crate) struct AddNodeInit {
+        pub(crate) public_key: Vec<u8>,
+        pub(crate) contact_info: crate::comms::ContactInformation,
+    }
+    /// If enrollment test is successful from the edge node, this
+    /// returns the quorum key shard, encrypted with the request leader's
+    /// public key, which will eventually be utilized to generate
+    /// new shard components and distributed to the membership
+    pub(crate) struct AddNodeTestResult {
+        pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
+    }
+    /// Request to change the quorum membership for the additional
+    /// node which may have passed muster. If successful, this will
+    /// contain the new encrypted quorum key shard, encrypted with
+    /// the RECIPIENT's public key and additionally the new member's
+    /// information
+    pub(crate) struct AddNodeResult {
+        pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
+        pub(crate) new_member: crate::storage::MemberInformation,
+    }
+
+    // ****************************************
+    // Remove a node
+    // ****************************************
+
+    /// Initiates a request to remove the specified node either due to
+    /// non-compliance or non-functionality. Nodes cannot be removed upon
+    /// generic request. Quorum membership can only GROW upon request, not
+    /// shrink. Shrinkage only occurs on failure scenarios or detectable faults
+    pub(crate) struct RemoveNodeInit {
+        pub(crate) member_information: crate::storage::MemberInformation,
+    }
+    /// Each edge node will "test" the member to be removed, and if they deem
+    /// it in non-compliance (or non-contactable), then they will return their
+    /// portion of the quorum key shard, encrypted with the initiating user's
+    /// public key to signify that they agree with a membership modification.
+    pub(crate) struct RemoveNodeTestResult {
+        pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
+    }
+    /// If enough nodes are unable to contact the offending member or deem the
+    /// node to be non-compliant with the quorum's protocols, then new shards excluding
+    /// the offending node will be generated and the offending node will be removed
+    /// from the quorum computations
+    pub(crate) struct RemoveNodeResult {
+        pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
+        pub(crate) offending_member: NodeId,
     }
 }
 
@@ -62,5 +124,5 @@ pub struct EnrollMemberRequest {
 /// shards for the remaining nodes.
 pub struct RemoveMemberRequest {
     /// The id of the node to attempt to remove
-    pub node_id: NodeId,
+    pub node_id: crate::comms::NodeId,
 }
