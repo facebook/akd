@@ -1022,7 +1022,8 @@ impl ::protobuf::reflect::ProtobufValue for VerifyRequest {
 #[derive(PartialEq,Clone,Default)]
 pub struct VerifyResponse {
     // message fields
-    ShardPartials: ::protobuf::RepeatedField<::std::vec::Vec<u8>>,
+    encrypted_quorum_key_shard: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    verified_hash: ::protobuf::SingularField<::std::vec::Vec<u8>>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -1039,29 +1040,76 @@ impl VerifyResponse {
         ::std::default::Default::default()
     }
 
-    // repeated bytes ShardPartials = 1;
+    // optional bytes encrypted_quorum_key_shard = 1;
 
 
-    pub fn get_ShardPartials(&self) -> &[::std::vec::Vec<u8>] {
-        &self.ShardPartials
+    pub fn get_encrypted_quorum_key_shard(&self) -> &[u8] {
+        match self.encrypted_quorum_key_shard.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
     }
-    pub fn clear_ShardPartials(&mut self) {
-        self.ShardPartials.clear();
+    pub fn clear_encrypted_quorum_key_shard(&mut self) {
+        self.encrypted_quorum_key_shard.clear();
+    }
+
+    pub fn has_encrypted_quorum_key_shard(&self) -> bool {
+        self.encrypted_quorum_key_shard.is_some()
     }
 
     // Param is passed by value, moved
-    pub fn set_ShardPartials(&mut self, v: ::protobuf::RepeatedField<::std::vec::Vec<u8>>) {
-        self.ShardPartials = v;
+    pub fn set_encrypted_quorum_key_shard(&mut self, v: ::std::vec::Vec<u8>) {
+        self.encrypted_quorum_key_shard = ::protobuf::SingularField::some(v);
     }
 
     // Mutable pointer to the field.
-    pub fn mut_ShardPartials(&mut self) -> &mut ::protobuf::RepeatedField<::std::vec::Vec<u8>> {
-        &mut self.ShardPartials
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_encrypted_quorum_key_shard(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.encrypted_quorum_key_shard.is_none() {
+            self.encrypted_quorum_key_shard.set_default();
+        }
+        self.encrypted_quorum_key_shard.as_mut().unwrap()
     }
 
     // Take field
-    pub fn take_ShardPartials(&mut self) -> ::protobuf::RepeatedField<::std::vec::Vec<u8>> {
-        ::std::mem::replace(&mut self.ShardPartials, ::protobuf::RepeatedField::new())
+    pub fn take_encrypted_quorum_key_shard(&mut self) -> ::std::vec::Vec<u8> {
+        self.encrypted_quorum_key_shard.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // optional bytes verified_hash = 2;
+
+
+    pub fn get_verified_hash(&self) -> &[u8] {
+        match self.verified_hash.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_verified_hash(&mut self) {
+        self.verified_hash.clear();
+    }
+
+    pub fn has_verified_hash(&self) -> bool {
+        self.verified_hash.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_verified_hash(&mut self, v: ::std::vec::Vec<u8>) {
+        self.verified_hash = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_verified_hash(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.verified_hash.is_none() {
+            self.verified_hash.set_default();
+        }
+        self.verified_hash.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_verified_hash(&mut self) -> ::std::vec::Vec<u8> {
+        self.verified_hash.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
 }
 
@@ -1075,7 +1123,10 @@ impl ::protobuf::Message for VerifyResponse {
             let (field_number, wire_type) = is.read_tag_unpack()?;
             match field_number {
                 1 => {
-                    ::protobuf::rt::read_repeated_bytes_into(wire_type, is, &mut self.ShardPartials)?;
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.encrypted_quorum_key_shard)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.verified_hash)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -1089,18 +1140,24 @@ impl ::protobuf::Message for VerifyResponse {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        for value in &self.ShardPartials {
-            my_size += ::protobuf::rt::bytes_size(1, &value);
-        };
+        if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(1, &v);
+        }
+        if let Some(ref v) = self.verified_hash.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(2, &v);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        for v in &self.ShardPartials {
+        if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
             os.write_bytes(1, &v)?;
-        };
+        }
+        if let Some(ref v) = self.verified_hash.as_ref() {
+            os.write_bytes(2, &v)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -1143,10 +1200,15 @@ impl ::protobuf::Message for VerifyResponse {
         unsafe {
             descriptor.get(|| {
                 let mut fields = ::std::vec::Vec::new();
-                fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
-                    "ShardPartials",
-                    |m: &VerifyResponse| { &m.ShardPartials },
-                    |m: &mut VerifyResponse| { &mut m.ShardPartials },
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "encrypted_quorum_key_shard",
+                    |m: &VerifyResponse| { &m.encrypted_quorum_key_shard },
+                    |m: &mut VerifyResponse| { &mut m.encrypted_quorum_key_shard },
+                ));
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "verified_hash",
+                    |m: &VerifyResponse| { &m.verified_hash },
+                    |m: &mut VerifyResponse| { &mut m.verified_hash },
                 ));
                 ::protobuf::reflect::MessageDescriptor::new::<VerifyResponse>(
                     "VerifyResponse",
@@ -1170,7 +1232,8 @@ impl ::protobuf::Message for VerifyResponse {
 
 impl ::protobuf::Clear for VerifyResponse {
     fn clear(&mut self) {
-        self.ShardPartials.clear();
+        self.encrypted_quorum_key_shard.clear();
+        self.verified_hash.clear();
         self.unknown_fields.clear();
     }
 }
@@ -1197,8 +1260,9 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     fyRequest\x12&\n\x05proof\x18\x01\x20\x01(\x0b2\x10.AppendOnlyProofR\x05\
     proof\x12#\n\rprevious_hash\x18\x02\x20\x01(\x0cR\x0cpreviousHash\x12\
     \x19\n\x08new_hash\x18\x03\x20\x01(\x0cR\x07newHash\x12\x14\n\x05epoch\
-    \x18\x04\x20\x01(\x04R\x05epoch\"6\n\x0eVerifyResponse\x12$\n\rShardPart\
-    ials\x18\x01\x20\x03(\x0cR\rShardPartials\
+    \x18\x04\x20\x01(\x04R\x05epoch\"r\n\x0eVerifyResponse\x12;\n\x1aencrypt\
+    ed_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\
+    #\n\rverified_hash\x18\x02\x20\x01(\x0cR\x0cverifiedHash\
 ";
 
 static mut file_descriptor_proto_lazy: ::protobuf::lazy::Lazy<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::lazy::Lazy {

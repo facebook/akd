@@ -19,7 +19,7 @@
 //! Additionally it is unclear if threshold signatures can be adjusted after they are
 //! initially created. Which is a requirement for mutation of the quorum set.
 
-use crate::comms::Nonce;
+use crate::comms::{NodeId, Nonce};
 use crate::storage::QuorumCommitment;
 use crate::QuorumOperationError;
 
@@ -53,6 +53,7 @@ pub const QUORUM_KEY_SIZE: usize = QUORUM_KEY_NUM_PARTS * DATA_SIZE;
 /// to break the secret information into batches of DATA_SIZE _exactly_ to generate
 /// the shards. This means that to support a key bigger than DATA_SIZE, we need to
 /// have multiple shards for each slice of the secret information.
+#[derive(PartialEq, Debug)]
 pub struct QuorumKeyShard {
     pub(crate) components: [[u8; SHARE_SIZE]; QUORUM_KEY_NUM_PARTS],
 }
@@ -89,6 +90,50 @@ impl QuorumKeyShard {
 
         Ok(results)
     }
+
+    /// Flatten the crypto shard into a single array of the components in-order
+    pub fn flatten(&self) -> [u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS] {
+        let mut data = [0u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS];
+        for part_i in 0..QUORUM_KEY_NUM_PARTS {
+            data[part_i * SHARE_SIZE..(part_i + 1) * SHARE_SIZE]
+                .clone_from_slice(&self.components[part_i]);
+        }
+        data
+    }
+
+    /// Inflate a decrypted crypto shard from the flattened components
+    pub fn inflate(
+        raw: [u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS],
+    ) -> Result<Self, QuorumOperationError> {
+        let mut components = [[0u8; SHARE_SIZE]; QUORUM_KEY_NUM_PARTS];
+
+        for part_i in 0..QUORUM_KEY_NUM_PARTS {
+            let slice = raw[part_i * SHARE_SIZE..(part_i + 1) * SHARE_SIZE].to_vec();
+            components[part_i] = slice.try_into().map_err(|_| {
+                QuorumOperationError::Sharding(
+                    "Unable to deserialize raw binary vec to QuorumKeyShard".to_string(),
+                )
+            })?;
+        }
+
+        Ok(Self { components })
+    }
+}
+
+/// Represents an encrypted quorum key shard which is encrypted with
+/// the public key of the reliant party. These shards cannot be decoded in
+/// user-space, and must be handled WITHIN the crypto layer such that they
+/// public key cannot be reconstructed by "non secure" memory. The private key
+/// which can decrpyt the shards is the node's "transient" key used for communication
+/// channels, and never is exposed outside of the cryptographer service
+pub struct EncryptedQuorumKeyShard {
+    /// The flattened QuorumKeyShard components are encrypted
+    /// using the leader's public key and can only be
+    /// reconstructed within the secure layer such that the
+    /// encrypted shard components must be passed within
+    /// the secure crypto layer to be reconstructed and generate a
+    /// commitment
+    pub payload: Vec<u8>,
 }
 
 // =====================================================
@@ -109,23 +154,39 @@ pub trait QuorumCryptographer {
     /// Retrieve the public key of the Quorum Key
     async fn retrieve_qk_public_key(&self) -> Result<Vec<u8>, QuorumOperationError>;
 
-    /// Retrieve this node's shard of the quorum key from persistent storage
-    async fn retrieve_qk_shard(&self) -> Result<QuorumKeyShard, QuorumOperationError>;
+    /// Retrieve this node's shard of the quorum key from persistent secure storage
+    async fn retrieve_qk_shard(
+        &self,
+        node_id: NodeId,
+    ) -> Result<EncryptedQuorumKeyShard, QuorumOperationError>;
 
-    /// Save this node's shard of the quorum key to persistent (safe) storage
-    async fn update_qk_shard(&self, shard: QuorumKeyShard) -> Result<(), QuorumOperationError>;
+    /// Save this node's shard of the quorum key to persistent secure storage
+    async fn update_qk_shard(
+        &self,
+        shard: EncryptedQuorumKeyShard,
+    ) -> Result<(), QuorumOperationError>;
+
+    /// Generate the encrypted shards for nodes [0, node_public_keys.len()) encrypted with the public keys of the nodes.
+    /// The provided shards are the quorum key shards, encrypted with THIS node's public key as the leader.
+    async fn generate_encrypted_shards(
+        &self,
+        shards: Vec<EncryptedQuorumKeyShard>,
+        node_public_keys: Vec<Vec<u8>>,
+    ) -> Result<Vec<EncryptedQuorumKeyShard>, QuorumOperationError>;
 
     /// Encrypt the given material using the provided public key, optionally with the provided nonce
-    async fn encrypt_material(
+    async fn encrypt_message(
         &self,
         public_key: Vec<u8>,
         material: Vec<u8>,
         nonce: Nonce,
     ) -> Result<Vec<u8>, QuorumOperationError>;
 
-    /// Decrypt the specified material utilizing this node's private key
-    /// and if a nonce is present, return it
-    async fn decrypt_material(
+    /// Decrypt the specified message utilizing this node's
+    /// private key. This will require that the message contain
+    /// a nonce. I.e. this cannot be used to decrypt the encrypted
+    /// shard partials
+    async fn decrypt_message(
         &self,
         material: Vec<u8>,
     ) -> Result<(Vec<u8>, Nonce), QuorumOperationError>;
@@ -133,7 +194,7 @@ pub trait QuorumCryptographer {
     /// Generate a commitment on the epoch changes using the quorum key
     async fn generate_commitment<H: Hasher>(
         &self,
-        quorum_key: Vec<u8>,
+        quorum_key_shards: Vec<EncryptedQuorumKeyShard>,
         epoch: u64,
         previous_hash: H::Digest,
         current_hash: H::Digest,
@@ -220,68 +281,73 @@ pub trait QuorumCryptographer {
 
 #[cfg(test)]
 mod crypto_tests {
-    use super::{QuorumCryptographer, QuorumKeyShard, QUORUM_KEY_NUM_PARTS, QUORUM_KEY_SIZE};
-    use crate::comms::Nonce;
+    use super::{
+        EncryptedQuorumKeyShard, QuorumCryptographer, QuorumKeyShard, QUORUM_KEY_NUM_PARTS,
+        QUORUM_KEY_SIZE,
+    };
+    use crate::comms::{NodeId, Nonce};
     use crate::storage::QuorumCommitment;
     use crate::QuorumOperationError;
 
     use async_trait::async_trait;
-    use rand::{seq::IteratorRandom, thread_rng};
+    use rand::{seq::IteratorRandom, thread_rng, Rng};
     use shamirsecretsharing::SHARE_SIZE;
+    use std::convert::TryInto;
     use winter_crypto::Hasher;
 
     struct TestCryptographer;
 
     #[async_trait]
     impl QuorumCryptographer for TestCryptographer {
-        /// Retrieve the public key of this quorum node
         async fn retrieve_public_key(&self) -> Result<Vec<u8>, QuorumOperationError> {
-            Ok(vec![])
+            unimplemented!();
         }
 
-        /// Retrieve the public key of the Quorum Key
         async fn retrieve_qk_public_key(&self) -> Result<Vec<u8>, QuorumOperationError> {
-            Ok(vec![])
+            unimplemented!();
         }
 
-        /// Retrieve this node's shard of the quorum key from persistent storage
-        async fn retrieve_qk_shard(&self) -> Result<QuorumKeyShard, QuorumOperationError> {
-            Ok(QuorumKeyShard {
-                components: [[0u8; SHARE_SIZE]; QUORUM_KEY_NUM_PARTS],
-            })
+        async fn retrieve_qk_shard(
+            &self,
+            _node_id: NodeId,
+        ) -> Result<EncryptedQuorumKeyShard, QuorumOperationError> {
+            unimplemented!();
         }
 
-        /// Save this node's shard of the quorum key to persistent (safe) storage
         async fn update_qk_shard(
             &self,
-            _shard: QuorumKeyShard,
+            _shard: EncryptedQuorumKeyShard,
         ) -> Result<(), QuorumOperationError> {
-            Ok(())
+            unimplemented!();
         }
 
-        /// Encrypt the given material using the provided public key, optionally with the provided nonce
-        async fn encrypt_material(
+        async fn generate_encrypted_shards(
+            &self,
+            _shards: Vec<EncryptedQuorumKeyShard>,
+            _node_public_keys: Vec<Vec<u8>>,
+        ) -> Result<Vec<EncryptedQuorumKeyShard>, QuorumOperationError> {
+            unimplemented!();
+        }
+
+        async fn encrypt_message(
             &self,
             _public_key: Vec<u8>,
             _material: Vec<u8>,
             _nonce: Nonce,
         ) -> Result<Vec<u8>, QuorumOperationError> {
-            Ok(vec![])
+            unimplemented!();
         }
 
-        /// Decrypt the specified material utilizing this node's private key
-        /// and if a nonce is present, return it
-        async fn decrypt_material(
+        async fn decrypt_message(
             &self,
             _material: Vec<u8>,
         ) -> Result<(Vec<u8>, Nonce), QuorumOperationError> {
-            Ok((vec![], 0))
+            unimplemented!();
         }
 
-        /// Generate a commitment on the epoch changes using the quorum key
         async fn generate_commitment<H: Hasher>(
             &self,
-            _quorum_key: Vec<u8>,
+            _quorum_key_shards: Vec<EncryptedQuorumKeyShard>,
             _epoch: u64,
             _previous_hash: H::Digest,
             _current_hash: H::Digest,
@@ -289,12 +355,11 @@ mod crypto_tests {
             unimplemented!();
         }
 
-        /// Validate the commitment applied on the specified epoch settings
         async fn validate_commitment<H: Hasher>(
             _public_key: Vec<u8>,
             _commitment: QuorumCommitment<H>,
         ) -> Result<bool, QuorumOperationError> {
-            Ok(false)
+            unimplemented!();
         }
     }
 
@@ -319,5 +384,26 @@ mod crypto_tests {
             let construction_fail = TestCryptographer::reconstruct_shards(sample);
             assert!(construction_fail.is_err());
         }
+    }
+
+    #[test]
+    fn test_quorum_shard_serialize_deserialize() {
+        let mut rng = rand::thread_rng();
+        let mut components = [[0u8; SHARE_SIZE]; QUORUM_KEY_NUM_PARTS];
+        for i in 0..QUORUM_KEY_NUM_PARTS {
+            let bytes: [u8; SHARE_SIZE] = (0..SHARE_SIZE)
+                .map(|_| rng.gen::<u8>())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            components[i] = bytes;
+        }
+        let shard = QuorumKeyShard { components };
+
+        let flat = shard.flatten();
+        assert_eq!(SHARE_SIZE * QUORUM_KEY_NUM_PARTS, flat.len());
+
+        let inflated = QuorumKeyShard::inflate(flat).unwrap();
+        assert_eq!(shard, inflated);
     }
 }

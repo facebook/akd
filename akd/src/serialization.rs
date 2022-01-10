@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module provides helpful serialization calls for mapping to/from a winter_crypto::Hasher::Digest
+
 use crate::errors::HistoryTreeNodeError;
 use winter_crypto::Hasher;
 use winter_utils::{Deserializable, Serializable, SliceReader};

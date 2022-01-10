@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot::Sender;
 use tokio::time::Duration;
 
+pub mod messages;
+
 // =====================================================
 // Typedefs and constants
 // =====================================================
@@ -165,7 +167,7 @@ where
         // encrypt the data
         let enc = self
             .crypto
-            .encrypt_material(remote_node_public_key, message, nonce)
+            .encrypt_message(remote_node_public_key, message, nonce)
             .await?;
 
         // generate reply message
@@ -234,14 +236,14 @@ where
 
         // the message should be sent utilizing OUR public key, meaning that we don't need to retrieve any
         // key information as the crypto layer should have access directly
-        let msg = self
+        let (data, nonce) = self
             .crypto
-            .decrypt_material(message.encrypted_message_with_nonce)
+            .decrypt_message(message.encrypted_message_with_nonce)
             .await?;
 
         // validate the nonce
         let expected_nonce = self.comms.get_expected_nonce(message.from).await;
-        if msg.1 == expected_nonce {
+        if nonce == expected_nonce {
             // bump the nonce by 1 to prevent the replay attack
             self.comms.increment_nonce(message.from).await?;
         } else {
@@ -250,7 +252,7 @@ where
             // TODO: add stats counter on mismatch
             return Err(crate::comms::CommunicationError::ReceiveError(format!(
                 "Nonce mismatch in raft inter-messages: Node {}, Nonce: {}, Expected Nonce: {}",
-                message.from, msg.1, expected_nonce
+                message.from, nonce, expected_nonce
             ))
             .into());
         }
@@ -258,8 +260,8 @@ where
         Ok(Message {
             from: message.from,
             to: message.to,
-            nonce: msg.1,
-            serialized_message: msg.0,
+            nonce: nonce,
+            serialized_message: data,
         })
     }
 }

@@ -56,7 +56,10 @@ message VerifyRequest {
 }
 
 /* VerifyResponse will response with their quorum key shard partials
- * in the event that the proof has verified successfully */
+ * encrypted with the leader's public key in the event that the
+ * proof has verified successfully along with the hash that this node
+ * agreed upon */
 message VerifyResponse {
-    repeated bytes ShardPartials = 1;
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional bytes verified_hash = 2;
 }
