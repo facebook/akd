@@ -11,7 +11,7 @@ use akd::errors::StorageError;
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
 use akd::node_state::NodeLabel;
 use akd::storage::types::{
-    AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
+    AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
 use akd::ARITY;
@@ -1067,7 +1067,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_user_data(
         &self,
-        username: &AkdKey,
+        username: &AkdLabel,
     ) -> core::result::Result<KeyData, StorageError> {
         // This is the same as previous logic under "get_all"
 
@@ -1104,8 +1104,8 @@ impl Storage for AsyncMySqlDatabase {
                             val: node_label_val.unwrap(),
                             len: node_label_len.unwrap(),
                         },
-                        plaintext_val: akd::storage::types::Values(data.unwrap()),
-                        username: akd::storage::types::AkdKey(username.unwrap()),
+                        plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
+                        username: akd::storage::types::AkdLabel(username.unwrap()),
                     }
                 })
                 .await;
@@ -1148,7 +1148,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_user_state(
         &self,
-        username: &AkdKey,
+        username: &AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<ValueState, StorageError> {
         *(self.num_reads.write().await) += 1;
@@ -1203,8 +1203,8 @@ impl Storage for AsyncMySqlDatabase {
                             val: node_label_val.unwrap(),
                             len: node_label_len.unwrap(),
                         },
-                        plaintext_val: akd::storage::types::Values(data.unwrap()),
-                        username: akd::storage::types::AkdKey(username.unwrap()),
+                        plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
+                        username: akd::storage::types::AkdLabel(username.unwrap()),
                     }
                 })
                 .await;
@@ -1245,9 +1245,9 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_user_state_versions(
         &self,
-        keys: &[AkdKey],
+        keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> core::result::Result<HashMap<AkdKey, u64>, StorageError> {
+    ) -> core::result::Result<HashMap<AkdLabel, u64>, StorageError> {
         *(self.num_reads.write().await) += 1;
 
         let mut results = HashMap::new();
@@ -1390,7 +1390,7 @@ impl Storage for AsyncMySqlDatabase {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
-                            acc.push((AkdKey(username), version))
+                            acc.push((AkdLabel(username), version))
                         }
                         acc
                     })
@@ -1404,7 +1404,7 @@ impl Storage for AsyncMySqlDatabase {
                         if let (Some(Ok(username)), Some(Ok(version))) =
                             (row.take_opt(0), row.take_opt(1))
                         {
-                            acc.push((AkdKey(username), version))
+                            acc.push((AkdLabel(username), version))
                         }
                         acc
                     })

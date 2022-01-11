@@ -11,7 +11,7 @@ use crate::append_only_zks::Azks;
 use crate::errors::StorageError;
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
 use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
-use crate::storage::types::{AkdKey, DbRecord, StorageType, ValueState, Values};
+use crate::storage::types::{AkdLabel, AkdValue, DbRecord, StorageType, ValueState};
 use crate::ARITY;
 
 use async_trait::async_trait;
@@ -99,22 +99,24 @@ pub trait Storage: Clone {
     /* User data searching */
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(&self, username: &types::AkdKey)
-        -> Result<types::KeyData, StorageError>;
+    async fn get_user_data(
+        &self,
+        username: &types::AkdLabel,
+    ) -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
-        username: &types::AkdKey,
+        username: &types::AkdLabel,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
 
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
         &self,
-        keys: &[types::AkdKey],
+        keys: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdKey, u64>, StorageError>;
+    ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
 
     /* Data Layer Builders */
 
@@ -184,7 +186,7 @@ pub trait Storage: Clone {
     }
 
     /*
-    pub(crate) plaintext_val: Values, // This needs to be the plaintext value, to discuss
+    pub(crate) plaintext_val: AkdValue, // This needs to be the plaintext value, to discuss
     pub(crate) version: u64,          // to discuss
     pub(crate) label: NodeLabel,
     pub(crate) epoch: u64,
@@ -199,11 +201,11 @@ pub trait Storage: Clone {
         epoch: u64,
     ) -> ValueState {
         ValueState {
-            plaintext_val: Values(plaintext_val),
+            plaintext_val: AkdValue(plaintext_val),
             version,
             label: NodeLabel::new(label_val, label_len),
             epoch,
-            username: AkdKey(username),
+            username: AkdLabel(username),
         }
     }
 }

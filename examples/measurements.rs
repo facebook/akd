@@ -13,27 +13,27 @@ use akd::auditor::audit_verify;
 use akd::client::{key_history_verify, lookup_verify};
 use akd::directory::{get_key_history_hashes, Directory};
 use akd::storage::memory::AsyncInMemoryDbWithCache;
-use akd::storage::types::{AkdKey, Values};
+use akd::storage::types::{AkdLabel, AkdValue};
 
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
-fn create_keys_and_values(num_insertions: usize, mut rng: ThreadRng) -> Vec<(AkdKey, Values)> {
-    let mut updates = Vec::<(AkdKey, Values)>::new();
+fn create_keys_and_values(num_insertions: usize, mut rng: ThreadRng) -> Vec<(AkdLabel, AkdValue)> {
+    let mut updates = Vec::<(AkdLabel, AkdValue)>::new();
     for _ in 0..num_insertions {
-        let akd_key = AkdKey::random(&mut rng);
-        let val = Values::random(&mut rng);
+        let akd_key = AkdLabel::random(&mut rng);
+        let val = AkdValue::random(&mut rng);
         updates.push((akd_key, val));
     }
     updates
 }
 
 fn create_random_subset_of_existing_keys(
-    existing_keys: Vec<AkdKey>,
+    existing_keys: Vec<AkdLabel>,
     subset_size: usize,
     mut rng: ThreadRng,
-) -> Vec<(AkdKey, Values)> {
-    let mut key_subset = Vec::<(AkdKey, Values)>::new();
+) -> Vec<(AkdLabel, AkdValue)> {
+    let mut key_subset = Vec::<(AkdLabel, AkdValue)>::new();
     let mut actual_subset_size = subset_size;
     if existing_keys.len() < subset_size {
         actual_subset_size = existing_keys.len();
@@ -43,7 +43,7 @@ fn create_random_subset_of_existing_keys(
         .choose_multiple(&mut rng, actual_subset_size);
     for i in 0..actual_subset_size {
         let username = sample[i].clone();
-        let val = Values::random(&mut rng);
+        let val = AkdValue::random(&mut rng);
         key_subset.push((username, val));
     }
     key_subset
@@ -53,7 +53,7 @@ fn create_random_subset_of_existing_keys(
 async fn main() {
     let num_init_insertions = 1000;
 
-    let mut existing_keys = Vec::<AkdKey>::new();
+    let mut existing_keys = Vec::<AkdLabel>::new();
 
     let db = AsyncInMemoryDbWithCache::new();
     let mut akd_dir = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
@@ -74,7 +74,7 @@ async fn main() {
         .clone()
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<AkdKey>>();
+        .collect::<Vec<AkdLabel>>();
     existing_keys.append(&mut new_keys);
 
     let num_new_insertions = 10;
@@ -99,7 +99,7 @@ async fn main() {
         .clone()
         .iter()
         .map(|x| x.0.clone())
-        .collect::<Vec<AkdKey>>();
+        .collect::<Vec<AkdLabel>>();
     existing_keys.append(&mut new_keys);
 
     let new_epochs = 5;
@@ -120,7 +120,7 @@ async fn main() {
             .clone()
             .iter()
             .map(|x| x.0.clone())
-            .collect::<Vec<AkdKey>>();
+            .collect::<Vec<AkdLabel>>();
         existing_keys.append(&mut new_keys);
     }
 
