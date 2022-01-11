@@ -138,3 +138,9 @@ impl From<String> for QuorumOperationError {
         QuorumOperationError::Unknown(err)
     }
 }
+
+impl From<tokio::task::JoinError> for QuorumOperationError {
+    fn from(_err: tokio::task::JoinError) -> Self {
+        QuorumOperationError::Unknown("Tokio task join error".to_string())
+    }
+}

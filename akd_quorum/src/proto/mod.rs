@@ -8,9 +8,10 @@
 //! This module contains all the type conversions between internal AKD & message types
 //! with the protobuf types
 
+use protobuf::RepeatedField;
 use std::convert::{TryFrom, TryInto};
 
-use protobuf::RepeatedField;
+type ConversionError = crate::comms::CommunicationError;
 
 pub mod inter_node;
 
@@ -20,7 +21,7 @@ pub mod inter_node;
 macro_rules! require {
     ($obj:ident, $has_field:ident) => {
         if !$obj.$has_field() {
-            return Err(crate::comms::CommunicationError::Serialization(format!(
+            return Err(ConversionError::Serialization(format!(
                 "Condition {}.{}() failed.",
                 stringify!($obj),
                 stringify!($has_field)
@@ -32,9 +33,7 @@ macro_rules! require {
 macro_rules! hash_to_bytes {
     ($obj:expr) => {
         akd::serialization::from_digest::<H>($obj).map_err(|_| {
-            crate::comms::CommunicationError::Serialization(
-                "Failed to convert digest to bytes".to_string(),
-            )
+            ConversionError::Serialization("Failed to convert digest to bytes".to_string())
         })?
     };
 }
@@ -42,11 +41,44 @@ macro_rules! hash_to_bytes {
 macro_rules! hash_from_bytes {
     ($obj:expr) => {
         akd::serialization::to_digest::<H>($obj).map_err(|_| {
-            crate::comms::CommunicationError::Serialization(
-                "Failed to convert bytes to digest".to_string(),
-            )
+            ConversionError::Serialization("Failed to convert bytes to digest".to_string())
         })?
     };
+}
+
+// ==============================================================
+// InterNodeAck
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::InterNodeAck> for inter_node::InterNodeAck {
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::InterNodeAck,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_ok(input.ok);
+        if let Some(err_msg) = input.err {
+            result.set_err(err_msg);
+        }
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::InterNodeAck> for crate::node::messages::inter_node::InterNodeAck {
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::InterNodeAck) -> Result<Self, Self::Error> {
+        require!(input, has_ok);
+        let err = match input.has_err() {
+            true => Some(input.get_err().to_string()),
+            false => None,
+        };
+        Ok(crate::node::messages::inter_node::InterNodeAck {
+            ok: input.get_ok(),
+            err,
+        })
+    }
 }
 
 // ==============================================================
@@ -54,7 +86,7 @@ macro_rules! hash_from_bytes {
 // ==============================================================
 
 impl TryFrom<akd::node_state::NodeLabel> for inter_node::NodeLabel {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: akd::node_state::NodeLabel) -> Result<Self, Self::Error> {
         let mut result = Self::new();
@@ -65,7 +97,7 @@ impl TryFrom<akd::node_state::NodeLabel> for inter_node::NodeLabel {
 }
 
 impl TryFrom<&inter_node::NodeLabel> for akd::node_state::NodeLabel {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_len);
@@ -85,7 +117,7 @@ impl<H> TryFrom<akd::node_state::Node<H>> for inter_node::Node
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: akd::node_state::Node<H>) -> Result<Self, Self::Error> {
         let mut result = Self::new();
@@ -99,7 +131,7 @@ impl<H> TryFrom<&inter_node::Node> for akd::node_state::Node<H>
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::Node) -> Result<Self, Self::Error> {
         require!(input, has_label);
@@ -120,7 +152,7 @@ impl<H> TryFrom<akd::proof_structs::AppendOnlyProof<H>> for inter_node::AppendOn
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: akd::proof_structs::AppendOnlyProof<H>) -> Result<Self, Self::Error> {
         let mut result = Self::new();
@@ -144,7 +176,7 @@ impl<H> TryFrom<&inter_node::AppendOnlyProof> for akd::proof_structs::AppendOnly
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::AppendOnlyProof) -> Result<Self, Self::Error> {
         let mut inserted = vec![];
@@ -170,7 +202,7 @@ impl<H> TryFrom<crate::node::messages::inter_node::VerifyRequest<H>> for inter_n
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(
         input: crate::node::messages::inter_node::VerifyRequest<H>,
@@ -188,7 +220,7 @@ impl<H> TryFrom<&inter_node::VerifyRequest> for crate::node::messages::inter_nod
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::VerifyRequest) -> Result<Self, Self::Error> {
         require!(input, has_epoch);
@@ -213,7 +245,7 @@ impl<H> TryFrom<crate::node::messages::inter_node::VerifyResponse<H>> for inter_
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(
         input: crate::node::messages::inter_node::VerifyResponse<H>,
@@ -238,7 +270,7 @@ impl<H> TryFrom<&inter_node::VerifyResponse>
 where
     H: winter_crypto::Hasher,
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::VerifyResponse) -> Result<Self, Self::Error> {
         if input.has_verified_hash() && input.has_encrypted_quorum_key_shard() {
@@ -262,7 +294,7 @@ where
 // ==============================================================
 
 impl TryFrom<crate::comms::ContactInformation> for inter_node::NodeContact {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
     fn try_from(input: crate::comms::ContactInformation) -> Result<Self, Self::Error> {
         let mut result = Self::new();
         result.set_ip_address(input.ip_address);
@@ -272,7 +304,7 @@ impl TryFrom<crate::comms::ContactInformation> for inter_node::NodeContact {
 }
 
 impl TryFrom<&inter_node::NodeContact> for crate::comms::ContactInformation {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
     fn try_from(input: &inter_node::NodeContact) -> Result<Self, Self::Error> {
         Ok(Self {
             ip_address: input.get_ip_address().to_string(),
@@ -286,7 +318,7 @@ impl TryFrom<&inter_node::NodeContact> for crate::comms::ContactInformation {
 // ==============================================================
 
 impl TryFrom<crate::node::messages::inter_node::AddNodeInit> for inter_node::AddNodeInit {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(
         input: crate::node::messages::inter_node::AddNodeInit,
@@ -299,7 +331,7 @@ impl TryFrom<crate::node::messages::inter_node::AddNodeInit> for inter_node::Add
 }
 
 impl TryFrom<&inter_node::AddNodeInit> for crate::node::messages::inter_node::AddNodeInit {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::AddNodeInit) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -316,7 +348,7 @@ impl TryFrom<&inter_node::AddNodeInit> for crate::node::messages::inter_node::Ad
 impl TryFrom<crate::node::messages::inter_node::AddNodeTestResult>
     for inter_node::AddNodeTestResult
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(
         input: crate::node::messages::inter_node::AddNodeTestResult,
@@ -332,7 +364,7 @@ impl TryFrom<crate::node::messages::inter_node::AddNodeTestResult>
 impl TryFrom<&inter_node::AddNodeTestResult>
     for crate::node::messages::inter_node::AddNodeTestResult
 {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::AddNodeTestResult) -> Result<Self, Self::Error> {
         let key = match input.has_encrypted_quorum_key_shard() {
@@ -350,7 +382,7 @@ impl TryFrom<&inter_node::AddNodeTestResult>
 // ==============================================================
 
 impl TryFrom<crate::node::messages::inter_node::AddNodeResult> for inter_node::AddNodeResult {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(
         input: crate::node::messages::inter_node::AddNodeResult,
@@ -367,7 +399,7 @@ impl TryFrom<crate::node::messages::inter_node::AddNodeResult> for inter_node::A
 }
 
 impl TryFrom<&inter_node::AddNodeResult> for crate::node::messages::inter_node::AddNodeResult {
-    type Error = crate::comms::CommunicationError;
+    type Error = ConversionError;
 
     fn try_from(input: &inter_node::AddNodeResult) -> Result<Self, Self::Error> {
         require!(input, has_node_id);
@@ -384,6 +416,106 @@ impl TryFrom<&inter_node::AddNodeResult> for crate::node::messages::inter_node::
                 public_key: input.get_public_key().to_vec(),
                 contact_information: input.get_contact_information().try_into()?,
             },
+        })
+    }
+}
+
+// ==============================================================
+// Remove Node Init
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::RemoveNodeInit> for inter_node::RemoveNodeInit {
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::RemoveNodeInit,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_node_id(input.node_id);
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::RemoveNodeInit> for crate::node::messages::inter_node::RemoveNodeInit {
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::RemoveNodeInit) -> Result<Self, Self::Error> {
+        require!(input, has_node_id);
+        Ok(Self {
+            node_id: input.get_node_id(),
+        })
+    }
+}
+
+// ==============================================================
+// Remove Node Test Result
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::RemoveNodeTestResult>
+    for inter_node::RemoveNodeTestResult
+{
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::RemoveNodeTestResult,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        if let Some(shard) = input.encrypted_quorum_key_shard {
+            result.set_encrypted_quorum_key_shard(shard);
+        }
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::RemoveNodeTestResult>
+    for crate::node::messages::inter_node::RemoveNodeTestResult
+{
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::RemoveNodeTestResult) -> Result<Self, Self::Error> {
+        let shard = match input.has_encrypted_quorum_key_shard() {
+            true => Some(input.get_encrypted_quorum_key_shard().to_vec()),
+            false => None,
+        };
+        Ok(Self {
+            encrypted_quorum_key_shard: shard,
+        })
+    }
+}
+
+// ==============================================================
+// Remove Node Result
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::RemoveNodeResult> for inter_node::RemoveNodeResult {
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::RemoveNodeResult,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_node_id(input.offending_member);
+        if let Some(shard) = input.encrypted_quorum_key_shard {
+            result.set_encrypted_quorum_key_shard(shard);
+        }
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::RemoveNodeResult>
+    for crate::node::messages::inter_node::RemoveNodeResult
+{
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::RemoveNodeResult) -> Result<Self, Self::Error> {
+        require!(input, has_node_id);
+        let shard = match input.has_encrypted_quorum_key_shard() {
+            true => Some(input.get_encrypted_quorum_key_shard().to_vec()),
+            false => None,
+        };
+        Ok(Self {
+            encrypted_quorum_key_shard: shard,
+            offending_member: input.get_node_id(),
         })
     }
 }

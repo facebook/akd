@@ -13,6 +13,146 @@
 // ===========================================================
 pub(crate) mod inter_node {
     use crate::comms::NodeId;
+    use std::convert::TryInto;
+
+    macro_rules! deserialize_wrapper {
+        ($obj:expr) => {
+            {
+                let result =
+                    protobuf::parse_from_bytes::<crate::proto::inter_node::InterNodeMessage>($obj).map_err(|err| {
+                        crate::comms::CommunicationError::Serialization(
+                            format!("Failed to deserialize inter-node message wrapper\n**Protobuf error**\n{}", err),
+                        )
+                    })?;
+                if !result.has_message_type() {
+                    return Err(crate::comms::CommunicationError::Serialization("Decoded InterNodeMessage has no message type".to_string()));
+                }
+                if !result.has_payload() {
+                    return Err(crate::comms::CommunicationError::Serialization("Decoded InterNodeMessage has no payload".to_string()));
+                }
+                result
+            }
+        };
+    }
+
+    macro_rules! deserialize_arm_helper {
+        ($obj:expr, $type:ty) => {
+            {
+                let result = protobuf::parse_from_bytes::<$type>($obj).map_err(|err| {
+                    crate::comms::CommunicationError::Serialization(
+                        format!("Failed to deserialize {} inter-node message payload\n**Protobuf error**\n{}", stringify!($type), err),
+                    )
+                })?;
+                (&result).try_into()?
+            }
+        }
+    }
+
+    /// Represents the messages which could be transmitted between nodes
+    pub(crate) enum InterNodeMessage<H: winter_crypto::Hasher> {
+        InterNodeAck(InterNodeAck),
+        VerifyRequest(VerifyRequest<H>),
+        VerifyResponse(VerifyResponse<H>),
+        AddNodeInit(AddNodeInit),
+        AddNodeTestResult(AddNodeTestResult),
+        AddNodeResult(AddNodeResult),
+        RemoveNodeInit(RemoveNodeInit),
+        RemoveNodeTestResult(RemoveNodeTestResult),
+        RemoveNodeResult(RemoveNodeResult),
+    }
+
+    impl<H: winter_crypto::Hasher> InterNodeMessage<H> {
+        /// Try and deserialize an InterNodeMessage from raw bytes
+        pub(crate) fn try_deserialize(
+            bytes: Vec<u8>,
+        ) -> Result<InterNodeMessage<H>, crate::comms::CommunicationError> {
+            let wrapper = deserialize_wrapper!(&bytes);
+            match wrapper.get_message_type() {
+                crate::proto::inter_node::InterNodeMessage_MessageType::INTER_NODE_ACK => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::InterNodeAck
+                    );
+                    Ok(InterNodeMessage::<H>::InterNodeAck(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::VERIFY_REQUEST => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::VerifyRequest
+                    );
+                    Ok(InterNodeMessage::<H>::VerifyRequest(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::VERIFY_RESPONSE => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::VerifyResponse
+                    );
+                    Ok(InterNodeMessage::<H>::VerifyResponse(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_INIT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::AddNodeInit
+                    );
+                    Ok(InterNodeMessage::<H>::AddNodeInit(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_TEST_RESULT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::AddNodeTestResult
+                    );
+                    Ok(InterNodeMessage::<H>::AddNodeTestResult(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_RESULT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::AddNodeResult
+                    );
+                    Ok(InterNodeMessage::<H>::AddNodeResult(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_INIT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::RemoveNodeInit
+                    );
+                    Ok(InterNodeMessage::<H>::RemoveNodeInit(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_TEST_RESULT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::RemoveNodeTestResult
+                    );
+                    Ok(InterNodeMessage::<H>::RemoveNodeTestResult(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_RESULT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::RemoveNodeResult
+                    );
+                    Ok(InterNodeMessage::<H>::RemoveNodeResult(inner))
+                }
+                // forward compat in case proto's are added but handling logic is not updated
+                #[allow(unreachable_patterns)]
+                other => Err(crate::comms::CommunicationError::Serialization(format!(
+                    "Value {} in an unsupported inter-node message type",
+                    other as u64
+                ))),
+            }
+        }
+    }
+
+    // ****************************************
+    // Inter node acknowledgement
+    // ****************************************
+
+    /// A basic request acknowledgement with no
+    /// specific information. Helpful for replies
+    /// that just require "was ok or not". Optional
+    /// error message can be supplied
+    pub(crate) struct InterNodeAck {
+        pub(crate) ok: bool,
+        pub(crate) err: Option<String>,
+    }
 
     // ****************************************
     // Verify a proof
@@ -71,7 +211,7 @@ pub(crate) mod inter_node {
     /// generic request. Quorum membership can only GROW upon request, not
     /// shrink. Shrinkage only occurs on failure scenarios or detectable faults
     pub(crate) struct RemoveNodeInit {
-        pub(crate) member_information: crate::storage::MemberInformation,
+        pub(crate) node_id: NodeId,
     }
     /// Each edge node will "test" the member to be removed, and if they deem
     /// it in non-compliance (or non-contactable), then they will return their
@@ -113,9 +253,8 @@ pub struct VerifyChangesRequest<H: winter_crypto::Hasher> {
 pub struct EnrollMemberRequest {
     /// The new potential node's public key
     pub public_key: Vec<u8>,
-    // TODO: this type needs to be changed
     /// The new node's open contact information to receive test information
-    pub contact_information: String,
+    pub contact_information: crate::comms::ContactInformation,
 }
 
 /// Request to remove the specified member. If a quorum of other nodes can be achieved

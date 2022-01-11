@@ -53,6 +53,8 @@ pub enum CommunicationError {
     NonceError(NodeId, Nonce, String),
     /// A serialization error occurred
     Serialization(String),
+    /// Message reception timeout
+    Timeout,
 }
 
 /// Represents a result to an RPC request
@@ -66,17 +68,13 @@ pub enum RpcResult {
 }
 
 /// Represents a message received by this node
-pub enum MessageResult {
-    /// A message was not received within the handling window
-    Timeout,
-    /// A fire and forget message, i.e. no reply necessary
-    FireAndForget(EncryptedMessage),
-    /// A RPC request, awaiting a reply
-    Rpc(
-        EncryptedMessage,
-        Option<tokio::time::Duration>,
-        Sender<RpcResult>,
-    ),
+pub struct MessageResult {
+    /// The received message
+    pub message: EncryptedMessage,
+    /// Optional handling timeout
+    pub timeout: Option<tokio::time::Duration>,
+    /// Reply (RPC) channel
+    pub reply: Sender<RpcResult>,
 }
 
 // =====================================================
@@ -85,7 +83,7 @@ pub enum MessageResult {
 
 /// Represents a quorum member inter-node communication channel
 #[async_trait::async_trait]
-pub trait QuorumCommunication {
+pub trait QuorumCommunication: Send + Sync + Clone {
     /// Retrieve the next nonce for the specified node id. If the requested node
     /// has no nonce, a random nonce will be returned which will cause a mis-match with the
     /// message which it is being attempted for. This is fine since raft is robust to message
@@ -107,5 +105,12 @@ pub trait QuorumCommunication {
     ) -> Result<EncryptedMessage, CommunicationError>;
 
     /// Blocking receive call which waits for messages coming from other raft nodes
-    async fn receive(&self, timeout_ms: u64) -> Result<MessageResult, CommunicationError>;
+    async fn receive_inter_node(
+        &self,
+        timeout_ms: u64,
+    ) -> Result<MessageResult, CommunicationError>;
+
+    /// Blocking receive call which waits for messages coming from the public communication channel
+    /// (i.e. messages from admin interface or AKD)
+    async fn receive_public(&self, timeout_ms: u64) -> Result<MessageResult, CommunicationError>;
 }

@@ -143,7 +143,7 @@ pub struct EncryptedQuorumKeyShard {
 /// Represents the cryptographic operations which the node needs to execute
 /// within a secure context (e.g. HSM)
 #[async_trait]
-pub trait QuorumCryptographer {
+pub trait QuorumCryptographer: Send + Sync + Clone {
     // ==================================================================
     // To be implemented
     // ==================================================================
@@ -295,6 +295,7 @@ mod crypto_tests {
     use std::convert::TryInto;
     use winter_crypto::Hasher;
 
+    #[derive(Clone)]
     struct TestCryptographer;
 
     #[async_trait]

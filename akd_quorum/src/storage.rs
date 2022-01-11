@@ -51,7 +51,7 @@ pub struct MemberInformation {
 /// for the necessary stable-state functionality which is needed by the
 /// operators on the quorum node
 #[async_trait]
-pub trait QuorumStorage<H>
+pub trait QuorumStorage<H>: Send + Sync + Clone
 where
     H: winter_crypto::Hasher,
 {

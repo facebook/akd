@@ -17,6 +17,14 @@
 
 syntax = "proto2";
 
+/* InterNodeAck is a simple acknowledgement message with a "ok"
+ * flag denoting if operation was successful and an optional
+ * error message payload field. */
+message InterNodeAck {
+    optional bool ok = 1;
+    optional string err = 2;
+}
+
 /* NodeLabel represents the label of a history tree node in the AKD tree with a
  * supplied label-length and label value (location) */
 message NodeLabel {
@@ -99,20 +107,51 @@ message AddNodeResult {
     optional NodeContact contact_information = 4;
 }
 
+/* RemoveNodeInit initializes the removal flow for a member of the
+ * quorum. Each recipient will "test" if they (1) can contact the
+ * node in question and (2) if it is correctly validating proofs
+ * and if either (1) or (2) fails will reply with a RemoveNodeTestResult
+ * that includes the encrypted shard saying the node should be removed */
+message RemoveNodeInit {
+    optional uint64 node_id = 1;
+}
+
+/* RemoveNodeTestResult is the reply to RemoveNodeInit and if
+ * the encrypted_quorum_key_shard is populated, means that the
+ * node in question _should_ be removed from the quorum pool
+ * because it either is computing invalid proofs or is
+ * uncontactable. */
+message RemoveNodeTestResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+}
+
+/* RemoveNodeResult is the final message in the flow back to the
+ * edge nodes with the id of the node which has been removed and
+ * the new encrypted shard which denotes the quorum membership - 1
+ * node (the removed node). Each edge node should update their
+ * set with removing the node in question and re-computing the node
+ * indicies. i.e. if node 3 was removed in a set of 10, nodes 4-9 would
+ * become nodes 3-8 respectively. */
+message RemoveNodeResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
+}
+
 // ======================================================
 // Inter-Node Message Wrapper
 // ======================================================
 
 message InterNodeMessage {
     enum MessageType {
-        VERIFY_REQUEST = 0;
-        VERIFY_RESPONSE = 1;
-        ADD_NODE_INIT = 2;
-        ADD_NODE_TEST_RESULT = 3;
-        ADD_NODE_RESULT = 4;
-        REMOVE_NODE_INIT = 5;
-        REMOVE_NODE_TEST_RESULT = 6;
-        REMOVE_NODE_RESULT = 7;
+        INTER_NODE_ACK = 0;
+        VERIFY_REQUEST = 1;
+        VERIFY_RESPONSE = 2;
+        ADD_NODE_INIT = 3;
+        ADD_NODE_TEST_RESULT = 4;
+        ADD_NODE_RESULT = 5;
+        REMOVE_NODE_INIT = 6;
+        REMOVE_NODE_TEST_RESULT = 7;
+        REMOVE_NODE_RESULT = 8;
     }
 
     optional MessageType message_type = 1;
