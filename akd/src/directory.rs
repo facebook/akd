@@ -32,14 +32,14 @@ pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 impl AkdValue {
     /// Gets a random value for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(get_random_str(rng))
+        Self(get_random_bytes(rng))
     }
 }
 
 impl AkdLabel {
-    /// Creates a random key for a AKD
+    /// Creates a random label for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(get_random_str(rng))
+        Self(get_random_bytes(rng))
     }
 }
 
@@ -242,7 +242,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
         &self,
         uname: &AkdLabel,
     ) -> Result<HistoryProof<H>, AkdError> {
-        let username = uname.0.to_string();
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
@@ -252,7 +251,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             Ok(HistoryProof { proofs })
         } else {
             Err(AkdError::Directory(DirectoryError::NonExistentUser(
-                username,
+                uname.0.clone(),
                 self.current_epoch,
             )))
         }
@@ -310,7 +309,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         version: u64,
     ) -> NodeLabel {
         // this function will need to read the VRF key using some function
-        let name_hash_bytes = H::hash(uname.0.as_bytes());
+        let name_hash_bytes = H::hash(uname.0.as_slice());
         let mut stale_bytes = &[1u8];
         if stale {
             stale_bytes = &[0u8];
@@ -444,10 +443,11 @@ fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
     out_arr
 }
 
-fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
-    let mut byte_str = [0u8; 32];
-    rng.fill_bytes(&mut byte_str);
-    format!("{:?}", &byte_str)
+/// get 32 random bytes in a Vec
+fn get_random_bytes<R: RngCore + CryptoRng>(rng: &mut R) -> Vec<u8> {
+    let mut buf = [0u8; 32];
+    rng.fill_bytes(&mut buf);
+    Vec::from(buf)
 }
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
@@ -510,7 +510,7 @@ mod tests {
         let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
 
         akd.publish::<Blake3>(
-            vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string()))],
+            vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world")))],
             false,
         )
         .await?;
@@ -524,22 +524,19 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
         .await?;
 
-        let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
+        let lookup_proof = akd.lookup(AkdLabel(Vec::from("hello"))).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
         lookup_verify::<Blake3_256<BaseElement>>(
             root_hash,
-            AkdLabel("hello".to_string()),
+            AkdLabel(Vec::from("hello")),
             lookup_proof,
         )?;
         Ok(())
@@ -552,11 +549,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -564,11 +558,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -576,14 +567,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world3".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world4".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world3"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world4"))),
             ],
             false,
         )
@@ -591,14 +576,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello4")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -606,8 +585,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![(
-                AkdLabel("hello".to_string()),
-                AkdValue("world_updated".to_string()),
+                AkdLabel(Vec::from("hello")),
+                AkdValue(Vec::from("world_updated")),
             )],
             false,
         )
@@ -615,56 +594,53 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
+                (AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world6"))),
                 (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world6".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world12".to_string()),
+                    AkdLabel(Vec::from("hello4")),
+                    AkdValue(Vec::from("world12")),
                 ),
             ],
             false,
         )
         .await?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel(Vec::from("hello"))).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello".to_string()),
+            AkdLabel(Vec::from("hello")),
             history_proof,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel(Vec::from("hello2"))).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello2".to_string()),
+            AkdLabel(Vec::from("hello2")),
             history_proof,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel(Vec::from("hello3"))).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello3".to_string()),
+            AkdLabel(Vec::from("hello3")),
             history_proof,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello4".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel(Vec::from("hello4"))).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello4".to_string()),
+            AkdLabel(Vec::from("hello4")),
             history_proof,
         )?;
 
@@ -679,11 +655,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -691,11 +664,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -703,14 +673,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world3".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world4".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world3"))),
+                (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world4"))),
             ],
             false,
         )
@@ -718,14 +682,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
+                (AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world"))),
+                (AkdLabel(Vec::from("hello4")), AkdValue(Vec::from("world2"))),
             ],
             false,
         )
@@ -733,8 +691,8 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![(
-                AkdLabel("hello".to_string()),
-                AkdValue("world_updated".to_string()),
+                AkdLabel(Vec::from("hello")),
+                AkdValue(Vec::from("world_updated")),
             )],
             false,
         )
@@ -742,13 +700,10 @@ mod tests {
 
         akd.publish::<Blake3>(
             vec![
+                (AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world6"))),
                 (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world6".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world12".to_string()),
+                    AkdLabel(Vec::from("hello4")),
+                    AkdValue(Vec::from("world13")),
                 ),
             ],
             false,

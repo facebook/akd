@@ -22,7 +22,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct AsyncInMemoryDatabase {
     db: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
-    user_info: Arc<tokio::sync::RwLock<HashMap<String, Vec<ValueState>>>>,
+    user_info: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, Vec<ValueState>>>>,
     trans: Transaction,
 }
 
@@ -314,7 +314,7 @@ pub struct AsyncInMemoryDbWithCache {
     cache: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
     stats: Arc<tokio::sync::RwLock<HashMap<String, usize>>>,
 
-    user_info: Arc<tokio::sync::RwLock<HashMap<String, Vec<ValueState>>>>,
+    user_info: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, Vec<ValueState>>>>,
     trans: Transaction,
 }
 

@@ -27,16 +27,16 @@ pub enum StorageType {
 
 /// The keys for this key-value store
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AkdLabel(pub String);
+pub struct AkdLabel(pub Vec<u8>);
 
 /// The types of value used in the key-value pairs of a AKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
-pub struct AkdValue(pub String);
+pub struct AkdValue(pub Vec<u8>);
 
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ValueStateKey(pub String, pub u64);
+pub struct ValueStateKey(pub Vec<u8>, pub u64);
 
 /// The state of the value for a given key, starting at a particular epoch.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -71,10 +71,7 @@ impl crate::storage::Storable for ValueState {
         for byte in &epoch_bytes {
             result.push(*byte);
         }
-        let uname_bytes = key.0.as_bytes();
-        for byte in uname_bytes {
-            result.push(*byte);
-        }
+        result.extend(key.0.iter());
 
         result
     }
@@ -85,11 +82,8 @@ impl crate::storage::Storable for ValueState {
         }
         let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
         let epoch = u64::from_be_bytes(epoch_bytes);
-        if let Ok(username) = std::str::from_utf8(&bin[9..]) {
-            Ok(ValueStateKey(username.to_string(), epoch))
-        } else {
-            Err("Invalid string format".to_string())
-        }
+        let username = Vec::from(&bin[9..]);
+        Ok(ValueStateKey(username, epoch))
     }
 }
 

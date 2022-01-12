@@ -63,8 +63,8 @@
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!          (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!       .await;
 //! };
 //! ```
@@ -86,11 +86,11 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel(Vec::from("hello"))).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -109,17 +109,17 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel(Vec::from("hello"))).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!     root_hash,
-//!     AkdLabel("hello".to_string()),
+//!     AkdLabel(Vec::from("hello")),
 //!     lookup_proof,
 //!     ).unwrap();
 //! };
@@ -143,11 +143,11 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel(Vec::from("hello"))).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -166,18 +166,18 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel(Vec::from("hello"))).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>>(&akd, &history_proof).await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
 //!     root_hashes,
 //!     previous_root_hashes,
-//!     AkdLabel("hello".to_string()),
+//!     AkdLabel(Vec::from("hello")),
 //!     history_proof,
 //!     ).unwrap();
 //! };
@@ -200,12 +200,12 @@
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world3"))),
+//!         (AkdLabel(Vec::from("hello4")), AkdValue(Vec::from("world4"))),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -228,12 +228,12 @@
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello")), AkdValue(Vec::from("world"))),
+//!         (AkdLabel(Vec::from("hello2")), AkdValue(Vec::from("world2"))),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel(Vec::from("hello3")), AkdValue(Vec::from("world3"))),
+//!         (AkdLabel(Vec::from("hello4")), AkdValue(Vec::from("world4"))),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();

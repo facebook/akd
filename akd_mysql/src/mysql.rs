@@ -355,8 +355,8 @@ impl<'a> AsyncMySqlDatabase {
         // User data table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_USER
-            + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-            + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+            + "` (`username` VARBINARY(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
+            + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARBINARY(2000),"
             + " PRIMARY KEY(`username`, `epoch`))";
         tx.query_drop(command).await?;
 
@@ -1261,7 +1261,7 @@ impl Storage for AsyncMySqlDatabase {
             debug!("Creating the temporary search username's table");
             let out = conn
                 .query_drop(
-                    "CREATE TEMPORARY TABLE `search_users`(`username` VARCHAR(256) NOT NULL, PRIMARY KEY (`username`))",
+                    "CREATE TEMPORARY TABLE `search_users`(`username` VARBINARY(256) NOT NULL, PRIMARY KEY (`username`))",
                 )
                 .await;
             self.check_for_infra_error(out)?;
@@ -1689,7 +1689,7 @@ impl MySqlStorable for DbRecord {
             StorageType::ValueState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))",
+                        "CREATE TEMPORARY TABLE `{}`(`username` VARBINARY(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))",
                         TEMP_IDS_TABLE
                     )
                 )

@@ -12,7 +12,7 @@ use crate::history_tree_node::*;
 use crate::node_state::*;
 use crate::storage::types::*;
 use crate::storage::Storage;
-use rand::distributions::Alphanumeric;
+use rand::distributions::Standard;
 use rand::{thread_rng, Rng};
 use tokio::time::{Duration, Instant};
 
@@ -132,13 +132,13 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     }
 
     // === ValueState storage === //
-    let key = ValueStateKey("test".to_string(), 1);
+    let key = ValueStateKey(Vec::from("test"), 1);
     let value = ValueState {
-        username: AkdLabel("test".to_string()),
+        username: AkdLabel(Vec::from("test")),
         epoch: 1,
         label: NodeLabel::new(1, 1),
         version: 1,
-        plaintext_val: AkdValue("abc123".to_string()),
+        plaintext_val: AkdValue(Vec::from("abc123")),
     };
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -156,15 +156,9 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
 }
 
 async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
-    let mut rand_users: Vec<String> = vec![];
+    let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
-        rand_users.push(
-            thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(30)
-                .map(char::from)
-                .collect(),
-        );
+        rand_users.push(thread_rng().sample_iter(&Standard).take(30).collect());
     }
 
     let mut data = Vec::new();
@@ -320,15 +314,9 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
 }
 
 async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
-    let mut rand_users: Vec<String> = vec![];
+    let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
-        rand_users.push(
-            thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(30)
-                .map(char::from)
-                .collect(),
-        );
+        rand_users.push(thread_rng().sample_iter(&Standard).take(30).collect());
     }
 
     let mut data = Vec::new();
@@ -391,16 +379,8 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
 }
 
 async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
-    let rand_user: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(30)
-        .map(char::from)
-        .collect();
-    let rand_value: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(1028)
-        .map(char::from)
-        .collect();
+    let rand_user: Vec<u8> = thread_rng().sample_iter(&Standard).take(30).collect();
+    let rand_value: Vec<u8> = thread_rng().sample_iter(&Standard).take(1028).collect();
     let mut sample_state = ValueState {
         plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
@@ -412,7 +392,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         username: AkdLabel(rand_user),
     };
     let mut sample_state_2 = sample_state.clone();
-    sample_state_2.username = AkdLabel("test_user".to_string());
+    sample_state_2.username = AkdLabel(Vec::from("test_user"));
 
     let result = storage
         .set(DbRecord::ValueState(sample_state.clone()))

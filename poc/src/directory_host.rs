@@ -24,10 +24,10 @@ pub(crate) struct Rpc(
 
 #[derive(Debug)]
 pub enum DirectoryCommand {
-    Publish(String, String),
-    PublishBatch(Vec<(String, String)>, bool),
-    Lookup(String),
-    KeyHistory(String),
+    Publish(Vec<u8>, Vec<u8>),
+    PublishBatch(Vec<(Vec<u8>, Vec<u8>)>, bool),
+    Lookup(Vec<u8>),
+    KeyHistory(Vec<u8>),
     Audit(u64, u64),
     RootHash(Option<u64>),
     Terminate,
@@ -73,8 +73,8 @@ where
                         let toc = Instant::now() - tic;
                         let msg = format!(
                             "PUBLISHED '{}' = '{}' in {} s (epoch: {}, root hash: {})",
-                            a,
-                            b,
+                            String::from_utf8_lossy(&a),
+                            String::from_utf8_lossy(&b),
                             toc.as_secs_f64(),
                             epoch,
                             hex::encode(hash.as_bytes())
@@ -125,16 +125,19 @@ where
                                 if verification.is_err() {
                                     let msg = format!(
                                         "WARN: Lookup proof failed verification for '{}'",
-                                        a
+                                        String::from_utf8_lossy(&a)
                                     );
                                     response.send(Err(msg)).unwrap();
                                 } else {
-                                    let msg = format!("Lookup proof verified for user '{}'", a);
+                                    let msg = format!(
+                                        "Lookup proof verified for user '{}'",
+                                        String::from_utf8_lossy(&a)
+                                    );
                                     response.send(Ok(msg)).unwrap();
                                 }
                             }
                             _ => {
-                                let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", a);
+                                let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", String::from_utf8_lossy(&a));
                                 response.send(Err(msg)).unwrap();
                             }
                         }
@@ -148,7 +151,7 @@ where
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
                 match directory.key_history::<H>(&AkdLabel(a.clone())).await {
                     Ok(_proof) => {
-                        let msg = format!("GOT KEY HISTORY FOR '{}'", a);
+                        let msg = format!("GOT KEY HISTORY FOR '{}'", String::from_utf8_lossy(&a));
                         response.send(Ok(msg)).unwrap();
                     }
                     Err(error) => {

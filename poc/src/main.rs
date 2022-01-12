@@ -14,7 +14,7 @@ use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
 use commands::Command;
 use log::{debug, error, info, warn};
-use rand::distributions::Alphanumeric;
+use rand::distributions::Standard;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;
@@ -208,13 +208,12 @@ async fn process_input(
                 println!("======= Benchmark operation requested ======= ");
                 println!("Beginning DB INSERT benchmark of {} users", num_users);
 
-                let mut values: Vec<String> = vec![];
+                let mut values: Vec<Vec<u8>> = vec![];
                 for i in 0..*num_users {
                     values.push(
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(&Standard)
                             .take(30)
-                            .map(char::from)
                             .collect(),
                     );
                 }
@@ -262,21 +261,19 @@ async fn process_input(
                     num_users, num_updates_per_user
                 );
 
-                let users: Vec<String> = (1..=*num_users)
+                let users: Vec<Vec<u8>> = (1..=*num_users)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(&Standard)
                             .take(256)
-                            .map(char::from)
                             .collect()
                     })
                     .collect();
-                let data: Vec<String> = (1..=*num_updates_per_user)
+                let data: Vec<Vec<u8>> = (1..=*num_updates_per_user)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(&Standard)
                             .take(1024)
-                            .map(char::from)
                             .collect()
                     })
                     .collect();
@@ -285,7 +282,7 @@ async fn process_input(
 
                 let mut code = None;
                 for value in data {
-                    let user_data: Vec<(String, String)> = users
+                    let user_data: Vec<(Vec<u8>, Vec<u8>)> = users
                         .iter()
                         .map(|user| (user.clone(), value.clone()))
                         .collect();
@@ -335,18 +332,16 @@ async fn process_input(
                     num_users, num_lookups_per_user
                 );
 
-                let user_data: Vec<(String, String)> = (1..=*num_users)
+                let user_data: Vec<(Vec<u8>, Vec<u8>)> = (1..=*num_users)
                     .map(|i| {
                         (
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Alphanumeric)
+                                .sample_iter(&Standard)
                                 .take(256)
-                                .map(char::from)
                                 .collect(),
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Alphanumeric)
+                                .sample_iter(&Standard)
                                 .take(1024)
-                                .map(char::from)
                                 .collect(),
                         )
                     })
@@ -367,7 +362,7 @@ async fn process_input(
                     for (user, _) in &user_data {
                         let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                         let rpc = directory_host::Rpc(
-                            directory_host::DirectoryCommand::Lookup(String::from(user)),
+                            directory_host::DirectoryCommand::Lookup(user.clone()),
                             Some(rpc_tx),
                         );
                         let sent = tx.clone().send(rpc).await;

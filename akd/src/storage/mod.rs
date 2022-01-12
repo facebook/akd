@@ -193,8 +193,8 @@ pub trait Storage: Clone {
     */
     /// Build a user state from the properties
     fn build_user_state(
-        username: String,
-        plaintext_val: String,
+        username: Vec<u8>,
+        plaintext_val: Vec<u8>,
         version: u64,
         label_len: u32,
         label_val: u64,

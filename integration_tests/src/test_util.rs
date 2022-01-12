@@ -11,7 +11,7 @@ use akd::directory::Directory;
 use akd::storage::types::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
-use rand::distributions::Alphanumeric;
+use rand::distributions::Standard;
 use rand::seq::IteratorRandom;
 use rand::{thread_rng, Rng};
 use std::fs::File;
@@ -125,6 +125,7 @@ impl log::Log for FileLogger {
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
+/// Note that for `num_users` < 2, there are still exactly two users created and ran
 pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>(
     mysql_db: &S,
     num_users: usize,
@@ -132,15 +133,14 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
     // generate the test data
     let mut rng = thread_rng();
 
-    let mut users: Vec<String> = vec![];
-    for _ in 0..num_users {
-        users.push(
-            thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(30)
-                .map(char::from)
-                .collect(),
-        );
+    let mut users: Vec<Vec<u8>> = vec![];
+
+    // ensure that one user is string bytes and the other is bytes that are not utf-8
+    users.push(Vec::from("a username that is valid utf-8"));
+    users.push(vec![0x80]); // a username that is NOT valid utf-8
+
+    for _ in 2..num_users {
+        users.push((&mut rng).sample_iter(&Standard).take(30).collect());
     }
 
     // create & test the directory
@@ -151,10 +151,10 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
             info!("AKD Directory started. Beginning tests");
 
             // Publish 3 epochs of user material
-            for i in 1..=3 {
+            for i in 1u8..=3 {
                 let mut data = Vec::new();
                 for value in users.iter() {
-                    data.push((AkdLabel(value.clone()), AkdValue(format!("{}", i))));
+                    data.push((AkdLabel(value.clone()), AkdValue(vec![i])))
                 }
 
                 if let Err(error) = dir.publish::<Blake3>(data, true).await {
