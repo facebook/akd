@@ -8,10 +8,14 @@
 //! This module defines the inter-node and external messages which the quorum handles that are
 //! not defined within the AKD crate.
 
+use crate::comms::NodeId;
+
 // ===========================================================
 // Inter node messages
 // ===========================================================
 pub(crate) mod inter_node {
+    use protobuf::Message;
+
     use crate::comms::NodeId;
     use std::convert::TryInto;
 
@@ -49,7 +53,10 @@ pub(crate) mod inter_node {
     }
 
     /// Represents the messages which could be transmitted between nodes
-    pub(crate) enum InterNodeMessage<H: winter_crypto::Hasher> {
+    pub(crate) enum InterNodeMessage<H>
+    where
+        H: winter_crypto::Hasher + Clone,
+    {
         InterNodeAck(InterNodeAck),
         VerifyRequest(VerifyRequest<H>),
         VerifyResponse(VerifyResponse<H>),
@@ -61,7 +68,10 @@ pub(crate) mod inter_node {
         RemoveNodeResult(RemoveNodeResult),
     }
 
-    impl<H: winter_crypto::Hasher> InterNodeMessage<H> {
+    impl<H> InterNodeMessage<H>
+    where
+        H: winter_crypto::Hasher + Clone,
+    {
         /// Try and deserialize an InterNodeMessage from raw bytes
         pub(crate) fn try_deserialize(
             bytes: Vec<u8>,
@@ -139,6 +149,92 @@ pub(crate) mod inter_node {
                 ))),
             }
         }
+
+        pub(crate) fn serialize(self) -> Result<Vec<u8>, crate::comms::CommunicationError> {
+            let (message_type, payload) = match self {
+                Self::InterNodeAck(internal) => {
+                    let typed: crate::proto::inter_node::InterNodeAck = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::INTER_NODE_ACK,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::VerifyRequest(internal) => {
+                    let typed: crate::proto::inter_node::VerifyRequest = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::VERIFY_REQUEST,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::VerifyResponse(internal) => {
+                    let typed: crate::proto::inter_node::VerifyResponse = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::VERIFY_RESPONSE,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::AddNodeInit(internal) => {
+                    let typed: crate::proto::inter_node::AddNodeInit = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_INIT,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::AddNodeTestResult(internal) => {
+                    let typed: crate::proto::inter_node::AddNodeTestResult = internal.try_into()?;
+                    (crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_TEST_RESULT, typed.write_to_bytes()?)
+                }
+                Self::AddNodeResult(internal) => {
+                    let typed: crate::proto::inter_node::AddNodeResult = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::ADD_NODE_RESULT,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::RemoveNodeInit(internal) => {
+                    let typed: crate::proto::inter_node::RemoveNodeInit = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_INIT,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::RemoveNodeTestResult(internal) => {
+                    let typed: crate::proto::inter_node::RemoveNodeTestResult =
+                        internal.try_into()?;
+                    (crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_TEST_RESULT, typed.write_to_bytes()?)
+                }
+                Self::RemoveNodeResult(internal) => {
+                    let typed: crate::proto::inter_node::RemoveNodeResult = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_RESULT,
+                        typed.write_to_bytes()?,
+                    )
+                }
+            };
+            let mut msg = crate::proto::inter_node::InterNodeMessage::new();
+            msg.set_message_type(message_type);
+            msg.set_payload(payload);
+            Ok(msg.write_to_bytes()?)
+        }
+    }
+
+    impl<H> std::fmt::Debug for InterNodeMessage<H>
+    where
+        H: winter_crypto::Hasher + Clone,
+    {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::InterNodeAck(_arg0) => f.debug_tuple("InterNodeAck").finish(),
+                Self::VerifyRequest(_arg0) => f.debug_tuple("VerifyRequest").finish(),
+                Self::VerifyResponse(_arg0) => f.debug_tuple("VerifyResponse").finish(),
+                Self::AddNodeInit(_arg0) => f.debug_tuple("AddNodeInit").finish(),
+                Self::AddNodeTestResult(_arg0) => f.debug_tuple("AddNodeTestResult").finish(),
+                Self::AddNodeResult(_arg0) => f.debug_tuple("AddNodeResult").finish(),
+                Self::RemoveNodeInit(_arg0) => f.debug_tuple("RemoveNodeInit").finish(),
+                Self::RemoveNodeTestResult(_arg0) => f.debug_tuple("RemoveNodeTestResult").finish(),
+                Self::RemoveNodeResult(_arg0) => f.debug_tuple("RemoveNodeResult").finish(),
+            }
+        }
     }
 
     // ****************************************
@@ -160,16 +256,23 @@ pub(crate) mod inter_node {
 
     /// A request to verify a given append-only proof of the key directory
     /// initated by a leader process
-    pub(crate) struct VerifyRequest<H: winter_crypto::Hasher> {
+    #[derive(Clone)]
+    pub(crate) struct VerifyRequest<H>
+    where
+        H: winter_crypto::Hasher + Clone,
+    {
         pub(crate) append_only_proof: akd::proof_structs::AppendOnlyProof<H>,
-        pub(crate) previous_hash: H::Digest,
         pub(crate) new_hash: H::Digest,
         pub(crate) epoch: u64,
     }
     /// Response to a verification request, which if verified, includes
     /// the encrypted shard of this quorum key and the hash which was verified,
     /// encrypted with the requesting node's public key
-    pub(crate) struct VerifyResponse<H: winter_crypto::Hasher> {
+    #[derive(Clone)]
+    pub(crate) struct VerifyResponse<H>
+    where
+        H: winter_crypto::Hasher + Clone,
+    {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
         pub(crate) verified_hash: Option<H::Digest>,
     }
@@ -181,6 +284,7 @@ pub(crate) mod inter_node {
     /// A request to enroll a new member into the quorum. Includes
     /// the new member's public key for encrypted communications and
     /// the contact information (ip/port) for socket communcation
+    #[derive(Clone)]
     pub(crate) struct AddNodeInit {
         pub(crate) public_key: Vec<u8>,
         pub(crate) contact_info: crate::comms::ContactInformation,
@@ -189,6 +293,7 @@ pub(crate) mod inter_node {
     /// returns the quorum key shard, encrypted with the request leader's
     /// public key, which will eventually be utilized to generate
     /// new shard components and distributed to the membership
+    #[derive(Clone)]
     pub(crate) struct AddNodeTestResult {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
     }
@@ -197,6 +302,7 @@ pub(crate) mod inter_node {
     /// contain the new encrypted quorum key shard, encrypted with
     /// the RECIPIENT's public key and additionally the new member's
     /// information
+    #[derive(Clone)]
     pub(crate) struct AddNodeResult {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
         pub(crate) new_member: crate::storage::MemberInformation,
@@ -210,6 +316,7 @@ pub(crate) mod inter_node {
     /// non-compliance or non-functionality. Nodes cannot be removed upon
     /// generic request. Quorum membership can only GROW upon request, not
     /// shrink. Shrinkage only occurs on failure scenarios or detectable faults
+    #[derive(Clone)]
     pub(crate) struct RemoveNodeInit {
         pub(crate) node_id: NodeId,
     }
@@ -217,6 +324,7 @@ pub(crate) mod inter_node {
     /// it in non-compliance (or non-contactable), then they will return their
     /// portion of the quorum key shard, encrypted with the initiating user's
     /// public key to signify that they agree with a membership modification.
+    #[derive(Clone)]
     pub(crate) struct RemoveNodeTestResult {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
     }
@@ -224,6 +332,7 @@ pub(crate) mod inter_node {
     /// node to be non-compliant with the quorum's protocols, then new shards excluding
     /// the offending node will be generated and the offending node will be removed
     /// from the quorum computations
+    #[derive(Clone)]
     pub(crate) struct RemoveNodeResult {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
         pub(crate) offending_member: NodeId,
@@ -264,4 +373,29 @@ pub struct EnrollMemberRequest {
 pub struct RemoveMemberRequest {
     /// The id of the node to attempt to remove
     pub node_id: crate::comms::NodeId,
+}
+
+// ===========================================================
+// Node Message
+// ===========================================================
+
+/// Public node messages which are received externally to the quorum
+pub enum PublicNodeMessage<H>
+where
+    H: winter_crypto::Hasher,
+{
+    /// Verify changes
+    Verify(VerifyChangesRequest<H>),
+    /// Enroll a member
+    Enroll(EnrollMemberRequest),
+    /// Remove a member
+    Remove(RemoveMemberRequest),
+}
+
+pub(crate) enum NodeMessage<H>
+where
+    H: winter_crypto::Hasher + Clone,
+{
+    Public(PublicNodeMessage<H>),
+    Internal(NodeId, inter_node::InterNodeMessage<H>),
 }

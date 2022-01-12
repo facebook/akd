@@ -34,6 +34,7 @@ where
 /// of the quorum and all the necessary properties
 /// to encrypt messages to this member (i.e. their public
 /// key information)
+#[derive(Clone)]
 pub struct MemberInformation {
     /// The public key of the member node
     pub(crate) public_key: Vec<u8>,

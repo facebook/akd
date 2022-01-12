@@ -11,15 +11,20 @@
 use crate::comms::{EncryptedMessage, NodeId, Nonce, RpcResult};
 use crate::QuorumOperationError;
 
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::iter::FromIterator;
 use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Duration;
 
-mod inter_node_logic;
 pub mod messages;
+mod node_logic;
+
+use self::messages::{*, inter_node::*};
+use self::node_logic::{NodeStatus, WorkerState, LeaderState};
 
 // =====================================================
 // Typedefs and constants
@@ -64,14 +69,26 @@ impl Config {
     }
 }
 
-/// Regular state for the node
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct NodeState {
+/// The overall state of the node, including backlogged message
+/// queue for unrelated messages
+#[derive(Clone)]
+pub(crate) struct NodeState<H>
+where
+    H: winter_crypto::Hasher + Clone,
+{
     /// Quorum configuration
-    pub(crate) config: Config,
+    pub(crate) config: Arc<tokio::sync::RwLock<Config>>,
     /// This node's id in the quorum
     pub(crate) node_id: NodeId,
+    /// The current status of the node
+    pub(crate) status: Arc<tokio::sync::RwLock<NodeStatus<H>>>,
+
+    /// Queue of backlogged messages in reception order
+    pub(crate) message_queue: Arc<tokio::sync::RwLock<Vec<NodeMessage<H>>>>,
 }
+
+unsafe impl<H> Sync for NodeState<H> where H: winter_crypto::Hasher + Clone {}
+unsafe impl<H> Send for NodeState<H> where H: winter_crypto::Hasher + Clone {}
 
 /// A decrypted inter-raft message
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -89,22 +106,30 @@ pub(crate) struct Message {
 // *Public Structs*
 
 /// A node in the quorum
-#[derive(Debug)]
-pub struct QuorumMember<H, Storage, Comms, Crypto> {
+pub struct QuorumMember<H, Storage, Comms, Crypto>
+where
+    H: winter_crypto::Hasher + Clone,
+{
     storage: Arc<Storage>,
     comms: Arc<Comms>,
     crypto: Arc<Crypto>,
-    state: Arc<NodeState>,
+    state: Arc<NodeState<H>>,
     _h: std::marker::PhantomData<H>,
 }
 
-unsafe impl<H, Storage, Comms, Crypto> Send for QuorumMember<H, Storage, Comms, Crypto> {}
-unsafe impl<H, Storage, Comms, Crypto> Sync for QuorumMember<H, Storage, Comms, Crypto> {}
+unsafe impl<H, Storage, Comms, Crypto> Send for QuorumMember<H, Storage, Comms, Crypto> where
+    H: winter_crypto::Hasher + Clone
+{
+}
+unsafe impl<H, Storage, Comms, Crypto> Sync for QuorumMember<H, Storage, Comms, Crypto> where
+    H: winter_crypto::Hasher + Clone
+{
+}
 
 impl<H, Storage, Comms, Crypto> Clone for QuorumMember<H, Storage, Comms, Crypto>
 where
-    H: winter_crypto::Hasher,
-    Comms: crate::comms::QuorumCommunication,
+    H: winter_crypto::Hasher + Clone,
+    Comms: crate::comms::QuorumCommunication<H>,
     Crypto: crate::crypto::QuorumCryptographer,
     Storage: crate::storage::QuorumStorage<H>,
 {
@@ -121,8 +146,8 @@ where
 
 impl<H, Storage, Comms, Crypto> QuorumMember<H, Storage, Comms, Crypto>
 where
-    H: winter_crypto::Hasher + 'static,
-    Comms: crate::comms::QuorumCommunication + 'static,
+    H: winter_crypto::Hasher + Clone + Sync + Send + 'static,
+    Comms: crate::comms::QuorumCommunication<H> + 'static,
     Crypto: crate::crypto::QuorumCryptographer + 'static,
     Storage: crate::storage::QuorumStorage<H> + 'static,
 {
@@ -135,7 +160,12 @@ where
         comms: Comms,
     ) -> Self {
         Self {
-            state: Arc::new(NodeState { node_id, config }),
+            state: Arc::new(NodeState {
+                node_id,
+                config: Arc::new(tokio::sync::RwLock::new(config)),
+                status: Arc::new(tokio::sync::RwLock::new(NodeStatus::<H>::Ready)),
+                message_queue: Arc::new(tokio::sync::RwLock::new(vec![])),
+            }),
             storage: Arc::new(storage),
             crypto: Arc::new(crypto),
             comms: Arc::new(comms),
@@ -147,15 +177,19 @@ where
     /// and we immediately should panic! to fail hard & fast to issue a program restart
     pub async fn main(&self) -> Result<(), QuorumOperationError> {
         // spawn the handler futures
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(25);
+
         let self_1 = self.clone();
-        let inter_node_future = tokio::task::spawn(async move {
+        let public_future = tokio::task::spawn(async move {
             let self_1_1 = self_1;
-            self_1_1.inter_node_message_handler().await
+            self_1_1.public_message_handler(sender).await
         });
 
         let self_2 = self.clone();
-        let public_future =
-            tokio::task::spawn(async move { self_2.public_message_handler().await });
+        let inter_node_future = tokio::task::spawn(async move {
+            let self_2_1 = self_2;
+            self_2_1.inter_node_message_handler(&mut receiver).await
+        });
 
         // select the first task to exit of all the futures, which will fail the node & restart
         // all processes
@@ -179,7 +213,10 @@ where
         }
     }
 
-    async fn public_message_handler(&self) -> Result<(), QuorumOperationError> {
+    async fn public_message_handler(
+        &self,
+        sender: tokio::sync::mpsc::Sender<PublicNodeMessage<H>>,
+    ) -> Result<(), QuorumOperationError> {
         loop {
             let received = self
                 .comms
@@ -194,52 +231,71 @@ where
                     return Err(QuorumOperationError::Communication(other_err));
                 }
                 Ok(_received) => {
-                    // TODO:
-                    // // TODO: Should deserialization errors and whatnot require a node reboot?
-                    // let message = self.decrypt_message(received.message).await?;
-                    // self.handle_inter_node_message_helper(message, received.timeout, received.reply).await?;
+                    let _ = sender.send(_received).await.map_err(|_| {
+                        QuorumOperationError::Communication(
+                            crate::comms::CommunicationError::SendError(
+                                "Failed to transmit public message to node processing handler"
+                                    .to_string(),
+                            ),
+                        )
+                    })?;
                 }
             }
         }
     }
 
-    async fn inter_node_message_handler(&self) -> Result<(), QuorumOperationError> {
+    async fn inter_node_message_handler(
+        &self,
+        receiver: &mut tokio::sync::mpsc::Receiver<PublicNodeMessage<H>>,
+    ) -> Result<(), QuorumOperationError> {
         loop {
-            let received = self
-                .comms
-                .receive_inter_node(get_this_reception_timeout_ms())
-                .await;
-            match received {
-                Err(crate::comms::CommunicationError::Timeout) => {
-                    self.handle_reception_timeout().await?
-                }
-                Err(other_err) => {
-                    // comms channel errors should bubble up since that signifies a bigger issue that a restart may be necessary for
-                    return Err(QuorumOperationError::Communication(other_err));
-                }
-                Ok(received) => {
-                    // deserialization or message handling errors should not require a node reboot.
-                    match self.decrypt_message(received.message).await {
-                        Ok(message) => {
-                            match self
-                                .handle_inter_node_message_helper(
-                                    message,
-                                    received.timeout,
-                                    received.reply,
-                                )
-                                .await
-                            {
-                                Ok(()) => {}
+            tokio::select! {
+                node_message = self.comms.receive_inter_node(get_this_reception_timeout_ms()) => {
+                    match node_message {
+                        Err(crate::comms::CommunicationError::Timeout) => {
+                            self.handle_reception_timeout().await?
+                        }
+                        Err(other_err) => {
+                            // comms channel errors should bubble up since that signifies a bigger issue that a restart may be necessary for
+                            return Err(QuorumOperationError::Communication(other_err));
+                        }
+                        Ok(received) => {
+                            // deserialization or message handling errors should not require a node reboot.
+                            match self.decrypt_message(received.message.clone()).await {
+                                Ok(message) => {
+                                    // move clone of state & self, + received into the async context & spawn onto green thread
+                                    // to free up message reception
+                                    let self_clone = self.clone();
+                                    tokio::spawn(async move {
+                                        match self_clone
+                                            .handle_inter_node_message_helper(
+                                                message,
+                                                received.timeout,
+                                                received.reply,
+                                            )
+                                            .await
+                                        {
+                                            Ok(()) => {}
+                                            Err(err) => {
+                                                warn!("Error handling message: {}", err);
+                                                // TODO: other logs or stat counters?
+                                            }
+                                        }
+                                    });
+                                }
                                 Err(err) => {
-                                    warn!("Error handling message: {}", err);
-                                    // TODO: other logs or stat counters?
+                                    error!("Error decrypting node message");
+                                    return Err(err);
                                 }
                             }
                         }
-                        Err(err) => {
-                            error!("Error decrypting node message");
-                            return Err(err);
-                        }
+                    }
+                },
+                public_message = receiver.recv() => {
+                    if let Some(msg) = public_message {
+                        self.handle_message(NodeMessage::<H>::Public(msg)).await?;
+                    } else {
+                        warn!("Message receive handler received and empty message on the public message receive port");
                     }
                 }
             }
@@ -254,22 +310,27 @@ where
     async fn handle_inter_node_message(
         &self,
         message: Message,
-    ) -> Result<EncryptedMessage, QuorumOperationError> {
+    ) -> Result<Option<EncryptedMessage>, QuorumOperationError> {
         // reply to the source
         let to = message.from;
 
-        // TODO: handling message & getting the reply
         let deserialized = messages::inter_node::InterNodeMessage::<H>::try_deserialize(
             message.serialized_message,
         )?;
+        let result = self
+            .handle_message(NodeMessage::<H>::Internal(message.from, deserialized))
+            .await?;
 
-        let reply = vec![];
-
-        let nonce = self.comms.get_expected_nonce(to).await;
-        let message = self.encrypt_message(to, reply, nonce).await?;
-        // on success, we can increment the msg nonce
-        self.comms.increment_nonce(to).await?;
-        Ok(message)
+        if let Some(response_message) = result {
+            let reply = response_message.serialize()?;
+            let nonce = self.comms.get_expected_nonce(to).await;
+            let message = self.encrypt_message(to, reply, nonce).await?;
+            // on success, we can increment the msg nonce
+            self.comms.increment_nonce(to).await?;
+            Ok(Some(message))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn handle_inter_node_message_helper(
@@ -327,10 +388,11 @@ where
         &self,
         message: EncryptedMessage,
     ) -> Result<Message, QuorumOperationError> {
-        if message.to != self.state.node_id {
+        let node_id = self.state.node_id;
+        if message.to != node_id {
             let message = format!(
                 "Received a message not intended for this node (intended: {}, actual: {})",
-                message.to, self.state.node_id,
+                message.to, node_id,
             );
             warn!("{}", message);
             return Err(crate::comms::CommunicationError::ReceiveError(message).into());
@@ -366,6 +428,133 @@ where
             nonce: nonce,
             serialized_message: data,
         })
+    }
+
+    async fn handle_message(
+        &self,
+        message: NodeMessage<H>,
+    ) -> Result<Option<InterNodeMessage<H>>, QuorumOperationError> {
+        let guard = self.state.status.read().await;
+        match &(*guard) {
+            NodeStatus::<H>::Ready => {
+                match message {
+                    NodeMessage::<H>::Public(public_message) => {
+                        // all public messages are accepted when not currently in quorum operation
+                        // This will move the node to LEADER status
+                        match public_message {
+                            PublicNodeMessage::Verify(verification) => {
+                                self.public_verify_impl(verification).await?;
+                            },
+                            PublicNodeMessage::Enroll(enroll) => {
+                                self.public_enroll_impl(enroll).await?;
+                            },
+                            PublicNodeMessage::Remove(remove) => {
+                                self.public_remove_impl(remove).await?;
+                            }
+                        }
+                    }
+                    NodeMessage::<H>::Internal(from, internal_message) => {
+                        match internal_message {
+                            InterNodeMessage::VerifyRequest(verify_request) => {
+                                // node will become worker
+                                let result = self.verify_impl(from, verify_request).await?;
+                                return Ok(Some(InterNodeMessage::<H>::VerifyResponse(result)));
+                            }
+                            InterNodeMessage::AddNodeInit(add_node_inint) => {
+                                // node will become worker
+                            }
+                            InterNodeMessage::RemoveNodeInit(remove_node_init) => {
+                                // node will become worker
+                            }
+                            other => {
+                                warn!(
+                                    "Received out-of-sync message on node {}\n{:?}",
+                                    self.state.node_id, other
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            NodeStatus::<H>::Leading(l_state) => {}
+            NodeStatus::<H>::Following(w_state) => {}
+        }
+        // default reply is... no reply :)
+        Ok(None)
+    }
+
+    async fn mutate_state(&self, new_state: NodeStatus<H>) {
+        let mut guard = self.state.status.write().await;
+        *guard = new_state;
+    }
+
+    async fn public_verify_impl(&self, verify_request: VerifyChangesRequest<H>) -> Result<(), QuorumOperationError> {
+        let vf = VerifyRequest::<H> {
+            new_hash: verify_request.new_hash,
+            append_only_proof: verify_request.append_only_proof,
+            epoch: verify_request.epoch
+        };
+        let node_ids = 0u64..(self.state.config.read().await.group_size as u64);
+        let mut votes = HashMap::new();
+        for id in node_ids {
+            votes.insert(id, None);
+        }
+        self.mutate_state(NodeStatus::<H>::Leading(LeaderState::<H>::ProcessingVerification(vf.clone(), votes.clone()))).await;
+
+        // TODO: distribute the "votes" to the quorum
+
+        Ok(())
+    }
+
+    async fn public_enroll_impl(&self, enrollment_request: EnrollMemberRequest) -> Result<(), QuorumOperationError> {
+
+        Ok(())
+    }
+
+    async fn public_remove_impl(&self, removal_request: RemoveMemberRequest) -> Result<(), QuorumOperationError> {
+
+        Ok(())
+    }
+
+    async fn verify_impl(&self, from: NodeId, verify_request: VerifyRequest<H>) -> Result<VerifyResponse<H>, QuorumOperationError> {
+        {
+            self.mutate_state(NodeStatus::<H>::Following(WorkerState::<H>::Verifying(
+                from,
+                verify_request.clone(),
+            )))
+            .await;
+            if let Ok(previous_commitment) = self.storage.get_latest_commitment().await {
+                if let Err(error) = akd::auditor::verify_append_only(
+                    verify_request.append_only_proof,
+                    previous_commitment.current_hash,
+                    verify_request.new_hash,
+                )
+                .await
+                {
+                    info!("Verification of proof for epoch {} did not verify with error {}", verify_request.epoch, error);
+                    self.mutate_state(NodeStatus::<H>::Ready).await;
+                    Ok(VerifyResponse::<H> {
+                        verified_hash: None,
+                        encrypted_quorum_key_shard: None,
+                    })
+                } else {
+                    // OK, return our shard
+                    let shard = self.crypto.retrieve_qk_shard(from).await?;
+                    self.mutate_state(NodeStatus::<H>::Ready).await;
+                    Ok(VerifyResponse::<H> {
+                        verified_hash: Some(verify_request.new_hash),
+                        encrypted_quorum_key_shard: Some(shard.payload),
+                    })
+                }
+            } else {
+                info!("Failed to retrieve the last commitment from storage");
+                self.mutate_state(NodeStatus::<H>::Ready).await;
+                Ok(VerifyResponse::<H> {
+                    verified_hash: None,
+                    encrypted_quorum_key_shard: None,
+                })
+            }
+        }
     }
 }
 

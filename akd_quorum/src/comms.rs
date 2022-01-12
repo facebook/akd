@@ -24,6 +24,7 @@ pub(crate) type Nonce = u128;
 // =====================================================
 
 /// Contact information for a node
+#[derive(Clone)]
 pub struct ContactInformation {
     /// Node ip address
     pub(crate) ip_address: String,
@@ -57,10 +58,16 @@ pub enum CommunicationError {
     Timeout,
 }
 
+impl From<protobuf::ProtobufError> for CommunicationError {
+    fn from(pe: protobuf::ProtobufError) -> Self {
+        Self::Serialization(format!("Protobuf serialization error\n{}", pe))
+    }
+}
+
 /// Represents a result to an RPC request
 pub enum RpcResult {
-    /// Result
-    Ok(EncryptedMessage),
+    /// Result, with optional payload to send to client
+    Ok(Option<EncryptedMessage>),
     /// Error occurred
     Error(String),
     /// Timeout
@@ -83,7 +90,10 @@ pub struct MessageResult {
 
 /// Represents a quorum member inter-node communication channel
 #[async_trait::async_trait]
-pub trait QuorumCommunication: Send + Sync + Clone {
+pub trait QuorumCommunication<H>: Send + Sync + Clone
+where
+    H: winter_crypto::Hasher,
+{
     /// Retrieve the next nonce for the specified node id. If the requested node
     /// has no nonce, a random nonce will be returned which will cause a mis-match with the
     /// message which it is being attempted for. This is fine since raft is robust to message
@@ -112,5 +122,8 @@ pub trait QuorumCommunication: Send + Sync + Clone {
 
     /// Blocking receive call which waits for messages coming from the public communication channel
     /// (i.e. messages from admin interface or AKD)
-    async fn receive_public(&self, timeout_ms: u64) -> Result<MessageResult, CommunicationError>;
+    async fn receive_public(
+        &self,
+        timeout_ms: u64,
+    ) -> Result<crate::node::messages::PublicNodeMessage<H>, CommunicationError>;
 }

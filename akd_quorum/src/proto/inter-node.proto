@@ -65,9 +65,8 @@ message NodeContact {
  * (epoch-1) with hash previous_hash to (epoch) with hash new_hash is valid. */
 message VerifyRequest {
     optional AppendOnlyProof proof = 1;
-    optional bytes previous_hash = 2;
-    optional bytes new_hash = 3;
-    optional uint64 epoch = 4;
+    optional bytes new_hash = 2;
+    optional uint64 epoch = 3;
 }
 
 /* VerifyResponse will response with their quorum key shard partials

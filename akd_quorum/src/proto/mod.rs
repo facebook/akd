@@ -115,7 +115,7 @@ impl TryFrom<&inter_node::NodeLabel> for akd::node_state::NodeLabel {
 
 impl<H> TryFrom<akd::node_state::Node<H>> for inter_node::Node
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -129,7 +129,7 @@ where
 
 impl<H> TryFrom<&inter_node::Node> for akd::node_state::Node<H>
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -150,7 +150,7 @@ where
 
 impl<H> TryFrom<akd::proof_structs::AppendOnlyProof<H>> for inter_node::AppendOnlyProof
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -174,7 +174,7 @@ where
 
 impl<H> TryFrom<&inter_node::AppendOnlyProof> for akd::proof_structs::AppendOnlyProof<H>
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -200,7 +200,7 @@ where
 
 impl<H> TryFrom<crate::node::messages::inter_node::VerifyRequest<H>> for inter_node::VerifyRequest
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -210,7 +210,6 @@ where
         let mut result = Self::new();
         result.set_epoch(input.epoch);
         result.set_new_hash(hash_to_bytes!(input.new_hash));
-        result.set_previous_hash(hash_to_bytes!(input.previous_hash));
         result.set_proof(input.append_only_proof.try_into()?);
         Ok(result)
     }
@@ -218,20 +217,18 @@ where
 
 impl<H> TryFrom<&inter_node::VerifyRequest> for crate::node::messages::inter_node::VerifyRequest<H>
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
     fn try_from(input: &inter_node::VerifyRequest) -> Result<Self, Self::Error> {
         require!(input, has_epoch);
         require!(input, has_new_hash);
-        require!(input, has_previous_hash);
         let proof: akd::proof_structs::AppendOnlyProof<H> = input.get_proof().try_into()?;
 
         Ok(crate::node::messages::inter_node::VerifyRequest::<H> {
             epoch: input.get_epoch(),
             new_hash: hash_from_bytes!(input.get_new_hash()),
-            previous_hash: hash_from_bytes!(input.get_previous_hash()),
             append_only_proof: proof,
         })
     }
@@ -243,7 +240,7 @@ where
 
 impl<H> TryFrom<crate::node::messages::inter_node::VerifyResponse<H>> for inter_node::VerifyResponse
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
@@ -268,7 +265,7 @@ where
 impl<H> TryFrom<&inter_node::VerifyResponse>
     for crate::node::messages::inter_node::VerifyResponse<H>
 where
-    H: winter_crypto::Hasher,
+    H: winter_crypto::Hasher + Clone,
 {
     type Error = ConversionError;
 
