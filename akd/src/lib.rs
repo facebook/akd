@@ -33,7 +33,7 @@
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
@@ -48,12 +48,12 @@
 //! ## Adding key-value pairs to the akd
 //! To add key-value pairs to the akd, we assume that the types of keys and the corresponding values are String.
 //! After adding key-value pairs to the akd's data structure, it also needs to be committed. To do this, after running the setup, as in the previous step,
-//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdKey(String), Values(String)). See below for example usage.
+//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel(String), AkdValue(String)). See below for example usage.
 //! ```
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
 //! use winter_math::fields::f128::BaseElement;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! type Blake3 = Blake3_256<BaseElement>;
@@ -63,8 +63,8 @@
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!          (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!       .await;
 //! };
 //! ```
@@ -80,17 +80,17 @@
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //!use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -103,23 +103,23 @@
 //! use akd::client;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
-//!use akd::storage::memory::AsyncInMemoryDatabase;
+//! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdKey("hello".to_string())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!     root_hash,
-//!     AkdKey("hello".to_string()),
+//!     AkdLabel("hello".to_string()),
 //!     lookup_proof,
 //!     ).unwrap();
 //! };
@@ -137,17 +137,17 @@
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -160,24 +160,24 @@
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdKey("hello".to_string())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>>(&akd, &history_proof).await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
 //!     root_hashes,
 //!     previous_root_hashes,
-//!     AkdKey("hello".to_string()),
+//!     AkdLabel("hello".to_string()),
 //!     history_proof,
 //!     ).unwrap();
 //! };
@@ -193,19 +193,19 @@
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
-//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
+//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -221,19 +221,19 @@
 //! use akd::directory::Directory;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdKey, DbRecord, ValueState, ValueStateRetrievalFlag, Values};
+//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello".to_string()), Values("world".to_string())),
-//!         (AkdKey("hello2".to_string()), Values("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdKey("hello3".to_string()), Values("world3".to_string())),
-//!         (AkdKey("hello4".to_string()), Values("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
+//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();

@@ -15,7 +15,7 @@ use crate::{
     errors::{AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
-    storage::types::AkdKey,
+    storage::types::AkdLabel,
     Direction, ARITY,
 };
 
@@ -94,7 +94,7 @@ pub fn verify_nonmembership<H: Hasher>(
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
-    _akd_key: AkdKey,
+    _akd_key: AkdLabel,
     proof: LookupProof<H>,
 ) -> Result<(), AkdError> {
     let _epoch = proof.epoch;
@@ -145,7 +145,7 @@ pub fn lookup_verify<H: Hasher>(
 pub fn key_history_verify<H: Hasher>(
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
-    uname: AkdKey,
+    uname: AkdLabel,
     proof: HistoryProof<H>,
 ) -> Result<(), AkdError> {
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
@@ -161,7 +161,7 @@ fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
-    uname: &AkdKey,
+    uname: &AkdLabel,
 ) -> Result<(), AkdError> {
     let epoch = proof.epoch;
     let _plaintext_value = &proof.plaintext_value;

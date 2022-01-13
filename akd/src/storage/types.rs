@@ -27,12 +27,12 @@ pub enum StorageType {
 
 /// The keys for this key-value store
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AkdKey(pub String);
+pub struct AkdLabel(pub String);
 
-/// The types of values used in the key-value pairs of a AKD
+/// The types of value used in the key-value pairs of a AKD
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
-pub struct Values(pub String);
+pub struct AkdValue(pub String);
 
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
@@ -43,7 +43,7 @@ pub struct ValueStateKey(pub String, pub u64);
 #[serde(bound = "")]
 pub struct ValueState {
     /// The plaintext value of the user information in the directory
-    pub plaintext_val: Values, // This needs to be the plaintext value, to discuss
+    pub plaintext_val: AkdValue, // This needs to be the plaintext value, to discuss
     /// The version of the user's value-state
     pub version: u64, // to discuss
     /// The Node Label
@@ -51,7 +51,7 @@ pub struct ValueState {
     /// The epoch this value state was published in
     pub epoch: u64,
     /// The username associated to this value state (username + epoch is the record key)
-    pub username: AkdKey,
+    pub username: AkdLabel,
 }
 
 impl crate::storage::Storable for ValueState {
@@ -95,8 +95,8 @@ impl crate::storage::Storable for ValueState {
 
 impl ValueState {
     pub(crate) fn new(
-        username: AkdKey,
-        plaintext_val: Values,
+        username: AkdLabel,
+        plaintext_val: AkdValue,
         version: u64,
         label: NodeLabel,
         epoch: u64,
@@ -115,7 +115,7 @@ impl ValueState {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(bound = "")]
 pub struct KeyData {
-    /// The vector of states of key data for a given AkdKey
+    /// The vector of states of key data for a given AkdLabel
     pub states: Vec<ValueState>,
 }
 
