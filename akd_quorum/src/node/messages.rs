@@ -274,7 +274,7 @@ pub(crate) mod inter_node {
         H: winter_crypto::Hasher + Clone,
     {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
-        pub(crate) verified_hash: Option<H::Digest>,
+        pub(crate) verified_hash: H::Digest,
     }
 
     // ****************************************

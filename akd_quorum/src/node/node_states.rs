@@ -21,27 +21,26 @@ where
     // ================================
     // Verification States
     // ================================
-    /// Processing a verification, waiting on responses. Args: (request, test_results)
-    ProcessingVerification(VerifyRequest<H>, HashMap<NodeId, Option<VerifyResponse<H>>>), // NEXT = GeneratingSignature
-
-    /// Potentially generating a signature now that responses gathered. Args are (request, approved_nodes, failed_nodes, timeout_nodes, new_crypto_shards)
-    GeneratingSignature(
+    /// Processing a verification, waiting on responses. Args: (start_time, request, test_results)
+    ProcessingVerification(
+        tokio::time::Instant,
         VerifyRequest<H>,
-        Vec<NodeId>,
-        Vec<NodeId>,
-        Vec<NodeId>,
-        Vec<crate::crypto::EncryptedQuorumKeyShard>,
+        HashMap<NodeId, Option<VerifyResponse<H>>>,
     ), // NEXT = N/A
 
     // ================================
     // Member addition states
     // ================================
+    /// Waiting on the "votes" from the workers on whether the node can be added to the quorum. Args: (start_time, request, test_results)
+    ProcessingAddition(
+        tokio::time::Instant,
+        AddNodeInit,
+        HashMap<NodeId, Option<AddNodeTestResult>>,
+    ), // NEXT = AddingMember
 
-    /// Waiting on the "votes" from the workers on whether the node can be added to the quorum. Args: (request, test_results)
-    ProcessingAddition(AddNodeInit, HashMap<NodeId, Option<AddNodeTestResult>>), // NEXT = AddingMember
-
-    /// New encrypted shards to be transmitted to the edges. Args: (request, new_crypto_shards)
+    /// New encrypted shards to be transmitted to the edges. Args: (start_time, request, new_crypto_shards)
     AddingMember(
+        tokio::time::Instant,
         AddNodeInit,
         HashMap<NodeId, crate::crypto::EncryptedQuorumKeyShard>,
     ), // NEXT = N/A
@@ -49,15 +48,16 @@ where
     // ================================
     // Member removal states
     // ================================
-
-    /// Waiting on the "votes" from the workers whether the node should be removed from the quorum. Args: (request, test_results)
+    /// Waiting on the "votes" from the workers whether the node should be removed from the quorum. Args: (start_time, request, test_results)
     ProcessingRemoval(
+        tokio::time::Instant,
         RemoveNodeInit,
         HashMap<NodeId, Option<RemoveNodeTestResult>>,
     ), // NEXT = RemovingMember
 
-    /// Removing a member from the quorum, transmitting the new shards to the edge. Args: (node_to_remove, new_crypto_shards)
+    /// Removing a member from the quorum, transmitting the new shards to the edge. Args: (start_time, node_to_remove, new_crypto_shards)
     RemovingMember(
+        tokio::time::Instant,
         NodeId,
         HashMap<NodeId, crate::crypto::EncryptedQuorumKeyShard>,
     ), // NEXT = N/A
@@ -72,13 +72,13 @@ where
     Verifying(NodeId, VerifyRequest<H>), // NEXT = N/A
 
     /// Testing a member for an addition operation. Args: (leader, member info)
-    TestingAddMember(NodeId, AddNodeInit), // NEXT = WaitingOnMemberAddResult
+    TestingAddMember(NodeId, AddNodeInit, bool), // NEXT = WaitingOnMemberAddResult
 
     /// Waiting on the addition result from the leader. Args: (request)
     WaitingOnMemberAddResult(AddNodeInit), // NEXT = N/A
 
     /// Testing a member for a removal operation. Args: (leader, member info)
-    TestingRemoveMember(NodeId, RemoveNodeInit), // NEXT = WaitingOnMemberRemoveResult
+    TestingRemoveMember(NodeId, RemoveNodeInit, bool), // NEXT = WaitingOnMemberRemoveResult
 
     /// Waiting on the removal result from the leader. Args: (request)
     WaitingOnMemberRemoveResult(RemoveNodeInit), // NEXT = N/A

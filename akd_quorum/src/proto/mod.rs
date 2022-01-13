@@ -249,7 +249,7 @@ where
     ) -> Result<Self, Self::Error> {
         let mut result = Self::new();
         match (input.encrypted_quorum_key_shard, input.verified_hash) {
-            (Some(shard), Some(hash)) => {
+            (Some(shard), hash) => {
                 result.set_verified_hash(hash_to_bytes!(hash));
                 result.set_encrypted_quorum_key_shard(shard);
             }
@@ -270,16 +270,17 @@ where
     type Error = ConversionError;
 
     fn try_from(input: &inter_node::VerifyResponse) -> Result<Self, Self::Error> {
-        if input.has_verified_hash() && input.has_encrypted_quorum_key_shard() {
+        require!(input, has_verified_hash);
+        if input.has_encrypted_quorum_key_shard() {
             // verification succeeded on the worker node, proceed with reconstructing the result
             Ok(Self {
-                verified_hash: Some(hash_from_bytes!(input.get_verified_hash())),
+                verified_hash: hash_from_bytes!(input.get_verified_hash()),
                 encrypted_quorum_key_shard: Some(input.get_encrypted_quorum_key_shard().to_vec()),
             })
         } else {
             // Verification failed or a partial result came back. Both are mapped to verification failed
             Ok(Self {
-                verified_hash: None,
+                verified_hash: hash_from_bytes!(input.get_verified_hash()),
                 encrypted_quorum_key_shard: None,
             })
         }

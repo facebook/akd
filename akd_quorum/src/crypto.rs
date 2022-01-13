@@ -126,6 +126,7 @@ impl QuorumKeyShard {
 /// public key cannot be reconstructed by "non secure" memory. The private key
 /// which can decrpyt the shards is the node's "transient" key used for communication
 /// channels, and never is exposed outside of the cryptographer service
+#[derive(Clone)]
 pub struct EncryptedQuorumKeyShard {
     /// The flattened QuorumKeyShard components are encrypted
     /// using the leader's public key and can only be
@@ -210,15 +211,25 @@ pub trait QuorumCryptographer: Send + Sync + Clone {
     // Common trait logic
     // ==================================================================
 
+    /// Get the number of shards required to reconstruct the quorum key
+    fn shards_required(n: u8) -> u8 {
+        let f = if (n - 1) % 3 == 0 {
+            (n - 1) / 3
+        } else {
+            // there's remainders
+            1 + (n - 1) / 3
+        };
+        2 * f + 1
+    }
+
     /// Generate num_shards shards of the quorum key, and return the shard pieces.
     /// We take ownership of the quorum key here to help prevent leakage of the key.
     /// By taking ownership, someone needs to explicitely clone it to use it elsewhere
     fn generate_shards(
         quorum_key: [u8; QUORUM_KEY_SIZE],
-        f: u8,
+        num_shards: u8,
     ) -> Result<Vec<QuorumKeyShard>, QuorumOperationError> {
-        let num_shards = 3 * f + 1;
-        let num_approvals = 2 * f + 1;
+        let num_approvals = Self::shards_required(num_shards);
 
         let mut parts = vec![vec![]; num_shards.into()];
 

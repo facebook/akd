@@ -11,20 +11,20 @@
 use crate::comms::{EncryptedMessage, NodeId, Nonce, RpcResult};
 use crate::QuorumOperationError;
 
+use itertools::Itertools;
 use log::{debug, error, info, warn};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::iter::FromIterator;
 use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Duration;
 
 pub mod messages;
-mod node_logic;
+mod node_states;
 
-use self::messages::{*, inter_node::*};
-use self::node_logic::{NodeStatus, WorkerState, LeaderState};
+use self::messages::{inter_node::*, *};
+use self::node_states::{LeaderState, NodeStatus, WorkerState};
 
 // =====================================================
 // Typedefs and constants
@@ -43,6 +43,8 @@ fn get_this_reception_timeout_ms() -> u64 {
         NODE_MESSAGE_RECEPTION_TIMEOUT_MS + rng.gen_range(0..200)
     })
 }
+
+const DISTRIBUTED_PROCESSING_TIMEOUT_SEC: u64 = 60 * 10;
 
 // =====================================================
 // Structs w/implementations
@@ -430,54 +432,76 @@ where
         })
     }
 
+    async fn generate_test(&self) -> Result<(bool, VerifyRequest<H>), QuorumOperationError> {
+        // let previous_commitment = self.storage.get_latest_commitment().await?;
+
+        // TODO: we need to generate a test which is randomly-ish generated and has the previous properties
+        // 1. Hashes to the same previous_hash as what's currently in the commitment repository
+        // 2. Has a properly constructed proof structure with unchanged nodes and inserted nodes (may request it from akd tier?)
+        // 3. Will result in either a "true" result or "false" result, with a random outcome so it can't be predicted by other nodes.
+
+        // TODO: Add a timer to randomly "test" nodes (say every 10-ish epochs) which will keep them "true" to form
+
+        Ok((
+            false,
+            VerifyRequest::<H> {
+                epoch: 1,
+                new_hash: H::hash(&[49u8; 32]),
+                append_only_proof: akd::proof_structs::AppendOnlyProof::<H> {
+                    unchanged_nodes: vec![],
+                    inserted: vec![],
+                },
+            },
+        ))
+    }
+
     async fn handle_message(
         &self,
         message: NodeMessage<H>,
     ) -> Result<Option<InterNodeMessage<H>>, QuorumOperationError> {
-        let guard = self.state.status.read().await;
-        match &(*guard) {
-            NodeStatus::<H>::Ready => {
-                match message {
-                    NodeMessage::<H>::Public(public_message) => {
-                        // all public messages are accepted when not currently in quorum operation
-                        // This will move the node to LEADER status
-                        match public_message {
-                            PublicNodeMessage::Verify(verification) => {
-                                self.public_verify_impl(verification).await?;
-                            },
-                            PublicNodeMessage::Enroll(enroll) => {
-                                self.public_enroll_impl(enroll).await?;
-                            },
-                            PublicNodeMessage::Remove(remove) => {
-                                self.public_remove_impl(remove).await?;
-                            }
-                        }
+        match message {
+            NodeMessage::Public(public_message) => {
+                // all public messages are accepted when not currently in quorum operation
+                // This will move the node to LEADER status
+                match public_message {
+                    PublicNodeMessage::Verify(verification) => {
+                        self.public_verify_impl(verification).await?;
                     }
-                    NodeMessage::<H>::Internal(from, internal_message) => {
-                        match internal_message {
-                            InterNodeMessage::VerifyRequest(verify_request) => {
-                                // node will become worker
-                                let result = self.verify_impl(from, verify_request).await?;
-                                return Ok(Some(InterNodeMessage::<H>::VerifyResponse(result)));
-                            }
-                            InterNodeMessage::AddNodeInit(add_node_inint) => {
-                                // node will become worker
-                            }
-                            InterNodeMessage::RemoveNodeInit(remove_node_init) => {
-                                // node will become worker
-                            }
-                            other => {
-                                warn!(
-                                    "Received out-of-sync message on node {}\n{:?}",
-                                    self.state.node_id, other
-                                );
-                            }
-                        }
+                    PublicNodeMessage::Enroll(enroll) => {
+                        self.public_enroll_impl(enroll).await?;
+                    }
+                    PublicNodeMessage::Remove(remove) => {
+                        self.public_remove_impl(remove).await?;
                     }
                 }
             }
-            NodeStatus::<H>::Leading(l_state) => {}
-            NodeStatus::<H>::Following(w_state) => {}
+            NodeMessage::Internal(from, internal_message) => {
+                match internal_message {
+                    InterNodeMessage::VerifyRequest(verify_request) => {
+                        // node will become worker
+                        if let Some(result) = self.verify_impl(from, verify_request).await? {
+                            return Ok(Some(InterNodeMessage::VerifyResponse(result)));
+                        }
+                    }
+                    InterNodeMessage::VerifyResponse(verify_response) => {
+                        self.verify_response_impl(from, verify_response).await?;
+                    }
+                    InterNodeMessage::AddNodeInit(add_node_init) => {
+                        // node will become worker
+                        if let Some(result) = self.add_node_impl(from, add_node_init).await? {
+                            return Ok(Some(InterNodeMessage::AddNodeTestResult(result)));
+                        }
+                    }
+                    InterNodeMessage::AddNodeTestResult(test_result) => {}
+                    InterNodeMessage::AddNodeResult(result) => {}
+                    InterNodeMessage::RemoveNodeInit(remove_node_init) => {
+                        // node will become worker
+                    }
+                    InterNodeMessage::RemoveNodeTestResult(test_result) => {}
+                    InterNodeMessage::RemoveNodeResult(result) => {}
+                    InterNodeMessage::InterNodeAck(ack) => {}
+                }
+            }
         }
         // default reply is... no reply :)
         Ok(None)
@@ -488,73 +512,439 @@ where
         *guard = new_state;
     }
 
-    async fn public_verify_impl(&self, verify_request: VerifyChangesRequest<H>) -> Result<(), QuorumOperationError> {
-        let vf = VerifyRequest::<H> {
-            new_hash: verify_request.new_hash,
-            append_only_proof: verify_request.append_only_proof,
-            epoch: verify_request.epoch
-        };
-        let node_ids = 0u64..(self.state.config.read().await.group_size as u64);
-        let mut votes = HashMap::new();
-        for id in node_ids {
-            votes.insert(id, None);
-        }
-        self.mutate_state(NodeStatus::<H>::Leading(LeaderState::<H>::ProcessingVerification(vf.clone(), votes.clone()))).await;
+    async fn public_verify_impl(
+        &self,
+        verify_request: VerifyChangesRequest<H>,
+    ) -> Result<(), QuorumOperationError> {
+        let status = self.state.status.read().await;
+        match &(*status) {
+            NodeStatus::Leading(_) | NodeStatus::Following(_) => {
+                // defer, can only handle 1 public message at a time
+                self.state
+                    .message_queue
+                    .write()
+                    .await
+                    .push(NodeMessage::Public(PublicNodeMessage::Verify(
+                        verify_request,
+                    )));
+                info!("Received a public verification request, but we're already processing a request");
+            }
+            NodeStatus::Ready => {
+                // become the request leader, and perform the operation
+                let internal_request = VerifyRequest::<H> {
+                    new_hash: verify_request.new_hash,
+                    append_only_proof: verify_request.append_only_proof,
+                    epoch: verify_request.epoch,
+                };
 
-        // TODO: distribute the "votes" to the quorum
+                let node_ids = 0u64..(self.state.config.read().await.group_size as u64);
+                // set the state to "pending verification" waiting on the resultant votes
+                self.mutate_state(NodeStatus::<H>::Leading(
+                    LeaderState::<H>::ProcessingVerification(
+                        tokio::time::Instant::now(),
+                        internal_request.clone(),
+                        HashMap::new(),
+                    ),
+                ))
+                .await;
 
-        Ok(())
-    }
+                // Perform our own portion of the verification process (i.e. our vote, and possibly our shard of the key)
+                let self_clone = self.clone();
+                let request_clone = internal_request.clone();
+                let self_handle = tokio::task::spawn(async move {
+                    let node_id = self_clone.state.node_id.clone();
+                    let verification = self_clone.verify_impl(node_id, request_clone).await;
+                    let mut status = self_clone.state.status.write().await;
+                    if let NodeStatus::Leading(LeaderState::ProcessingVerification(
+                        start_time,
+                        the_request,
+                        the_responses,
+                    )) = &(*status)
+                    {
+                        match verification {
+                            Ok(option_verification_result) => {
+                                let mut hm = the_responses.clone();
+                                hm.insert(node_id, option_verification_result);
 
-    async fn public_enroll_impl(&self, enrollment_request: EnrollMemberRequest) -> Result<(), QuorumOperationError> {
+                                match self_clone
+                                    .try_generate_sig(
+                                        start_time.clone(),
+                                        the_request.clone(),
+                                        hm.clone(),
+                                    )
+                                    .await
+                                {
+                                    Ok(true) => {
+                                        // commitment cycle has completed, go to ready state
+                                        self_clone.mutate_state(NodeStatus::Ready).await;
+                                    }
+                                    Ok(false) => {
+                                        // else keep processing for more data collection, fail should bubble-up
+                                        *status = NodeStatus::Leading(
+                                            LeaderState::ProcessingVerification(
+                                                tokio::time::Instant::now(),
+                                                the_request.clone(),
+                                                hm,
+                                            ),
+                                        );
+                                    }
+                                    Err(err) => {
+                                        warn!("The leader failed to generate a commitment after gathering enough votes. Trying again later\nError: {}", err);
+                                        // else keep processing for more data collection, fail should bubble-up
+                                        *status = NodeStatus::Leading(
+                                            LeaderState::ProcessingVerification(
+                                                tokio::time::Instant::now(),
+                                                the_request.clone(),
+                                                hm,
+                                            ),
+                                        );
+                                    }
+                                }
+                            }
+                            Err(error) => {
+                                warn!("The leader failed to verify the append-only nature of the changes. Reporting as verification failed\nError: {}", error);
+                                let mut hm = the_responses.clone();
+                                hm.insert(node_id, None);
+                                *status = NodeStatus::Leading(LeaderState::ProcessingVerification(
+                                    tokio::time::Instant::now(),
+                                    the_request.clone(),
+                                    hm,
+                                ));
+                            }
+                        }
+                    }
+                });
 
-        Ok(())
-    }
-
-    async fn public_remove_impl(&self, removal_request: RemoveMemberRequest) -> Result<(), QuorumOperationError> {
-
-        Ok(())
-    }
-
-    async fn verify_impl(&self, from: NodeId, verify_request: VerifyRequest<H>) -> Result<VerifyResponse<H>, QuorumOperationError> {
-        {
-            self.mutate_state(NodeStatus::<H>::Following(WorkerState::<H>::Verifying(
-                from,
-                verify_request.clone(),
-            )))
-            .await;
-            if let Ok(previous_commitment) = self.storage.get_latest_commitment().await {
-                if let Err(error) = akd::auditor::verify_append_only(
-                    verify_request.append_only_proof,
-                    previous_commitment.current_hash,
-                    verify_request.new_hash,
-                )
-                .await
-                {
-                    info!("Verification of proof for epoch {} did not verify with error {}", verify_request.epoch, error);
-                    self.mutate_state(NodeStatus::<H>::Ready).await;
-                    Ok(VerifyResponse::<H> {
-                        verified_hash: None,
-                        encrypted_quorum_key_shard: None,
-                    })
-                } else {
-                    // OK, return our shard
-                    let shard = self.crypto.retrieve_qk_shard(from).await?;
-                    self.mutate_state(NodeStatus::<H>::Ready).await;
-                    Ok(VerifyResponse::<H> {
-                        verified_hash: Some(verify_request.new_hash),
-                        encrypted_quorum_key_shard: Some(shard.payload),
-                    })
+                for id in node_ids {
+                    // send message to node
+                    if id == self.state.node_id {
+                        // self contribution is needed is being computed in the background
+                    } else {
+                        let msg = InterNodeMessage::<H>::VerifyRequest(internal_request.clone())
+                            .serialize()?;
+                        let nonce = self.comms.get_expected_nonce(id).await;
+                        let e_msg = self.encrypt_message(id, msg, nonce).await?;
+                        self.comms.send_message(e_msg).await?;
+                    }
                 }
-            } else {
-                info!("Failed to retrieve the last commitment from storage");
-                self.mutate_state(NodeStatus::<H>::Ready).await;
-                Ok(VerifyResponse::<H> {
-                    verified_hash: None,
-                    encrypted_quorum_key_shard: None,
-                })
+
+                // wait on the self-review of the changes
+                self_handle.await?;
             }
         }
+
+        Ok(())
+    }
+
+    async fn public_enroll_impl(
+        &self,
+        enrollment_request: EnrollMemberRequest,
+    ) -> Result<(), QuorumOperationError> {
+        let status = self.state.status.read().await;
+        match &(*status) {
+            NodeStatus::Leading(_) | NodeStatus::Following(_) => {
+                // defer, can only handle 1 public message at a time
+                self.state
+                    .message_queue
+                    .write()
+                    .await
+                    .push(NodeMessage::Public(PublicNodeMessage::Enroll(
+                        enrollment_request,
+                    )));
+                info!(
+                    "Received a public enrollment request, but we're already processing a request"
+                );
+            }
+            NodeStatus::Ready => {
+                let internal_request = AddNodeInit {
+                    public_key: enrollment_request.public_key,
+                    contact_info: enrollment_request.contact_information,
+                };
+
+                let node_ids = 0u64..(self.state.config.read().await.group_size as u64);
+                for id in node_ids {
+                    // send message to node
+                    let msg =
+                        InterNodeMessage::<H>::AddNodeInit(internal_request.clone()).serialize()?;
+                    let nonce = self.comms.get_expected_nonce(id).await;
+                    let e_msg = self.encrypt_message(id, msg, nonce).await?;
+                    self.comms.send_message(e_msg).await?;
+                }
+                // send the state to "pending verification" waiting on the votes
+                self.mutate_state(NodeStatus::<H>::Leading(
+                    LeaderState::<H>::ProcessingAddition(
+                        tokio::time::Instant::now(),
+                        internal_request.clone(),
+                        HashMap::new(),
+                    ),
+                ))
+                .await;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn public_remove_impl(
+        &self,
+        removal_request: RemoveMemberRequest,
+    ) -> Result<(), QuorumOperationError> {
+        let status = self.state.status.read().await;
+        match &(*status) {
+            NodeStatus::Leading(_) | NodeStatus::Following(_) => {
+                // defer, can only handle 1 public message at a time
+                self.state
+                    .message_queue
+                    .write()
+                    .await
+                    .push(NodeMessage::Public(PublicNodeMessage::Remove(
+                        removal_request,
+                    )));
+                info!("Received a public removal request, but we're already processing a request");
+            }
+            NodeStatus::Ready => {
+                let internal_request = RemoveNodeInit {
+                    node_id: removal_request.node_id,
+                };
+
+                let node_ids = 0u64..(self.state.config.read().await.group_size as u64);
+                for id in node_ids {
+                    // send message to node
+                    let msg = InterNodeMessage::<H>::RemoveNodeInit(internal_request.clone())
+                        .serialize()?;
+                    let nonce = self.comms.get_expected_nonce(id).await;
+                    let e_msg = self.encrypt_message(id, msg, nonce).await?;
+                    self.comms.send_message(e_msg).await?;
+                }
+                // send the state to "pending verification" waiting on the votes
+                self.mutate_state(NodeStatus::<H>::Leading(
+                    LeaderState::<H>::ProcessingRemoval(
+                        tokio::time::Instant::now(),
+                        internal_request.clone(),
+                        HashMap::new(),
+                    ),
+                ))
+                .await;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn add_node_impl(
+        &self,
+        from: NodeId,
+        add_node_init: AddNodeInit,
+    ) -> Result<Option<AddNodeTestResult>, QuorumOperationError> {
+        let guard = self.state.status.read().await;
+        match &(*guard) {
+            NodeStatus::Ready => {
+                // OK
+                // TODO: perform the requisite test of the new node, and then reply back with our shard if we agree
+                // TODO: further logic for generating new shards, etc
+                Ok(None)
+            }
+            NodeStatus::Following(_) | NodeStatus::Leading(_) => {
+                info!("Received a inter-node request to add a node, but the node is busy in an operation");
+                self.state
+                    .message_queue
+                    .write()
+                    .await
+                    .push(NodeMessage::Internal(
+                        from,
+                        InterNodeMessage::AddNodeInit(add_node_init),
+                    ));
+                Ok(None)
+            }
+        }
+    }
+
+    async fn verify_impl(
+        &self,
+        from: NodeId,
+        verify_request: VerifyRequest<H>,
+    ) -> Result<Option<VerifyResponse<H>>, QuorumOperationError> {
+        let guard = self.state.status.read().await;
+        match &(*guard) {
+            NodeStatus::Ready => {
+                // OK
+                self.mutate_state(NodeStatus::<H>::Following(WorkerState::<H>::Verifying(
+                    from,
+                    verify_request.clone(),
+                )))
+                .await;
+                if let Ok(previous_commitment) = self.storage.get_latest_commitment().await {
+                    if let Err(error) = akd::auditor::verify_append_only(
+                        verify_request.append_only_proof,
+                        previous_commitment.current_hash,
+                        verify_request.new_hash,
+                    )
+                    .await
+                    {
+                        info!(
+                            "Verification of proof for epoch {} did not verify with error {}",
+                            verify_request.epoch, error
+                        );
+                        self.mutate_state(NodeStatus::<H>::Ready).await;
+                        Ok(Some(VerifyResponse::<H> {
+                            verified_hash: verify_request.new_hash,
+                            encrypted_quorum_key_shard: None,
+                        }))
+                    } else {
+                        // OK, return our shard
+                        let shard = self.crypto.retrieve_qk_shard(from).await?;
+                        self.mutate_state(NodeStatus::<H>::Ready).await;
+                        Ok(Some(VerifyResponse::<H> {
+                            verified_hash: verify_request.new_hash,
+                            encrypted_quorum_key_shard: Some(shard.payload),
+                        }))
+                    }
+                } else {
+                    info!("Failed to retrieve the last commitment from storage");
+                    self.mutate_state(NodeStatus::<H>::Ready).await;
+                    Ok(Some(VerifyResponse::<H> {
+                        verified_hash: verify_request.new_hash,
+                        encrypted_quorum_key_shard: None,
+                    }))
+                }
+            }
+            NodeStatus::Following(_) | NodeStatus::Leading(_) => {
+                info!("Received a inter-node request to verify a proof, but the node is busy in an operation");
+                self.state
+                    .message_queue
+                    .write()
+                    .await
+                    .push(NodeMessage::Internal(
+                        from,
+                        InterNodeMessage::VerifyRequest(verify_request),
+                    ));
+                Ok(None)
+            }
+        }
+    }
+
+    async fn verify_response_impl(
+        &self,
+        from: NodeId,
+        verify_response: VerifyResponse<H>,
+    ) -> Result<(), QuorumOperationError> {
+        let guard = self.state.status.read().await;
+        match &(*guard) {
+            NodeStatus::Leading(LeaderState::ProcessingVerification(
+                start_time,
+                request,
+                response_map,
+            )) => {
+                if verify_response.verified_hash == request.new_hash {
+                    // this verification is related to our verification request, update the state
+                    let mut new_map = response_map.clone();
+                    new_map.insert(from, Some(verify_response));
+
+                    if self
+                        .try_generate_sig(start_time.clone(), request.clone(), new_map)
+                        .await?
+                    {
+                        // commitment cycle has completed, go to ready state
+                        self.mutate_state(NodeStatus::Ready).await;
+                    } // else keep processing for more data collection, fail should bubble-up
+                } else {
+                    // defer
+                    info!("Received a inter-node request to verify a proof, but the node is busy in an operation");
+                    self.state
+                        .message_queue
+                        .write()
+                        .await
+                        .push(NodeMessage::Internal(
+                            from,
+                            InterNodeMessage::VerifyResponse(verify_response),
+                        ));
+                }
+                Ok(())
+            }
+            // This verification is for an unrelated verification request (potentially a test, are we in a testing state?)
+            // TODO: Node testing states
+            _ => {
+                warn!("We received a node's verification result from node {}, but we aren't waiting on verification results", from);
+                Ok(())
+            }
+        }
+    }
+
+    async fn try_generate_sig(
+        &self,
+        start_time: tokio::time::Instant,
+        request: VerifyRequest<H>,
+        map: HashMap<NodeId, Option<VerifyResponse<H>>>,
+    ) -> Result<bool, QuorumOperationError> {
+        let group_size = self.state.config.read().await.group_size;
+        let num_required_shards = Crypto::shards_required(group_size).into();
+
+        let positives = map
+            .iter()
+            .map(|(_, oshard)| oshard.clone().map(|shard| shard.encrypted_quorum_key_shard))
+            .flatten()
+            .filter_map(|a| {
+                a.map(|payload| crate::crypto::EncryptedQuorumKeyShard { payload: payload })
+            })
+            .collect::<Vec<_>>();
+        if positives.len() >= num_required_shards {
+            let previous_hash = self.storage.get_latest_commitment().await?;
+
+            // we have enough shards to attempt a reconstruction
+            let mut last_err = None;
+            for combination in positives.iter().combinations(num_required_shards) {
+                let v = combination
+                    .into_iter()
+                    .map(|item| item.clone())
+                    .collect::<Vec<_>>();
+                match self
+                    .crypto
+                    .generate_commitment::<H>(
+                        v,
+                        request.epoch,
+                        previous_hash.previous_hash,
+                        request.new_hash,
+                    )
+                    .await
+                {
+                    Ok(commitment) => {
+                        self.storage.save_commitment(commitment).await?;
+                        return Ok(true);
+                    }
+                    Err(err) => {
+                        last_err = Some(err);
+                    }
+                }
+            }
+            if let Some(err) = last_err {
+                // bubble-up the most recent commitment generation err
+                info!(
+                    "Failed to generate a commitment with any combination of shards. {}",
+                    err
+                );
+                return Err(err);
+            }
+        }
+
+        if tokio::time::Instant::now() - start_time
+            > tokio::time::Duration::from_secs(DISTRIBUTED_PROCESSING_TIMEOUT_SEC)
+        {
+            warn!("Distributed processing did not complete within window of {} sec so terminating distributed operation\nWe received {} votes, {} of which were successful and didn't receive {} votes",
+                DISTRIBUTED_PROCESSING_TIMEOUT_SEC,
+                map.len(),
+                positives.len(),
+                group_size as usize - positives.len()
+            );
+            return Ok(true);
+        }
+        if map.len() == group_size as usize {
+            // We have received responses from everyone, and were unable to generate a commitment. We can just exit and not sign-off on the changes
+            info!("Distributed verification of the changes resulted in a proof which is unverified. Verification failed.");
+            return Ok(true);
+        }
+
+        // not enough shards to generate a commitment, keep collecting
+        Ok(false)
     }
 }
 
