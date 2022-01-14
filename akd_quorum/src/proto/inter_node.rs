@@ -1874,6 +1874,7 @@ impl ::protobuf::reflect::ProtobufValue for AddNodeInit {
 pub struct AddNodeTestResult {
     // message fields
     encrypted_quorum_key_shard: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    contact_information: ::protobuf::SingularPtrField<NodeContact>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -1925,10 +1926,48 @@ impl AddNodeTestResult {
     pub fn take_encrypted_quorum_key_shard(&mut self) -> ::std::vec::Vec<u8> {
         self.encrypted_quorum_key_shard.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
+
+    // optional .NodeContact contact_information = 2;
+
+
+    pub fn get_contact_information(&self) -> &NodeContact {
+        self.contact_information.as_ref().unwrap_or_else(|| NodeContact::default_instance())
+    }
+    pub fn clear_contact_information(&mut self) {
+        self.contact_information.clear();
+    }
+
+    pub fn has_contact_information(&self) -> bool {
+        self.contact_information.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_contact_information(&mut self, v: NodeContact) {
+        self.contact_information = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_contact_information(&mut self) -> &mut NodeContact {
+        if self.contact_information.is_none() {
+            self.contact_information.set_default();
+        }
+        self.contact_information.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_contact_information(&mut self) -> NodeContact {
+        self.contact_information.take().unwrap_or_else(|| NodeContact::new())
+    }
 }
 
 impl ::protobuf::Message for AddNodeTestResult {
     fn is_initialized(&self) -> bool {
+        for v in &self.contact_information {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
         true
     }
 
@@ -1938,6 +1977,9 @@ impl ::protobuf::Message for AddNodeTestResult {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.encrypted_quorum_key_shard)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.contact_information)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -1954,6 +1996,10 @@ impl ::protobuf::Message for AddNodeTestResult {
         if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
             my_size += ::protobuf::rt::bytes_size(1, &v);
         }
+        if let Some(ref v) = self.contact_information.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -1962,6 +2008,11 @@ impl ::protobuf::Message for AddNodeTestResult {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
             os.write_bytes(1, &v)?;
+        }
+        if let Some(ref v) = self.contact_information.as_ref() {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2010,6 +2061,11 @@ impl ::protobuf::Message for AddNodeTestResult {
                     |m: &AddNodeTestResult| { &m.encrypted_quorum_key_shard },
                     |m: &mut AddNodeTestResult| { &mut m.encrypted_quorum_key_shard },
                 ));
+                fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<NodeContact>>(
+                    "contact_information",
+                    |m: &AddNodeTestResult| { &m.contact_information },
+                    |m: &mut AddNodeTestResult| { &mut m.contact_information },
+                ));
                 ::protobuf::reflect::MessageDescriptor::new::<AddNodeTestResult>(
                     "AddNodeTestResult",
                     fields,
@@ -2033,6 +2089,7 @@ impl ::protobuf::Message for AddNodeTestResult {
 impl ::protobuf::Clear for AddNodeTestResult {
     fn clear(&mut self) {
         self.encrypted_quorum_key_shard.clear();
+        self.contact_information.clear();
         self.unknown_fields.clear();
     }
 }
@@ -2371,6 +2428,512 @@ impl ::std::fmt::Debug for AddNodeResult {
 }
 
 impl ::protobuf::reflect::ProtobufValue for AddNodeResult {
+    fn as_ref(&self) -> ::protobuf::reflect::ProtobufValueRef {
+        ::protobuf::reflect::ProtobufValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct NewNodeTest {
+    // message fields
+    requesters_public_key: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    previous_hash: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    new_hash: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    test_proof: ::protobuf::SingularPtrField<AppendOnlyProof>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a NewNodeTest {
+    fn default() -> &'a NewNodeTest {
+        <NewNodeTest as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl NewNodeTest {
+    pub fn new() -> NewNodeTest {
+        ::std::default::Default::default()
+    }
+
+    // optional bytes requesters_public_key = 1;
+
+
+    pub fn get_requesters_public_key(&self) -> &[u8] {
+        match self.requesters_public_key.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_requesters_public_key(&mut self) {
+        self.requesters_public_key.clear();
+    }
+
+    pub fn has_requesters_public_key(&self) -> bool {
+        self.requesters_public_key.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_requesters_public_key(&mut self, v: ::std::vec::Vec<u8>) {
+        self.requesters_public_key = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_requesters_public_key(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.requesters_public_key.is_none() {
+            self.requesters_public_key.set_default();
+        }
+        self.requesters_public_key.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_requesters_public_key(&mut self) -> ::std::vec::Vec<u8> {
+        self.requesters_public_key.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // optional bytes previous_hash = 2;
+
+
+    pub fn get_previous_hash(&self) -> &[u8] {
+        match self.previous_hash.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_previous_hash(&mut self) {
+        self.previous_hash.clear();
+    }
+
+    pub fn has_previous_hash(&self) -> bool {
+        self.previous_hash.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_previous_hash(&mut self, v: ::std::vec::Vec<u8>) {
+        self.previous_hash = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_previous_hash(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.previous_hash.is_none() {
+            self.previous_hash.set_default();
+        }
+        self.previous_hash.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_previous_hash(&mut self) -> ::std::vec::Vec<u8> {
+        self.previous_hash.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // optional bytes new_hash = 3;
+
+
+    pub fn get_new_hash(&self) -> &[u8] {
+        match self.new_hash.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_new_hash(&mut self) {
+        self.new_hash.clear();
+    }
+
+    pub fn has_new_hash(&self) -> bool {
+        self.new_hash.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_new_hash(&mut self, v: ::std::vec::Vec<u8>) {
+        self.new_hash = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_new_hash(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.new_hash.is_none() {
+            self.new_hash.set_default();
+        }
+        self.new_hash.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_new_hash(&mut self) -> ::std::vec::Vec<u8> {
+        self.new_hash.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // optional .AppendOnlyProof test_proof = 4;
+
+
+    pub fn get_test_proof(&self) -> &AppendOnlyProof {
+        self.test_proof.as_ref().unwrap_or_else(|| AppendOnlyProof::default_instance())
+    }
+    pub fn clear_test_proof(&mut self) {
+        self.test_proof.clear();
+    }
+
+    pub fn has_test_proof(&self) -> bool {
+        self.test_proof.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_test_proof(&mut self, v: AppendOnlyProof) {
+        self.test_proof = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_test_proof(&mut self) -> &mut AppendOnlyProof {
+        if self.test_proof.is_none() {
+            self.test_proof.set_default();
+        }
+        self.test_proof.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_test_proof(&mut self) -> AppendOnlyProof {
+        self.test_proof.take().unwrap_or_else(|| AppendOnlyProof::new())
+    }
+}
+
+impl ::protobuf::Message for NewNodeTest {
+    fn is_initialized(&self) -> bool {
+        for v in &self.test_proof {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.requesters_public_key)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.previous_hash)?;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.new_hash)?;
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.test_proof)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(ref v) = self.requesters_public_key.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(1, &v);
+        }
+        if let Some(ref v) = self.previous_hash.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(2, &v);
+        }
+        if let Some(ref v) = self.new_hash.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(3, &v);
+        }
+        if let Some(ref v) = self.test_proof.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(ref v) = self.requesters_public_key.as_ref() {
+            os.write_bytes(1, &v)?;
+        }
+        if let Some(ref v) = self.previous_hash.as_ref() {
+            os.write_bytes(2, &v)?;
+        }
+        if let Some(ref v) = self.new_hash.as_ref() {
+            os.write_bytes(3, &v)?;
+        }
+        if let Some(ref v) = self.test_proof.as_ref() {
+            os.write_tag(4, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> NewNodeTest {
+        NewNodeTest::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static mut descriptor: ::protobuf::lazy::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::lazy::Lazy {
+            lock: ::protobuf::lazy::ONCE_INIT,
+            ptr: 0 as *const ::protobuf::reflect::MessageDescriptor,
+        };
+        unsafe {
+            descriptor.get(|| {
+                let mut fields = ::std::vec::Vec::new();
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "requesters_public_key",
+                    |m: &NewNodeTest| { &m.requesters_public_key },
+                    |m: &mut NewNodeTest| { &mut m.requesters_public_key },
+                ));
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "previous_hash",
+                    |m: &NewNodeTest| { &m.previous_hash },
+                    |m: &mut NewNodeTest| { &mut m.previous_hash },
+                ));
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "new_hash",
+                    |m: &NewNodeTest| { &m.new_hash },
+                    |m: &mut NewNodeTest| { &mut m.new_hash },
+                ));
+                fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<AppendOnlyProof>>(
+                    "test_proof",
+                    |m: &NewNodeTest| { &m.test_proof },
+                    |m: &mut NewNodeTest| { &mut m.test_proof },
+                ));
+                ::protobuf::reflect::MessageDescriptor::new::<NewNodeTest>(
+                    "NewNodeTest",
+                    fields,
+                    file_descriptor_proto()
+                )
+            })
+        }
+    }
+
+    fn default_instance() -> &'static NewNodeTest {
+        static mut instance: ::protobuf::lazy::Lazy<NewNodeTest> = ::protobuf::lazy::Lazy {
+            lock: ::protobuf::lazy::ONCE_INIT,
+            ptr: 0 as *const NewNodeTest,
+        };
+        unsafe {
+            instance.get(NewNodeTest::new)
+        }
+    }
+}
+
+impl ::protobuf::Clear for NewNodeTest {
+    fn clear(&mut self) {
+        self.requesters_public_key.clear();
+        self.previous_hash.clear();
+        self.new_hash.clear();
+        self.test_proof.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for NewNodeTest {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for NewNodeTest {
+    fn as_ref(&self) -> ::protobuf::reflect::ProtobufValueRef {
+        ::protobuf::reflect::ProtobufValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct NewNodeTestResult {
+    // message fields
+    test_pass: ::std::option::Option<bool>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a NewNodeTestResult {
+    fn default() -> &'a NewNodeTestResult {
+        <NewNodeTestResult as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl NewNodeTestResult {
+    pub fn new() -> NewNodeTestResult {
+        ::std::default::Default::default()
+    }
+
+    // optional bool test_pass = 1;
+
+
+    pub fn get_test_pass(&self) -> bool {
+        self.test_pass.unwrap_or(false)
+    }
+    pub fn clear_test_pass(&mut self) {
+        self.test_pass = ::std::option::Option::None;
+    }
+
+    pub fn has_test_pass(&self) -> bool {
+        self.test_pass.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_test_pass(&mut self, v: bool) {
+        self.test_pass = ::std::option::Option::Some(v);
+    }
+}
+
+impl ::protobuf::Message for NewNodeTestResult {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.test_pass = ::std::option::Option::Some(tmp);
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if let Some(v) = self.test_pass {
+            my_size += 2;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if let Some(v) = self.test_pass {
+            os.write_bool(1, v)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> NewNodeTestResult {
+        NewNodeTestResult::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static mut descriptor: ::protobuf::lazy::Lazy<::protobuf::reflect::MessageDescriptor> = ::protobuf::lazy::Lazy {
+            lock: ::protobuf::lazy::ONCE_INIT,
+            ptr: 0 as *const ::protobuf::reflect::MessageDescriptor,
+        };
+        unsafe {
+            descriptor.get(|| {
+                let mut fields = ::std::vec::Vec::new();
+                fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                    "test_pass",
+                    |m: &NewNodeTestResult| { &m.test_pass },
+                    |m: &mut NewNodeTestResult| { &mut m.test_pass },
+                ));
+                ::protobuf::reflect::MessageDescriptor::new::<NewNodeTestResult>(
+                    "NewNodeTestResult",
+                    fields,
+                    file_descriptor_proto()
+                )
+            })
+        }
+    }
+
+    fn default_instance() -> &'static NewNodeTestResult {
+        static mut instance: ::protobuf::lazy::Lazy<NewNodeTestResult> = ::protobuf::lazy::Lazy {
+            lock: ::protobuf::lazy::ONCE_INIT,
+            ptr: 0 as *const NewNodeTestResult,
+        };
+        unsafe {
+            instance.get(NewNodeTestResult::new)
+        }
+    }
+}
+
+impl ::protobuf::Clear for NewNodeTestResult {
+    fn clear(&mut self) {
+        self.test_pass = ::std::option::Option::None;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for NewNodeTestResult {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for NewNodeTestResult {
     fn as_ref(&self) -> ::protobuf::reflect::ProtobufValueRef {
         ::protobuf::reflect::ProtobufValueRef::Message(self)
     }
@@ -3161,9 +3724,11 @@ pub enum InterNodeMessage_MessageType {
     ADD_NODE_INIT = 3,
     ADD_NODE_TEST_RESULT = 4,
     ADD_NODE_RESULT = 5,
-    REMOVE_NODE_INIT = 6,
-    REMOVE_NODE_TEST_RESULT = 7,
-    REMOVE_NODE_RESULT = 8,
+    NEW_NODE_TEST = 6,
+    NEW_NODE_TEST_RESULT = 7,
+    REMOVE_NODE_INIT = 8,
+    REMOVE_NODE_TEST_RESULT = 9,
+    REMOVE_NODE_RESULT = 10,
 }
 
 impl ::protobuf::ProtobufEnum for InterNodeMessage_MessageType {
@@ -3179,9 +3744,11 @@ impl ::protobuf::ProtobufEnum for InterNodeMessage_MessageType {
             3 => ::std::option::Option::Some(InterNodeMessage_MessageType::ADD_NODE_INIT),
             4 => ::std::option::Option::Some(InterNodeMessage_MessageType::ADD_NODE_TEST_RESULT),
             5 => ::std::option::Option::Some(InterNodeMessage_MessageType::ADD_NODE_RESULT),
-            6 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_INIT),
-            7 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_TEST_RESULT),
-            8 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_RESULT),
+            6 => ::std::option::Option::Some(InterNodeMessage_MessageType::NEW_NODE_TEST),
+            7 => ::std::option::Option::Some(InterNodeMessage_MessageType::NEW_NODE_TEST_RESULT),
+            8 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_INIT),
+            9 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_TEST_RESULT),
+            10 => ::std::option::Option::Some(InterNodeMessage_MessageType::REMOVE_NODE_RESULT),
             _ => ::std::option::Option::None
         }
     }
@@ -3194,6 +3761,8 @@ impl ::protobuf::ProtobufEnum for InterNodeMessage_MessageType {
             InterNodeMessage_MessageType::ADD_NODE_INIT,
             InterNodeMessage_MessageType::ADD_NODE_TEST_RESULT,
             InterNodeMessage_MessageType::ADD_NODE_RESULT,
+            InterNodeMessage_MessageType::NEW_NODE_TEST,
+            InterNodeMessage_MessageType::NEW_NODE_TEST_RESULT,
             InterNodeMessage_MessageType::REMOVE_NODE_INIT,
             InterNodeMessage_MessageType::REMOVE_NODE_TEST_RESULT,
             InterNodeMessage_MessageType::REMOVE_NODE_RESULT,
@@ -3246,25 +3815,33 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     dQuorumKeyShard\x12#\n\rverified_hash\x18\x02\x20\x01(\x0cR\x0cverifiedH\
     ash\"k\n\x0bAddNodeInit\x12\x1d\n\npublic_key\x18\x01\x20\x01(\x0cR\tpub\
     licKey\x12=\n\x13contact_information\x18\x02\x20\x01(\x0b2\x0c.NodeConta\
-    ctR\x12contactInformation\"P\n\x11AddNodeTestResult\x12;\n\x1aencrypted_\
-    quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\"\xc3\
-    \x01\n\rAddNodeResult\x12;\n\x1aencrypted_quorum_key_shard\x18\x01\x20\
-    \x01(\x0cR\x17encryptedQuorumKeyShard\x12\x17\n\x07node_id\x18\x02\x20\
-    \x01(\x04R\x06nodeId\x12\x1d\n\npublic_key\x18\x03\x20\x01(\x0cR\tpublic\
-    Key\x12=\n\x13contact_information\x18\x04\x20\x01(\x0b2\x0c.NodeContactR\
-    \x12contactInformation\")\n\x0eRemoveNodeInit\x12\x17\n\x07node_id\x18\
-    \x01\x20\x01(\x04R\x06nodeId\"S\n\x14RemoveNodeTestResult\x12;\n\x1aencr\
-    ypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\
-    \"h\n\x10RemoveNodeResult\x12;\n\x1aencrypted_quorum_key_shard\x18\x01\
-    \x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\x17\n\x07node_id\x18\x02\
-    \x20\x01(\x04R\x06nodeId\"\xc8\x02\n\x10InterNodeMessage\x12@\n\x0cmessa\
-    ge_type\x18\x01\x20\x01(\x0e2\x1d.InterNodeMessage.MessageTypeR\x0bmessa\
-    geType\x12\x18\n\x07payload\x18\x02\x20\x01(\x0cR\x07payload\"\xd7\x01\n\
-    \x0bMessageType\x12\x12\n\x0eINTER_NODE_ACK\x10\0\x12\x12\n\x0eVERIFY_RE\
-    QUEST\x10\x01\x12\x13\n\x0fVERIFY_RESPONSE\x10\x02\x12\x11\n\rADD_NODE_I\
-    NIT\x10\x03\x12\x18\n\x14ADD_NODE_TEST_RESULT\x10\x04\x12\x13\n\x0fADD_N\
-    ODE_RESULT\x10\x05\x12\x14\n\x10REMOVE_NODE_INIT\x10\x06\x12\x1b\n\x17RE\
-    MOVE_NODE_TEST_RESULT\x10\x07\x12\x16\n\x12REMOVE_NODE_RESULT\x10\x08\
+    ctR\x12contactInformation\"\x8f\x01\n\x11AddNodeTestResult\x12;\n\x1aenc\
+    rypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\
+    \x12=\n\x13contact_information\x18\x02\x20\x01(\x0b2\x0c.NodeContactR\
+    \x12contactInformation\"\xc3\x01\n\rAddNodeResult\x12;\n\x1aencrypted_qu\
+    orum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\x17\
+    \n\x07node_id\x18\x02\x20\x01(\x04R\x06nodeId\x12\x1d\n\npublic_key\x18\
+    \x03\x20\x01(\x0cR\tpublicKey\x12=\n\x13contact_information\x18\x04\x20\
+    \x01(\x0b2\x0c.NodeContactR\x12contactInformation\"\xb2\x01\n\x0bNewNode\
+    Test\x122\n\x15requesters_public_key\x18\x01\x20\x01(\x0cR\x13requesters\
+    PublicKey\x12#\n\rprevious_hash\x18\x02\x20\x01(\x0cR\x0cpreviousHash\
+    \x12\x19\n\x08new_hash\x18\x03\x20\x01(\x0cR\x07newHash\x12/\n\ntest_pro\
+    of\x18\x04\x20\x01(\x0b2\x10.AppendOnlyProofR\ttestProof\"0\n\x11NewNode\
+    TestResult\x12\x1b\n\ttest_pass\x18\x01\x20\x01(\x08R\x08testPass\")\n\
+    \x0eRemoveNodeInit\x12\x17\n\x07node_id\x18\x01\x20\x01(\x04R\x06nodeId\
+    \"S\n\x14RemoveNodeTestResult\x12;\n\x1aencrypted_quorum_key_shard\x18\
+    \x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\"h\n\x10RemoveNodeResult\
+    \x12;\n\x1aencrypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encrypted\
+    QuorumKeyShard\x12\x17\n\x07node_id\x18\x02\x20\x01(\x04R\x06nodeId\"\
+    \xf5\x02\n\x10InterNodeMessage\x12@\n\x0cmessage_type\x18\x01\x20\x01(\
+    \x0e2\x1d.InterNodeMessage.MessageTypeR\x0bmessageType\x12\x18\n\x07payl\
+    oad\x18\x02\x20\x01(\x0cR\x07payload\"\x84\x02\n\x0bMessageType\x12\x12\
+    \n\x0eINTER_NODE_ACK\x10\0\x12\x12\n\x0eVERIFY_REQUEST\x10\x01\x12\x13\n\
+    \x0fVERIFY_RESPONSE\x10\x02\x12\x11\n\rADD_NODE_INIT\x10\x03\x12\x18\n\
+    \x14ADD_NODE_TEST_RESULT\x10\x04\x12\x13\n\x0fADD_NODE_RESULT\x10\x05\
+    \x12\x11\n\rNEW_NODE_TEST\x10\x06\x12\x18\n\x14NEW_NODE_TEST_RESULT\x10\
+    \x07\x12\x14\n\x10REMOVE_NODE_INIT\x10\x08\x12\x1b\n\x17REMOVE_NODE_TEST\
+    _RESULT\x10\t\x12\x16\n\x12REMOVE_NODE_RESULT\x10\n\
 ";
 
 static mut file_descriptor_proto_lazy: ::protobuf::lazy::Lazy<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::lazy::Lazy {

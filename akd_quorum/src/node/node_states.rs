@@ -14,6 +14,7 @@ use crate::node::messages::inter_node::*;
 use std::collections::HashMap;
 
 /// The states a leader goes through
+#[derive(Clone)]
 pub(crate) enum LeaderState<H>
 where
     H: winter_crypto::Hasher + Clone,
@@ -64,6 +65,7 @@ where
 }
 
 /// The states a quorum worker (non-leader) goes through
+#[derive(Clone)]
 pub(crate) enum WorkerState<H>
 where
     H: winter_crypto::Hasher + Clone,
@@ -85,6 +87,7 @@ where
 }
 
 /// The status of a node
+#[derive(Clone)]
 pub(crate) enum NodeStatus<H>
 where
     H: winter_crypto::Hasher + Clone,

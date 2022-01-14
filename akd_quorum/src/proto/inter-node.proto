@@ -94,6 +94,7 @@ message AddNodeInit {
  * included in the quorum set. */
 message AddNodeTestResult {
     optional bytes encrypted_quorum_key_shard = 1;
+    optional NodeContact contact_information = 2;
 }
 
 /* AddNodeResult is the final result of an add node process and
@@ -104,6 +105,21 @@ message AddNodeResult {
     optional uint64 node_id = 2;
     optional bytes public_key = 3;
     optional NodeContact contact_information = 4;
+}
+
+/* NewNodeTest is the message of a "test" proof for a potential new
+ * node which is trying to join/be enrolled to the quorum */
+message NewNodeTest {
+    optional bytes requesters_public_key = 1;
+    optional bytes previous_hash = 2;
+    optional bytes new_hash = 3;
+    optional AppendOnlyProof test_proof = 4;
+}
+
+/* NewNodeTestResult is the result of the node test operation for
+ * a potential new member of the quorum vote */
+message NewNodeTestResult {
+    optional bool test_pass = 1;
 }
 
 /* RemoveNodeInit initializes the removal flow for a member of the
@@ -148,9 +164,11 @@ message InterNodeMessage {
         ADD_NODE_INIT = 3;
         ADD_NODE_TEST_RESULT = 4;
         ADD_NODE_RESULT = 5;
-        REMOVE_NODE_INIT = 6;
-        REMOVE_NODE_TEST_RESULT = 7;
-        REMOVE_NODE_RESULT = 8;
+        NEW_NODE_TEST = 6;
+        NEW_NODE_TEST_RESULT = 7;
+        REMOVE_NODE_INIT = 8;
+        REMOVE_NODE_TEST_RESULT = 9;
+        REMOVE_NODE_RESULT = 10;
     }
 
     optional MessageType message_type = 1;

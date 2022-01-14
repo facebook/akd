@@ -355,6 +355,7 @@ impl TryFrom<crate::node::messages::inter_node::AddNodeTestResult>
         if let Some(key) = input.encrypted_quorum_key_shard {
             result.set_encrypted_quorum_key_shard(key);
         }
+        result.set_contact_information(input.contact_info.try_into()?);
         Ok(result)
     }
 }
@@ -365,12 +366,14 @@ impl TryFrom<&inter_node::AddNodeTestResult>
     type Error = ConversionError;
 
     fn try_from(input: &inter_node::AddNodeTestResult) -> Result<Self, Self::Error> {
+        require!(input, has_contact_information);
         let key = match input.has_encrypted_quorum_key_shard() {
             true => Some(input.get_encrypted_quorum_key_shard().to_vec()),
             false => None,
         };
         Ok(Self {
             encrypted_quorum_key_shard: key,
+            contact_info: input.get_contact_information().try_into()?,
         })
     }
 }
@@ -414,6 +417,79 @@ impl TryFrom<&inter_node::AddNodeResult> for crate::node::messages::inter_node::
                 public_key: input.get_public_key().to_vec(),
                 contact_information: input.get_contact_information().try_into()?,
             },
+        })
+    }
+}
+
+// ==============================================================
+// New Node Test
+// ==============================================================
+
+impl<H> TryFrom<crate::node::messages::inter_node::NewNodeTest<H>> for inter_node::NewNodeTest
+where
+    H: winter_crypto::Hasher + Clone,
+{
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::NewNodeTest<H>,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_new_hash(hash_to_bytes!(input.new_hash));
+        result.set_previous_hash(hash_to_bytes!(input.previous_hash));
+        result.set_requesters_public_key(input.requesters_public_key);
+        result.set_test_proof(input.test_proof.try_into()?);
+        Ok(result)
+    }
+}
+
+impl<H> TryFrom<&inter_node::NewNodeTest> for crate::node::messages::inter_node::NewNodeTest<H>
+where
+    H: winter_crypto::Hasher + Clone,
+{
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::NewNodeTest) -> Result<Self, Self::Error> {
+        require!(input, has_new_hash);
+        require!(input, has_previous_hash);
+        require!(input, has_requesters_public_key);
+        require!(input, has_test_proof);
+        Ok(Self {
+            new_hash: hash_from_bytes!(input.get_new_hash()),
+            previous_hash: hash_from_bytes!(input.get_previous_hash()),
+            requesters_public_key: input.get_requesters_public_key().to_vec(),
+            test_proof: input.get_test_proof().try_into()?,
+        })
+    }
+}
+
+// ==============================================================
+// New Node Test Result
+// ==============================================================
+
+impl TryFrom<crate::node::messages::inter_node::NewNodeTestResult>
+    for inter_node::NewNodeTestResult
+{
+    type Error = ConversionError;
+
+    fn try_from(
+        input: crate::node::messages::inter_node::NewNodeTestResult,
+    ) -> Result<Self, Self::Error> {
+        let mut result = Self::new();
+        result.set_test_pass(input.test_pass);
+        Ok(result)
+    }
+}
+
+impl TryFrom<&inter_node::NewNodeTestResult>
+    for crate::node::messages::inter_node::NewNodeTestResult
+{
+    type Error = ConversionError;
+
+    fn try_from(input: &inter_node::NewNodeTestResult) -> Result<Self, Self::Error> {
+        require!(input, has_test_pass);
+        Ok(Self {
+            test_pass: input.get_test_pass(),
         })
     }
 }

@@ -14,6 +14,7 @@ use crate::comms::NodeId;
 // Inter node messages
 // ===========================================================
 pub(crate) mod inter_node {
+    use akd::proof_structs::AppendOnlyProof;
     use protobuf::Message;
 
     use crate::comms::NodeId;
@@ -63,6 +64,8 @@ pub(crate) mod inter_node {
         AddNodeInit(AddNodeInit),
         AddNodeTestResult(AddNodeTestResult),
         AddNodeResult(AddNodeResult),
+        NewNodeTest(NewNodeTest<H>),
+        NewNodeTestResult(NewNodeTestResult),
         RemoveNodeInit(RemoveNodeInit),
         RemoveNodeTestResult(RemoveNodeTestResult),
         RemoveNodeResult(RemoveNodeResult),
@@ -119,6 +122,20 @@ pub(crate) mod inter_node {
                         crate::proto::inter_node::AddNodeResult
                     );
                     Ok(InterNodeMessage::<H>::AddNodeResult(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::NEW_NODE_TEST => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::NewNodeTest
+                    );
+                    Ok(InterNodeMessage::<H>::NewNodeTest(inner))
+                }
+                crate::proto::inter_node::InterNodeMessage_MessageType::NEW_NODE_TEST_RESULT => {
+                    let inner = deserialize_arm_helper!(
+                        wrapper.get_payload(),
+                        crate::proto::inter_node::NewNodeTestResult
+                    );
+                    Ok(InterNodeMessage::<H>::NewNodeTestResult(inner))
                 }
                 crate::proto::inter_node::InterNodeMessage_MessageType::REMOVE_NODE_INIT => {
                     let inner = deserialize_arm_helper!(
@@ -191,6 +208,20 @@ pub(crate) mod inter_node {
                         typed.write_to_bytes()?,
                     )
                 }
+                Self::NewNodeTest(internal) => {
+                    let typed: crate::proto::inter_node::NewNodeTest = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::NEW_NODE_TEST,
+                        typed.write_to_bytes()?,
+                    )
+                }
+                Self::NewNodeTestResult(internal) => {
+                    let typed: crate::proto::inter_node::NewNodeTestResult = internal.try_into()?;
+                    (
+                        crate::proto::inter_node::InterNodeMessage_MessageType::NEW_NODE_TEST_RESULT,
+                        typed.write_to_bytes()?,
+                    )
+                }
                 Self::RemoveNodeInit(internal) => {
                     let typed: crate::proto::inter_node::RemoveNodeInit = internal.try_into()?;
                     (
@@ -230,6 +261,8 @@ pub(crate) mod inter_node {
                 Self::AddNodeInit(_arg0) => f.debug_tuple("AddNodeInit").finish(),
                 Self::AddNodeTestResult(_arg0) => f.debug_tuple("AddNodeTestResult").finish(),
                 Self::AddNodeResult(_arg0) => f.debug_tuple("AddNodeResult").finish(),
+                Self::NewNodeTest(_arg0) => f.debug_tuple("NewNodeTest").finish(),
+                Self::NewNodeTestResult(_arg0) => f.debug_tuple("NewNodeTestResult").finish(),
                 Self::RemoveNodeInit(_arg0) => f.debug_tuple("RemoveNodeInit").finish(),
                 Self::RemoveNodeTestResult(_arg0) => f.debug_tuple("RemoveNodeTestResult").finish(),
                 Self::RemoveNodeResult(_arg0) => f.debug_tuple("RemoveNodeResult").finish(),
@@ -295,6 +328,7 @@ pub(crate) mod inter_node {
     /// new shard components and distributed to the membership
     #[derive(Clone)]
     pub(crate) struct AddNodeTestResult {
+        pub(crate) contact_info: crate::comms::ContactInformation,
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
     }
     /// Request to change the quorum membership for the additional
@@ -306,6 +340,27 @@ pub(crate) mod inter_node {
     pub(crate) struct AddNodeResult {
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
         pub(crate) new_member: crate::storage::MemberInformation,
+    }
+
+    /// The request that goes to a "new" node to verify the provided proof
+    /// material. Every node has logic to handle this, however it is only
+    /// required for new node testing and won't be called once the node is
+    /// enrolled in a quorum membership
+    pub(crate) struct NewNodeTest<H>
+    where
+        H: winter_crypto::Hasher,
+    {
+        pub(crate) requesters_public_key: Vec<u8>,
+        // doesn't need reply contact information, since will simply use
+        // existing TCP channel
+        pub(crate) previous_hash: H::Digest,
+        pub(crate) new_hash: H::Digest,
+        pub(crate) test_proof: AppendOnlyProof<H>,
+    }
+
+    /// Result from the new potential node, which is being tested
+    pub(crate) struct NewNodeTestResult {
+        pub(crate) test_pass: bool,
     }
 
     // ****************************************

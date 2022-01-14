@@ -7,8 +7,12 @@
 
 //! This module contains communication paths for various node-node and node-proxy communications
 
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot::Sender;
+
+pub(crate) mod nonces;
 
 // =====================================================
 // Types and constants
@@ -32,6 +36,11 @@ pub struct ContactInformation {
     pub(crate) port: u16,
 }
 
+impl Display for ContactInformation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.ip_address, self.port)
+    }
+}
 /// An encrypted inter-node message
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EncryptedMessage {
@@ -94,15 +103,6 @@ pub trait QuorumCommunication<H>: Send + Sync + Clone
 where
     H: winter_crypto::Hasher,
 {
-    /// Retrieve the next nonce for the specified node id. If the requested node
-    /// has no nonce, a random nonce will be returned which will cause a mis-match with the
-    /// message which it is being attempted for. This is fine since raft is robust to message
-    /// failures.
-    async fn get_expected_nonce(&self, node_id: NodeId) -> Nonce;
-
-    /// Increment the nonce for a given recepient, so the message cannot be replayed
-    async fn increment_nonce(&self, node_id: NodeId) -> Result<(), CommunicationError>;
-
     /// Send a message to another node (routing information is contained in the message)
     /// [fire and forget]
     async fn send_message(&self, message: EncryptedMessage) -> Result<(), CommunicationError>;
@@ -119,6 +119,16 @@ where
         &self,
         timeout_ms: u64,
     ) -> Result<MessageResult, CommunicationError>;
+
+    /// Send a message to not a node id, but the specified contact information. This is
+    /// utilized for testing new potential members of the quorum and is a blocking call
+    /// waiting on the result to come back
+    async fn send_to_contact_info(
+        &self,
+        contact_info: ContactInformation,
+        message: EncryptedMessage,
+        timeout_ms: u64,
+    ) -> Result<EncryptedMessage, CommunicationError>;
 
     /// Blocking receive call which waits for messages coming from the public communication channel
     /// (i.e. messages from admin interface or AKD)
