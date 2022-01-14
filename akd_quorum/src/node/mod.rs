@@ -495,10 +495,18 @@ where
                         return Ok(Some(InterNodeMessage::AddNodeTestResult(result)));
                     }
                 }
-                InterNodeMessage::AddNodeTestResult(test_result) => {}
+                InterNodeMessage::AddNodeTestResult(test_result) => {
+                    self.add_node_test_result_impl(from, test_result).await?
+                }
                 InterNodeMessage::AddNodeResult(result) => {}
-                InterNodeMessage::NewNodeTest(test) => {}
-                InterNodeMessage::NewNodeTestResult(test_result) => {}
+                InterNodeMessage::NewNodeTest(test) => {
+                    let result = self.new_node_test_impl(test).await?;
+                    return Ok(Some(InterNodeMessage::NewNodeTestResult(result)));
+                }
+                InterNodeMessage::NewNodeTestResult(test_result) => {
+                    // cannot occur, it's a directly TCP reply
+                    warn!("Received a NewNodeTestResult which can't be receievd on the public inter-node channels");
+                }
                 InterNodeMessage::RemoveNodeInit(remove_node_init) => {}
                 InterNodeMessage::RemoveNodeTestResult(test_result) => {}
                 InterNodeMessage::RemoveNodeResult(result) => {}
@@ -842,6 +850,34 @@ where
         Ok(None)
     }
 
+    async fn add_node_test_result_impl(&self, from: NodeId, test_result: AddNodeTestResult) -> Result<(), QuorumOperationError> {
+
+        Ok(())
+    }
+
+    async fn new_node_test_impl(
+        &self,
+        test: NewNodeTest<H>,
+    ) -> Result<NewNodeTestResult, QuorumOperationError> {
+        match self.get_state().await {
+            NodeStatus::Ready => {
+                let pass = if let Err(_) =
+                    akd::auditor::audit_verify(test.previous_hash, test.new_hash, test.test_proof).await
+                {
+                    false
+                } else {
+                    true
+                };
+                return Ok(NewNodeTestResult { test_pass: pass });
+            }
+            _ => {
+                // impossible
+            }
+        }
+        // reply
+        Ok(NewNodeTestResult { test_pass: false })
+    }
+
     async fn verify_impl(
         &self,
         from: NodeId,
@@ -942,45 +978,6 @@ where
                 }
                 Ok(())
             }
-            // NodeStatus::Following(WorkerState::TestingAddMember(
-            //     leader,
-            //     node,
-            //     test_should_be_a_pass,
-            // )) if from == u64::MAX => { // node id == max value if it is NOT in the quorum (i.e. new node)
-            //     let nonce = self
-            //         .state
-            //         .nonce_manager
-            //         .get_next_outgoing_nonce(*leader)
-            //         .await;
-
-            //     let msg = match (
-            //         *test_should_be_a_pass,
-            //         verify_response.encrypted_quorum_key_shard.is_some(),
-            //     ) {
-            //         (a, b) if a == b => {
-            //             // Test passed (either failed and expected fail or passed and expected pass)
-            //             // gather our shard, and send it to the leader "approving" the node inclusion
-            //             let shard = self.crypto.retrieve_qk_shard(*leader).await?;
-            //             InterNodeMessage::<H>::AddNodeTestResult(AddNodeTestResult {
-            //                 encrypted_quorum_key_shard: Some(shard.payload),
-            //                 contact_info: node.contact_info.clone(),
-            //             })
-            //         }
-            //         // The test failed, don't retrieve our shard component
-            //         _ => InterNodeMessage::<H>::AddNodeTestResult(AddNodeTestResult {
-            //             encrypted_quorum_key_shard: None,
-            //             contact_info: node.contact_info.clone(),
-            //         }),
-            //     };
-
-            //     let bytes = msg.serialize()?;
-            //     let e_msg = self.encrypt_message(*leader, bytes, nonce).await?;
-            //     self.comms.send_message(e_msg).await?;
-
-            //     Ok(())
-            // }
-            // This verification is for an unrelated verification request (potentially a test, are we in a testing state?)
-            // TODO: Node testing states
             _ => {
                 warn!("We received a node's verification result from node {}, but we aren't waiting on verification results", from);
                 Ok(())
