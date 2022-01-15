@@ -119,7 +119,7 @@ impl Command {
             return None;
         }
         let (a, b) = (parts[1], parts[2]);
-        let cmd = DirectoryCommand::Publish(Vec::from(a), Vec::from(b));
+        let cmd = DirectoryCommand::Publish(String::from(a), String::from(b));
         Some(cmd)
     }
 
@@ -128,7 +128,7 @@ impl Command {
             return None;
         }
         let a = parts[1];
-        let cmd = DirectoryCommand::Lookup(Vec::from(a));
+        let cmd = DirectoryCommand::Lookup(String::from(a));
         Some(cmd)
     }
 
@@ -137,7 +137,7 @@ impl Command {
             return None;
         }
         let a = parts[1];
-        let cmd = DirectoryCommand::KeyHistory(Vec::from(a));
+        let cmd = DirectoryCommand::KeyHistory(String::from(a));
         Some(cmd)
     }
 

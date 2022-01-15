@@ -24,10 +24,10 @@ pub(crate) struct Rpc(
 
 #[derive(Debug)]
 pub enum DirectoryCommand {
-    Publish(Vec<u8>, Vec<u8>),
-    PublishBatch(Vec<(Vec<u8>, Vec<u8>)>, bool),
-    Lookup(Vec<u8>),
-    KeyHistory(Vec<u8>),
+    Publish(String, String),
+    PublishBatch(Vec<(String, String)>, bool),
+    Lookup(String),
+    KeyHistory(String),
     Audit(u64, u64),
     RootHash(Option<u64>),
     Terminate,
@@ -66,15 +66,21 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish::<H>(vec![(AkdLabel(a.clone()), AkdValue(b.clone()))], false)
+                    .publish::<H>(
+                        vec![(
+                            AkdLabel(Vec::from(a.as_bytes())),
+                            AkdValue(Vec::from(b.as_bytes())),
+                        )],
+                        false,
+                    )
                     .await
                 {
                     Ok(EpochHash(epoch, hash)) => {
                         let toc = Instant::now() - tic;
                         let msg = format!(
                             "PUBLISHED '{}' = '{}' in {} s (epoch: {}, root hash: {})",
-                            String::from_utf8_lossy(&a),
-                            String::from_utf8_lossy(&b),
+                            a,
+                            b,
                             toc.as_secs_f64(),
                             epoch,
                             hex::encode(hash.as_bytes())
@@ -94,7 +100,9 @@ where
                     .publish::<H>(
                         batches
                             .into_iter()
-                            .map(|(key, value)| (AkdLabel(key), AkdValue(value)))
+                            .map(|(key, value)| {
+                                (AkdLabel(key.into_bytes()), AkdValue(value.into_bytes()))
+                            })
                             .collect(),
                         with_trans,
                     )
@@ -112,32 +120,32 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup::<H>(AkdLabel(a.clone())).await {
+                match directory
+                    .lookup::<H>(AkdLabel(Vec::from(a.as_bytes())))
+                    .await
+                {
                     Ok(proof) => {
                         let hash = get_root_hash::<_, H>(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
                                 let verification = akd::client::lookup_verify(
                                     root_hash,
-                                    AkdLabel(a.clone()),
+                                    AkdLabel(Vec::from(a.as_bytes())),
                                     proof,
                                 );
                                 if verification.is_err() {
                                     let msg = format!(
                                         "WARN: Lookup proof failed verification for '{}'",
-                                        String::from_utf8_lossy(&a)
+                                        a
                                     );
                                     response.send(Err(msg)).unwrap();
                                 } else {
-                                    let msg = format!(
-                                        "Lookup proof verified for user '{}'",
-                                        String::from_utf8_lossy(&a)
-                                    );
+                                    let msg = format!("Lookup proof verified for user '{}'", a);
                                     response.send(Ok(msg)).unwrap();
                                 }
                             }
                             _ => {
-                                let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", String::from_utf8_lossy(&a));
+                                let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", a);
                                 response.send(Err(msg)).unwrap();
                             }
                         }
@@ -149,9 +157,12 @@ where
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory.key_history::<H>(&AkdLabel(a.clone())).await {
+                match directory
+                    .key_history::<H>(&AkdLabel(Vec::from(a.as_bytes())))
+                    .await
+                {
                     Ok(_proof) => {
-                        let msg = format!("GOT KEY HISTORY FOR '{}'", String::from_utf8_lossy(&a));
+                        let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();
                     }
                     Err(error) => {

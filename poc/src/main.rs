@@ -14,7 +14,7 @@ use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
 use commands::Command;
 use log::{debug, error, info, warn};
-use rand::distributions::Standard;
+use rand::distributions::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;
@@ -208,12 +208,13 @@ async fn process_input(
                 println!("======= Benchmark operation requested ======= ");
                 println!("Beginning DB INSERT benchmark of {} users", num_users);
 
-                let mut values: Vec<Vec<u8>> = vec![];
+                let mut values: Vec<String> = vec![];
                 for i in 0..*num_users {
                     values.push(
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Standard)
+                            .sample_iter(&Alphanumeric)
                             .take(30)
+                            .map(char::from)
                             .collect(),
                     );
                 }
@@ -221,8 +222,8 @@ async fn process_input(
                 let mut data = Vec::new();
                 for value in values.iter() {
                     let state = akd_mysql::mysql::AsyncMySqlDatabase::build_user_state(
-                        value.clone(),
-                        value.clone(),
+                        Vec::from(value.as_bytes()),
+                        Vec::from(value.as_bytes()),
                         1u64,
                         1u32,
                         1u64,
@@ -261,19 +262,21 @@ async fn process_input(
                     num_users, num_updates_per_user
                 );
 
-                let users: Vec<Vec<u8>> = (1..=*num_users)
+                let users: Vec<String> = (1..=*num_users)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Standard)
+                            .sample_iter(&Alphanumeric)
                             .take(256)
+                            .map(char::from)
                             .collect()
                     })
                     .collect();
-                let data: Vec<Vec<u8>> = (1..=*num_updates_per_user)
+                let data: Vec<String> = (1..=*num_updates_per_user)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Standard)
+                            .sample_iter(&Alphanumeric)
                             .take(1024)
+                            .map(char::from)
                             .collect()
                     })
                     .collect();
@@ -282,7 +285,7 @@ async fn process_input(
 
                 let mut code = None;
                 for value in data {
-                    let user_data: Vec<(Vec<u8>, Vec<u8>)> = users
+                    let user_data: Vec<(String, String)> = users
                         .iter()
                         .map(|user| (user.clone(), value.clone()))
                         .collect();
@@ -332,16 +335,18 @@ async fn process_input(
                     num_users, num_lookups_per_user
                 );
 
-                let user_data: Vec<(Vec<u8>, Vec<u8>)> = (1..=*num_users)
+                let user_data: Vec<(String, String)> = (1..=*num_users)
                     .map(|i| {
                         (
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Standard)
+                                .sample_iter(&Alphanumeric)
                                 .take(256)
+                                .map(char::from)
                                 .collect(),
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Standard)
+                                .sample_iter(&Alphanumeric)
                                 .take(1024)
+                                .map(char::from)
                                 .collect(),
                         )
                     })
