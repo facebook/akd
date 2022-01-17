@@ -73,17 +73,17 @@ where
     /// Verifying an AKD change. Args: (leader, request)
     Verifying(NodeId, VerifyRequest<H>), // NEXT = N/A
 
-    /// Testing a member for an addition operation. Args: (leader, member info)
-    TestingAddMember(NodeId, AddNodeInit, bool), // NEXT = WaitingOnMemberAddResult
+    /// Testing a member for an addition operation. Args: (start_time, leader, member info)
+    TestingAddMember(tokio::time::Instant, NodeId, AddNodeInit, bool), // NEXT = WaitingOnMemberAddResult
 
-    /// Waiting on the addition result from the leader. Args: (request)
-    WaitingOnMemberAddResult(AddNodeInit), // NEXT = N/A
+    /// Waiting on the addition result from the leader. Args: (start_time, request)
+    WaitingOnMemberAddResult(tokio::time::Instant, AddNodeInit), // NEXT = N/A
 
-    /// Testing a member for a removal operation. Args: (leader, member info)
-    TestingRemoveMember(NodeId, RemoveNodeInit, bool), // NEXT = WaitingOnMemberRemoveResult
+    /// Testing a member for a removal operation. Args: (start_time, leader, member info)
+    TestingRemoveMember(tokio::time::Instant, NodeId, RemoveNodeInit, bool), // NEXT = WaitingOnMemberRemoveResult
 
-    /// Waiting on the removal result from the leader. Args: (request)
-    WaitingOnMemberRemoveResult(RemoveNodeInit), // NEXT = N/A
+    /// Waiting on the removal result from the leader. Args: (start_time, request)
+    WaitingOnMemberRemoveResult(tokio::time::Instant, RemoveNodeInit), // NEXT = N/A
 }
 
 /// The status of a node

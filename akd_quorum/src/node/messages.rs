@@ -69,6 +69,7 @@ pub(crate) mod inter_node {
         RemoveNodeInit(RemoveNodeInit),
         RemoveNodeTestResult(RemoveNodeTestResult),
         RemoveNodeResult(RemoveNodeResult),
+        TimerTick,
     }
 
     impl<H> InterNodeMessage<H>
@@ -241,6 +242,10 @@ pub(crate) mod inter_node {
                         typed.write_to_bytes()?,
                     )
                 }
+                Self::TimerTick => (
+                    crate::proto::inter_node::InterNodeMessage_MessageType::INTER_NODE_ACK,
+                    vec![],
+                ),
             };
             let mut msg = crate::proto::inter_node::InterNodeMessage::new();
             msg.set_message_type(message_type);
@@ -266,6 +271,7 @@ pub(crate) mod inter_node {
                 Self::RemoveNodeInit(_arg0) => f.debug_tuple("RemoveNodeInit").finish(),
                 Self::RemoveNodeTestResult(_arg0) => f.debug_tuple("RemoveNodeTestResult").finish(),
                 Self::RemoveNodeResult(_arg0) => f.debug_tuple("RemoveNodeResult").finish(),
+                Self::TimerTick => f.debug_tuple("TimerTick").finish(),
             }
         }
     }
@@ -295,6 +301,7 @@ pub(crate) mod inter_node {
         H: winter_crypto::Hasher + Clone,
     {
         pub(crate) append_only_proof: akd::proof_structs::AppendOnlyProof<H>,
+        pub(crate) previous_hash: H::Digest,
         pub(crate) new_hash: H::Digest,
         pub(crate) epoch: u64,
     }
@@ -381,6 +388,7 @@ pub(crate) mod inter_node {
     /// public key to signify that they agree with a membership modification.
     #[derive(Clone)]
     pub(crate) struct RemoveNodeTestResult {
+        pub(crate) offending_member: NodeId,
         pub(crate) encrypted_quorum_key_shard: Option<Vec<u8>>,
     }
     /// If enough nodes are unable to contact the offending member or deem the

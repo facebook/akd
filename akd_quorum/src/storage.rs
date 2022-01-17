@@ -66,7 +66,10 @@ where
     ) -> Result<MemberInformation, StorageError>; // stored in node-private storage
 
     /// Update the members of the quorum set (triggered by removal or addition of a node)
-    async fn update_quorum_members(&self, rafts: &[MemberInformation]) -> Result<(), StorageError>; // stored in node-private storage
+    async fn add_quorum_member(&self, node: MemberInformation) -> Result<(), StorageError>; // stored in node-private storage
+
+    /// Remove the specific quorum member from our set of membership and decrement all node id's > this id
+    async fn remove_quorum_member(&self, node_id: NodeId) -> Result<(), StorageError>; // stored in node-private storage
 
     /// Retrieve the latest commitment (i.e. if you're validating a epoch, the previous one)
     async fn get_latest_commitment(&self) -> Result<QuorumCommitment<H>, StorageError>; // stored in public storage

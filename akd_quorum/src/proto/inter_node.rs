@@ -1132,6 +1132,7 @@ impl ::protobuf::reflect::ProtobufValue for NodeContact {
 pub struct VerifyRequest {
     // message fields
     proof: ::protobuf::SingularPtrField<AppendOnlyProof>,
+    previous_hash: ::protobuf::SingularField<::std::vec::Vec<u8>>,
     new_hash: ::protobuf::SingularField<::std::vec::Vec<u8>>,
     epoch: ::std::option::Option<u64>,
     // special fields
@@ -1183,7 +1184,43 @@ impl VerifyRequest {
         self.proof.take().unwrap_or_else(|| AppendOnlyProof::new())
     }
 
-    // optional bytes new_hash = 2;
+    // optional bytes previous_hash = 2;
+
+
+    pub fn get_previous_hash(&self) -> &[u8] {
+        match self.previous_hash.as_ref() {
+            Some(v) => &v,
+            None => &[],
+        }
+    }
+    pub fn clear_previous_hash(&mut self) {
+        self.previous_hash.clear();
+    }
+
+    pub fn has_previous_hash(&self) -> bool {
+        self.previous_hash.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_previous_hash(&mut self, v: ::std::vec::Vec<u8>) {
+        self.previous_hash = ::protobuf::SingularField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_previous_hash(&mut self) -> &mut ::std::vec::Vec<u8> {
+        if self.previous_hash.is_none() {
+            self.previous_hash.set_default();
+        }
+        self.previous_hash.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_previous_hash(&mut self) -> ::std::vec::Vec<u8> {
+        self.previous_hash.take().unwrap_or_else(|| ::std::vec::Vec::new())
+    }
+
+    // optional bytes new_hash = 3;
 
 
     pub fn get_new_hash(&self) -> &[u8] {
@@ -1219,7 +1256,7 @@ impl VerifyRequest {
         self.new_hash.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
 
-    // optional uint64 epoch = 3;
+    // optional uint64 epoch = 4;
 
 
     pub fn get_epoch(&self) -> u64 {
@@ -1257,9 +1294,12 @@ impl ::protobuf::Message for VerifyRequest {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.proof)?;
                 },
                 2 => {
-                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.new_hash)?;
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.previous_hash)?;
                 },
                 3 => {
+                    ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.new_hash)?;
+                },
+                4 => {
                     if wire_type != ::protobuf::wire_format::WireTypeVarint {
                         return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
                     }
@@ -1282,11 +1322,14 @@ impl ::protobuf::Message for VerifyRequest {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         }
-        if let Some(ref v) = self.new_hash.as_ref() {
+        if let Some(ref v) = self.previous_hash.as_ref() {
             my_size += ::protobuf::rt::bytes_size(2, &v);
         }
+        if let Some(ref v) = self.new_hash.as_ref() {
+            my_size += ::protobuf::rt::bytes_size(3, &v);
+        }
         if let Some(v) = self.epoch {
-            my_size += ::protobuf::rt::value_size(3, v, ::protobuf::wire_format::WireTypeVarint);
+            my_size += ::protobuf::rt::value_size(4, v, ::protobuf::wire_format::WireTypeVarint);
         }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
@@ -1299,11 +1342,14 @@ impl ::protobuf::Message for VerifyRequest {
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
         }
-        if let Some(ref v) = self.new_hash.as_ref() {
+        if let Some(ref v) = self.previous_hash.as_ref() {
             os.write_bytes(2, &v)?;
         }
+        if let Some(ref v) = self.new_hash.as_ref() {
+            os.write_bytes(3, &v)?;
+        }
         if let Some(v) = self.epoch {
-            os.write_uint64(3, v)?;
+            os.write_uint64(4, v)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -1353,6 +1399,11 @@ impl ::protobuf::Message for VerifyRequest {
                     |m: &mut VerifyRequest| { &mut m.proof },
                 ));
                 fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
+                    "previous_hash",
+                    |m: &VerifyRequest| { &m.previous_hash },
+                    |m: &mut VerifyRequest| { &mut m.previous_hash },
+                ));
+                fields.push(::protobuf::reflect::accessor::make_singular_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
                     "new_hash",
                     |m: &VerifyRequest| { &m.new_hash },
                     |m: &mut VerifyRequest| { &mut m.new_hash },
@@ -1385,6 +1436,7 @@ impl ::protobuf::Message for VerifyRequest {
 impl ::protobuf::Clear for VerifyRequest {
     fn clear(&mut self) {
         self.proof.clear();
+        self.previous_hash.clear();
         self.new_hash.clear();
         self.epoch = ::std::option::Option::None;
         self.unknown_fields.clear();
@@ -3109,6 +3161,7 @@ impl ::protobuf::reflect::ProtobufValue for RemoveNodeInit {
 pub struct RemoveNodeTestResult {
     // message fields
     encrypted_quorum_key_shard: ::protobuf::SingularField<::std::vec::Vec<u8>>,
+    node_id: ::std::option::Option<u64>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3160,6 +3213,25 @@ impl RemoveNodeTestResult {
     pub fn take_encrypted_quorum_key_shard(&mut self) -> ::std::vec::Vec<u8> {
         self.encrypted_quorum_key_shard.take().unwrap_or_else(|| ::std::vec::Vec::new())
     }
+
+    // optional uint64 node_id = 2;
+
+
+    pub fn get_node_id(&self) -> u64 {
+        self.node_id.unwrap_or(0)
+    }
+    pub fn clear_node_id(&mut self) {
+        self.node_id = ::std::option::Option::None;
+    }
+
+    pub fn has_node_id(&self) -> bool {
+        self.node_id.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_node_id(&mut self, v: u64) {
+        self.node_id = ::std::option::Option::Some(v);
+    }
 }
 
 impl ::protobuf::Message for RemoveNodeTestResult {
@@ -3173,6 +3245,13 @@ impl ::protobuf::Message for RemoveNodeTestResult {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_bytes_into(wire_type, is, &mut self.encrypted_quorum_key_shard)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint64()?;
+                    self.node_id = ::std::option::Option::Some(tmp);
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -3189,6 +3268,9 @@ impl ::protobuf::Message for RemoveNodeTestResult {
         if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
             my_size += ::protobuf::rt::bytes_size(1, &v);
         }
+        if let Some(v) = self.node_id {
+            my_size += ::protobuf::rt::value_size(2, v, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -3197,6 +3279,9 @@ impl ::protobuf::Message for RemoveNodeTestResult {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         if let Some(ref v) = self.encrypted_quorum_key_shard.as_ref() {
             os.write_bytes(1, &v)?;
+        }
+        if let Some(v) = self.node_id {
+            os.write_uint64(2, v)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -3245,6 +3330,11 @@ impl ::protobuf::Message for RemoveNodeTestResult {
                     |m: &RemoveNodeTestResult| { &m.encrypted_quorum_key_shard },
                     |m: &mut RemoveNodeTestResult| { &mut m.encrypted_quorum_key_shard },
                 ));
+                fields.push(::protobuf::reflect::accessor::make_option_accessor::<_, ::protobuf::types::ProtobufTypeUint64>(
+                    "node_id",
+                    |m: &RemoveNodeTestResult| { &m.node_id },
+                    |m: &mut RemoveNodeTestResult| { &mut m.node_id },
+                ));
                 ::protobuf::reflect::MessageDescriptor::new::<RemoveNodeTestResult>(
                     "RemoveNodeTestResult",
                     fields,
@@ -3268,6 +3358,7 @@ impl ::protobuf::Message for RemoveNodeTestResult {
 impl ::protobuf::Clear for RemoveNodeTestResult {
     fn clear(&mut self) {
         self.encrypted_quorum_key_shard.clear();
+        self.node_id = ::std::option::Option::None;
         self.unknown_fields.clear();
     }
 }
@@ -3808,15 +3899,16 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x20\x03(\x0b2\x05.NodeR\x08inserted\x12#\n\tunchanged\x18\x02\x20\x03(\
     \x0b2\x05.NodeR\tunchanged\"@\n\x0bNodeContact\x12\x1d\n\nip_address\x18\
     \x01\x20\x01(\tR\tipAddress\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04por\
-    t\"h\n\rVerifyRequest\x12&\n\x05proof\x18\x01\x20\x01(\x0b2\x10.AppendOn\
-    lyProofR\x05proof\x12\x19\n\x08new_hash\x18\x02\x20\x01(\x0cR\x07newHash\
-    \x12\x14\n\x05epoch\x18\x03\x20\x01(\x04R\x05epoch\"r\n\x0eVerifyRespons\
-    e\x12;\n\x1aencrypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encrypte\
-    dQuorumKeyShard\x12#\n\rverified_hash\x18\x02\x20\x01(\x0cR\x0cverifiedH\
-    ash\"k\n\x0bAddNodeInit\x12\x1d\n\npublic_key\x18\x01\x20\x01(\x0cR\tpub\
-    licKey\x12=\n\x13contact_information\x18\x02\x20\x01(\x0b2\x0c.NodeConta\
-    ctR\x12contactInformation\"\x8f\x01\n\x11AddNodeTestResult\x12;\n\x1aenc\
-    rypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\
+    t\"\x8d\x01\n\rVerifyRequest\x12&\n\x05proof\x18\x01\x20\x01(\x0b2\x10.A\
+    ppendOnlyProofR\x05proof\x12#\n\rprevious_hash\x18\x02\x20\x01(\x0cR\x0c\
+    previousHash\x12\x19\n\x08new_hash\x18\x03\x20\x01(\x0cR\x07newHash\x12\
+    \x14\n\x05epoch\x18\x04\x20\x01(\x04R\x05epoch\"r\n\x0eVerifyResponse\
+    \x12;\n\x1aencrypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encrypted\
+    QuorumKeyShard\x12#\n\rverified_hash\x18\x02\x20\x01(\x0cR\x0cverifiedHa\
+    sh\"k\n\x0bAddNodeInit\x12\x1d\n\npublic_key\x18\x01\x20\x01(\x0cR\tpubl\
+    icKey\x12=\n\x13contact_information\x18\x02\x20\x01(\x0b2\x0c.NodeContac\
+    tR\x12contactInformation\"\x8f\x01\n\x11AddNodeTestResult\x12;\n\x1aencr\
+    ypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\
     \x12=\n\x13contact_information\x18\x02\x20\x01(\x0b2\x0c.NodeContactR\
     \x12contactInformation\"\xc3\x01\n\rAddNodeResult\x12;\n\x1aencrypted_qu\
     orum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\x17\
@@ -3829,19 +3921,20 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     of\x18\x04\x20\x01(\x0b2\x10.AppendOnlyProofR\ttestProof\"0\n\x11NewNode\
     TestResult\x12\x1b\n\ttest_pass\x18\x01\x20\x01(\x08R\x08testPass\")\n\
     \x0eRemoveNodeInit\x12\x17\n\x07node_id\x18\x01\x20\x01(\x04R\x06nodeId\
-    \"S\n\x14RemoveNodeTestResult\x12;\n\x1aencrypted_quorum_key_shard\x18\
-    \x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\"h\n\x10RemoveNodeResult\
-    \x12;\n\x1aencrypted_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encrypted\
-    QuorumKeyShard\x12\x17\n\x07node_id\x18\x02\x20\x01(\x04R\x06nodeId\"\
-    \xf5\x02\n\x10InterNodeMessage\x12@\n\x0cmessage_type\x18\x01\x20\x01(\
-    \x0e2\x1d.InterNodeMessage.MessageTypeR\x0bmessageType\x12\x18\n\x07payl\
-    oad\x18\x02\x20\x01(\x0cR\x07payload\"\x84\x02\n\x0bMessageType\x12\x12\
-    \n\x0eINTER_NODE_ACK\x10\0\x12\x12\n\x0eVERIFY_REQUEST\x10\x01\x12\x13\n\
-    \x0fVERIFY_RESPONSE\x10\x02\x12\x11\n\rADD_NODE_INIT\x10\x03\x12\x18\n\
-    \x14ADD_NODE_TEST_RESULT\x10\x04\x12\x13\n\x0fADD_NODE_RESULT\x10\x05\
-    \x12\x11\n\rNEW_NODE_TEST\x10\x06\x12\x18\n\x14NEW_NODE_TEST_RESULT\x10\
-    \x07\x12\x14\n\x10REMOVE_NODE_INIT\x10\x08\x12\x1b\n\x17REMOVE_NODE_TEST\
-    _RESULT\x10\t\x12\x16\n\x12REMOVE_NODE_RESULT\x10\n\
+    \"l\n\x14RemoveNodeTestResult\x12;\n\x1aencrypted_quorum_key_shard\x18\
+    \x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\x17\n\x07node_id\x18\
+    \x02\x20\x01(\x04R\x06nodeId\"h\n\x10RemoveNodeResult\x12;\n\x1aencrypte\
+    d_quorum_key_shard\x18\x01\x20\x01(\x0cR\x17encryptedQuorumKeyShard\x12\
+    \x17\n\x07node_id\x18\x02\x20\x01(\x04R\x06nodeId\"\xf5\x02\n\x10InterNo\
+    deMessage\x12@\n\x0cmessage_type\x18\x01\x20\x01(\x0e2\x1d.InterNodeMess\
+    age.MessageTypeR\x0bmessageType\x12\x18\n\x07payload\x18\x02\x20\x01(\
+    \x0cR\x07payload\"\x84\x02\n\x0bMessageType\x12\x12\n\x0eINTER_NODE_ACK\
+    \x10\0\x12\x12\n\x0eVERIFY_REQUEST\x10\x01\x12\x13\n\x0fVERIFY_RESPONSE\
+    \x10\x02\x12\x11\n\rADD_NODE_INIT\x10\x03\x12\x18\n\x14ADD_NODE_TEST_RES\
+    ULT\x10\x04\x12\x13\n\x0fADD_NODE_RESULT\x10\x05\x12\x11\n\rNEW_NODE_TES\
+    T\x10\x06\x12\x18\n\x14NEW_NODE_TEST_RESULT\x10\x07\x12\x14\n\x10REMOVE_\
+    NODE_INIT\x10\x08\x12\x1b\n\x17REMOVE_NODE_TEST_RESULT\x10\t\x12\x16\n\
+    \x12REMOVE_NODE_RESULT\x10\n\
 ";
 
 static mut file_descriptor_proto_lazy: ::protobuf::lazy::Lazy<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::lazy::Lazy {

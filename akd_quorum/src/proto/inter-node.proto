@@ -65,8 +65,9 @@ message NodeContact {
  * (epoch-1) with hash previous_hash to (epoch) with hash new_hash is valid. */
 message VerifyRequest {
     optional AppendOnlyProof proof = 1;
-    optional bytes new_hash = 2;
-    optional uint64 epoch = 3;
+    optional bytes previous_hash = 2;
+    optional bytes new_hash = 3;
+    optional uint64 epoch = 4;
 }
 
 /* VerifyResponse will response with their quorum key shard partials
@@ -138,6 +139,7 @@ message RemoveNodeInit {
  * uncontactable. */
 message RemoveNodeTestResult {
     optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
 }
 
 /* RemoveNodeResult is the final message in the flow back to the

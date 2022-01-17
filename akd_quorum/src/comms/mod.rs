@@ -28,7 +28,7 @@ pub(crate) type Nonce = u128;
 // =====================================================
 
 /// Contact information for a node
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ContactInformation {
     /// Node ip address
     pub(crate) ip_address: String,
@@ -73,8 +73,8 @@ impl From<protobuf::ProtobufError> for CommunicationError {
     }
 }
 
-/// Represents a result to an RPC request
-pub enum RpcResult {
+/// Represents a result to an message processing
+pub enum MessageProcessingResult {
     /// Result, with optional payload to send to client
     Ok(Option<EncryptedMessage>),
     /// Error occurred
@@ -90,7 +90,7 @@ pub struct MessageResult {
     /// Optional handling timeout
     pub timeout: Option<tokio::time::Duration>,
     /// Reply (RPC) channel
-    pub reply: Sender<RpcResult>,
+    pub reply: Sender<MessageProcessingResult>,
 }
 
 // =====================================================
@@ -103,16 +103,16 @@ pub trait QuorumCommunication<H>: Send + Sync + Clone
 where
     H: winter_crypto::Hasher,
 {
-    /// Send a message to another node (routing information is contained in the message)
-    /// [fire and forget]
-    async fn send_message(&self, message: EncryptedMessage) -> Result<(), CommunicationError>;
+    // /// Send a message to another node (routing information is contained in the message)
+    // /// [fire and forget]
+    // async fn send_message(&self, message: EncryptedMessage) -> Result<(), CommunicationError>;
 
     /// A remote-procedure-call to another node in the raft. I.e. send & receive reply
     async fn rpc(
         &self,
         message: EncryptedMessage,
         timeout: Option<tokio::time::Duration>,
-    ) -> Result<EncryptedMessage, CommunicationError>;
+    ) -> Result<Option<EncryptedMessage>, CommunicationError>;
 
     /// Blocking receive call which waits for messages coming from other raft nodes
     async fn receive_inter_node(

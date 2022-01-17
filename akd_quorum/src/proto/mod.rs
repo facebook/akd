@@ -211,6 +211,7 @@ where
         result.set_epoch(input.epoch);
         result.set_new_hash(hash_to_bytes!(input.new_hash));
         result.set_proof(input.append_only_proof.try_into()?);
+        result.set_previous_hash(hash_to_bytes!(input.previous_hash));
         Ok(result)
     }
 }
@@ -224,12 +225,15 @@ where
     fn try_from(input: &inter_node::VerifyRequest) -> Result<Self, Self::Error> {
         require!(input, has_epoch);
         require!(input, has_new_hash);
+        require!(input, has_previous_hash);
+
         let proof: akd::proof_structs::AppendOnlyProof<H> = input.get_proof().try_into()?;
 
         Ok(crate::node::messages::inter_node::VerifyRequest::<H> {
             epoch: input.get_epoch(),
             new_hash: hash_from_bytes!(input.get_new_hash()),
             append_only_proof: proof,
+            previous_hash: hash_from_bytes!(input.get_previous_hash()),
         })
     }
 }
@@ -534,6 +538,7 @@ impl TryFrom<crate::node::messages::inter_node::RemoveNodeTestResult>
         input: crate::node::messages::inter_node::RemoveNodeTestResult,
     ) -> Result<Self, Self::Error> {
         let mut result = Self::new();
+        result.set_node_id(input.offending_member);
         if let Some(shard) = input.encrypted_quorum_key_shard {
             result.set_encrypted_quorum_key_shard(shard);
         }
@@ -553,6 +558,7 @@ impl TryFrom<&inter_node::RemoveNodeTestResult>
         };
         Ok(Self {
             encrypted_quorum_key_shard: shard,
+            offending_member: input.get_node_id(),
         })
     }
 }
