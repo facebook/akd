@@ -17,14 +17,6 @@
 
 syntax = "proto2";
 
-/* InterNodeAck is a simple acknowledgement message with a "ok"
- * flag denoting if operation was successful and an optional
- * error message payload field. */
-message InterNodeAck {
-    optional bool ok = 1;
-    optional string err = 2;
-}
-
 /* NodeLabel represents the label of a history tree node in the AKD tree with a
  * supplied label-length and label value (location) */
 message NodeLabel {
@@ -152,6 +144,16 @@ message RemoveNodeTestResult {
 message RemoveNodeResult {
     optional bytes encrypted_quorum_key_shard = 1;
     optional uint64 node_id = 2;
+}
+
+/* InterNodeAck is a simple acknowledgement message with a "ok"
+ * flag denoting if operation was successful and an optional
+ * error message payload field. */
+message InterNodeAck {
+    optional bool ok = 1;
+    optional string err = 2;
+    optional RemoveNodeResult remove_result = 3;
+    optional AddNodeResult add_result = 4;
 }
 
 // ======================================================

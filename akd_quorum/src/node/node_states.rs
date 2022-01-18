@@ -36,7 +36,7 @@ where
     ProcessingAddition(
         tokio::time::Instant,
         AddNodeInit,
-        HashMap<NodeId, Option<AddNodeTestResult>>,
+        HashMap<NodeId, AddNodeTestResult>,
     ), // NEXT = AddingMember
 
     /// New encrypted shards to be transmitted to the edges. Args: (start_time, request, new_crypto_shards)
@@ -53,7 +53,7 @@ where
     ProcessingRemoval(
         tokio::time::Instant,
         RemoveNodeInit,
-        HashMap<NodeId, Option<RemoveNodeTestResult>>,
+        HashMap<NodeId, RemoveNodeTestResult>,
     ), // NEXT = RemovingMember
 
     /// Removing a member from the quorum, transmitting the new shards to the edge. Args: (start_time, node_to_remove, new_crypto_shards)

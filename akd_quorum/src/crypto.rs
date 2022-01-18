@@ -378,7 +378,7 @@ mod crypto_tests {
     #[test]
     fn test_shard_generation_and_reconstruction() {
         let data: [u8; QUORUM_KEY_SIZE] = [42; QUORUM_KEY_SIZE];
-        let shards = TestCryptographer::generate_shards(data.clone(), 2).unwrap();
+        let shards = TestCryptographer::generate_shards(data, 2).unwrap();
         assert_eq!(7, shards.len());
 
         // all shards should be fine

@@ -31,9 +31,9 @@ pub(crate) type Nonce = u128;
 #[derive(Clone, PartialEq)]
 pub struct ContactInformation {
     /// Node ip address
-    pub(crate) ip_address: String,
+    pub ip_address: String,
     /// Node port
-    pub(crate) port: u16,
+    pub port: u16,
 }
 
 impl Display for ContactInformation {
@@ -97,18 +97,18 @@ pub struct MessageResult {
 // Trait definitions
 // =====================================================
 
-/// Represents a quorum member inter-node communication channel
+/// Represents a quorum member _reliable_ inter-node communication channel. It is
+/// critical that these calls only fail in the face of _real_ failure, meaning that
+/// they implement retries with exponential backoff internally when attempting inter-node
+/// communications.
 #[async_trait::async_trait]
 pub trait QuorumCommunication<H>: Send + Sync + Clone
 where
     H: winter_crypto::Hasher,
 {
-    // /// Send a message to another node (routing information is contained in the message)
-    // /// [fire and forget]
-    // async fn send_message(&self, message: EncryptedMessage) -> Result<(), CommunicationError>;
-
-    /// A remote-procedure-call to another node in the raft. I.e. send & receive reply
-    async fn rpc(
+    /// A call to send a message to a quorum member node, with an optional reply
+    /// when on the same tcp channel.
+    async fn send_and_maybe_receive(
         &self,
         message: EncryptedMessage,
         timeout: Option<tokio::time::Duration>,

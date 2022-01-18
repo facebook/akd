@@ -280,13 +280,49 @@ pub(crate) mod inter_node {
     // Inter node acknowledgement
     // ****************************************
 
+    /// Represents a message which can be ack'd via
+    /// an inter-node ack message (below)
+    #[derive(Clone)]
+    pub(crate) enum AckableMessage {
+        AddNodeResult(AddNodeResult),
+        RemoveNodeResult(RemoveNodeResult),
+    }
+
     /// A basic request acknowledgement with no
     /// specific information. Helpful for replies
     /// that just require "was ok or not". Optional
     /// error message can be supplied
+    #[derive(Clone)]
     pub(crate) struct InterNodeAck {
         pub(crate) ok: bool,
         pub(crate) err: Option<String>,
+        pub(crate) ackd_msg: AckableMessage,
+    }
+
+    impl InterNodeAck {
+        pub(crate) fn fake_ack(ok: bool, add: bool) -> Self {
+            Self {
+                ok,
+                err: None,
+                ackd_msg: match add {
+                    true => AckableMessage::AddNodeResult(AddNodeResult {
+                        encrypted_quorum_key_shard: None,
+                        new_member: crate::storage::MemberInformation {
+                            node_id: 0,
+                            public_key: vec![],
+                            contact_information: crate::comms::ContactInformation {
+                                ip_address: "1.1.1.1".to_string(),
+                                port: 80,
+                            },
+                        },
+                    }),
+                    false => AckableMessage::RemoveNodeResult(RemoveNodeResult {
+                        encrypted_quorum_key_shard: None,
+                        offending_member: 0,
+                    }),
+                },
+            }
+        }
     }
 
     // ****************************************

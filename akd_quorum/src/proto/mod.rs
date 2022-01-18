@@ -61,6 +61,14 @@ impl TryFrom<crate::node::messages::inter_node::InterNodeAck> for inter_node::In
         if let Some(err_msg) = input.err {
             result.set_err(err_msg);
         }
+        match input.ackd_msg {
+            crate::node::messages::inter_node::AckableMessage::AddNodeResult(add) => {
+                result.set_add_result(add.try_into()?);
+            }
+            crate::node::messages::inter_node::AckableMessage::RemoveNodeResult(remove) => {
+                result.set_remove_result(remove.try_into()?);
+            }
+        }
         Ok(result)
     }
 }
@@ -74,9 +82,26 @@ impl TryFrom<&inter_node::InterNodeAck> for crate::node::messages::inter_node::I
             true => Some(input.get_err().to_string()),
             false => None,
         };
+        let ackable = match (input.has_add_result(), input.has_remove_result()) {
+            (true, _) => Ok(
+                crate::node::messages::inter_node::AckableMessage::AddNodeResult(
+                    input.get_add_result().try_into()?,
+                ),
+            ),
+            (_, true) => Ok(
+                crate::node::messages::inter_node::AckableMessage::RemoveNodeResult(
+                    input.get_remove_result().try_into()?,
+                ),
+            ),
+            _ => Err(Self::Error::Serialization(
+                "A inter-node ack requires the ack'd message as an argument to be populated"
+                    .to_string(),
+            )),
+        }?;
         Ok(crate::node::messages::inter_node::InterNodeAck {
             ok: input.get_ok(),
             err,
+            ackd_msg: ackable,
         })
     }
 }
@@ -252,16 +277,12 @@ where
         input: crate::node::messages::inter_node::VerifyResponse<H>,
     ) -> Result<Self, Self::Error> {
         let mut result = Self::new();
-        match (input.encrypted_quorum_key_shard, input.verified_hash) {
-            (Some(shard), hash) => {
-                result.set_verified_hash(hash_to_bytes!(hash));
-                result.set_encrypted_quorum_key_shard(shard);
-            }
-            _ => {
-                // >= 1 of the components is missing, this is assumed a "validation failure" scenario
-                // i.e. the proof failed to verify
-            }
+        if let (Some(shard), hash) = (input.encrypted_quorum_key_shard, input.verified_hash) {
+            result.set_verified_hash(hash_to_bytes!(hash));
+            result.set_encrypted_quorum_key_shard(shard);
         }
+        // Else: >= 1 of the components is missing, this is assumed a "validation failure" scenario
+        // i.e. the proof failed to verify
         Ok(result)
     }
 }

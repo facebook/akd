@@ -24,10 +24,14 @@ pub struct QuorumCommitment<H>
 where
     H: winter_crypto::Hasher,
 {
-    pub(crate) current_epoch: u64,
-    pub(crate) previous_hash: H::Digest,
-    pub(crate) current_hash: H::Digest,
-    pub(crate) signature: Vec<u8>,
+    /// The epoch of this commitment
+    pub current_epoch: u64,
+    /// The hash from the previous commitment
+    pub previous_hash: H::Digest,
+    /// The hash of the current directory structure at epoch ```current_epoch```
+    pub current_hash: H::Digest,
+    /// The signature on the hash
+    pub signature: Vec<u8>,
 }
 
 /// Represents the information about a member
@@ -37,11 +41,11 @@ where
 #[derive(Clone)]
 pub struct MemberInformation {
     /// The public key of the member node
-    pub(crate) public_key: Vec<u8>,
+    pub public_key: Vec<u8>,
     /// The id of the member node
     pub node_id: NodeId,
     /// Node contact information (ip/port/etc)
-    pub(crate) contact_information: crate::comms::ContactInformation,
+    pub contact_information: crate::comms::ContactInformation,
 }
 
 // =====================================================
