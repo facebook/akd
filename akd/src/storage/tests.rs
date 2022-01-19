@@ -134,11 +134,11 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === ValueState storage === //
     let key = ValueStateKey("test".to_string(), 1);
     let value = ValueState {
-        username: AkdKey("test".to_string()),
+        username: AkdLabel("test".to_string()),
         epoch: 1,
         label: NodeLabel::new(1, 1),
         version: 1,
-        plaintext_val: Values("abc123".to_string()),
+        plaintext_val: AkdValue("abc123".to_string()),
     };
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -173,14 +173,14 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     for value in rand_users.iter() {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
-                plaintext_val: Values(value.clone()),
+                plaintext_val: AkdValue(value.clone()),
                 version: epoch,
                 label: NodeLabel {
                     val: 1u64,
                     len: 1u32,
                 },
                 epoch,
-                username: AkdKey(user.clone()),
+                username: AkdLabel(user.clone()),
             }));
         }
         epoch += 1;
@@ -233,7 +233,10 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
         }
     }
 
-    let user_keys: Vec<_> = rand_users.iter().map(|user| AkdKey(user.clone())).collect();
+    let user_keys: Vec<_> = rand_users
+        .iter()
+        .map(|user| AkdLabel(user.clone()))
+        .collect();
     let got_all_min_states = storage
         .get_user_state_versions(&user_keys, ValueStateRetrievalFlag::MinEpoch)
         .await;
@@ -334,14 +337,14 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
     for value in rand_users.iter() {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
-                plaintext_val: Values(value.clone()),
+                plaintext_val: AkdValue(value.clone()),
                 version: 1u64,
                 label: NodeLabel {
                     val: 1u64,
                     len: 1u32,
                 },
                 epoch,
-                username: AkdKey(user.clone()),
+                username: AkdLabel(user.clone()),
             }));
         }
         epoch += 1;
@@ -399,17 +402,17 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         .map(char::from)
         .collect();
     let mut sample_state = ValueState {
-        plaintext_val: Values(rand_value.clone()),
+        plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
             val: 1u64,
             len: 1u32,
         },
         epoch: 1u64,
-        username: AkdKey(rand_user),
+        username: AkdLabel(rand_user),
     };
     let mut sample_state_2 = sample_state.clone();
-    sample_state_2.username = AkdKey("test_user".to_string());
+    sample_state_2.username = AkdLabel("test_user".to_string());
 
     let result = storage
         .set(DbRecord::ValueState(sample_state.clone()))
@@ -478,7 +481,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             epoch: 123,
             version: 2,
             label: NodeLabel::new(1, 1),
-            plaintext_val: Values(rand_value.clone()),
+            plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -493,7 +496,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
                 epoch: 123,
                 version: 2,
                 label: NodeLabel::new(1, 1),
-                plaintext_val: Values(rand_value.clone()),
+                plaintext_val: AkdValue(rand_value.clone()),
                 username: sample_state.username.clone(),
             },
             state
@@ -524,7 +527,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             epoch: 123,
             version: 2,
             label: NodeLabel::new(1, 1),
-            plaintext_val: Values(rand_value.clone()),
+            plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -538,7 +541,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             epoch: 1,
             version: 1,
             label: NodeLabel::new(1, 1),
-            plaintext_val: Values(rand_value.clone()),
+            plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -552,7 +555,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             epoch: 456,
             version: 3,
             label: NodeLabel::new(1, 1),
-            plaintext_val: Values(rand_value.clone()),
+            plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result

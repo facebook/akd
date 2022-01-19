@@ -10,7 +10,7 @@
 
 use winter_crypto::Hasher;
 
-use crate::{node_state::Node, node_state::NodeLabel, storage::types::Values, Direction, ARITY};
+use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, Direction, ARITY};
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
@@ -67,7 +67,7 @@ pub struct LookupProof<H: Hasher> {
     /// The epoch of this record
     pub epoch: u64,
     /// The plaintext value in question
-    pub plaintext_value: Values,
+    pub plaintext_value: AkdValue,
     /// The version of the record
     pub version: u64,
     /// Record existence proof
@@ -90,7 +90,7 @@ pub struct UpdateProof<H: Hasher> {
     /// Epoch of this update
     pub epoch: u64,
     /// Value at this update
-    pub plaintext_value: Values,
+    pub plaintext_value: AkdValue,
     /// Version at this update
     pub version: u64,
     /// Membership proof to show that the key was included in this epoch
