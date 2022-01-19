@@ -54,6 +54,7 @@ pub(crate) mod inter_node {
     }
 
     /// Represents the messages which could be transmitted between nodes
+    #[derive(Clone)]
     pub(crate) enum InterNodeMessage<H>
     where
         H: winter_crypto::Hasher + Clone,
@@ -389,6 +390,7 @@ pub(crate) mod inter_node {
     /// material. Every node has logic to handle this, however it is only
     /// required for new node testing and won't be called once the node is
     /// enrolled in a quorum membership
+    #[derive(Clone)]
     pub(crate) struct NewNodeTest<H>
     where
         H: winter_crypto::Hasher,
@@ -402,6 +404,7 @@ pub(crate) mod inter_node {
     }
 
     /// Result from the new potential node, which is being tested
+    #[derive(Clone)]
     pub(crate) struct NewNodeTestResult {
         pub(crate) test_pass: bool,
     }
@@ -444,6 +447,7 @@ pub(crate) mod inter_node {
 
 /// Verify the changes from epoch - 1 => epoch with the following properties.
 /// If verification is successful, we can proceed with generating & saving a commitment
+#[derive(Clone)]
 pub struct VerifyChangesRequest<H: winter_crypto::Hasher> {
     /// The proof generated from the AKD publish operation
     pub append_only_proof: akd::proof_structs::AppendOnlyProof<H>,
@@ -458,6 +462,7 @@ pub struct VerifyChangesRequest<H: winter_crypto::Hasher> {
 
 /// Enroll a new member to the quorum. The potential member will be independently
 /// verified by each of the nodes in the quorum
+#[derive(Clone)]
 pub struct EnrollMemberRequest {
     /// The new potential node's public key
     pub public_key: Vec<u8>,
@@ -469,6 +474,7 @@ pub struct EnrollMemberRequest {
 /// which agree that the member in question should be removed (is unreachable or is
 /// computing invalid proofs) then the leader can reconstruct the quorum key and regenerate
 /// shards for the remaining nodes.
+#[derive(Clone)]
 pub struct RemoveMemberRequest {
     /// The id of the node to attempt to remove
     pub node_id: crate::comms::NodeId,
@@ -479,6 +485,7 @@ pub struct RemoveMemberRequest {
 // ===========================================================
 
 /// Public node messages which are received externally to the quorum
+#[derive(Clone)]
 pub enum PublicNodeMessage<H>
 where
     H: winter_crypto::Hasher,
@@ -491,10 +498,12 @@ where
     Remove(RemoveMemberRequest),
 }
 
+#[derive(Clone)]
 pub(crate) enum NodeMessage<H>
 where
     H: winter_crypto::Hasher + Clone,
 {
     Public(PublicNodeMessage<H>),
     Internal(NodeId, inter_node::InterNodeMessage<H>),
+    TestNode,
 }

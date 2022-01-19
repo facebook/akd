@@ -84,6 +84,10 @@ where
 
     /// Waiting on the removal result from the leader. Args: (start_time, request)
     WaitingOnMemberRemoveResult(tokio::time::Instant, RemoveNodeInit), // NEXT = N/A
+
+    /// Testing another node, not for addition or removal, but in the regular process
+    /// (start_time, node_under_test, should_test_pass)
+    TestingNode(tokio::time::Instant, NodeId, bool),
 }
 
 /// The status of a node

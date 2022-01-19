@@ -8,14 +8,16 @@
 //! This module handles the node's primary message handling logic and
 //! the state of the node
 
-// TODO:
+// Tasks to solve
 // 1. DONE Handle message processing failure state transition. Do we just revert to "Ready"?
 //    We probably need some kind of graceful failure transitions in the event we can't go from a -> b
-// 2. Generation of AKD test's
+// 2. ** Generation of AKD test's
 // 3. DONE Mutation of the quorum via setting new shards & modifying the current config
-// 4. We likely need more message drops if we're in the "ready" state and receive partial-working messages as it's unlikely we'll
+// 4. DONE We likely need more message drops if we're in the "ready" state and receive partial-working messages as it's unlikely we'll
 //    ever get to a working state (i.e. we can't "remove" a node if we haven't tested the node, and if a removal msg came in, we should
 //    clearly not handle it)
+// 5. DONE Handling of the message queue backlog that may build up
+// 6. DONE Periodic testing of nodes randomly
 
 use crate::comms::{EncryptedMessage, MessageProcessingResult, NodeId, Nonce};
 use crate::QuorumOperationError;
@@ -23,6 +25,8 @@ use crate::QuorumOperationError;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use once_cell::sync::OnceCell;
+use rand::distributions::{Distribution, Uniform};
+use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -46,7 +50,6 @@ const NODE_MESSAGE_RECEPTION_TIMEOUT_MS: u64 = 1000;
 static THIS_NODE_MESSAGE_RECEPTION_TIMEOUT_MS: OnceCell<u64> = OnceCell::new();
 fn get_this_reception_timeout_ms() -> u64 {
     *THIS_NODE_MESSAGE_RECEPTION_TIMEOUT_MS.get_or_init(|| {
-        use rand::Rng;
         let mut rng = rand::thread_rng();
         // something uniform in 1s -> 1.2s
         NODE_MESSAGE_RECEPTION_TIMEOUT_MS + rng.gen_range(0..200)
@@ -54,6 +57,9 @@ fn get_this_reception_timeout_ms() -> u64 {
 }
 
 const DISTRIBUTED_PROCESSING_TIMEOUT_SEC: u64 = 60 * 10;
+
+// Nodes are "tested" by other members every 1..10 minutes
+const INTER_NODE_TEST_TIMEOUT_SEC: (u64, u64) = (60 * 5, 60 * 10);
 
 // =====================================================
 // Structs w/implementations
@@ -189,15 +195,27 @@ where
         let (sender, mut receiver) = tokio::sync::mpsc::channel(25);
 
         let self_1 = self.clone();
-        let public_future = tokio::task::spawn(async move {
-            let self_1_1 = self_1;
-            self_1_1.public_message_handler(sender).await
-        });
+        let public_future =
+            tokio::task::spawn(async move { self_1.public_message_handler(sender).await });
 
         let self_2 = self.clone();
-        let inter_node_future = tokio::task::spawn(async move {
-            let self_2_1 = self_2;
-            self_2_1.inter_node_message_handler(&mut receiver).await
+        let inter_node_future =
+            tokio::task::spawn(
+                async move { self_2.inter_node_message_handler(&mut receiver).await },
+            );
+
+        let self_3 = self.clone();
+        let test_tick = tokio::task::spawn(async move {
+            // ThreadRng
+            let mut rng = rand::rngs::StdRng::from_entropy();
+            let die = Uniform::from(INTER_NODE_TEST_TIMEOUT_SEC.0..INTER_NODE_TEST_TIMEOUT_SEC.1);
+            loop {
+                // sleep for a random amount of time
+                let sleep_time = die.sample(&mut rng);
+                tokio::time::sleep(tokio::time::Duration::from_secs(sleep_time)).await;
+                // issue a "test" to another member node
+                let _ = self_3.handle_message(NodeMessage::TestNode).await?;
+            }
         });
 
         // select the first task to exit of all the futures, which will fail the node & restart
@@ -218,6 +236,14 @@ where
                     error!("Public message handler exited with no code");
                 }
                 public_result?
+            }
+            test_tick_result = test_tick => {
+                if let Err(err) = &test_tick_result {
+                    error!("Node test timeout handler exited with error\n{}", err);
+                } else {
+                    error!("Node test timeout handler exited with no code");
+                }
+                test_tick_result?
             }
         }
     }
@@ -253,6 +279,60 @@ where
         }
     }
 
+    async fn flush_message_queue(&self) {
+        let mut m_queue = {
+            let mut queue_guard = self.state.message_queue.write().await;
+            let out = queue_guard.clone();
+            *queue_guard = vec![];
+            out
+            // drop the lock
+        };
+        // turn it into a queue
+        m_queue.reverse();
+
+        while let Some(msg) = m_queue.pop() {
+            let o_target = match &msg {
+                NodeMessage::Internal(from, _) => Some(*from),
+                _ => None,
+            };
+
+            match (self.handle_message(msg).await, o_target) {
+                (Ok(Some(result)), Some(to)) => match result.serialize() {
+                    Ok(reply) => {
+                        let nonce = self.state.nonce_manager.get_next_outgoing_nonce(to).await;
+                        match self.encrypt_message(to, reply, nonce).await {
+                            Ok(message) => {
+                                if let Err(err) =
+                                    self.comms.send_and_maybe_receive(message, None).await
+                                {
+                                    error!(
+                                        "Failed to send reply for backlogged message\n{}",
+                                        QuorumOperationError::from(err)
+                                    );
+                                }
+                            }
+                            Err(err) => {
+                                error!("Failed to encrypt reply for backlogged message\n{}", err);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        error!(
+                            "Failed to serialize reply for backlogged message\n{}",
+                            QuorumOperationError::from(err)
+                        );
+                    }
+                },
+                (Ok(_), _) => {
+                    // no-op, message handled with no reply
+                }
+                (Err(err), _) => {
+                    error!("Error handling backlogged message: {}", err);
+                }
+            }
+        }
+    }
+
     async fn inter_node_message_handler(
         &self,
         receiver: &mut tokio::sync::mpsc::Receiver<PublicNodeMessage<H>>,
@@ -275,7 +355,7 @@ where
                                     // move clone of state & self, + received into the async context & spawn onto green thread
                                     // to free up message reception
                                     let self_clone = self.clone();
-                                    tokio::spawn(async move {
+                                    let _ = tokio::spawn(async move {
                                         if let Err(err) = self_clone
                                         .handle_inter_node_message_helper(
                                             message,
@@ -310,7 +390,7 @@ where
     async fn handle_reception_timeout(&self) -> Result<(), QuorumOperationError> {
         // Message reception timeout
 
-        // Perform a "timer tick"
+        // Perform a "state handler timer tick"
         let node_id = self.state.config.read().await.node_id;
         let _ = self
             .handle_message(NodeMessage::Internal(
@@ -335,6 +415,9 @@ where
         let result = self
             .handle_message(NodeMessage::<H>::Internal(message.from, deserialized))
             .await?;
+
+        // flush the message queue that may have accumulated
+        self.flush_message_queue().await;
 
         if let Some(response_message) = result {
             let reply = response_message.serialize()?;
@@ -539,6 +622,9 @@ where
                     // just an empty message to try the timer tick op
                 }
             },
+            NodeMessage::TestNode => {
+                self.test_random_node().await?;
+            }
         }
         // default reply is... no reply :)
         Ok(None)
@@ -1108,6 +1194,124 @@ where
         Ok(NewNodeTestResult { test_pass: false })
     }
 
+    async fn get_random_id(&self) -> Option<(NodeId, NodeId)> {
+        // NOTE: We cannot use thread_rng() here due to this being executed
+        // on green threads. ThreadRng is not "Send"
+        let mut rng = rand::rngs::StdRng::from_entropy();
+        let config_guard = self.state.config.read().await;
+        let node_id = config_guard.node_id;
+        let group_size = config_guard.group_size;
+
+        if group_size <= 1 {
+            return None;
+        }
+
+        let die = Uniform::from(0..group_size as NodeId);
+        // take the first sample
+        let mut target_node = die.sample(&mut rng);
+        while target_node == node_id {
+            // keep sampling until we find an id that's not our own
+            target_node = die.sample(&mut rng);
+        }
+        Some((target_node, node_id))
+    }
+
+    async fn test_random_node(&self) -> Result<(), QuorumOperationError> {
+        if let Some((target_node, node_id)) = self.get_random_id().await {
+            if let NodeStatus::Ready = self.get_state().await {
+                let (should_pass, test) = self.generate_test().await?;
+                self.mutate_state(NodeStatus::Following(WorkerState::TestingNode(
+                    tokio::time::Instant::now(),
+                    target_node,
+                    should_pass,
+                )))
+                .await;
+
+                debug!("Node {} is testing member node: {}", node_id, target_node);
+
+                // TODO: randomize the epoch?
+                let verify_request = VerifyRequest::<H> {
+                    append_only_proof: test.test_proof,
+                    epoch: 34,
+                    new_hash: test.new_hash,
+                    previous_hash: test.previous_hash,
+                };
+
+                // generate the plaintext msg
+                let msg = InterNodeMessage::VerifyRequest::<H>(verify_request).serialize()?;
+                let nonce = self
+                    .state
+                    .nonce_manager
+                    .get_next_outgoing_nonce(target_node)
+                    .await;
+                let e_msg = self.encrypt_message(target_node, msg, nonce).await?;
+
+                // send & wait for the reply. 30s timeout as the test should be small and practical
+                match self
+                    .comms
+                    .send_and_maybe_receive(
+                        e_msg,
+                        Some(tokio::time::Duration::from_millis(30u64 * 1000u64)),
+                    )
+                    .await
+                {
+                    Err(comms_err) => {
+                        warn!(
+                            "Communication error to node {}. Requesting member's removal\n{}",
+                            target_node,
+                            QuorumOperationError::from(comms_err)
+                        );
+
+                        // revert the state to normal & input a "remove member" request
+                        self.state
+                            .message_queue
+                            .write()
+                            .await
+                            .push(NodeMessage::Public(PublicNodeMessage::Remove(
+                                RemoveMemberRequest {
+                                    node_id: target_node,
+                                },
+                            )));
+                        self.mutate_state(NodeStatus::Ready).await;
+                    }
+                    Ok(Some(result)) => {
+                        let msg = self.decrypt_message(result).await?;
+                        let deserialized =
+                            InterNodeMessage::<H>::try_deserialize(msg.serialized_message)?;
+                        if let InterNodeMessage::VerifyResponse(test_result) = deserialized {
+                            if test_result.encrypted_quorum_key_shard.is_some() != should_pass {
+                                info!(
+                                    "Node {} failed it's proof test. Requesting member's removal",
+                                    target_node
+                                );
+                                // push a message to do a node removal
+                                self.state
+                                    .message_queue
+                                    .write()
+                                    .await
+                                    .push(NodeMessage::Public(PublicNodeMessage::Remove(
+                                        RemoveMemberRequest {
+                                            node_id: target_node,
+                                        },
+                                    )));
+                            } // else correctly verified the proof, revert to Ready state and everything is good
+
+                            // revert to ready state
+                            self.mutate_state(NodeStatus::Ready).await;
+                        }
+                    }
+                    Ok(None) => {
+                        // it's in an async reply channel, we'll have to wait in the state handling state until the response comes in
+                        // and add the logic to verify_request_impl
+                    }
+                }
+            }
+        }
+        // else skip this testing cycle and wait until the next timer tick
+
+        Ok(())
+    }
+
     async fn remove_node_init_impl(
         &self,
         from: NodeId,
@@ -1126,6 +1330,8 @@ where
                     from, remove_node_init.node_id
                 );
                 let (should_pass, test) = self.generate_test().await?;
+
+                // TODO: randomize the epoch?
                 let verify_request = VerifyRequest::<H> {
                     append_only_proof: test.test_proof,
                     epoch: 34,
@@ -1143,12 +1349,6 @@ where
                     .await;
                 }
 
-                let node_public_key = self
-                    .storage
-                    .retrieve_quorum_member(remove_node_init.node_id)
-                    .await?
-                    .public_key;
-
                 // generate the plaintext msg
                 let msg = InterNodeMessage::VerifyRequest::<H>(verify_request).serialize()?;
                 let nonce = self
@@ -1156,17 +1356,10 @@ where
                     .nonce_manager
                     .get_next_outgoing_nonce(remove_node_init.node_id)
                     .await;
-                // encrypt the msg, nonce is going to be 0
                 let e_msg = self
-                    .crypto
-                    .encrypt_message(node_public_key, msg, nonce)
+                    .encrypt_message(remove_node_init.node_id, msg, nonce)
                     .await?;
-                // formulate record
-                let e_msg = EncryptedMessage {
-                    to: remove_node_init.node_id,
-                    from: node_id,
-                    encrypted_message_with_nonce: e_msg,
-                };
+
                 // send & wait for the reply. 30s timeout as the test should be small and practical
                 let o_result = self
                     .comms
@@ -1591,6 +1784,20 @@ where
                     let _ = self.comms.send_and_maybe_receive(e_msg, None).await?;
                 } // else node passed the test, it should stay in the quorum
             }
+            NodeStatus::Following(WorkerState::TestingNode(_, node, should_pass)) => {
+                if verify_response.encrypted_quorum_key_shard.is_some() != should_pass {
+                    // we should trigger a node removal
+                    self.state
+                        .message_queue
+                        .write()
+                        .await
+                        .push(NodeMessage::Public(PublicNodeMessage::Remove(
+                            RemoveMemberRequest { node_id: node },
+                        )));
+                }
+                // bring state back to nominal
+                self.mutate_state(NodeStatus::Ready).await;
+            }
             _ => {
                 warn!("We received a node's verification result from node {}, but we aren't waiting on verification results", from);
             }
@@ -1892,14 +2099,35 @@ where
             },
             NodeStatus::Following(w_state) => {
                 match w_state {
-                    WorkerState::TestingAddMember(start_time, _, _, _) => {
+                    WorkerState::TestingAddMember(start_time, leader, args, _) => {
                         if tokio::time::Instant::now() - start_time
                             >= tokio::time::Duration::from_secs(DISTRIBUTED_PROCESSING_TIMEOUT_SEC)
                         {
                             info!(
-                                "Timeout testing a potential new member, reverting to base state"
+                                "Timeout testing a potential new member, returning \"Fail\" result to leader"
                             );
-                            self.mutate_state(NodeStatus::Ready).await;
+                            // Disapprove the node's addition since we couldn't contact it
+                            let reply =
+                                InterNodeMessage::<H>::AddNodeTestResult(AddNodeTestResult {
+                                    contact_info: args.contact_info.clone(),
+                                    encrypted_quorum_key_shard: None,
+                                });
+                            let s_reply = reply.serialize()?;
+                            let nonce = self
+                                .state
+                                .nonce_manager
+                                .get_next_outgoing_nonce(leader)
+                                .await;
+                            let e_msg = self.encrypt_message(leader, s_reply, nonce).await?;
+                            // for this case, a "reply" will be async received
+                            let _ = self.comms.send_and_maybe_receive(e_msg, None).await?;
+                            self.mutate_state(NodeStatus::Following(
+                                WorkerState::WaitingOnMemberAddResult(
+                                    tokio::time::Instant::now(),
+                                    args,
+                                ),
+                            ))
+                            .await;
                         }
                     }
                     WorkerState::WaitingOnMemberAddResult(start_time, _) => {
@@ -1910,13 +2138,35 @@ where
                             self.mutate_state(NodeStatus::Ready).await;
                         }
                     }
-                    WorkerState::TestingRemoveMember(start_time, _leader, _args, _should_pass) => {
+                    WorkerState::TestingRemoveMember(start_time, leader, args, _) => {
                         if tokio::time::Instant::now() - start_time
                             >= tokio::time::Duration::from_secs(DISTRIBUTED_PROCESSING_TIMEOUT_SEC)
                         {
                             info!("Timeout trying to remove member from the quorum. Node assumed uncontactable");
-                            // TODO: approve the node removal, since iwe couldn't contact it
-                            self.mutate_state(NodeStatus::Ready).await;
+                            // approve the node removal, since we couldn't contact it
+                            let reply =
+                                InterNodeMessage::<H>::RemoveNodeTestResult(RemoveNodeTestResult {
+                                    offending_member: args.node_id,
+                                    encrypted_quorum_key_shard: Some(
+                                        self.crypto.retrieve_qk_shard(leader).await?.payload,
+                                    ),
+                                });
+                            let s_reply = reply.serialize()?;
+                            let nonce = self
+                                .state
+                                .nonce_manager
+                                .get_next_outgoing_nonce(leader)
+                                .await;
+                            let e_msg = self.encrypt_message(leader, s_reply, nonce).await?;
+                            // for this case, a "reply" will be async received
+                            let _ = self.comms.send_and_maybe_receive(e_msg, None).await?;
+                            self.mutate_state(NodeStatus::Following(
+                                WorkerState::WaitingOnMemberRemoveResult(
+                                    tokio::time::Instant::now(),
+                                    args,
+                                ),
+                            ))
+                            .await;
                         }
                     }
                     WorkerState::WaitingOnMemberRemoveResult(start_time, _) => {
@@ -1926,6 +2176,20 @@ where
                             info!("Timeout waiting on the leader to transmit shards back to the edges, reverting to base state");
                             // Fail member removal
                             self.mutate_state(NodeStatus::Ready).await;
+                        }
+                    }
+                    WorkerState::TestingNode(start_time, node_id, _) => {
+                        if tokio::time::Instant::now() - start_time
+                            >= tokio::time::Duration::from_secs(DISTRIBUTED_PROCESSING_TIMEOUT_SEC)
+                        {
+                            info!("Timeout waiting on the node under test to reply. Triggering node removal request");
+                            self.mutate_state(NodeStatus::Ready).await;
+
+                            // Push a request to try and remove the node in the future
+                            let mut m_queue = self.state.message_queue.write().await;
+                            m_queue.push(NodeMessage::Public(PublicNodeMessage::Remove(
+                                RemoveMemberRequest { node_id },
+                            )));
                         }
                     }
                     _ => {
