@@ -34,3 +34,9 @@ jobs:
       run: cargo publish --manifest-path Cargo.toml -p akd_mysql
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
+    - name: Dry run publish AKD_QUORUM
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_quorum
+    - name: publish crate akd_quorum
+      run: cargo publish --manifest-path Cargo.toml -p akd_quorum
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
