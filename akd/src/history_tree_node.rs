@@ -82,14 +82,9 @@ impl Storable for HistoryTreeNode {
 
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryTreeNode as u8];
-        let len_bytes = key.0.len.to_be_bytes();
-        for byte in &len_bytes {
-            result.push(*byte);
-        }
-        let parts = key.0.val.to_be_bytes();
-        for byte in &parts {
-            result.push(*byte);
-        }
+        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.val.to_be_bytes());
+
         result
     }
 

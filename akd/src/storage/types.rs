@@ -67,14 +67,8 @@ impl crate::storage::Storable for ValueState {
 
     fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::ValueState as u8];
-        let epoch_bytes = key.1.to_be_bytes();
-        for byte in &epoch_bytes {
-            result.push(*byte);
-        }
-        let uname_bytes = key.0.as_bytes();
-        for byte in uname_bytes {
-            result.push(*byte);
-        }
+        result.extend_from_slice(&key.1.to_be_bytes());
+        result.extend_from_slice(key.0.as_bytes());
 
         result
     }
