@@ -15,7 +15,6 @@ use akd::storage::types::{
 };
 use akd::storage::{Storable, Storage};
 use akd::ARITY;
-type LocalTransaction = akd::storage::transaction::Transaction;
 use async_trait::async_trait;
 use log::{debug, error, info, trace, warn};
 use mysql_async::prelude::*;
@@ -28,6 +27,7 @@ use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
 type MySqlError = mysql_async::Error;
+type LocalTransaction = akd::storage::transaction::Transaction;
 
 use akd::storage::timed_cache::*;
 
