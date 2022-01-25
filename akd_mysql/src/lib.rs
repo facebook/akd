@@ -21,5 +21,7 @@
 
 pub mod mysql;
 
+pub mod mysql_storables;
+
 #[cfg(test)]
 mod mysql_db_tests;
