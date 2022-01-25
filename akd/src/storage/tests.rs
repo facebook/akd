@@ -511,10 +511,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             ValueStateRetrievalFlag::SpecificVersion(100),
         )
         .await;
-    assert_eq!(
-        Err(StorageError::GetData(String::from("Not found"))),
-        missing_result
-    );
+    assert!(matches!(missing_result, Err(StorageError::GetData(_)),));
 
     let specific_result = storage
         .get_user_state(
