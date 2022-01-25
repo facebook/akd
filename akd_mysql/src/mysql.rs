@@ -1474,23 +1474,3 @@ impl Storage for AsyncMySqlDatabase {
         }
     }
 }
-
-trait StorageErrorWrappable {
-    fn as_get<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
-    fn as_set<T>(result: Result<T>) -> core::result::Result<T, StorageError>;
-}
-
-impl StorageErrorWrappable for StorageError {
-    fn as_get<T>(result: Result<T>) -> core::result::Result<T, Self> {
-        match result {
-            Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::GetData(err.to_string())),
-        }
-    }
-    fn as_set<T>(result: Result<T>) -> core::result::Result<T, Self> {
-        match result {
-            Ok(t) => Ok(t),
-            Err(err) => Err(StorageError::SetData(err.to_string())),
-        }
-    }
-}
