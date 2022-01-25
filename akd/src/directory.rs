@@ -502,8 +502,22 @@ mod tests {
     use winter_math::fields::f128::BaseElement;
     type Blake3 = Blake3_256<BaseElement>;
 
-    // FIXME: #[test]
-    #[allow(unused)]
+    #[tokio::test]
+    async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let akd = Directory::<_>::new::<Blake3>(&db).await?;
+
+        let current_azks = akd.retrieve_current_azks().await?;
+        let hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+        // Ensuring that the root hash of an empty tree is equal to the following constant
+        assert_eq!(
+            "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213",
+            hex::encode(hash.as_bytes())
+        );
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
