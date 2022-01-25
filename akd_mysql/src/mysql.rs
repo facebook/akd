@@ -1892,7 +1892,7 @@ impl MySqlStorable for DbRecord {
             StorageType::Azks => {
                 // epoch, num_nodes
                 if let (Some(Ok(epoch)), Some(Ok(num_nodes))) = (row.take_opt(0), row.take_opt(1)) {
-                    let azks = AsyncMySqlDatabase::build_azks(epoch, num_nodes);
+                    let azks = DbRecord::build_azks(epoch, num_nodes);
                     return Ok(DbRecord::Azks(azks));
                 }
             }
@@ -1914,7 +1914,7 @@ impl MySqlStorable for DbRecord {
                     let child_states_bin_vec: Vec<u8> = child_states;
                     let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
                         bincode::deserialize(&child_states_bin_vec).unwrap();
-                    let node_state = AsyncMySqlDatabase::build_history_node_state(
+                    let node_state = DbRecord::build_history_node_state(
                         value,
                         child_states_decoded,
                         label_len,
@@ -1943,7 +1943,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(5),
                     row.take_opt(6),
                 ) {
-                    let node = AsyncMySqlDatabase::build_history_tree_node(
+                    let node = DbRecord::build_history_tree_node(
                         label_val,
                         label_len,
                         birth_epoch,
@@ -1972,7 +1972,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                 ) {
-                    let state = AsyncMySqlDatabase::build_user_state(
+                    let state = DbRecord::build_user_state(
                         username,
                         data,
                         version,
