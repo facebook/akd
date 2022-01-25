@@ -212,6 +212,20 @@ impl DbRecord {
         }
     }
 
+    /// Build a history child state from the properties
+    pub fn build_history_child_state(
+        label_len: u32,
+        label_val: u64,
+        hash_val: Vec<u8>,
+        epoch_version: u64,
+    ) -> HistoryChildState {
+        HistoryChildState {
+            label: NodeLabel::new(label_val, label_len),
+            hash_val,
+            epoch_version,
+        }
+    }
+
     /// Build a user state from the properties
     pub fn build_user_state(
         username: String,
