@@ -50,7 +50,7 @@ mod tests {
     struct Wrapper<H: Hasher> {
         #[serde(serialize_with = "digest_serialize")]
         #[serde(deserialize_with = "digest_deserialize")]
-        digest: H::Digest
+        digest: H::Digest,
     }
 
     #[test]
@@ -62,7 +62,7 @@ mod tests {
         type Blake3 = Blake3_256<BaseElement>;
 
         let digest = Blake3::hash(b"hello, world!");
-        let wrapper = Wrapper::<Blake3> {digest};
+        let wrapper = Wrapper::<Blake3> { digest };
         let serialized = bincode::serialize(&wrapper).unwrap();
         let deserialized: Wrapper<Blake3> = bincode::deserialize(&serialized).unwrap();
         assert_eq!(wrapper.digest, deserialized.digest);
