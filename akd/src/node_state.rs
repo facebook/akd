@@ -20,7 +20,7 @@ use std::{
 use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
