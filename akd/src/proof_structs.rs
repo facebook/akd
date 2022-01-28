@@ -15,7 +15,8 @@ use winter_crypto::Hasher;
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct MembershipProof<H: Hasher> {
     /// The node label
     pub label: NodeLabel,
@@ -34,7 +35,8 @@ pub struct MembershipProof<H: Hasher> {
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct NonMembershipProof<H: Hasher> {
     /// The label in question
     pub label: NodeLabel,
@@ -51,7 +53,8 @@ pub struct NonMembershipProof<H: Hasher> {
 /// and the vec of inserted is the set of leaves inserted between these epochs.
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
 /// as the leaves, it should result in the final root hash.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct AppendOnlyProof<H: Hasher> {
     /// The inserted nodes & digests
     pub inserted: Vec<Node<H>>,
@@ -65,7 +68,8 @@ pub struct AppendOnlyProof<H: Hasher> {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct LookupProof<H: Hasher> {
     /// The epoch of this record
     pub epoch: u64,
@@ -88,7 +92,8 @@ pub struct LookupProof<H: Hasher> {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct UpdateProof<H: Hasher> {
     /// Epoch of this update
     pub epoch: u64,
@@ -109,7 +114,8 @@ pub struct UpdateProof<H: Hasher> {
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
 pub struct HistoryProof<H: Hasher> {
     /// The update proofs in the key history
     pub proofs: Vec<UpdateProof<H>>,
