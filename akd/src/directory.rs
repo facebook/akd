@@ -14,15 +14,19 @@ use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
+
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Storage;
 
 use log::{debug, error, info};
 use rand::{CryptoRng, RngCore};
 
+// use core::slice::SlicePattern;
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
-use winter_crypto::Digest;
+use vrf::openssl::{CipherSuite, ECVRF};
+use vrf::VRF;
+
 use winter_crypto::Hasher;
 
 /// Root hash of the tree and its associated epoch
@@ -208,19 +212,22 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
                 let existent_label = Self::get_nodelabel::<H>(&uname, false, current_version);
-                let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version);
                 let marker_label = Self::get_nodelabel::<H>(&uname, false, marker_version);
+                let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version);
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
                     epoch: self.current_epoch,
                     plaintext_value: latest_st.plaintext_val,
                     version: current_version,
+                    exisitence_vrf_proof: self.get_label_proof::<H>(&uname, false, current_version),
                     existence_proof: current_azks
                         .get_membership_proof(&self.storage, existent_label, self.current_epoch)
                         .await?,
+                    marker_vrf_proof: self.get_label_proof::<H>(&uname, false, marker_version),
                     marker_proof: current_azks
                         .get_membership_proof(&self.storage, marker_label, self.current_epoch)
                         .await?,
+                    freshness_vrf_proof: self.get_label_proof::<H>(&uname, true, current_version),
                     freshness_proof: current_azks
                         .get_non_membership_proof(
                             &self.storage,
@@ -310,6 +317,14 @@ impl<S: Storage + Sync + Send> Directory<S> {
         version: u64,
     ) -> NodeLabel {
         // this function will need to read the VRF key using some function
+        // Initialization of VRF context by providing a curve
+        let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+        // Inputs: Secret Key, Public Key (derived) & Message
+        let secret_key =
+            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .unwrap();
+        // let public_key = vrf.derive_public_key(&secret_key).unwrap();
+
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
         if stale {
@@ -320,9 +335,57 @@ impl<S: Storage + Sync + Send> Directory<S> {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        let label_slice = hashed_label.as_bytes();
-        let hashed_label_bytes = convert_byte_slice_to_array(&label_slice);
-        NodeLabel::new(u64::from_ne_bytes(hashed_label_bytes), 64u32)
+        // let label_slice = hashed_label.as_bytes();
+        let message_vec = from_digest::<H>(hashed_label).unwrap();
+        let message: &[u8] = message_vec.as_slice();
+
+        // VRF proof and hash output
+        let pi = vrf.prove(&secret_key, message).unwrap();
+        let hash = vec_to_u8_arr(vrf.proof_to_hash(&pi).unwrap());
+
+        NodeLabel::new(hash, 256u32)
+    }
+
+    pub(crate) fn get_label_proof<H: Hasher>(
+        &self,
+        uname: &AkdKey,
+        stale: bool,
+        version: u64,
+    ) -> Vec<u8> {
+        let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+        // Inputs: Secret Key, Public Key (derived) & Message
+        let secret_key =
+            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .unwrap();
+        // let public_key = vrf.derive_public_key(&secret_key).unwrap();
+
+        let name_hash_bytes = H::hash(uname.0.as_bytes());
+        let mut stale_bytes = &[1u8];
+        if stale {
+            stale_bytes = &[0u8];
+        }
+
+        let hashed_label = H::merge(&[
+            name_hash_bytes,
+            H::merge_with_int(H::hash(stale_bytes), version),
+        ]);
+        // let label_slice = hashed_label.as_bytes();
+        let message_vec = from_digest::<H>(hashed_label).unwrap();
+        let message: &[u8] = message_vec.as_slice();
+
+        // VRF proof
+        vrf.prove(&secret_key, message).unwrap()
+    }
+
+    /// Use this function to retrieve the VRF public key for this AKD.
+    pub fn get_public_key(&self) -> Vec<u8> {
+        // Initialization of VRF context by providing a curve
+        let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+        // Inputs: Secret Key, Public Key (derived) & Message
+        let secret_key =
+            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .unwrap();
+        vrf.derive_public_key(&secret_key).unwrap()
     }
 
     // FIXME: Make a real commitment here, alongwith a blinding factor.
@@ -344,11 +407,12 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let label_at_ep = Self::get_nodelabel::<H>(uname, false, *version);
 
         let current_azks = self.retrieve_current_azks().await?;
-
+        let existence_vrf_proof = self.get_label_proof::<H>(uname, false, *version);
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
         let mut previous_val_stale_at_ep = Option::None;
+        let mut previous_val_vrf_proof = Option::None;
         if *version > 1 {
             let prev_label_at_ep = Self::get_nodelabel::<H>(uname, true, *version - 1);
             previous_val_stale_at_ep = Option::Some(
@@ -356,6 +420,8 @@ impl<S: Storage + Sync + Send> Directory<S> {
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
                     .await?,
             );
+            previous_val_vrf_proof =
+                Option::Some(self.get_label_proof::<H>(uname, true, *version - 1));
         }
         let mut non_existence_before_ep = Option::None;
         if epoch != 0 {
@@ -369,6 +435,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let next_marker = get_marker_version(*version) + 1;
         let final_marker = get_marker_version(epoch);
 
+        let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
         for ver in version + 1..(1 << next_marker) {
@@ -377,8 +444,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_next_few.push(non_existence_of_ver);
+            next_few_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver));
         }
 
+        let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
         let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
 
         for marker_power in next_marker..final_marker + 1 {
@@ -388,16 +457,21 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_future_markers.push(non_existence_of_ver);
+            future_marker_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver));
         }
 
         Ok(UpdateProof {
             epoch,
             plaintext_value: plaintext_value.clone(),
             version: *version,
+            existence_vrf_proof,
             existence_at_ep,
+            previous_val_vrf_proof,
             previous_val_stale_at_ep,
             non_existence_before_ep,
+            next_few_vrf_proofs,
             non_existence_of_next_few,
+            future_marker_vrf_proofs,
             non_existence_of_future_markers,
         })
     }
@@ -428,20 +502,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
 pub(crate) fn get_marker_version(version: u64) -> u64 {
     (64 - version.leading_zeros() - 1).into()
-}
-
-/// Converts a slice of u8 to an array of length 8. If the
-/// slice is not long enough, just pads with zeros.
-fn convert_byte_slice_to_array(slice: &[u8]) -> [u8; 8] {
-    let mut out_arr = [0u8; 8];
-    for (count, elt) in slice.iter().enumerate() {
-        if count < 8 {
-            out_arr[count] = *elt;
-        } else {
-            break;
-        }
-    }
-    out_arr
 }
 
 fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
@@ -488,6 +548,12 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher>(
     }
 
     Ok((root_hashes, previous_root_hashes))
+}
+
+fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
+    let mut out_arr = [0u8; 32];
+    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..]);
+    out_arr
 }
 
 #[cfg(test)]
@@ -551,7 +617,9 @@ mod tests {
         let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+        let vrf_pk = akd.get_public_key();
         lookup_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hash,
             AkdLabel("hello".to_string()),
             lookup_proof,
@@ -645,7 +713,9 @@ mod tests {
         let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
+        let vrf_pk = akd.get_public_key();
         key_history_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello".to_string()),
@@ -656,6 +726,7 @@ mod tests {
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello2".to_string()),
@@ -666,6 +737,7 @@ mod tests {
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello3".to_string()),
@@ -676,6 +748,7 @@ mod tests {
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello4".to_string()),

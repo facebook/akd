@@ -8,6 +8,8 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
+use vrf::openssl::Error;
+
 use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
@@ -67,7 +69,7 @@ pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
-    NoDirection(u64, Option<u64>),
+    NoDirection(NodeLabel, Option<NodeLabel>),
     /// The node didn't have a child in the given epoch
     NoChildAtEpoch(u64, usize),
     /// The next epoch of this node's parent was invalid
@@ -88,10 +90,10 @@ impl fmt::Display for HistoryTreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoDirection(node_label, child_label) => {
-                let mut to_print = format!("no direction provided for the node {}", node_label);
+                let mut to_print = format!("no direction provided for the node {:?}", node_label);
                 // Add child info if given.
                 if let Some(child_label) = child_label {
-                    let child_str = format!(" and child {}", child_label);
+                    let child_str = format!(" and child {:?}", child_label);
                     to_print.push_str(&child_str);
                 }
                 write!(f, "{}", to_print)
@@ -165,6 +167,16 @@ pub enum DirectoryError {
     VerifyKeyHistoryProof(String),
     /// Error propagation
     Storage(StorageError),
+    /// Error propagation for errors from the VRF crate
+    VRFErr(Error),
+    /// Error thrown when vrf and NodeLabel not found equal
+    VRFLabelErr(String),
+}
+
+impl From<Error> for DirectoryError {
+    fn from(error: Error) -> Self {
+        Self::VRFErr(error)
+    }
 }
 
 impl fmt::Display for DirectoryError {
@@ -184,6 +196,12 @@ impl fmt::Display for DirectoryError {
                 write!(f, "{}", err_string)
             }
             Self::VerifyLookupProof(err_string) => {
+                write!(f, "{}", err_string)
+            }
+            Self::VRFErr(err) => {
+                write!(f, "Encountered a VRF error: {:?}", err,)
+            }
+            Self::VRFLabelErr(err_string) => {
                 write!(f, "{}", err_string)
             }
         }

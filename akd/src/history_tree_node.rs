@@ -84,21 +84,19 @@ impl Storable for HistoryTreeNode {
         let mut result = vec![StorageType::HistoryTreeNode as u8];
         result.extend_from_slice(&key.0.len.to_be_bytes());
         result.extend_from_slice(&key.0.val.to_be_bytes());
-
         result
     }
 
     fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
-        if bin.len() < 13 {
+        if bin.len() < 37 {
             return Err("Not enough bytes to form a proper key".to_string());
         }
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
-        let val_bytes: [u8; 8] = bin[5..=12].try_into().expect("Slice with incorrect length");
+        let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
         let len = u32::from_be_bytes(len_bytes);
-        let val = u64::from_be_bytes(val_bytes);
 
-        Ok(NodeKey(NodeLabel::new(val, len)))
+        Ok(NodeKey(NodeLabel::new(val_bytes, len)))
     }
 }
 
@@ -476,8 +474,8 @@ impl HistoryTreeNode {
 
         let dir = direction.map_or(
             Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                Some(child_node.label.get_val()),
+                self.label,
+                Some(child_node.label),
             )),
             Ok,
         )?;
@@ -610,10 +608,7 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                None,
-            )),
+            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
             Direction::Some(dir) => {
                 if self.get_birth_epoch() > epoch {
                     Err(HistoryTreeNodeError::NoChildAtEpoch(epoch, dir))
@@ -655,10 +650,7 @@ impl HistoryTreeNode {
         direction: Direction,
     ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(
-                self.label.get_val(),
-                None,
-            )),
+            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
             Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
                 .await
                 .map(|curr| curr.get_child_state_in_dir(dir))?),
@@ -753,7 +745,11 @@ pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
 ) -> Vec<u8> {
     match input {
         Some(child_state) => child_state.hash_val.clone(),
-        None => from_digest::<H>(crate::utils::empty_node_hash::<H>()).unwrap(),
+        None => from_digest::<H>(H::merge(&[
+            crate::utils::empty_node_hash::<H>(),
+            hash_label::<H>(NodeLabel::root()),
+        ]))
+        .unwrap(),
     }
 }
 

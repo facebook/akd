@@ -117,7 +117,9 @@ where
                         let hash = get_root_hash::<_, H>(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
+                                let vrf_pk = directory.get_public_key();
                                 let verification = akd::client::lookup_verify(
+                                    &vrf_pk,
                                     root_hash,
                                     AkdLabel(a.clone()),
                                     proof,

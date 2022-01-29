@@ -226,7 +226,7 @@ async fn process_input(
                         value.clone(),
                         1u64,
                         1u32,
-                        1u64,
+                        [1u8; 32],
                         1u64,
                     );
                     data.push(akd::storage::types::DbRecord::ValueState(state));

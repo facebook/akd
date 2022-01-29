@@ -77,11 +77,17 @@ pub struct LookupProof<H: Hasher> {
     pub plaintext_value: AkdValue,
     /// The version of the record
     pub version: u64,
+    /// VRF proof for the label corresponding to this version
+    pub exisitence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof<H>,
+    /// VRF proof for the marker preceding (less than or equal to) this version
+    pub marker_vrf_proof: Vec<u8>,
     /// Existence at specific marker
     pub marker_proof: MembershipProof<H>,
-    /// Freshness proof (non member at previous epoch)
+    /// VRF proof for the label corresponding to this version being stale
+    pub freshness_vrf_proof: Vec<u8>,
+    /// Freshness proof (non membership of stale label)
     pub freshness_proof: NonMembershipProof<H>,
 }
 
@@ -101,14 +107,22 @@ pub struct UpdateProof<H: Hasher> {
     pub plaintext_value: AkdValue,
     /// Version at this update
     pub version: u64,
+    /// VRF proof for the label for the current version
+    pub existence_vrf_proof: Vec<u8>,
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof<H>,
+    /// VRF proof for the label for the previous version which became stale
+    pub previous_val_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
     pub previous_val_stale_at_ep: Option<MembershipProof<H>>,
     /// Proof that this value didn't exist prior to this ep
     pub non_existence_before_ep: Option<NonMembershipProof<H>>,
+    /// VRF Proofs for the labels of the next few values
+    pub next_few_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that the next few values did not exist at this time
     pub non_existence_of_next_few: Vec<NonMembershipProof<H>>,
+    /// VRF proofs for the labels of future marker entries
+    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
 }

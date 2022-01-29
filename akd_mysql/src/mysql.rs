@@ -22,6 +22,7 @@ use mysql_async::*;
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
@@ -329,17 +330,17 @@ impl<'a> AsyncMySqlDatabase {
         // History tree nodes table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_TREE_NODES
-            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL,"
+            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL,"
             + "  `birth_epoch` BIGINT UNSIGNED NOT NULL,"
             + " `last_epoch` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
-            + " `parent_label_val` BIGINT UNSIGNED NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
+            + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 
         // History node states table
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_NODE_STATES
-            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, "
+            + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, "
             + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
         tx.query_drop(command).await?;
@@ -348,7 +349,7 @@ impl<'a> AsyncMySqlDatabase {
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_USER
             + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-            + " `node_label_val` BIGINT UNSIGNED NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
+            + " `node_label_val` VARBINARY(32) NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
             + " PRIMARY KEY(`username`, `epoch`))";
         tx.query_drop(command).await?;
 
@@ -1088,12 +1089,13 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(4),
                         row.take(5),
                     );
+                    let label_val_vec: Vec<u8> = node_label_val.unwrap();
 
                     ValueState {
                         epoch: epoch.unwrap(),
                         version: version.unwrap(),
                         label: NodeLabel {
-                            val: node_label_val.unwrap(),
+                            val: label_val_vec.try_into().unwrap(),
                             len: node_label_len.unwrap(),
                         },
                         plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
@@ -1188,11 +1190,13 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(4),
                         row.take(5),
                     );
+                    let label_val_vec: Vec<u8> = node_label_val.unwrap();
+
                     ValueState {
                         epoch: epoch.unwrap(),
                         version: version.unwrap(),
                         label: NodeLabel {
-                            val: node_label_val.unwrap(),
+                            val: label_val_vec.try_into().unwrap(),
                             len: node_label_len.unwrap(),
                         },
                         plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
@@ -1466,7 +1470,7 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get epoch LTE epoch");
         match result.await {
             Ok(u64::MAX) => Err(StorageError::GetData(format!(
-                "Node (val: {}, len: {}) did not exist <= epoch {}",
+                "Node (val: {:?}, len: {}) did not exist <= epoch {}",
                 node_label.val, node_label.len, epoch_in_question
             ))),
             Ok(ep) => Ok(ep),
