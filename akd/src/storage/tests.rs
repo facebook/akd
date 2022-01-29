@@ -176,7 +176,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                 plaintext_val: AkdValue(value.clone()),
                 version: epoch,
                 label: NodeLabel {
-                    val: byte_arr_from_u64(1u64),
+                    val: byte_arr_from_u64(1),
                     len: 1u32,
                 },
                 epoch,
@@ -340,7 +340,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
                 plaintext_val: AkdValue(value.clone()),
                 version: 1u64,
                 label: NodeLabel {
-                    val: byte_arr_from_u64(1u64),
+                    val: byte_arr_from_u64(1),
                     len: 1u32,
                 },
                 epoch,
@@ -405,7 +405,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
-            val: byte_arr_from_u64(1u64),
+            val: byte_arr_from_u64(1),
             len: 1u32,
         },
         epoch: 1u64,

@@ -120,7 +120,6 @@ pub fn verify_vrf<H: Hasher>(
         name_hash_bytes,
         H::merge_with_int(H::hash(stale_bytes), version),
     ]);
-    // let label_slice = hashed_label.as_bytes();
     let message_vec = from_digest::<H>(hashed_label).unwrap();
     let message: &[u8] = message_vec.as_slice();
 

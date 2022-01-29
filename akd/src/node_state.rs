@@ -130,7 +130,7 @@ impl NodeLabel {
         let len_div = usize_len / 8;
 
         let mut out_val = [0u8; 32];
-        out_val[..(len_div)].clone_from_slice(&self.val[..(len_div)]);
+        out_val[..len_div].clone_from_slice(&self.val[..len_div]);
         out_val[len_div] = (self.val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
 
         Self::new(out_val, len)

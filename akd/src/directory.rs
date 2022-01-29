@@ -21,7 +21,6 @@ use crate::storage::Storage;
 use log::{debug, error, info};
 use rand::{CryptoRng, RngCore};
 
-// use core::slice::SlicePattern;
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use vrf::openssl::{CipherSuite, ECVRF};
@@ -323,7 +322,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let secret_key =
             hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
                 .unwrap();
-        // let public_key = vrf.derive_public_key(&secret_key).unwrap();
 
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
