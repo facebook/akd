@@ -19,6 +19,7 @@ use crate::{
     errors::{self, AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
+    serialization::from_digest,
     storage::types::AkdLabel,
     Direction, ARITY,
 };
@@ -100,7 +101,7 @@ pub fn verify_nonmembership<H: Hasher>(
 /// Hence, it also takes as input the server's public key.
 pub fn verify_vrf<H: Hasher>(
     vrf_pk: &[u8],
-    uname: &AkdKey,
+    uname: &AkdLabel,
     stale: bool,
     version: u64,
     pi: Vec<u8>,

@@ -14,7 +14,7 @@ use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
-
+use crate::serialization::from_digest;
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Storage;
 
@@ -335,7 +335,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        // let label_slice = hashed_label.as_bytes();
         let message_vec = from_digest::<H>(hashed_label).unwrap();
         let message: &[u8] = message_vec.as_slice();
 
@@ -348,7 +347,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
     pub(crate) fn get_label_proof<H: Hasher>(
         &self,
-        uname: &AkdKey,
+        uname: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Vec<u8> {
@@ -564,7 +563,7 @@ mod tests {
         client::{key_history_verify, lookup_verify},
         storage::memory::AsyncInMemoryDatabase,
     };
-    use winter_crypto::hashers::Blake3_256;
+    use winter_crypto::{hashers::Blake3_256, Digest};
     use winter_math::fields::f128::BaseElement;
     type Blake3 = Blake3_256<BaseElement>;
 

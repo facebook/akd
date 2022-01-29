@@ -11,7 +11,7 @@ use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY};
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -138,6 +138,7 @@ impl NodeLabel {
 
     /// Takes as input a pointer to the caller and another NodeLabel,
     /// returns a NodeLabel that is the longest common prefix of the two.
+    #[must_use]
     pub fn get_longest_common_prefix(&self, other: Self) -> Self {
         let shorter_len = if self.get_len() < other.get_len() {
             self.get_len()
@@ -248,7 +249,7 @@ impl Storable for HistoryNodeState {
     fn get_full_binary_key_id(key: &NodeStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryNodeState as u8];
         result.extend_from_slice(&key.0.len.to_be_bytes());
-        result.extend_from_slice(&key.0.val.to_be_bytes());
+        result.extend_from_slice(&key.0.val);
         result.extend_from_slice(&key.1.to_be_bytes());
         result
     }
@@ -741,7 +742,10 @@ mod tests {
 
         type Blake3 = Blake3_256<BaseElement>;
 
-        let label = NodeLabel { val: 0, len: 0 };
+        let label = NodeLabel {
+            val: byte_arr_from_u64(0),
+            len: 0,
+        };
         let hash = Blake3::hash(b"hello, world!");
         let node = Node::<Blake3> { label, hash };
 
