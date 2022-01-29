@@ -1,6 +1,6 @@
 [package]
 name = "akd_mysql"
-version = "0.3.7"
+version = "0.3.8"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "A MySQL storage layer implementation for an auditable key directory (AKD)"
 license = "MIT OR Apache-2.0"
@@ -23,7 +23,7 @@ tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
 mysql_async = "0.28.1"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-akd = { path = "../akd", version = "^0.3.6" }
+akd = { path = "../akd", version = "^0.3.8" }
 
 [dev-dependencies]
 criterion = "0.3"

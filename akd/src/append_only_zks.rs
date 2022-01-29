@@ -393,7 +393,7 @@ impl Azks {
                 .await?
                 .child_states
                 .iter()
-                .map(|x| x.clone())
+                .cloned()
             {
                 match child_node_state {
                     None => {

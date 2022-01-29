@@ -66,7 +66,7 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish::<H>(vec![(AkdKey(a.clone()), Values(b.clone()))], false)
+                    .publish::<H>(vec![(AkdLabel(a.clone()), AkdValue(b.clone()))], false)
                     .await
                 {
                     Ok(EpochHash(epoch, hash)) => {
@@ -94,7 +94,7 @@ where
                     .publish::<H>(
                         batches
                             .into_iter()
-                            .map(|(key, value)| (AkdKey(key), Values(value)))
+                            .map(|(key, value)| (AkdLabel(key), AkdValue(value)))
                             .collect(),
                         with_trans,
                     )
@@ -112,7 +112,7 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup::<H>(AkdKey(a.clone())).await {
+                match directory.lookup::<H>(AkdLabel(a.clone())).await {
                     Ok(proof) => {
                         let hash = get_root_hash::<_, H>(directory, None).await;
                         match hash {
@@ -121,7 +121,7 @@ where
                                 let verification = akd::client::lookup_verify(
                                     &vrf_pk,
                                     root_hash,
-                                    AkdKey(a.clone()),
+                                    AkdLabel(a.clone()),
                                     proof,
                                 );
                                 if verification.is_err() {
@@ -148,7 +148,7 @@ where
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory.key_history::<H>(&AkdKey(a.clone())).await {
+                match directory.key_history::<H>(&AkdLabel(a.clone())).await {
                     Ok(_proof) => {
                         let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();

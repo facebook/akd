@@ -19,8 +19,7 @@ use crate::{
     errors::{self, AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
-    serialization::from_digest,
-    storage::types::AkdKey,
+    storage::types::AkdLabel,
     Direction, ARITY,
 };
 
@@ -145,7 +144,7 @@ pub fn verify_vrf<H: Hasher>(
 pub fn lookup_verify<H: Hasher>(
     vrf_pk: &[u8],
     root_hash: H::Digest,
-    akd_key: AkdKey,
+    akd_key: AkdLabel,
     proof: LookupProof<H>,
 ) -> Result<(), AkdError> {
     let _plaintext_value = proof.plaintext_value;
@@ -198,7 +197,7 @@ pub fn key_history_verify<H: Hasher>(
     vrf_pk: &[u8],
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
-    uname: AkdKey,
+    uname: AkdLabel,
     proof: HistoryProof<H>,
 ) -> Result<(), AkdError> {
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
@@ -221,7 +220,7 @@ fn verify_single_update_proof<H: Hasher>(
     vrf_pk: &[u8],
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
-    uname: &AkdKey,
+    uname: &AkdLabel,
 ) -> Result<(), AkdError> {
     let epoch = proof.epoch;
     let _plaintext_value = &proof.plaintext_value;

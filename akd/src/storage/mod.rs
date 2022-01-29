@@ -7,12 +7,8 @@
 
 //! Storage module for a auditable key directory
 
-use crate::append_only_zks::Azks;
 use crate::errors::StorageError;
-use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
-use crate::storage::types::{AkdKey, DbRecord, StorageType, ValueState, Values};
-use crate::ARITY;
+use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
@@ -99,111 +95,22 @@ pub trait Storage: Clone {
     /* User data searching */
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(&self, username: &types::AkdKey)
-        -> Result<types::KeyData, StorageError>;
+    async fn get_user_data(
+        &self,
+        username: &types::AkdLabel,
+    ) -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
-        username: &types::AkdKey,
+        username: &types::AkdLabel,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
 
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
         &self,
-        keys: &[types::AkdKey],
+        keys: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdKey, u64>, StorageError>;
-
-    /* Data Layer Builders */
-
-    /*
-    pub latest_epoch: u64,
-    pub num_nodes: u64, // The size of the tree
-    _s: PhantomData<S>,
-    _h: PhantomData<H>,
-    */
-    /// Build an azks instance from the properties
-    fn build_azks(latest_epoch: u64, num_nodes: u64) -> Azks {
-        Azks {
-            latest_epoch,
-            num_nodes,
-        }
-    }
-
-    /*
-    pub label: NodeLabel,
-    pub epochs: Vec<u64>,
-    pub parent: NodeLabel,
-    // Just use usize and have the 0th position be empty and that can be the parent of root. This makes things simpler.
-    pub node_type: NodeType,
-    // Note that the NodeType along with the parent/children being options
-    // allows us to use this struct to represent child and parent nodes as well.
-    pub(crate) _s: PhantomData<S>,
-    pub(crate) _h: PhantomData<H>,
-    */
-    /// Build a history tree node from the properties
-    fn build_history_tree_node(
-        label_val: [u8; 32],
-        label_len: u32,
-        birth_epoch: u64,
-        last_epoch: u64,
-        parent_label_val: [u8; 32],
-        parent_label_len: u32,
-        node_type: u8,
-    ) -> HistoryTreeNode {
-        HistoryTreeNode {
-            label: NodeLabel::new(label_val, label_len),
-            birth_epoch,
-            last_epoch,
-            parent: NodeLabel::new(parent_label_val, parent_label_len),
-            node_type: NodeType::from_u8(node_type),
-        }
-    }
-
-    /*
-    pub struct NodeStateKey(pub(crate) NodeLabel, pub(crate) usize);
-
-    pub value: Vec<u8>,
-    pub child_states: Vec<HistoryChildState<H, S>>,
-    */
-    /// Build a history node state from the properties
-    fn build_history_node_state(
-        value: Vec<u8>,
-        child_states: [Option<HistoryChildState>; ARITY],
-        label_len: u32,
-        label_val: [u8; 32],
-        epoch: u64,
-    ) -> HistoryNodeState {
-        HistoryNodeState {
-            value,
-            child_states,
-            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
-        }
-    }
-
-    /*
-    pub(crate) plaintext_val: Values, // This needs to be the plaintext value, to discuss
-    pub(crate) version: u64,          // to discuss
-    pub(crate) label: NodeLabel,
-    pub(crate) epoch: u64,
-    */
-    /// Build a user state from the properties
-    fn build_user_state(
-        username: String,
-        plaintext_val: String,
-        version: u64,
-        label_len: u32,
-        label_val: [u8; 32],
-        epoch: u64,
-    ) -> ValueState {
-        ValueState {
-            plaintext_val: Values(plaintext_val),
-            version,
-            label: NodeLabel::new(label_val, label_len),
-            epoch,
-            username: AkdKey(username),
-        }
-    }
+    ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
 }

@@ -8,7 +8,7 @@
 use crate::errors::StorageError;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::{
-    AkdKey, DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
+    AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, Storage};
 use async_trait::async_trait;
@@ -174,7 +174,7 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
+    async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
         let guard = self.user_info.read().await;
         if let Some(result) = guard.get(&username.0) {
             let mut results: Vec<ValueState> = result.to_vec();
@@ -190,7 +190,7 @@ impl Storage for AsyncInMemoryDatabase {
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
-        username: &AkdKey,
+        username: &AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> Result<ValueState, StorageError> {
         let intermediate = self.get_user_data(username).await?.states;
@@ -255,13 +255,13 @@ impl Storage for AsyncInMemoryDatabase {
 
     async fn get_user_state_versions(
         &self,
-        keys: &[AkdKey],
+        keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+    ) -> Result<HashMap<AkdLabel, u64>, StorageError> {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdKey(result.username.0.clone()), result.version);
+                map.insert(AkdLabel(result.username.0.clone()), result.version);
             }
         }
         Ok(map)
@@ -553,7 +553,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(map)
     }
 
-    async fn get_user_data(&self, username: &AkdKey) -> Result<KeyData, StorageError> {
+    async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
         let guard = self.user_info.read().await;
         if let Some(result) = guard.get(&username.0) {
             let mut results: Vec<ValueState> = result.to_vec();
@@ -568,7 +568,7 @@ impl Storage for AsyncInMemoryDbWithCache {
 
     async fn get_user_state(
         &self,
-        username: &AkdKey,
+        username: &AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> Result<ValueState, StorageError> {
         let intermediate = self.get_user_data(username).await?.states;
@@ -633,13 +633,13 @@ impl Storage for AsyncInMemoryDbWithCache {
 
     async fn get_user_state_versions(
         &self,
-        keys: &[AkdKey],
+        keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdKey, u64>, StorageError> {
+    ) -> Result<HashMap<AkdLabel, u64>, StorageError> {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdKey(result.username.0.clone()), result.version);
+                map.insert(AkdLabel(result.username.0.clone()), result.version);
             }
         }
         Ok(map)
@@ -650,7 +650,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         node_label: crate::node_state::NodeLabel,
         epoch_in_question: u64,
     ) -> Result<u64, StorageError> {
-        let ids = (0..epoch_in_question)
+        let ids = (0..=epoch_in_question)
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self

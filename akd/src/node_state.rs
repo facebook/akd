@@ -7,10 +7,11 @@
 
 //! The representation for the label of a history tree node.
 
-use crate::serialization::from_digest;
+use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY};
+use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -19,14 +20,14 @@ use std::{
 };
 use winter_crypto::Hasher;
 
-use rand::{CryptoRng, Rng, RngCore};
-
 /// Represents a node's label & associated hash
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
     /// the hash associated to this label
+    #[serde(serialize_with = "digest_serialize")]
+    #[serde(deserialize_with = "digest_deserialize")]
     pub hash: H::Digest,
 }
 
@@ -246,17 +247,9 @@ impl Storable for HistoryNodeState {
 
     fn get_full_binary_key_id(key: &NodeStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryNodeState as u8];
-        let len_bytes = key.0.len.to_be_bytes();
-        for byte in &len_bytes {
-            result.push(*byte);
-        }
-
-        let parts: [&[u8]; 2] = [&key.0.val, &key.1.to_be_bytes()];
-        for iarray in parts {
-            for byte in iarray {
-                result.push(*byte);
-            }
-        }
+        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.val.to_be_bytes());
+        result.extend_from_slice(&key.1.to_be_bytes());
         result
     }
 
@@ -736,5 +729,26 @@ mod tests {
             label_2,
             computed
         )
+    }
+
+    // Test for serialization / deserialization
+
+    #[test]
+    pub fn serialize_deserialize() {
+        use winter_crypto::hashers::Blake3_256;
+        use winter_crypto::Hasher;
+        use winter_math::fields::f128::BaseElement;
+
+        type Blake3 = Blake3_256<BaseElement>;
+
+        let label = NodeLabel { val: 0, len: 0 };
+        let hash = Blake3::hash(b"hello, world!");
+        let node = Node::<Blake3> { label, hash };
+
+        let serialized = bincode::serialize(&node).unwrap();
+        let deserialized: Node<Blake3> = bincode::deserialize(&serialized).unwrap();
+
+        assert_eq!(node.label, deserialized.label);
+        assert_eq!(node.hash, deserialized.hash);
     }
 }

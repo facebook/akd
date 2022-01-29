@@ -8,7 +8,7 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::storage::types::{AkdKey, Values};
+use akd::storage::types::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
@@ -154,7 +154,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
             for i in 1..=3 {
                 let mut data = Vec::new();
                 for value in users.iter() {
-                    data.push((AkdKey(value.clone()), Values(format!("{}", i))));
+                    data.push((AkdLabel(value.clone()), AkdValue(format!("{}", i))));
                 }
 
                 if let Err(error) = dir.publish::<Blake3>(data, true).await {
@@ -169,7 +169,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
             let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
 
             for user in users.iter().choose_multiple(&mut rng, 10) {
-                let key = AkdKey(user.clone());
+                let key = AkdLabel(user.clone());
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
@@ -186,7 +186,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
 
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
-                let key = AkdKey(user.clone());
+                let key = AkdLabel(user.clone());
                 match dir.key_history::<Blake3>(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
