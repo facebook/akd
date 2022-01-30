@@ -439,6 +439,13 @@ impl Azks {
         storage: &S,
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
+        if self.latest_epoch < epoch {
+            // cannot retrieve information for future epoch
+            return Err(HistoryTreeNodeError::NonexistentAtEpoch(
+                NodeLabel::root(),
+                self.latest_epoch,
+            ));
+        }
         let root_node: HistoryTreeNode =
             HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         root_node.get_value_at_epoch::<_, H>(storage, epoch).await
@@ -899,6 +906,21 @@ mod tests {
         let proof = azks.get_append_only_proof(&db, 1, 3).await?;
 
         verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn future_epoch_throws_error() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let azks = Azks::new::<_, Blake3>(&db).await?;
+
+        let out = azks.get_root_hash_at_epoch::<_, Blake3>(&db, 123).await;
+
+        let expected = Err::<_, HistoryTreeNodeError>(HistoryTreeNodeError::NonexistentAtEpoch(
+            NodeLabel::root(),
+            0,
+        ));
+        assert_eq!(expected, out);
         Ok(())
     }
 }

@@ -62,7 +62,7 @@ impl std::fmt::Display for AkdError {
 }
 
 /// Errors thrown by HistoryTreeNodes
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
