@@ -74,6 +74,12 @@ impl Ord for NodeLabel {
     }
 }
 
+impl fmt::Display for NodeLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, 0x{})", self.len, hex::encode(&self.val))
+    }
+}
+
 impl NodeLabel {
     /// Creates a new NodeLabel representing the root.
     pub fn root() -> Self {

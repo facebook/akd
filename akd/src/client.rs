@@ -111,10 +111,7 @@ pub fn verify_vrf<H: Hasher>(
     let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
 
     let name_hash_bytes = H::hash(uname.0.as_bytes());
-    let mut stale_bytes = &[1u8];
-    if stale {
-        stale_bytes = &[0u8];
-    }
+    let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
     let hashed_label = H::merge(&[
         name_hash_bytes,
@@ -364,8 +361,12 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     new_hash
 }
 
+// Note that this is the truncating version, since the only thing being
+// verified where this is called is the final hash.
+// If the hash function's output is too large, truncating it should be ok.
+// tl;dr TRUNCATES!
 fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
     let mut out_arr = [0u8; 32];
-    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..]);
+    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..32]);
     out_arr
 }

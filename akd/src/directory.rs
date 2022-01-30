@@ -354,7 +354,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
         let secret_key =
             hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
                 .unwrap();
-        // let public_key = vrf.derive_public_key(&secret_key).unwrap();
 
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
@@ -366,7 +365,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        // let label_slice = hashed_label.as_bytes();
+
         let message_vec = from_digest::<H>(hashed_label).unwrap();
         let message: &[u8] = message_vec.as_slice();
 
@@ -547,9 +546,13 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher>(
     Ok((root_hashes, previous_root_hashes))
 }
 
+// Note that this is the truncating version, since the only thing being
+// verified where this is called is the final hash.
+// If the hash function's output is too large, truncating it should be ok.
+// tl;dr TRUNCATES!
 fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
     let mut out_arr = [0u8; 32];
-    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..]);
+    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..32]);
     out_arr
 }
 
