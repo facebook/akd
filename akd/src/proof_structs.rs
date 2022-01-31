@@ -37,8 +37,8 @@ pub struct MembershipProof<H: Hasher> {
 impl<H: Hasher> Clone for MembershipProof<H> {
     fn clone(&self) -> Self {
         Self {
-            label: self.label.clone(),
-            hash_val: self.hash_val.clone(),
+            label: self.label,
+            hash_val: self.hash_val,
             parent_labels: self.parent_labels.clone(),
             siblings: self.siblings.clone(),
             dirs: self.dirs.clone(),
@@ -65,9 +65,9 @@ pub struct NonMembershipProof<H: Hasher> {
 impl<H: Hasher> Clone for NonMembershipProof<H> {
     fn clone(&self) -> Self {
         Self {
-            label: self.label.clone(),
-            longest_prefix: self.longest_prefix.clone(),
-            longest_prefix_children: self.longest_prefix_children.clone(),
+            label: self.label,
+            longest_prefix: self.longest_prefix,
+            longest_prefix_children: self.longest_prefix_children,
             longest_prefix_membership_proof: self.longest_prefix_membership_proof.clone(),
         }
     }
