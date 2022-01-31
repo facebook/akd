@@ -41,7 +41,7 @@ impl<H: Hasher> Clone for MembershipProof<H> {
             hash_val: self.hash_val.clone(),
             parent_labels: self.parent_labels.clone(),
             siblings: self.siblings.clone(),
-            dirs: self.dirs.clone()
+            dirs: self.dirs.clone(),
         }
     }
 }
@@ -92,7 +92,7 @@ impl<H: Hasher> Clone for AppendOnlyProof<H> {
     fn clone(&self) -> Self {
         Self {
             inserted: self.inserted.clone(),
-            unchanged_nodes: self.unchanged_nodes.clone()
+            unchanged_nodes: self.unchanged_nodes.clone(),
         }
     }
 }
