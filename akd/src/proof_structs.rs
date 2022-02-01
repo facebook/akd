@@ -15,7 +15,7 @@ use winter_crypto::Hasher;
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct MembershipProof<H: Hasher> {
     /// The node label
@@ -33,9 +33,22 @@ pub struct MembershipProof<H: Hasher> {
     pub dirs: Vec<Direction>,
 }
 
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for MembershipProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            hash_val: self.hash_val,
+            parent_labels: self.parent_labels.clone(),
+            siblings: self.siblings.clone(),
+            dirs: self.dirs.clone(),
+        }
+    }
+}
+
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct NonMembershipProof<H: Hasher> {
     /// The label in question
@@ -48,12 +61,24 @@ pub struct NonMembershipProof<H: Hasher> {
     pub longest_prefix_membership_proof: MembershipProof<H>,
 }
 
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for NonMembershipProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            longest_prefix: self.longest_prefix,
+            longest_prefix_children: self.longest_prefix_children,
+            longest_prefix_membership_proof: self.longest_prefix_membership_proof.clone(),
+        }
+    }
+}
+
 /// Proof that no leaves were deleted from the initial epoch.
 /// This means that unchanged_nodes should hash to the initial root hash
 /// and the vec of inserted is the set of leaves inserted between these epochs.
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
 /// as the leaves, it should result in the final root hash.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct AppendOnlyProof<H: Hasher> {
     /// The inserted nodes & digests
@@ -62,13 +87,23 @@ pub struct AppendOnlyProof<H: Hasher> {
     pub unchanged_nodes: Vec<Node<H>>,
 }
 
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for AppendOnlyProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            inserted: self.inserted.clone(),
+            unchanged_nodes: self.unchanged_nodes.clone(),
+        }
+    }
+}
+
 /// Proof that a given label was at a particular state at the given epoch.
 /// This means we need to show that the state and version we are claiming for this node must have been:
 /// * committed in the tree,
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct LookupProof<H: Hasher> {
     /// The epoch of this record
@@ -85,6 +120,20 @@ pub struct LookupProof<H: Hasher> {
     pub freshness_proof: NonMembershipProof<H>,
 }
 
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for LookupProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            epoch: self.epoch,
+            plaintext_value: self.plaintext_value.clone(),
+            version: self.version,
+            existence_proof: self.existence_proof.clone(),
+            marker_proof: self.marker_proof.clone(),
+            freshness_proof: self.freshness_proof.clone(),
+        }
+    }
+}
+
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
 /// For each version of the value associated with the key, the verifier must check that:
 /// * the version was included in the claimed epoch,
@@ -92,7 +141,7 @@ pub struct LookupProof<H: Hasher> {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct UpdateProof<H: Hasher> {
     /// Epoch of this update
@@ -113,10 +162,35 @@ pub struct UpdateProof<H: Hasher> {
     pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
 }
 
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for UpdateProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            epoch: self.epoch,
+            plaintext_value: self.plaintext_value.clone(),
+            version: self.version,
+            existence_at_ep: self.existence_at_ep.clone(),
+            previous_val_stale_at_ep: self.previous_val_stale_at_ep.clone(),
+            non_existence_before_ep: self.non_existence_before_ep.clone(),
+            non_existence_of_next_few: self.non_existence_of_next_few.clone(),
+            non_existence_of_future_markers: self.non_existence_of_future_markers.clone(),
+        }
+    }
+}
+
 /// This proof is just an array of [`UpdateProof`]s.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct HistoryProof<H: Hasher> {
     /// The update proofs in the key history
     pub proofs: Vec<UpdateProof<H>>,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for HistoryProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            proofs: self.proofs.clone(),
+        }
+    }
 }
