@@ -512,7 +512,7 @@ impl Azks {
             }
             layer_proofs.push(proof_structs::LayerProof {
                 label: curr_node.label,
-                sibling: nodes,
+                siblings: nodes,
                 direction: dir,
             });
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(

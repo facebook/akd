@@ -74,7 +74,7 @@ where
     crate::types::LayerProof {
         direction: direction,
         label: convert_label(parent),
-        sibling: convert_node(sibling),
+        siblings: [convert_node(sibling)],
     }
 }
 
@@ -90,7 +90,7 @@ where
         layer_proofs: proof
             .layer_proofs
             .iter()
-            .map(|lp| convert_layer_proof(lp.label, lp.direction, lp.sibling[0]))
+            .map(|lp| convert_layer_proof(lp.label, lp.direction, lp.siblings[0]))
             .collect::<Vec<_>>(),
     }
 }

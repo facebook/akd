@@ -12,6 +12,8 @@
 //!
 //! Append-only and history proofs to come
 
+use crate::ARITY;
+
 // ============================================
 // Typedefs and constants
 // ============================================
@@ -125,7 +127,7 @@ pub struct LayerProof {
     /// The parent's label
     pub label: NodeLabel,
     /// Siblings of the parent
-    pub sibling: Node,
+    pub siblings: [Node; ARITY - 1],
     /// The direction
     pub direction: Direction,
 }
@@ -153,7 +155,7 @@ pub struct NonMembershipProof {
     /// The longest prefix in the tree
     pub longest_prefix: NodeLabel,
     /// The children of the longest prefix
-    pub longest_prefix_children: [Node; 2],
+    pub longest_prefix_children: [Node; ARITY],
     /// The membership proof of the longest prefix
     pub longest_prefix_membership_proof: MembershipProof,
 }

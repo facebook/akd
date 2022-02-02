@@ -37,7 +37,7 @@ pub fn verify_membership<H: Hasher>(
 
     let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
     for parent in proof.layer_proofs.iter().rev() {
-        let hashes = parent.sibling.iter().map(|n| n.hash).collect();
+        let hashes = parent.siblings.iter().map(|n| n.hash).collect();
         final_hash = build_and_hash_layer::<H>(hashes, parent.direction, final_hash, parent.label)?;
     }
 

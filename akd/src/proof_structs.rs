@@ -20,7 +20,7 @@ pub struct LayerProof<H: Hasher> {
     /// The parent's label
     pub label: NodeLabel,
     /// Siblings of the parent
-    pub sibling: [Node<H>; ARITY - 1],
+    pub siblings: [Node<H>; ARITY - 1],
     /// The direction
     pub direction: Direction,
 }
@@ -30,7 +30,7 @@ impl<H: Hasher> Clone for LayerProof<H> {
     fn clone(&self) -> Self {
         Self {
             label: self.label,
-            sibling: self.sibling,
+            siblings: self.siblings,
             direction: self.direction,
         }
     }

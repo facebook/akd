@@ -31,7 +31,7 @@ pub fn verify_membership(
 
     let mut final_hash = merge(&[proof.hash_val, proof.label.hash()]);
     for parent in proof.layer_proofs.iter().rev() {
-        let hashes = vec![parent.sibling.hash];
+        let hashes = parent.siblings.iter().map(|s| s.hash).collect();
         final_hash = build_and_hash_layer(hashes, parent.direction, final_hash, parent.label)?;
     }
 
