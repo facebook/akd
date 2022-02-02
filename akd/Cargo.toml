@@ -9,6 +9,9 @@ keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
 
+[features]
+bench = []
+
 [dependencies]
 bincode = "1"
 winter-crypto = "0.2"
@@ -26,3 +29,9 @@ log = { version = "0.4.8", features = ["kv_unstable"] }
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
+
+[[bench]]
+name = "azks"
+harness = false
+required-features = ["bench"]
+path = "../benches/azks.rs"
