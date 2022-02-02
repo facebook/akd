@@ -649,7 +649,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         node_label: crate::node_state::NodeLabel,
         epoch_in_question: u64,
     ) -> Result<u64, StorageError> {
-        let ids = (0..epoch_in_question)
+        let ids = (0..=epoch_in_question)
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self

@@ -221,7 +221,7 @@ async fn process_input(
 
                 let mut data = Vec::new();
                 for value in values.iter() {
-                    let state = akd_mysql::mysql::AsyncMySqlDatabase::build_user_state(
+                    let state = akd::storage::types::DbRecord::build_user_state(
                         value.clone(),
                         value.clone(),
                         1u64,

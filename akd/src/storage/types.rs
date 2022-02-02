@@ -7,8 +7,11 @@
 
 //! Various storage and representation related types
 
-use crate::node_state::NodeLabel;
+use crate::append_only_zks::Azks;
+use crate::history_tree_node::{HistoryTreeNode, NodeType};
+use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
 use crate::storage::Storable;
+use crate::ARITY;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
@@ -67,14 +70,8 @@ impl crate::storage::Storable for ValueState {
 
     fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::ValueState as u8];
-        let epoch_bytes = key.1.to_be_bytes();
-        for byte in &epoch_bytes {
-            result.push(*byte);
-        }
-        let uname_bytes = key.0.as_bytes();
-        for byte in uname_bytes {
-            result.push(*byte);
-        }
+        result.extend_from_slice(&key.1.to_be_bytes());
+        result.extend_from_slice(key.0.as_bytes());
 
         result
     }
@@ -141,13 +138,13 @@ pub enum ValueStateRetrievalFlag {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum DbRecord {
     /// An Azks
-    Azks(crate::append_only_zks::Azks),
+    Azks(Azks),
     /// A HistoryTreeNode
-    HistoryTreeNode(crate::history_tree_node::HistoryTreeNode),
+    HistoryTreeNode(HistoryTreeNode),
     /// A HistoryNodeState
-    HistoryNodeState(crate::node_state::HistoryNodeState),
+    HistoryNodeState(HistoryNodeState),
     /// The state of the value for a particular key.
-    ValueState(crate::storage::types::ValueState),
+    ValueState(ValueState),
 }
 
 impl Clone for DbRecord {
@@ -168,6 +165,82 @@ impl DbRecord {
             DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
             DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
             DbRecord::ValueState(state) => state.get_full_binary_id(),
+        }
+    }
+
+    /* Data Layer Builders */
+
+    /// Build an azks instance from the properties
+    pub fn build_azks(latest_epoch: u64, num_nodes: u64) -> Azks {
+        Azks {
+            latest_epoch,
+            num_nodes,
+        }
+    }
+
+    /// Build a history tree node from the properties
+    pub fn build_history_tree_node(
+        label_val: u64,
+        label_len: u32,
+        birth_epoch: u64,
+        last_epoch: u64,
+        parent_label_val: u64,
+        parent_label_len: u32,
+        node_type: u8,
+    ) -> HistoryTreeNode {
+        HistoryTreeNode {
+            label: NodeLabel::new(label_val, label_len),
+            birth_epoch,
+            last_epoch,
+            parent: NodeLabel::new(parent_label_val, parent_label_len),
+            node_type: NodeType::from_u8(node_type),
+        }
+    }
+
+    /// Build a history node state from the properties
+    pub fn build_history_node_state(
+        value: Vec<u8>,
+        child_states: [Option<HistoryChildState>; ARITY],
+        label_len: u32,
+        label_val: u64,
+        epoch: u64,
+    ) -> HistoryNodeState {
+        HistoryNodeState {
+            value,
+            child_states,
+            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
+        }
+    }
+
+    /// Build a history child state from the properties
+    pub fn build_history_child_state(
+        label_len: u32,
+        label_val: u64,
+        hash_val: Vec<u8>,
+        epoch_version: u64,
+    ) -> HistoryChildState {
+        HistoryChildState {
+            label: NodeLabel::new(label_val, label_len),
+            hash_val,
+            epoch_version,
+        }
+    }
+
+    /// Build a user state from the properties
+    pub fn build_user_state(
+        username: String,
+        plaintext_val: String,
+        version: u64,
+        label_len: u32,
+        label_val: u64,
+        epoch: u64,
+    ) -> ValueState {
+        ValueState {
+            plaintext_val: AkdValue(plaintext_val),
+            version,
+            label: NodeLabel::new(label_val, label_len),
+            epoch,
+            username: AkdLabel(username),
         }
     }
 }
