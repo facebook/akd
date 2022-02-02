@@ -766,7 +766,8 @@ pub(crate) fn optional_history_child_state_to_label(
     }
 }
 
-pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
+/// Retrieve an empty root node
+pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     storage: &S,
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
@@ -782,7 +783,8 @@ pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     Ok(node)
 }
 
-pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
+/// Get a specific leaf node
+pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
     value: &[u8],
