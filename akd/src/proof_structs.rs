@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use winter_crypto::Hasher;
 
 /// Proof value at a single layer of the tree
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(bound = "")]
 pub struct LayerProof<H: Hasher> {
     /// The parent's label
@@ -23,6 +23,17 @@ pub struct LayerProof<H: Hasher> {
     pub sibling: [Node<H>; ARITY - 1],
     /// The direction
     pub direction: Direction,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for LayerProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            sibling: self.sibling,
+            direction: self.direction,
+        }
+    }
 }
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
@@ -46,9 +57,7 @@ impl<H: Hasher> Clone for MembershipProof<H> {
         Self {
             label: self.label,
             hash_val: self.hash_val,
-            parent_labels: self.parent_labels.clone(),
-            siblings: self.siblings.clone(),
-            dirs: self.dirs.clone(),
+            layer_proofs: self.layer_proofs.clone(),
         }
     }
 }
