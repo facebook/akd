@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.3.9"
+version = "0.4.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -8,9 +8,6 @@ edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
-
-[features]
-bench = []
 
 [dependencies]
 bincode = "1"
@@ -29,9 +26,3 @@ log = { version = "0.4.8", features = ["kv_unstable"] }
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
-
-[[bench]]
-name = "azks"
-harness = false
-required-features = ["bench"]
-path = "../benches/azks.rs"
