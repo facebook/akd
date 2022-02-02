@@ -32,37 +32,6 @@ type Directory = akd::directory::Directory<InMemoryDb>;
 // Test helpers
 // ===================================
 
-#[macro_export]
-// (((a, b), c), d) -> (a, b, c, d)
-macro_rules! flatten {
-    ( $p:pat => $tuple:expr ) => {
-        |$p| $tuple
-    };
-
-    ( $p:pat => ( $($tuple:tt)* ) , $_iter:expr $( , $tail:expr )* ) => {
-        flatten!(($p, ___b) => ( $($tuple)*, ___b ) $( , $tail )*)
-    };
-}
-
-#[macro_export]
-// Same as "zip", but allows more than 2 arguments
-macro_rules! zip_many {
-    // Take comma-separated list of parameters, capture the first one as
-    // "head", all others as "tail".
-    // $(,)* - that is to allow commas at the end or list of parameters.
-    ( $head:expr $( , $tail:expr )* $(,)* ) => {
-        std::iter::IntoIterator::into_iter($head)
-            $(
-                .zip($tail)
-            )*
-            .map(
-                // Multiple zips give us a clumsy tuple like (((a, b), c), d)
-                // We need to flatten it into (a, b, c, d)
-                flatten!(a => (a) $( , $tail )*)
-            )
-    };
-}
-
 fn to_digest<H>(hash: H::Digest) -> crate::types::Digest
 where
     H: winter_crypto::Hasher,
@@ -118,13 +87,11 @@ where
     crate::types::MembershipProof {
         hash_val: to_digest::<H>(proof.hash_val),
         label: convert_label(proof.label),
-        layer_proofs: zip_many!(
-            proof.parent_labels.clone(),
-            proof.dirs.clone(),
-            proof.siblings.clone()
-        )
-        .map(|(a, b, c)| convert_layer_proof::<H>(a, b, c[0]))
-        .collect::<Vec<_>>(),
+        layer_proofs: proof
+            .layer_proofs
+            .iter()
+            .map(|lp| convert_layer_proof(lp.label, lp.direction, lp.sibling[0]))
+            .collect::<Vec<_>>(),
     }
 }
 

@@ -13,6 +13,18 @@ use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, D
 use serde::{Deserialize, Serialize};
 use winter_crypto::Hasher;
 
+/// Proof value at a single layer of the tree
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
+pub struct LayerProof<H: Hasher> {
+    /// The parent's label
+    pub label: NodeLabel,
+    /// Siblings of the parent
+    pub sibling: [Node<H>; ARITY - 1],
+    /// The direction
+    pub direction: Direction,
+}
+
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -24,13 +36,8 @@ pub struct MembershipProof<H: Hasher> {
     #[serde(serialize_with = "digest_serialize")]
     #[serde(deserialize_with = "digest_deserialize")]
     pub hash_val: H::Digest,
-    /// The parent node labels
-    pub parent_labels: Vec<NodeLabel>,
-    /// The sibling label/digest tuples
-    pub siblings: Vec<[Node<H>; ARITY - 1]>,
-    /// The node sibling hashes
-    /// The directions
-    pub dirs: Vec<Direction>,
+    /// The proofs at the layers up the tree
+    pub layer_proofs: Vec<LayerProof<H>>,
 }
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
