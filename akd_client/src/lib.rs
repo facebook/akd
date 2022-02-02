@@ -27,7 +27,7 @@
 //!
 //! The features of this library are
 //!
-//! 1. [default] blake3: Blake3 256-bit hashing
+//! 1. **default** blake3: Blake3 256-bit hashing
 //! 2. sha256: SHA2 256-bit hashing
 //! 3. sha512: SHA3 512-bit hashing
 //! 4. sha3_256: SHA3 256-bit hashing
