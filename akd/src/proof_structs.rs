@@ -13,6 +13,29 @@ use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, D
 use serde::{Deserialize, Serialize};
 use winter_crypto::Hasher;
 
+/// Proof value at a single layer of the tree
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
+pub struct LayerProof<H: Hasher> {
+    /// The parent's label
+    pub label: NodeLabel,
+    /// Siblings of the parent
+    pub siblings: [Node<H>; ARITY - 1],
+    /// The direction
+    pub direction: Direction,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for LayerProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            siblings: self.siblings,
+            direction: self.direction,
+        }
+    }
+}
+
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -24,13 +47,8 @@ pub struct MembershipProof<H: Hasher> {
     #[serde(serialize_with = "digest_serialize")]
     #[serde(deserialize_with = "digest_deserialize")]
     pub hash_val: H::Digest,
-    /// The parent node labels
-    pub parent_labels: Vec<NodeLabel>,
-    /// The sibling label/digest tuples
-    pub siblings: Vec<[Node<H>; ARITY - 1]>,
-    /// The node sibling hashes
-    /// The directions
-    pub dirs: Vec<Direction>,
+    /// The proofs at the layers up the tree
+    pub layer_proofs: Vec<LayerProof<H>>,
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
@@ -39,9 +57,7 @@ impl<H: Hasher> Clone for MembershipProof<H> {
         Self {
             label: self.label,
             hash_val: self.hash_val,
-            parent_labels: self.parent_labels.clone(),
-            siblings: self.siblings.clone(),
-            dirs: self.dirs.clone(),
+            layer_proofs: self.layer_proofs.clone(),
         }
     }
 }

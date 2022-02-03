@@ -471,17 +471,13 @@ impl Azks {
         label: NodeLabel,
         epoch: u64,
     ) -> Result<(MembershipProof<H>, NodeLabel), AkdError> {
-        let mut parent_labels = Vec::<NodeLabel>::new();
-        let mut siblings = Vec::<[Node<H>; ARITY - 1]>::new();
-        let mut dirs = Vec::<Direction>::new();
+        let mut layer_proofs = Vec::new();
         let mut curr_node: HistoryTreeNode =
             HistoryTreeNode::get_from_storage(storage, NodeKey(NodeLabel::root())).await?;
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = NodeLabel::root();
         while !equal && dir.is_some() {
-            dirs.push(dir);
-            parent_labels.push(curr_node.label);
             prev_node = curr_node.label;
             let curr_state = curr_node.get_state_at_epoch(storage, epoch).await?;
             let mut nodes = [Node::<H> {
@@ -514,7 +510,11 @@ impl Azks {
                     count += 1;
                 }
             }
-            siblings.push(nodes);
+            layer_proofs.push(proof_structs::LayerProof {
+                label: curr_node.label,
+                siblings: nodes,
+                direction: dir,
+            });
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
                 NodeKey(
@@ -533,9 +533,7 @@ impl Azks {
                 HistoryTreeNode::get_from_storage(storage, NodeKey(prev_node)).await?;
             curr_node = new_curr_node;
 
-            parent_labels.pop();
-            siblings.pop();
-            dirs.pop();
+            layer_proofs.pop();
         }
 
         let hash_val = curr_node
@@ -546,9 +544,7 @@ impl Azks {
             MembershipProof::<H> {
                 label: curr_node.label,
                 hash_val,
-                parent_labels,
-                siblings,
-                dirs,
+                layer_proofs,
             },
             prev_node,
         ))
@@ -706,9 +702,7 @@ mod tests {
         proof = MembershipProof::<Blake3> {
             label: proof.label,
             hash_val,
-            siblings: proof.siblings,
-            parent_labels: proof.parent_labels,
-            dirs: proof.dirs,
+            layer_proofs: proof.layer_proofs,
         };
         assert!(
             !verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
