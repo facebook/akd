@@ -15,8 +15,8 @@ jobs:
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust }}
-    - name: Install Protoc
-      uses: arduino/setup-protoc@v1
+    - name: Setup protoc
+      uses: arduino/setup-protoc@v1.1.2
       with:
         version: '3.X'
     - uses: actions/checkout@master
