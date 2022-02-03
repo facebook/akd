@@ -248,7 +248,7 @@ impl HistoryTreeNode {
                 new_node.write_to_storage(storage).await?;
                 set_state_map(
                     storage,
-                    HistoryNodeState::new::<H>(NodeStateKey(new_node.label, epoch)),
+                    HistoryNodeState::new::<H>(NodeStateKey(new_node.label, epoch))?,
                 )
                 .await?;
                 *num_nodes += 1;
@@ -299,7 +299,7 @@ impl HistoryTreeNode {
                     .await?
                     .ok_or(HistoryTreeNodeError::NoChildAtEpoch(
                         self.get_latest_epoch()?,
-                        dir_leaf.unwrap(),
+                        dir_leaf.unwrap_or(0),
                     ))?;
 
                 debug!("BEGIN get child node from storage");
@@ -375,8 +375,7 @@ impl HistoryTreeNode {
                 new_hash,
                 to_digest::<H>(&optional_history_child_state_to_hash::<H>(
                     &epoch_node_state.get_child_state_in_dir(child_index),
-                ))
-                .unwrap(),
+                )?)?,
             ]);
         }
         Ok(new_hash)
@@ -454,7 +453,7 @@ impl HistoryTreeNode {
                         latest_st.key = NodeStateKey(self.label, epoch);
                         latest_st
                     }
-                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch)),
+                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch))?,
                 },
             )
             .await?;
@@ -526,7 +525,9 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(to_digest::<H>(&self.get_state_at_epoch(storage, epoch).await?.value).unwrap())
+        Ok(to_digest::<H>(
+            &self.get_state_at_epoch(storage, epoch).await?.value,
+        )?)
     }
 
     pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
@@ -540,8 +541,8 @@ impl HistoryTreeNode {
         let children = self.get_state_at_epoch(storage, epoch).await?.child_states;
         let mut new_hash = H::hash(&[]);
         for child in children.iter().take(ARITY) {
-            let hash_val = optional_history_child_state_to_hash::<H>(child);
-            new_hash = H::merge(&[new_hash, to_digest::<H>(&hash_val).unwrap()]);
+            let hash_val = optional_history_child_state_to_hash::<H>(child)?;
+            new_hash = H::merge(&[new_hash, to_digest::<H>(&hash_val)?]);
         }
         Ok(new_hash)
     }
@@ -555,7 +556,7 @@ impl HistoryTreeNode {
         Ok(self
             .get_child_at_epoch::<_, H>(storage, epoch, dir)
             .await?
-            .ok_or_else(|| HistoryTreeNodeError::NoChildAtEpoch(epoch, dir.unwrap()))?
+            .ok_or_else(|| HistoryTreeNodeError::NoChildAtEpoch(epoch, dir.unwrap_or(0)))?
             .label)
     }
 
@@ -564,9 +565,10 @@ impl HistoryTreeNode {
         &self,
         storage: &S,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(get_state_map(storage, self, self.get_latest_epoch()?)
-            .await
-            .map(|node_state| to_digest::<H>(&node_state.value).unwrap())?)
+        match get_state_map(storage, self, self.get_latest_epoch()?).await {
+            Ok(state_map) => Ok(to_digest::<H>(&state_map.value)?),
+            Err(er) => Err(er.into()),
+        }
     }
 
     pub(crate) fn get_birth_epoch(&self) -> u64 {
@@ -750,10 +752,10 @@ impl HistoryTreeNode {
 
 pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
     input: &Option<HistoryChildState>,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, HistoryTreeNodeError> {
     match input {
-        Some(child_state) => child_state.hash_val.clone(),
-        None => from_digest::<H>(crate::utils::empty_node_hash::<H>()).unwrap(),
+        Some(child_state) => Ok(child_state.hash_val.clone()),
+        None => Ok(from_digest::<H>(crate::utils::empty_node_hash::<H>())?),
     }
 }
 
@@ -775,7 +777,7 @@ pub(crate) async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
         node.birth_epoch = epoch;
         node.last_epoch = epoch;
         let new_state: HistoryNodeState =
-            HistoryNodeState::new::<H>(NodeStateKey(node.label, epoch));
+            HistoryNodeState::new::<H>(NodeStateKey(node.label, epoch))?;
         set_state_map(storage, new_state).await?;
     }
 
@@ -798,7 +800,7 @@ pub(crate) async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     };
 
     let mut new_state: HistoryNodeState =
-        HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch));
+        HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch))?;
     new_state.value = from_digest::<H>(H::merge(&[H::hash(&[]), H::hash(value)]))?;
 
     set_state_map(storage, new_state).await?;
@@ -821,7 +823,7 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
     };
 
     let mut new_state: HistoryNodeState =
-        HistoryNodeState::new::<H>(NodeStateKey(history_node.label, birth_epoch));
+        HistoryNodeState::new::<H>(NodeStateKey(history_node.label, birth_epoch))?;
     new_state.value = from_digest::<H>(node.hash)?;
 
     set_state_map(storage, new_state).await?;

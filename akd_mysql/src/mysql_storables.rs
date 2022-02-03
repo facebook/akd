@@ -7,6 +7,8 @@
 
 //! This module implements record handling for a simple asynchronized mysql database
 
+// TODO: Issues 139: Remove calls to unwrap()
+
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;

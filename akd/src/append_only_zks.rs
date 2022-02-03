@@ -501,8 +501,7 @@ impl Azks {
                         label: optional_history_child_state_to_label(&curr_state.child_states[i]),
                         hash: to_digest::<H>(&optional_history_child_state_to_hash::<H>(
                             &curr_state.child_states[i],
-                        ))
-                        .unwrap(),
+                        )?)?,
                     };
                     count += 1;
                 }

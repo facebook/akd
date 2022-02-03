@@ -149,6 +149,9 @@ impl<'a> AsyncMySqlDatabase {
 
         #[allow(clippy::mutex_atomic)]
         let healthy = Arc::new(tokio::sync::RwLock::new(false));
+        // Exception to issue 139. This call SHOULD panic if we cannot create a connection pool
+        // object to fail the entire app. It'll fail very early as we need to create the db
+        // prior to the directory
         let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
         let cache = match cache_options {
@@ -589,8 +592,8 @@ impl<'a> AsyncMySqlDatabase {
                 }
             }
 
-            let lines = std::str::from_utf8(&result.stdout).unwrap().lines().count();
-            return lines >= 2;
+            let lines = std::str::from_utf8(&result.stdout).map(|str| str.lines().count() > 2);
+            return lines.unwrap_or(false);
         }
 
         // docker may have thrown an error, just fail
@@ -952,82 +955,92 @@ impl Storage for AsyncMySqlDatabase {
                 debug!("BEGIN MySQL get batch");
                 let mut conn = self.get_connection().await?;
 
-                let results =
-                    if let Some(create_table_cmd) = DbRecord::get_batch_create_temp_table::<St>() {
-                        // Create the temp table of ids
-                        let out = conn.query_drop(create_table_cmd).await;
-                        self.check_for_infra_error(out)?;
+                let results = if let Some(create_table_cmd) =
+                    DbRecord::get_batch_create_temp_table::<St>()
+                {
+                    // Create the temp table of ids
+                    let out = conn.query_drop(create_table_cmd).await;
+                    self.check_for_infra_error(out)?;
 
-                        // Fill temp table with the requested ids
-                        let mut tx = conn.start_transaction(TxOpts::default()).await?;
-                        tx.query_drop("SET autocommit=0").await?;
-                        tx.query_drop("SET unique_checks=0").await?;
-                        tx.query_drop("SET foreign_key_checks=0").await?;
+                    // Fill temp table with the requested ids
+                    let mut tx = conn.start_transaction(TxOpts::default()).await?;
+                    tx.query_drop("SET autocommit=0").await?;
+                    tx.query_drop("SET unique_checks=0").await?;
+                    tx.query_drop("SET foreign_key_checks=0").await?;
 
-                        let mut fallout: Option<Vec<_>> = None;
-                        let mut params = vec![];
-                        for batch in key_set_vec.chunks(self.tunable_insert_depth) {
-                            if batch.len() < self.tunable_insert_depth {
-                                fallout = Some(batch.to_vec());
-                            } else {
-                                params.push(
-                                    DbRecord::get_multi_row_specific_params::<St>(batch).unwrap(),
-                                );
-                            }
-                        }
-
-                        // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
-                        if !params.is_empty() {
-                            let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
-                                self.tunable_insert_depth,
+                    let mut fallout: Option<Vec<_>> = None;
+                    let mut params = vec![];
+                    for batch in key_set_vec.chunks(self.tunable_insert_depth) {
+                        if batch.len() < self.tunable_insert_depth {
+                            fallout = Some(batch.to_vec());
+                        } else if let Some(p) = DbRecord::get_multi_row_specific_params::<St>(batch)
+                        {
+                            params.push(p);
+                        } else {
+                            return Err(MySqlError::Other(
+                                "Unable to generate type-specific MySQL parameters".into(),
                             ));
-                            let out = tx.exec_batch(fill_statement, params).await;
-                            self.check_for_infra_error(out)?;
-                            // We would need the statement for it. (Possibly) No need for close here.
-                            // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
-                            // tx.close().await?;
                         }
+                    }
 
-                        // insert the remainder as a final statement
-                        if let Some(remainder) = fallout {
-                            let remainder_stmt =
-                                DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
-                            let params_batch =
-                                DbRecord::get_multi_row_specific_params::<St>(&remainder).unwrap();
-                            let out = tx.exec_drop(remainder_stmt, params_batch).await;
+                    // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
+                    if !params.is_empty() {
+                        let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
+                            self.tunable_insert_depth,
+                        ));
+                        let out = tx.exec_batch(fill_statement, params).await;
+                        self.check_for_infra_error(out)?;
+                        // We would need the statement for it. (Possibly) No need for close here.
+                        // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
+                        // tx.close().await?;
+                    }
+
+                    // insert the remainder as a final statement
+                    if let Some(remainder) = fallout {
+                        let remainder_stmt =
+                            DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
+                        let params_batch =
+                            DbRecord::get_multi_row_specific_params::<St>(&remainder);
+                        if let Some(pb) = params_batch {
+                            let out = tx.exec_drop(remainder_stmt, pb).await;
                             self.check_for_infra_error(out)?;
+                        } else {
+                            return Err(MySqlError::Other(
+                                "Unable to generate type-specific MySQL parameters".into(),
+                            ));
                         }
+                    }
 
-                        tx.query_drop("SET autocommit=1").await?;
-                        tx.query_drop("SET unique_checks=1").await?;
-                        tx.query_drop("SET foreign_key_checks=1").await?;
-                        tx.commit().await?;
+                    tx.query_drop("SET autocommit=1").await?;
+                    tx.query_drop("SET unique_checks=1").await?;
+                    tx.query_drop("SET foreign_key_checks=1").await?;
+                    tx.commit().await?;
 
-                        // Query the records which intersect (INNER JOIN) with the temp table of ids
-                        let query = DbRecord::get_batch_statement::<St>();
-                        let out = conn.query_iter(query).await;
-                        let result = self.check_for_infra_error(out)?;
+                    // Query the records which intersect (INNER JOIN) with the temp table of ids
+                    let query = DbRecord::get_batch_statement::<St>();
+                    let out = conn.query_iter(query).await;
+                    let result = self.check_for_infra_error(out)?;
 
-                        let out = result
-                            .reduce_and_drop(vec![], |mut acc, mut row| {
-                                if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
-                                    acc.push(result);
-                                }
-                                acc
-                            })
-                            .await?;
+                    let out = result
+                        .reduce_and_drop(vec![], |mut acc, mut row| {
+                            if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
+                                acc.push(result);
+                            }
+                            acc
+                        })
+                        .await?;
 
-                        // drop the temp table of ids
-                        let t_out = conn
-                            .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
-                            .await;
-                        self.check_for_infra_error(t_out)?;
+                    // drop the temp table of ids
+                    let t_out = conn
+                        .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                        .await;
+                    self.check_for_infra_error(t_out)?;
 
-                        out
-                    } else {
-                        // no results (i.e. AZKS table doesn't support "get by batch ids")
-                        vec![]
-                    };
+                    out
+                } else {
+                    // no results (i.e. AZKS table doesn't support "get by batch ids")
+                    vec![]
+                };
 
                 debug!("END MySQL get batch");
                 let toc = Instant::now() - tic;
@@ -1080,27 +1093,37 @@ impl Storage for AsyncMySqlDatabase {
                 .await?;
             let out = result
                 .map(|mut row| {
-                    let (username, epoch, version, node_label_val, node_label_len, data) = (
+                    if let (
+                        Some(username),
+                        Some(epoch),
+                        Some(version),
+                        Some(node_label_val),
+                        Some(node_label_len),
+                        Some(data),
+                    ) = (
                         row.take(0),
                         row.take(1),
                         row.take(2),
                         row.take(3),
                         row.take(4),
                         row.take(5),
-                    );
-
-                    ValueState {
-                        epoch: epoch.unwrap(),
-                        version: version.unwrap(),
-                        label: NodeLabel {
-                            val: node_label_val.unwrap(),
-                            len: node_label_len.unwrap(),
-                        },
-                        plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
-                        username: akd::storage::types::AkdLabel(username.unwrap()),
+                    ) {
+                        Some(ValueState {
+                            epoch,
+                            version,
+                            label: NodeLabel {
+                                val: node_label_val,
+                                len: node_label_len,
+                            },
+                            plaintext_val: akd::storage::types::AkdValue(data),
+                            username: akd::storage::types::AkdLabel(username),
+                        })
+                    } else {
+                        None
                     }
                 })
-                .await;
+                .await
+                .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
@@ -1180,26 +1203,37 @@ impl Storage for AsyncMySqlDatabase {
                 .exec_iter(statement_text, mysql_async::Params::from(params_map))
                 .await?
                 .map(|mut row| {
-                    let (username, epoch, version, node_label_val, node_label_len, data) = (
+                    if let (
+                        Some(username),
+                        Some(epoch),
+                        Some(version),
+                        Some(node_label_val),
+                        Some(node_label_len),
+                        Some(data),
+                    ) = (
                         row.take(0),
                         row.take(1),
                         row.take(2),
                         row.take(3),
                         row.take(4),
                         row.take(5),
-                    );
-                    ValueState {
-                        epoch: epoch.unwrap(),
-                        version: version.unwrap(),
-                        label: NodeLabel {
-                            val: node_label_val.unwrap(),
-                            len: node_label_len.unwrap(),
-                        },
-                        plaintext_val: akd::storage::types::AkdValue(data.unwrap()),
-                        username: akd::storage::types::AkdLabel(username.unwrap()),
+                    ) {
+                        Some(ValueState {
+                            epoch,
+                            version,
+                            label: NodeLabel {
+                                val: node_label_val,
+                                len: node_label_len,
+                            },
+                            plaintext_val: akd::storage::types::AkdValue(data),
+                            username: akd::storage::types::AkdLabel(username),
+                        })
+                    } else {
+                        None
                     }
                 })
-                .await;
+                .await
+                .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
 
             let toc = Instant::now() - tic;
             *(self.time_read.write().await) += toc;
