@@ -4,5 +4,6 @@ members = [
     "akd",
     "akd_mysql",
     "poc",
-    "integration_tests"
+    "integration_tests",
+    "akd_client"
 ]
