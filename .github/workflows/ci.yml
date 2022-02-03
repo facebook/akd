@@ -34,6 +34,10 @@ jobs:
           echo "MySQL container is up"
       - name: Check container akd-test-db logs
         run: docker logs akd-test-db
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '2.8.1'
       - name: Test
         uses: actions-rs/cargo@v1
         with:
@@ -55,7 +59,10 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '2.8.1'
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
@@ -87,14 +94,16 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '2.8.1'
       - name: Run cargo bench --no-run
         uses: actions-rs/cargo@v1
         with:

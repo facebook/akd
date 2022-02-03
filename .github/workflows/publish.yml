@@ -15,6 +15,10 @@ jobs:
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust }}
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '2.8.1'
     - uses: actions/checkout@master
     - name: Login to crates.io
       run: cargo login $CRATES_IO_TOKEN
