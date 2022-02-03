@@ -111,9 +111,8 @@ impl log::Log for FileLogger {
         if !self.enabled(record.metadata()) {
             return;
         }
-        if let Ok(mut sink) = &*self.sink.lock() {
-            format_log_record(&mut sink, record);
-        }
+        let mut sink = &*self.sink.lock().unwrap();
+        format_log_record(&mut sink, record);
     }
 
     fn flush(&self) {
