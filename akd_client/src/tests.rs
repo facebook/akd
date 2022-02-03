@@ -151,7 +151,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
 
     // retrieve the lookup proof
     let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
-    // retireve the root hash
+    // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
 

@@ -20,7 +20,7 @@
 //! ## Planned future support
 //!
 //! Going forward this crate will re-implement the client verifications of the base crate, but with
-//! this "lean" mentality in mind. Should you not be running in a constrained then feel free to simply
+//! this "lean" mentality in mind. Should you not be running in a constrained environment then feel free to simply
 //! use the base AKD library crate.
 //!
 //! ## Features
@@ -36,7 +36,7 @@
 //! which dictate which hashing function is used by the verification components. Blake3 256-bit hashing is the default
 //! implementation and utilizes the [`blake3`] crate. Features sha256 and sha512 both utilize SHA2 cryptographic functions
 //! from the [`sha2`] crate. Lastly sha3_256 and sha3_512 features utilize the [`sha3`] crate for their hashing implementations.
-//! To utilizing a hash implementation other than blake3, you should compile with
+//! To utilize a hash implementation other than blake3, you should compile with
 //!
 //! ```bash
 //! //          [disable blake3]      [enable other hash]
