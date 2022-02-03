@@ -416,14 +416,18 @@ impl<'a> AsyncMySqlDatabase {
         let tic = Instant::now();
 
         let statement_text = record.set_statement();
+        let params = record
+            .set_params()
+            .ok_or_else(|| Error::Other("Failed to construct MySQL parameters block".into()))?;
+
         let out = match trans {
-            Some(mut tx) => match tx.exec_drop(statement_text, record.set_params()).await {
+            Some(mut tx) => match tx.exec_drop(statement_text, params).await {
                 Err(err) => Err(err),
                 Ok(next_tx) => Ok(next_tx),
             },
             None => {
                 let mut conn = self.get_connection().await?;
-                if let Err(err) = conn.exec_drop(statement_text, record.set_params()).await {
+                if let Err(err) = conn.exec_drop(statement_text, params).await {
                     Err(err)
                 } else {
                     Ok(())
@@ -456,14 +460,15 @@ impl<'a> AsyncMySqlDatabase {
             .chunks(self.tunable_insert_depth)
             .map(|batch| {
                 if batch.is_empty() {
-                    BatchMode::None
+                    Ok(BatchMode::None)
                 } else if batch.len() < self.tunable_insert_depth {
-                    BatchMode::Partial(DbRecord::set_batch_params(batch), batch.len())
+                    DbRecord::set_batch_params(batch)
+                        .map(|out| BatchMode::Partial(out, batch.len()))
                 } else {
-                    BatchMode::Full(DbRecord::set_batch_params(batch))
+                    DbRecord::set_batch_params(batch).map(BatchMode::Full)
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>>>()?;
         debug!("END Computing mysql parameters");
 
         debug!("BEGIN MySQL set batch");
