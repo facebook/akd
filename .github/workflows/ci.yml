@@ -36,8 +36,6 @@ jobs:
         run: docker logs akd-test-db
       - name: Setup protoc
         uses: arduino/setup-protoc@v1.1.2
-        with:
-          version: '3.X'
       - name: Test
         uses: actions-rs/cargo@v1
         with:
@@ -61,8 +59,6 @@ jobs:
           override: true
       - name: Setup protoc
         uses: arduino/setup-protoc@v1.1.2
-        with:
-          version: '3.X'
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
@@ -102,8 +98,6 @@ jobs:
           override: true
       - name: Setup protoc
         uses: arduino/setup-protoc@v1.1.2
-        with:
-          version: '3.X'
       - name: Run cargo bench --no-run
         uses: actions-rs/cargo@v1
         with:

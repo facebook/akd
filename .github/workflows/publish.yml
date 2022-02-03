@@ -17,9 +17,7 @@ jobs:
         rust-version: ${{ matrix.rust }}
     - name: Setup protoc
       uses: arduino/setup-protoc@v1.1.2
-      with:
-        version: '3.X'
-    - uses: actions/checkout@master
+    - uses: actions/checkout@main
     - name: Login to crates.io
       run: cargo login $CRATES_IO_TOKEN
       env:
