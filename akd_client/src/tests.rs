@@ -9,13 +9,13 @@
 //! base AKD library and this "lean" client result in the same outputs
 
 #[cfg(feature = "nostd")]
-use alloc::vec::Vec;
-#[cfg(feature = "nostd")]
-use alloc::vec;
+use crate::alloc::string::ToString;
 #[cfg(feature = "nostd")]
 use alloc::format;
 #[cfg(feature = "nostd")]
-use crate::alloc::string::ToString;
+use alloc::vec;
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
 
 use akd::errors::AkdError;
 use akd::storage::types::{AkdLabel, AkdValue};
