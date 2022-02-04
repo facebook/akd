@@ -42,12 +42,12 @@ jobs:
         run: docker-compose -f docker-compose.yml down -v
       - name: Copy integration test logs for review
         run: cat integration_tests/integration_test.log
-      - name: Test the lean client for wasm, nostd, and SHA3-256
+      - name: Test the lean client for wasm, nostd, and SHA3-256 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd_client --no-default-features --features wasm,sha3_256,nostd
-      - name: Test the lean client for wasm, nostd, and SHA3-256
+      - name: Test the lean client for wasm, nostd, and BLAKE3 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test
