@@ -10,9 +10,9 @@
 
 use core::slice;
 
-// #[cfg(feature = "nostd")]
+#[cfg(feature = "nostd")]
 use alloc::vec::Vec;
-// #[cfg(feature = "nostd")]
+#[cfg(feature = "nostd")]
 use alloc::format;
 
 use crate::types::Digest as PublicDigest;
