@@ -13,6 +13,8 @@
 //! Append-only and history proofs to come
 
 use crate::ARITY;
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
 
 // ============================================
 // Typedefs and constants
@@ -41,23 +43,6 @@ pub struct NodeLabel {
     pub val: u64,
     /// len keeps track of how long the binary string is
     pub len: u32,
-}
-
-impl PartialOrd for NodeLabel {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for NodeLabel {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let len_cmp = self.len.cmp(&other.len);
-        if let std::cmp::Ordering::Equal = len_cmp {
-            self.val.cmp(&other.val)
-        } else {
-            len_cmp
-        }
-    }
 }
 
 impl NodeLabel {

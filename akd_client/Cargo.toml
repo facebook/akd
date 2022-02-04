@@ -27,6 +27,7 @@ serde = { version = "1.0", optional = true, features = ["derive"]}
 wee_alloc = { version = "0.4.5", optional = true }
 
 [features]
+nostd = []
 # Optional hash functions
 sha512 = ["sha2"]
 sha256 = ["sha2"]

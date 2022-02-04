@@ -50,6 +50,7 @@
 //! 1. wasm: Compile with web-assembly support for WASM compilation
 //! 2. wee_alloc: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
 //! is helpful in cases of constrained binary footprint size to help minimize
+//! 3. nostd: Disable use of the std library
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
@@ -64,6 +65,10 @@
 //! message which contains the data inside the proof. Therefore they'd need to be deserialized and handled independently
 //! of the AKD crate which wouldn't be a dependency anyways. This is why the types are independent and specified separately
 //! from the core AKD types.
+#![cfg_attr(feature = "nostd", no_std)]
+extern crate alloc;
+#[cfg(feature = "nostd")]
+use alloc::string::String;
 
 pub mod types;
 pub mod verify;

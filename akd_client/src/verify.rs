@@ -7,6 +7,11 @@
 
 //! This module contains the client verification calls to verify different membership types
 
+#[cfg(feature = "nostd")]
+use crate::alloc::string::ToString;
+#[cfg(feature = "nostd")]
+use alloc::format;
+
 use crate::hash::*;
 use crate::types::*;
 use crate::{verify_error, VerificationError, ARITY};
