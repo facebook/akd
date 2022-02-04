@@ -159,8 +159,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
 
     // perform the "traditional" AKD verification
-    let akd_result =
-        akd::client::lookup_verify::<Hash>(root_hash, target_label, lookup_proof);
+    let akd_result = akd::client::lookup_verify::<Hash>(root_hash, target_label, lookup_proof);
 
     let lean_result =
         crate::verify::lookup_verify(to_digest::<Hash>(root_hash), vec![], internal_lookup_proof)
