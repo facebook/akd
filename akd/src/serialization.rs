@@ -44,10 +44,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use super::*;
 
     use crate::directory::Directory;
     use crate::errors::AkdError;
+    use crate::primitives::akd_vrf::HardCodedVRFKeyStorage;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};
@@ -83,9 +86,12 @@ mod tests {
     pub async fn lookup_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
-            .await
-            .unwrap();
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(
+            &db,
+            PhantomData::<HardCodedVRFKeyStorage>,
+        )
+        .await
+        .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
                 (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
@@ -115,9 +121,12 @@ mod tests {
     #[tokio::test]
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
-            .await
-            .unwrap();
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(
+            &db,
+            PhantomData::<HardCodedVRFKeyStorage>,
+        )
+        .await
+        .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
                 (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
@@ -148,9 +157,12 @@ mod tests {
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
-            .await
-            .unwrap();
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(
+            &db,
+            PhantomData::<HardCodedVRFKeyStorage>,
+        )
+        .await
+        .unwrap();
         // Commit to the first epoch
         akd.publish::<Blake3_256<BaseElement>>(
             vec![

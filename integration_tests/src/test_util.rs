@@ -8,6 +8,7 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::directory::Directory;
+use akd::primitives::akd_vrf::VRFKeyStorage;
 use akd::storage::types::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
@@ -17,6 +18,7 @@ use rand::{thread_rng, Rng};
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Mutex;
 use tokio::time::{Duration, Instant};
@@ -125,7 +127,10 @@ impl log::Log for FileLogger {
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
-pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>(
+pub(crate) async fn directory_test_suite<
+    S: akd::storage::Storage + Sync + Send,
+    V: VRFKeyStorage,
+>(
     mysql_db: &S,
     num_users: usize,
 ) {
@@ -144,7 +149,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_>::new::<Blake3>(mysql_db).await;
+    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, PhantomData::<V>).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(mut dir) => {
@@ -173,7 +178,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
-                        let vrf_pk = dir.get_public_key();
+                        let vrf_pk = dir.get_public_key()?;
                         if let Err(error) =
                             akd::client::lookup_verify(&vrf_pk, root_hash, key, proof)
                         {
@@ -191,10 +196,10 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send>
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
                         let (root_hashes, previous_root_hashes) =
-                            akd::directory::get_key_history_hashes::<_, Blake3>(&dir, &proof)
+                            akd::directory::get_key_history_hashes::<_, Blake3, V>(&dir, &proof)
                                 .await
                                 .unwrap();
-                        let vrf_pk = dir.get_public_key();
+                        let vrf_pk = dir.get_public_key()?;
                         if let Err(error) = akd::client::key_history_verify::<Blake3>(
                             &vrf_pk,
                             root_hashes,

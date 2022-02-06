@@ -9,3 +9,4 @@
 
 extern crate vrf;
 pub mod akd_vrf;
+pub mod client_vrf;

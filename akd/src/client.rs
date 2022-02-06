@@ -8,7 +8,6 @@
 //! Code for a client of a auditable key directory
 
 use vrf::{
-    openssl::{CipherSuite, ECVRF},
     VRF,
 };
 use winter_crypto::Hasher;
@@ -21,7 +20,7 @@ use crate::{
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     serialization::from_digest,
     storage::types::AkdLabel,
-    Direction, ARITY,
+    Direction, ARITY, primitives::client_vrf::ClientVRFKeyStorage,
 };
 
 /// Verifies membership, with respect to the root_hash
@@ -99,8 +98,8 @@ pub fn verify_nonmembership<H: Hasher>(
 /// This function is called to verify that a given NodeLabel is indeed
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
-pub fn verify_vrf<H: Hasher>(
-    vrf_pk: &[u8],
+pub fn verify_vrf<H: Hasher, V: ClientVRFKeyStorage>(
+    vrf_pk: V::PK,
     uname: &AkdLabel,
     stale: bool,
     version: u64,
@@ -108,7 +107,7 @@ pub fn verify_vrf<H: Hasher>(
     label: NodeLabel,
 ) -> Result<(), AkdError> {
     // Initialization of VRF context by providing a curve
-    let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).unwrap();
+    
 
     let name_hash_bytes = H::hash(uname.0.as_bytes());
     let stale_bytes = if stale { &[0u8] } else { &[1u8] };
@@ -121,7 +120,7 @@ pub fn verify_vrf<H: Hasher>(
     let message: &[u8] = message_vec.as_slice();
 
     // VRF proof verification (returns VRF hash output)
-    let beta = vrf.verify(vrf_pk, &pi, message);
+    let beta = V::verify(vrf_pk, &pi, message);
 
     match beta {
         Ok(vec) => {
@@ -133,13 +132,13 @@ pub fn verify_vrf<H: Hasher>(
                 )))
             }
         }
-        Err(e) => Err(errors::AkdError::Directory(DirectoryError::VRFErr(e))),
+        Err(e) => Err(errors::AkdError::Directory(DirectoryError::VRFStorageErr(e))),
     }
 }
 
 /// Verifies a lookup with respect to the root_hash
-pub fn lookup_verify<H: Hasher>(
-    vrf_pk: &[u8],
+pub fn lookup_verify<H: Hasher, V: ClientVRFKeyStorage>(
+    vrf_pk: V::PK,
     root_hash: H::Digest,
     akd_key: AkdLabel,
     proof: LookupProof<H>,
@@ -153,8 +152,8 @@ pub fn lookup_verify<H: Hasher>(
     let freshness_proof = proof.freshness_proof;
 
     let fresh_label = existence_proof.label;
-    verify_vrf::<H>(
-        vrf_pk,
+    verify_vrf::<H, V>(
+        vrf_pk.clone(),
         &akd_key,
         false,
         version,
@@ -165,8 +164,8 @@ pub fn lookup_verify<H: Hasher>(
     verify_membership::<H>(root_hash, &existence_proof)?;
 
     let marker_label = marker_proof.label;
-    verify_vrf::<H>(
-        vrf_pk,
+    verify_vrf::<H, V>(
+        vrf_pk.clone(),
         &akd_key,
         false,
         marker_version,
@@ -176,8 +175,8 @@ pub fn lookup_verify<H: Hasher>(
     verify_membership::<H>(root_hash, &marker_proof)?;
 
     let stale_label = freshness_proof.label;
-    verify_vrf::<H>(
-        vrf_pk,
+    verify_vrf::<H, V>(
+        vrf_pk.clone(),
         &akd_key,
         true,
         version,
@@ -190,8 +189,8 @@ pub fn lookup_verify<H: Hasher>(
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
-pub fn key_history_verify<H: Hasher>(
-    vrf_pk: &[u8],
+pub fn key_history_verify<H: Hasher, V: ClientVRFKeyStorage>(
+    vrf_pk: V::PK,
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
     uname: AkdLabel,
@@ -200,9 +199,9 @@ pub fn key_history_verify<H: Hasher>(
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof::<H>(
+        verify_single_update_proof::<H, V>(
             root_hash,
-            vrf_pk,
+            vrf_pk.clone(),
             previous_root_hash,
             update_proof,
             &uname,
@@ -212,9 +211,9 @@ pub fn key_history_verify<H: Hasher>(
 }
 
 /// Verifies a single update proof
-fn verify_single_update_proof<H: Hasher>(
+fn verify_single_update_proof<H: Hasher, V: ClientVRFKeyStorage>(
     root_hash: H::Digest,
-    vrf_pk: &[u8],
+    vrf_pk: V::PK,
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
     uname: &AkdLabel,
@@ -234,8 +233,8 @@ fn verify_single_update_proof<H: Hasher>(
 
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
-    verify_vrf::<H>(
-        vrf_pk,
+    verify_vrf::<H, V>(
+        vrf_pk.clone(),
         uname,
         false,
         version,
@@ -273,8 +272,8 @@ fn verify_single_update_proof<H: Hasher>(
             .previous_val_vrf_proof
             .as_ref()
             .ok_or(vrf_previous_null_err)?;
-        verify_vrf::<H>(
-            vrf_pk,
+        verify_vrf::<H, V>(
+            vrf_pk.clone(),
             uname,
             true,
             version - 1,
@@ -308,7 +307,7 @@ fn verify_single_update_proof<H: Hasher>(
         let pf = &proof.non_existence_of_next_few[i];
         let vrf_pf = &proof.next_few_vrf_proofs[i];
         let ver_label = pf.label;
-        verify_vrf::<H>(vrf_pk, uname, false, ver, vrf_pf.clone(), ver_label)?;
+        verify_vrf::<H, V>(vrf_pk.clone(), uname, false, ver, vrf_pf.clone(), ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(
@@ -324,7 +323,7 @@ fn verify_single_update_proof<H: Hasher>(
         let pf = &proof.non_existence_of_future_markers[i];
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
         let ver_label = pf.label;
-        verify_vrf::<H>(vrf_pk, uname, false, ver, vrf_pf.clone(), ver_label)?;
+        verify_vrf::<H, V>(vrf_pk.clone(), uname, false, ver, vrf_pf.clone(), ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(

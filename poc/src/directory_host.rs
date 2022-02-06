@@ -8,6 +8,7 @@
 use akd::directory::Directory;
 use akd::directory::EpochHash;
 use akd::errors::AkdError;
+use akd::primitives::akd_vrf::VRFKeyStorage;
 use akd::storage::types::*;
 use akd::storage::Storage;
 use log::{debug, error, info};
@@ -33,13 +34,14 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, H>(
-    directory: &mut Directory<S>,
+async fn get_root_hash<S, H, V>(
+    directory: &mut Directory<S, V>,
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
     S: Storage + Sync + Send,
     H: Hasher,
+    V: VRFKeyStorage,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
         match o_epoch {
@@ -51,10 +53,11 @@ where
     }
 }
 
-pub(crate) async fn init_host<S, H>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S>)
+pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
 where
     S: Storage + Sync + Send,
     H: Hasher,
+    V: VRFKeyStorage,
 {
     info!("Starting the verifiable directory host");
 
@@ -114,10 +117,10 @@ where
             (DirectoryCommand::Lookup(a), Some(response)) => {
                 match directory.lookup::<H>(AkdLabel(a.clone())).await {
                     Ok(proof) => {
-                        let hash = get_root_hash::<_, H>(directory, None).await;
+                        let hash = get_root_hash::<_, H, V>(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let vrf_pk = directory.get_public_key();
+                                let vrf_pk = directory.get_public_key()?;
                                 let verification = akd::client::lookup_verify(
                                     &vrf_pk,
                                     root_hash,
@@ -172,7 +175,7 @@ where
                 }
             }
             (DirectoryCommand::RootHash(o_epoch), Some(response)) => {
-                let hash = get_root_hash::<_, H>(directory, o_epoch).await;
+                let hash = get_root_hash::<_, H, V>(directory, o_epoch).await;
                 match hash {
                     Some(Ok(hash)) => {
                         let msg = format!("Retrieved root hash {}", hex::encode(hash.as_bytes()));
