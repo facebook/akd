@@ -14,7 +14,7 @@
                     "--no-run",
                     "--lib",
                     "--package=akd_client",
-                    "--features=sha3_256",
+                    "--features=sha3_256,nostd",
                     "--no-default-features"
                 ],
                 "filter": {

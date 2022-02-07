@@ -10,6 +10,11 @@
 
 use core::slice;
 
+#[cfg(feature = "nostd")]
+use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
+
 use crate::types::Digest as PublicDigest;
 use crate::types::{Direction, NodeLabel};
 use crate::{verify_error, VerificationError, ARITY};
