@@ -13,7 +13,7 @@ build = "src/build.rs"
 winter-crypto = "0.2"
 winter-utils = "0.2"
 winter-math = "0.2"
-akd = { path = "../akd", version = "^0.3.6" }
+akd = { path = "../akd", version = "^0.4.0" }
 log = { version = "0.4.8", features = ["kv_unstable"] }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
