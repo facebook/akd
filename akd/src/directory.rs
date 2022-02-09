@@ -551,11 +551,7 @@ mod tests {
         let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
-        lookup_verify::<Blake3_256<BaseElement>>(
-            root_hash,
-            AkdLabel("hello".to_string()),
-            lookup_proof,
-        )?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
         Ok(())
     }
 
@@ -645,7 +641,7 @@ mod tests {
         let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
-        key_history_verify::<Blake3_256<BaseElement>>(
+        key_history_verify::<Blake3>(
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello".to_string()),
@@ -655,7 +651,7 @@ mod tests {
         let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
-        key_history_verify::<Blake3_256<BaseElement>>(
+        key_history_verify::<Blake3>(
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello2".to_string()),
@@ -665,7 +661,7 @@ mod tests {
         let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
-        key_history_verify::<Blake3_256<BaseElement>>(
+        key_history_verify::<Blake3>(
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello3".to_string()),
@@ -675,7 +671,7 @@ mod tests {
         let history_proof = akd.key_history(&AkdLabel("hello4".to_string())).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
-        key_history_verify::<Blake3_256<BaseElement>>(
+        key_history_verify::<Blake3>(
             root_hashes,
             previous_root_hashes,
             AkdLabel("hello4".to_string()),
@@ -772,7 +768,7 @@ mod tests {
         let current_azks = akd.retrieve_current_azks().await?;
 
         let audit_proof_1 = akd.audit(1, 2).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
@@ -782,7 +778,7 @@ mod tests {
         .await?;
 
         let audit_proof_2 = akd.audit(1, 3).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
@@ -792,7 +788,7 @@ mod tests {
         .await?;
 
         let audit_proof_3 = akd.audit(1, 4).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
@@ -802,7 +798,7 @@ mod tests {
         .await?;
 
         let audit_proof_4 = akd.audit(1, 5).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 5)
@@ -812,7 +808,7 @@ mod tests {
         .await?;
 
         let audit_proof_5 = akd.audit(2, 3).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
@@ -822,7 +818,7 @@ mod tests {
         .await?;
 
         let audit_proof_6 = akd.audit(2, 4).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
