@@ -833,4 +833,188 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_cleaned_user_state() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+
+        // Publish twice
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Delete all user states from storage except most recent
+        db.clean_user_state(&[
+            AkdLabel("hello".to_string()),
+            AkdLabel("hello2".to_string()),
+        ])
+        .await;
+
+        // Verify lookup, key history and audit proofs
+        let current_azks = akd.retrieve_current_azks().await?;
+        let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
+
+        let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello2".to_string()),
+            history_proof,
+        )?;
+
+        let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
+
+        let lookup_proof = akd.lookup(AkdLabel("hello2".to_string())).await?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello2".to_string()), lookup_proof)?;
+
+        let audit_proof = akd.audit(1, 2).await?;
+        audit_verify::<Blake3>(
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
+            audit_proof,
+        )
+        .await?;
+
+        // Perform two more publish operations
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("hello".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("hello2".to_string()),
+                ),
+                (
+                    AkdLabel("hello3".to_string()),
+                    AkdValue("world3".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world_updated".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2_updated".to_string()),
+                ),
+                (
+                    AkdLabel("hello3".to_string()),
+                    AkdValue("world3_updated".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Delete all user states from storage except most recent
+        db.clean_user_state(&[
+            AkdLabel("hello".to_string()),
+            AkdLabel("hello2".to_string()),
+            AkdLabel("hello3".to_string()),
+        ])
+        .await;
+
+        // Verify lookup, key history and audit proofs
+        let current_azks = akd.retrieve_current_azks().await?;
+        let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
+
+        let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello2".to_string()),
+            history_proof,
+        )?;
+
+        let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello3".to_string()),
+            history_proof,
+        )?;
+
+        let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
+
+        let lookup_proof = akd.lookup(AkdLabel("hello3".to_string())).await?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello3".to_string()), lookup_proof)?;
+
+        let audit_proof = akd.audit(3, 4).await?;
+        audit_verify::<Blake3>(
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+                .await?,
+            audit_proof,
+        )
+        .await?;
+
+        let audit_proof = akd.audit(1, 4).await?;
+        audit_verify::<Blake3>(
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+                .await?,
+            audit_proof,
+        )
+        .await?;
+
+        Ok(())
+    }
 }
