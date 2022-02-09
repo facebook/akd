@@ -38,6 +38,18 @@ impl AsyncInMemoryDatabase {
             trans: Transaction::new(),
         }
     }
+
+    /// Deletes all user state except the most recent for given labels
+    pub async fn clean_user_state(&self, keys: &[AkdLabel]) {
+        let mut guard = self.user_info.write().await;
+
+        for key in keys {
+            let username = key.0.clone();
+            let values = guard.entry(username).or_insert_with(Vec::new);
+            values.reverse();
+            values.truncate(1);
+        }
+    }
 }
 
 impl Default for AsyncInMemoryDatabase {
