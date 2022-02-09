@@ -46,7 +46,6 @@ impl AkdLabel {
 /// The representation of a auditable key directory
 #[derive(Clone)]
 pub struct Directory<S> {
-    current_epoch: u64,
     storage: S,
 }
 
@@ -55,19 +54,14 @@ impl<S: Storage + Sync + Send> Directory<S> {
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     pub async fn new<H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let azks = {
-            if let Ok(azks) = Directory::get_azks_from_storage(storage).await {
-                azks
-            } else {
-                // generate a new one
-                let azks = Azks::new::<_, H>(storage).await?;
-                // store it
-                storage.set(DbRecord::Azks(azks.clone())).await?;
-                azks
-            }
-        };
+        if Directory::get_azks_from_storage(storage).await.is_err() {
+            // generate a new azks if one is not found
+            let azks = Azks::new::<_, H>(storage).await?;
+            // store it
+            storage.set(DbRecord::Azks(azks.clone())).await?;
+        }
+
         Ok(Directory {
-            current_epoch: azks.get_latest_epoch(),
             storage: storage.clone(),
         })
     }
@@ -80,7 +74,10 @@ impl<S: Storage + Sync + Send> Directory<S> {
     ) -> Result<EpochHash<H>, AkdError> {
         let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
-        let next_epoch = self.current_epoch + 1;
+
+        let mut current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+        let next_epoch = current_epoch + 1;
 
         let mut keys: Vec<AkdLabel> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
@@ -140,9 +137,6 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
         }
         let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
-        // ideally the azks and the state would be updated together.
-        // It may also make sense to have a temp version of the server's database
-        let mut current_azks = self.retrieve_current_azks().await?;
 
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
@@ -177,19 +171,22 @@ impl<S: Storage + Sync + Send> Directory<S> {
             }
         }
 
-        let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
-
-        self.current_epoch = next_epoch;
+        let root_hash = current_azks
+            .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+            .await?;
 
         self.storage.log_metrics(log::Level::Info).await;
 
-        Ok(EpochHash(self.current_epoch, root_hash))
+        Ok(EpochHash(current_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
 
     /// Provides proof for correctness of latest version
     pub async fn lookup<H: Hasher>(&self, uname: AkdLabel) -> Result<LookupProof<H>, AkdError> {
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
         match self
             .storage
             .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
@@ -199,7 +196,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 // Need to throw an error
                 Err(AkdError::Directory(DirectoryError::NonExistentUser(
                     uname.0,
-                    self.current_epoch,
+                    current_epoch,
                 )))
             }
             Ok(latest_st) => {
@@ -212,21 +209,17 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 let marker_label = Self::get_nodelabel::<H>(&uname, false, marker_version);
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
-                    epoch: self.current_epoch,
+                    epoch: current_epoch,
                     plaintext_value: latest_st.plaintext_val,
                     version: current_version,
                     existence_proof: current_azks
-                        .get_membership_proof(&self.storage, existent_label, self.current_epoch)
+                        .get_membership_proof(&self.storage, existent_label, current_epoch)
                         .await?,
                     marker_proof: current_azks
-                        .get_membership_proof(&self.storage, marker_label, self.current_epoch)
+                        .get_membership_proof(&self.storage, marker_label, current_epoch)
                         .await?,
                     freshness_proof: current_azks
-                        .get_non_membership_proof(
-                            &self.storage,
-                            non_existent_label,
-                            self.current_epoch,
-                        )
+                        .get_non_membership_proof(&self.storage, non_existent_label, current_epoch)
                         .await?,
                 })
             }
@@ -243,6 +236,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         uname: &AkdLabel,
     ) -> Result<HistoryProof<H>, AkdError> {
         let username = uname.0.to_string();
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
@@ -253,7 +249,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         } else {
             Err(AkdError::Directory(DirectoryError::NonExistentUser(
                 username,
-                self.current_epoch,
+                current_epoch,
             )))
         }
     }
@@ -419,7 +415,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         &self,
         current_azks: &Azks,
     ) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch::<H>(current_azks, self.current_epoch)
+        self.get_root_hash_at_epoch::<H>(current_azks, current_azks.get_latest_epoch())
             .await
     }
 }
