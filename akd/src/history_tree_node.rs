@@ -137,9 +137,23 @@ impl HistoryTreeNode {
     pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         key: NodeKey,
+        current_epoch: u64,
     ) -> Result<HistoryTreeNode, StorageError> {
-        match storage.get::<HistoryTreeNode>(key).await? {
-            DbRecord::HistoryTreeNode(node) => Ok(node),
+        match storage.get::<HistoryTreeNode>(key.clone()).await? {
+            DbRecord::HistoryTreeNode(node) => {
+                // Resets a node's last_epoch value if the node in storage is ahead of the current
+                // directory epoch. This could happen when a separate AKD process is in the middle
+                // of performing a publish
+                if node.last_epoch > current_epoch {
+                    let prev_last_epoch = storage.get_epoch_lte_epoch(key.0, current_epoch).await?;
+                    Ok(Self {
+                        last_epoch: prev_last_epoch,
+                        ..node
+                    })
+                } else {
+                    Ok(node)
+                }
+            }
             _ => Err(StorageError::GetData(String::from("Not found"))),
         }
     }
@@ -147,12 +161,27 @@ impl HistoryTreeNode {
     pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         keys: Vec<NodeKey>,
+        current_epoch: u64,
     ) -> Result<Vec<HistoryTreeNode>, StorageError> {
-        let node_records: Vec<DbRecord> = storage.batch_get::<HistoryTreeNode>(keys).await?;
+        let node_records: Vec<DbRecord> =
+            storage.batch_get::<HistoryTreeNode>(keys.clone()).await?;
         let mut nodes = Vec::<HistoryTreeNode>::new();
-        for node in node_records {
+        for (i, node) in node_records.into_iter().enumerate() {
             if let DbRecord::HistoryTreeNode(node) = node {
-                nodes.push(node);
+                // Resets a node's last_epoch value if the node in storage is ahead of the current
+                // directory epoch. This could happen when a separate AKD process is in the middle
+                // of performing a publish
+                if node.last_epoch > current_epoch {
+                    let prev_last_epoch = storage
+                        .get_epoch_lte_epoch(keys[i].0, current_epoch)
+                        .await?;
+                    nodes.push(Self {
+                        last_epoch: prev_last_epoch,
+                        ..node
+                    });
+                } else {
+                    nodes.push(node);
+                }
             } else {
                 return Err(StorageError::GetData(String::from(
                     "Batch retrieve returned types <> HistoryTreeNode",
@@ -218,11 +247,13 @@ impl HistoryTreeNode {
                 if hashing {
                     new_leaf.update_hash::<_, H>(storage, epoch).await?;
                     let mut new_self: HistoryTreeNode =
-                        HistoryTreeNode::get_from_storage(storage, NodeKey(self.label)).await?;
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(self.label), epoch)
+                            .await?;
                     new_self.update_hash::<_, H>(storage, epoch).await?;
                     *self = new_self;
                 } else {
-                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label)).await?;
+                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label), epoch)
+                        .await?;
                 }
 
                 return Ok(());
@@ -238,7 +269,7 @@ impl HistoryTreeNode {
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
                 debug!("BEGIN get parent");
                 let mut parent =
-                    HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
+                    HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent), epoch).await?;
                 debug!("BEGIN get direction at epoch {}", epoch);
                 let self_dir_in_parent = parent.get_direction_at_ep(storage, self, epoch).await?;
 
@@ -279,7 +310,8 @@ impl HistoryTreeNode {
                     new_leaf.update_hash::<_, H>(storage, epoch).await?;
                     self.update_hash::<_, H>(storage, epoch).await?;
                     new_node =
-                        HistoryTreeNode::get_from_storage(storage, NodeKey(new_node.label)).await?;
+                        HistoryTreeNode::get_from_storage(storage, NodeKey(new_node.label), epoch)
+                            .await?;
                     new_node.update_hash::<_, H>(storage, epoch).await?;
                 }
                 debug!("BEGIN save new_node");
@@ -287,7 +319,8 @@ impl HistoryTreeNode {
                 debug!("BEGIN save parent");
                 parent.write_to_storage(storage).await?;
                 debug!("BEGIN retrieve new self");
-                *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label)).await?;
+                *self =
+                    HistoryTreeNode::get_from_storage(storage, NodeKey(self.label), epoch).await?;
                 debug!("END insert single leaf (dir_self = Some)");
                 Ok(())
             }
@@ -304,19 +337,22 @@ impl HistoryTreeNode {
 
                 debug!("BEGIN get child node from storage");
                 let mut child_node =
-                    HistoryTreeNode::get_from_storage(storage, NodeKey(child_st.label)).await?;
+                    HistoryTreeNode::get_from_storage(storage, NodeKey(child_st.label), epoch)
+                        .await?;
                 debug!("BEGIN insert single leaf helper");
                 child_node
                     .insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, hashing)
                     .await?;
                 if hashing {
                     debug!("BEGIN update hashes");
-                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label)).await?;
+                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label), epoch)
+                        .await?;
                     self.update_hash::<_, H>(storage, epoch).await?;
                     self.write_to_storage(storage).await?;
                 } else {
                     debug!("BEGIN retrieve self");
-                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label)).await?;
+                    *self = HistoryTreeNode::get_from_storage(storage, NodeKey(self.label), epoch)
+                        .await?;
                 }
                 debug!("END insert single leaf (dir_self = None)");
                 Ok(())
@@ -393,14 +429,16 @@ impl HistoryTreeNode {
             return Ok(());
         }
 
-        let parent = &mut HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
+        let parent =
+            &mut HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent), epoch).await?;
         if parent.get_latest_epoch()? < epoch {
             let (_, dir_self, _) = parent.label.get_longest_common_prefix_and_dirs(self.label);
             parent
                 .set_node_child::<_, H>(storage, epoch, dir_self, self)
                 .await?;
             parent.write_to_storage(storage).await?;
-            *parent = HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent)).await?;
+            *parent =
+                HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent), epoch).await?;
         }
 
         match get_state_map(storage, parent, epoch).await {

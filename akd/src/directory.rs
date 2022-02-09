@@ -89,7 +89,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         // read (i.e. the actual _data_ payload).
         let all_user_versions_retrieved = self
             .storage
-            .get_user_state_versions(&keys, ValueStateRetrievalFlag::MaxEpoch)
+            .get_user_state_versions(&keys, ValueStateRetrievalFlag::LeqEpoch(current_epoch))
             .await?;
 
         info!(
@@ -189,7 +189,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
         match self
             .storage
-            .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
+            .get_user_state(&uname, ValueStateRetrievalFlag::LeqEpoch(current_epoch))
             .await
         {
             Err(_) => {
@@ -242,8 +242,11 @@ impl<S: Storage + Sync + Send> Directory<S> {
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
-                let proof = self.create_single_update_proof(uname, user_state).await?;
-                proofs.push(proof);
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof(uname, user_state).await?;
+                    proofs.push(proof);
+                }
             }
             Ok(HistoryProof { proofs })
         } else {
@@ -822,6 +825,103 @@ mod tests {
             audit_proof_6,
         )
         .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_during_publish() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+
+        // Publish twice
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world_2".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2_2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Make the current a "checkpoint" to reset to later
+        let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
+
+        // Publish for the third time
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world_3".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2_3".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Reset the azks record back to previous epoch, to emulate an akd reader
+        // communicating with storage that is in the middle of a publish operation
+        db.set(DbRecord::Azks(checkpoint_azks))
+            .await
+            .expect("Error resetting directory to previous epoch");
+        let current_azks = akd.retrieve_current_azks().await?;
+        let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+        // History proof should not contain the third epoch's update but still verify
+        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        assert_eq!(2, root_hashes.len());
+        key_history_verify::<Blake3>(
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
+
+        // Lookup proof should contain the checkpoint epoch's value and still verify
+        let lookup_proof = akd.lookup::<Blake3>(AkdLabel("hello".to_string())).await?;
+        assert_eq!(
+            AkdValue("world_2".to_string()),
+            lookup_proof.plaintext_value
+        );
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
+
+        // Audit proof should only work up until checkpoint's epoch
+        let audit_proof = akd.audit(1, 2).await?;
+        audit_verify::<Blake3>(
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
+            audit_proof,
+        )
+        .await?;
+
+        let invalid_audit = akd.audit::<Blake3>(2, 3).await;
+        assert!(matches!(invalid_audit, Err(_)));
 
         Ok(())
     }
