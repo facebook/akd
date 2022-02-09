@@ -163,6 +163,8 @@ pub enum DirectoryError {
     VerifyLookupProof(String),
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
+    /// Tried to audit an invalid epoch range
+    InvalidEpoch(String),
     /// Error propagation
     Storage(StorageError),
 }
@@ -181,6 +183,9 @@ impl fmt::Display for DirectoryError {
                 write!(f, "The user {} did not exist at the epoch {}", uname, ep)
             }
             Self::VerifyKeyHistoryProof(err_string) => {
+                write!(f, "{}", err_string)
+            }
+            Self::InvalidEpoch(err_string) => {
                 write!(f, "{}", err_string)
             }
             Self::VerifyLookupProof(err_string) => {

@@ -265,9 +265,23 @@ impl<S: Storage + Sync + Send> Directory<S> {
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
         let current_azks = self.retrieve_current_azks().await?;
-        current_azks
-            .get_append_only_proof::<_, H>(&self.storage, audit_start_ep, audit_end_ep)
-            .await
+        let current_epoch = current_azks.get_latest_epoch();
+
+        if audit_start_ep >= audit_end_ep {
+            Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "Start epoch {} is greater than or equal the end epoch {}",
+                audit_start_ep, audit_end_ep
+            ))))
+        } else if current_epoch < audit_end_ep {
+            Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "End epoch {} is greater than the current epoch {}",
+                audit_end_ep, current_epoch
+            ))))
+        } else {
+            current_azks
+                .get_append_only_proof::<_, H>(&self.storage, audit_start_ep, audit_end_ep)
+                .await
+        }
     }
 
     /// Retrieves the current azks
@@ -825,6 +839,15 @@ mod tests {
             audit_proof_6,
         )
         .await?;
+
+        let invalid_audit = akd.audit::<Blake3>(3, 3).await;
+        assert!(matches!(invalid_audit, Err(_)));
+
+        let invalid_audit = akd.audit::<Blake3>(3, 2).await;
+        assert!(matches!(invalid_audit, Err(_)));
+
+        let invalid_audit = akd.audit::<Blake3>(6, 7).await;
+        assert!(matches!(invalid_audit, Err(_)));
 
         Ok(())
     }
