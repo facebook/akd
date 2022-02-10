@@ -175,10 +175,8 @@ impl DbRecord {
     /// been written to storage.
     pub(crate) fn transaction_priority(&self) -> u8 {
         match &self {
-            DbRecord::Azks(_) => 4,
-            DbRecord::HistoryNodeState(_) => 3,
-            DbRecord::HistoryTreeNode(_) => 1,
-            DbRecord::ValueState(_) => 2,
+            DbRecord::Azks(_) => 2,
+            _ => 1,
         }
     }
 
