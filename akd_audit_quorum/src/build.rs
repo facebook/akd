@@ -13,8 +13,7 @@
 extern crate protoc_rust;
 
 /// The list of protobuf files to generate
-/// e.g.: "src/proto/inter-node"
-const PROTOBUF_FILES: Vec<&str> = vec![];
+const PROTOBUF_FILES: [&str; 1] = ["src/proto/inter-node"];
 
 fn build_protobuf(file: &str) {
     // Tell Cargo that if the given files change, rerun this build script

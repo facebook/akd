@@ -1,0 +1,182 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
+//
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
+// License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+// of this source tree.
+
+// This contains the protobuf definition for inter-node messaging structures
+
+// Note: install a proper version of protobuf-codegen before re-generating
+// protobuf-codegen --version 2.8.1
+// Instructions: https://github.com/stepancheg/rust-protobuf/tree/master/protobuf-codegen
+// MAKE SURE to cargo install the right version: cargo install protobuf-codegen --version =2.8.1
+
+// Command to re-generate (from 'proto' directory):
+// protoc --rust_out . inter-node.proto
+
+syntax = "proto2";
+
+/* NodeLabel represents the label of a history tree node in the AKD tree with a
+ * supplied label-length and label value (location) */
+message NodeLabel {
+    required uint32 len = 1;
+    // Currently [u8; 8] but after VRF changes will be [u8; 32]
+    required bytes val = 2;
+}
+
+/* Node represents the "label" (location) of the node along with its associated hash */
+message Node {
+    optional NodeLabel label = 1;
+    // Currently [u8; DIGEST_BYTES], which with Blake3 is 32 bytes
+    optional bytes hash = 2;
+}
+
+/*
+ * Proof that no leaves were deleted from the initial epoch.
+ * This means that unchanged_nodes should hash to the initial root hash
+ * and the vec of inserted is the set of leaves inserted between these epochs.
+ * If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
+ * as the leaves, it should result in the final root hash.
+*/
+message AppendOnlyProof {
+    repeated Node inserted = 1;
+    repeated Node unchanged = 2;
+}
+
+/* NodeContact represents the contact information for a specific
+ * node in the quorum set. */
+message NodeContact {
+    optional string ip_address = 1;
+    optional uint32 port = 2;
+}
+
+// ======================================================
+// Verification requests
+// ======================================================
+
+/* VerifyRequest requests that a verification of the append only proof from
+ * (epoch-1) with hash previous_hash to (epoch) with hash new_hash is valid. */
+message VerifyRequest {
+    optional AppendOnlyProof proof = 1;
+    optional bytes previous_hash = 2;
+    optional bytes new_hash = 3;
+    optional uint64 epoch = 4;
+}
+
+/* VerifyResponse will response with their quorum key shard partials
+ * encrypted with the leader's public key in the event that the
+ * proof has verified successfully along with the hash that this node
+ * agreed upon */
+message VerifyResponse {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional bytes verified_hash = 2;
+}
+
+/* AddNodeInit starts the adding of a node process which will "test"
+ * the potential new member, and if it adheres to the protocol will
+ * result in the partial encrypted quorum key shard being transmitted
+ * to the leader for processing a new collection of shards.
+*/
+message AddNodeInit {
+    optional bytes public_key = 1;
+    optional NodeContact contact_information = 2;
+}
+
+/* AddNodeTestResult is the response to an add node init call
+ * which contains the resulting pass or failure of a call for a
+ * quorum member to determine if the requesting node should be
+ * included in the quorum set. */
+message AddNodeTestResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional NodeContact contact_information = 2;
+}
+
+/* AddNodeResult is the final result of an add node process and
+ * if it has a resulting shard, then the new member can be enrolled
+ * once enough shards are gathered together to decrypt the quorum key */
+message AddNodeResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
+    optional bytes public_key = 3;
+    optional NodeContact contact_information = 4;
+}
+
+/* NewNodeTest is the message of a "test" proof for a potential new
+ * node which is trying to join/be enrolled to the quorum */
+message NewNodeTest {
+    optional bytes requesters_public_key = 1;
+    optional bytes previous_hash = 2;
+    optional bytes new_hash = 3;
+    optional AppendOnlyProof test_proof = 4;
+}
+
+/* NewNodeTestResult is the result of the node test operation for
+ * a potential new member of the quorum vote */
+message NewNodeTestResult {
+    optional bool test_pass = 1;
+}
+
+/* RemoveNodeInit initializes the removal flow for a member of the
+ * quorum. Each recipient will "test" if they (1) can contact the
+ * node in question and (2) if it is correctly validating proofs
+ * and if either (1) or (2) fails will reply with a RemoveNodeTestResult
+ * that includes the encrypted shard saying the node should be removed */
+message RemoveNodeInit {
+    optional uint64 node_id = 1;
+}
+
+/* RemoveNodeTestResult is the reply to RemoveNodeInit and if
+ * the encrypted_quorum_key_shard is populated, means that the
+ * node in question _should_ be removed from the quorum pool
+ * because it either is computing invalid proofs or is
+ * uncontactable. */
+message RemoveNodeTestResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
+}
+
+/* RemoveNodeResult is the final message in the flow back to the
+ * edge nodes with the id of the node which has been removed and
+ * the new encrypted shard which denotes the quorum membership - 1
+ * node (the removed node). Each edge node should update their
+ * set with removing the node in question and re-computing the node
+ * indicies. i.e. if node 3 was removed in a set of 10, nodes 4-9 would
+ * become nodes 3-8 respectively. */
+message RemoveNodeResult {
+    optional bytes encrypted_quorum_key_shard = 1;
+    optional uint64 node_id = 2;
+}
+
+/* InterNodeAck is a simple acknowledgement message with a "ok"
+ * flag denoting if operation was successful and an optional
+ * error message payload field. */
+message InterNodeAck {
+    optional bool ok = 1;
+    optional string err = 2;
+    optional RemoveNodeResult remove_result = 3;
+    optional AddNodeResult add_result = 4;
+}
+
+// ======================================================
+// Inter-Node Message Wrapper
+// ======================================================
+
+message InterNodeMessage {
+    enum MessageType {
+        INTER_NODE_ACK = 0;
+        VERIFY_REQUEST = 1;
+        VERIFY_RESPONSE = 2;
+        ADD_NODE_INIT = 3;
+        ADD_NODE_TEST_RESULT = 4;
+        ADD_NODE_RESULT = 5;
+        NEW_NODE_TEST = 6;
+        NEW_NODE_TEST_RESULT = 7;
+        REMOVE_NODE_INIT = 8;
+        REMOVE_NODE_TEST_RESULT = 9;
+        REMOVE_NODE_RESULT = 10;
+    }
+
+    optional MessageType message_type = 1;
+    optional bytes payload = 2;
+}

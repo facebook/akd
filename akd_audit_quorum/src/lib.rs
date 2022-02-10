@@ -75,6 +75,8 @@ use std::fmt;
 
 pub mod comms;
 pub mod crypto;
+pub mod node;
+pub(crate) mod proto;
 pub mod storage;
 
 #[derive(Debug, PartialEq)]

@@ -130,10 +130,10 @@ where
         timeout_ms: u64,
     ) -> Result<EncryptedMessage, CommunicationError>;
 
-    // /// Blocking receive call which waits for messages coming from the public communication channel
-    // /// (i.e. messages from admin interface or AKD)
-    // async fn receive_public(
-    //     &self,
-    //     timeout_ms: u64,
-    // ) -> Result<crate::node::messages::PublicNodeMessage<H>, CommunicationError>;
+    /// Blocking receive call which waits for messages coming from the public communication channel
+    /// (i.e. messages from admin interface or AKD)
+    async fn receive_public(
+        &self,
+        timeout_ms: u64,
+    ) -> Result<crate::node::messages::PublicNodeMessage<H>, CommunicationError>;
 }
