@@ -5,7 +5,6 @@ on:
       - main
   pull_request:
     types: [opened, repoened, synchronize]
-
 jobs:
   test:
     name: Test Rust ${{matrix.toolchain}} on ${{matrix.os}}
@@ -34,6 +33,8 @@ jobs:
           echo "MySQL container is up"
       - name: Check container akd-test-db logs
         run: docker logs akd-test-db
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v1.1.2
       - name: Test
         uses: actions-rs/cargo@v1
         with:
@@ -52,7 +53,6 @@ jobs:
         with:
           command: test
           args: --package akd_client --no-default-features --features wasm,blake3
-
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -65,13 +65,13 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-
+      - name: Setup protoc
+        uses: arduino/setup-protoc@v1.1.2
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --all -- -D clippy::all -D warnings
-
   rustfmt:
     name: rustfmt
     runs-on: ubuntu-latest
@@ -84,9 +84,7 @@ jobs:
           toolchain: stable
           components: rustfmt
           override: true
-
       - name: rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
-          args: --all -- --check

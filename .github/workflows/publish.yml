@@ -15,7 +15,9 @@ jobs:
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust }}
-    - uses: actions/checkout@master
+    - name: Setup protoc
+      uses: arduino/setup-protoc@v1.1.2
+    - uses: actions/checkout@main
     - name: Login to crates.io
       run: cargo login $CRATES_IO_TOKEN
       env:
@@ -38,5 +40,11 @@ jobs:
       run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_client
     - name: Publish crate akd_client
       run: cargo publish --manifest-path Cargo.toml -p akd_client
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
+    - name: Dry run publish AKD_AUDIT_QUORUM
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_audit_quorum
+    - name: Publish crate akd_audit_quorum
+      run: cargo publish --manifest-path Cargo.toml -p akd_auditor_quorum
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
