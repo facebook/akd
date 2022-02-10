@@ -74,6 +74,13 @@ impl NonceManager {
                     from, nonce, expected
                 ),
             );
+
+            // reject this message but additionaly reset the nonce to what was received + 1. This handles when
+            // nodes restart or get corrupted and nonces may legitimately drift apart. In the event
+            // that a reply attack occurs, we're rejecting the message anyways if the nonce doesn't match
+            // what's expected so it's still protected.
+            self.incoming.write().await.insert(from, nonce + 1);
+
             Err(err)
         }
     }

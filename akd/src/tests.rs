@@ -289,10 +289,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
     let ep_existing = 0u64;
 
     let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(
-            0b1u64 << ep_existing,
-            ep_existing.try_into().unwrap(),
-        ),
+        NodeLabel::new(0b1u64 << ep_existing, ep_existing.try_into().unwrap()),
         Blake3::hash(&[0u8]),
         2 * ep_existing,
     )
