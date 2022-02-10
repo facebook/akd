@@ -381,6 +381,7 @@ mod tests {
     #[test]
     pub fn test_node_label_equal_leading_zero() {
         let label_1 = NodeLabel::new(10000000u64, 9u32);
+        #[allow(clippy::zero_prefixed_literal)]
         let label_2 = NodeLabel::new(010000000u64, 9u32);
         assert!(
             label_1 == label_2,

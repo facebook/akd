@@ -24,6 +24,12 @@ pub struct NonceManager {
     incoming: Arc<RwLock<HashMap<NodeId, Nonce>>>,
 }
 
+impl Default for NonceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NonceManager {
     /// Create a new nonce manager instance
     pub fn new() -> Self {

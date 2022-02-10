@@ -107,6 +107,7 @@ impl QuorumKeyShard {
     /// Flatten the crypto shard into a single array of the components in-order
     pub fn flatten(&self) -> [u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS] {
         let mut data = [0u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS];
+        #[allow(clippy::needless_range_loop)]
         for part_i in 0..QUORUM_KEY_NUM_PARTS {
             let start = part_i * SHARE_SIZE;
             let end = (part_i + 1) * SHARE_SIZE;
@@ -120,7 +121,7 @@ impl QuorumKeyShard {
         raw: [u8; SHARE_SIZE * QUORUM_KEY_NUM_PARTS],
     ) -> Result<Self, QuorumOperationError> {
         let mut components = [[0u8; SHARE_SIZE]; QUORUM_KEY_NUM_PARTS];
-
+        #[allow(clippy::needless_range_loop)]
         for part_i in 0..QUORUM_KEY_NUM_PARTS {
             let start = part_i * SHARE_SIZE;
             let end = (part_i + 1) * SHARE_SIZE;

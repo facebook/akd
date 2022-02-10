@@ -268,13 +268,13 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 
     for ep in 0..3 {
         let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-            NodeLabel::new(0b1u64 << ep.clone(), ep.try_into().unwrap()),
+            NodeLabel::new(0b1u64 << ep, ep.try_into().unwrap()),
             Blake3::hash(&[0u8]),
             2 * ep,
         )
         .unwrap();
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-            NodeLabel::new(0, ep.clone().try_into().unwrap()),
+            NodeLabel::new(0, ep.try_into().unwrap()),
             Blake3::hash(&[0u8]),
             2 * ep,
         )
@@ -290,7 +290,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 
     let child_hist_node_1 = HistoryChildState::new::<Blake3>(
         NodeLabel::new(
-            0b1u64 << ep_existing.clone(),
+            0b1u64 << ep_existing,
             ep_existing.try_into().unwrap(),
         ),
         Blake3::hash(&[0u8]),
@@ -298,7 +298,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
     )
     .unwrap();
     let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(0, ep_existing.clone().try_into().unwrap()),
+        NodeLabel::new(0, ep_existing.try_into().unwrap()),
         Blake3::hash(&[0u8]),
         2 * ep_existing,
     )
@@ -596,7 +596,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
     for i in 0u64..8u64 {
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
-            NodeLabel::new(i.clone(), 3u32),
+            NodeLabel::new(i, 3u32),
             &i.to_ne_bytes(),
             NodeLabel::root(),
             7 - i,
