@@ -885,7 +885,7 @@ mod tests {
         )
         .await?;
 
-        // Make the current a "checkpoint" to reset to later
+        // Make the current azks a "checkpoint" to reset to later
         let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
 
         // Publish for the third time

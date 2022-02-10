@@ -242,7 +242,7 @@ mod tests {
                 txn.set(&record).await;
             }
 
-            // ensure that commited records are in ascending priority
+            // ensure that committed records are in ascending priority
             let mut running_priority = 0;
             for record in txn.commit_transaction().await? {
                 let priority = record.transaction_priority();
