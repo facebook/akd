@@ -10,9 +10,15 @@
 //! The purpose of managing nonces is to protect against replay attacks in inter-node
 //! messages. The [`NonceManager`] manages both _expected_ incoming nonces from nodes
 //! and the outgoing nonces for messages being sent to nodes.
+//!
+//! ## Relevant information
+//!
+//! The nonce reset problem
+//! https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.1061.3009&rep=rep1&type=pdf
 
 use super::{NodeId, Nonce};
 
+use rand::Rng;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -39,13 +45,43 @@ impl NonceManager {
         }
     }
 
-    /// Retrieve the "next" nonce for message send, will auto-increment the nonce
-    /// mapping
-    pub async fn get_next_outgoing_nonce(&self, to: NodeId) -> Nonce {
+    /// Reset the nonce for a given peer node to a random value
+    /// and return the "next" expected nonce for that peer which will
+    /// be communicated to that peer for setting their nonce options
+    pub async fn reset(&self, from: NodeId) -> Nonce {
+        let mut guard = self.incoming.write().await;
+
+        let mut rng = rand::thread_rng();
+        let new_nonce: Nonce = rng.gen();
+
+        // we'll be expecting new_nonce + 1, but we transmit new_nonce as
+        // the peer's logic will auto-increment it when generating an
+        // outgoing nonce
+        guard.insert(from, new_nonce + 1);
+
+        new_nonce
+    }
+
+    /// Set the outgoing nonce for a given peer, this is in reply to a remote nonce
+    /// reset request
+    pub async fn set_outgoing_nonce_for_peer(&self, to: NodeId, starting_nonce: Nonce) {
         let mut guard = self.outgoing.write().await;
-        let next = guard.get(&to).map_or(0, |a| *a + 1);
-        // safe the updated nonce
-        guard.insert(to, next);
+        guard.insert(to, starting_nonce);
+    }
+
+    /// Retrieve the "next" nonce for an outgoing message. Will auto-increment the nonce
+    /// mapping
+    ///
+    /// Returns: Some(nonce) when a valid next nonce was able to be retrieved, None if
+    /// no starting/previous nonce was registered for this peer
+    pub async fn get_next_outgoing_nonce(&self, to: NodeId) -> Option<Nonce> {
+        let mut guard = self.outgoing.write().await;
+        let next = guard.get(&to).map(|a| *a + 1);
+
+        if let Some(v) = &next {
+            // save the next expected nonce
+            guard.insert(to, *v);
+        }
         next
     }
 
@@ -70,16 +106,10 @@ impl NonceManager {
                 from,
                 nonce,
                 format!(
-                    "Nonce mismatch in raft inter-messages: Node {}, Nonce: {}, Expected Nonce: {}",
-                    from, nonce, expected
+                    "Nonce mismatch in raft inter-messages: Node {}, Received nonce: {}",
+                    from, nonce
                 ),
             );
-
-            // reject this message but additionaly reset the nonce to what was received + 1. This handles when
-            // nodes restart or get corrupted and nonces may legitimately drift apart. In the event
-            // that a reply attack occurs, we're rejecting the message anyways if the nonce doesn't match
-            // what's expected so it's still protected.
-            self.incoming.write().await.insert(from, nonce + 1);
 
             Err(err)
         }
