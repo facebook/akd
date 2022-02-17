@@ -1,6 +1,6 @@
 [package]
 name = "akd_client"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Client verification companion for the auditable key directory with limited dependencies."
 license = "MIT OR Apache-2.0"
@@ -40,7 +40,7 @@ default = ["blake3"]
 wasm = ["wasm-bindgen", "serde"]
 
 [dev-dependencies]
-akd = { path = "../akd", version = "^0.4.0" }
+akd = { path = "../akd", version = "^0.5.0" }
 winter-crypto = "0.2"
 winter-utils = "0.2"
 winter-math = "0.2"

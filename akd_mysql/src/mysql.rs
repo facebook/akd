@@ -1110,24 +1110,26 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(0),
                         row.take(1),
                         row.take(2),
-                        row.take(3),
+                        row.take::<Vec<u8>, _>(3),
                         row.take(4),
                         row.take(5),
                     ) {
-                        let label_val_vec: Vec<u8> = node_label_val;
-                        Some(ValueState {
-                            epoch,
-                            version,
-                            label: NodeLabel {
-                                val: label_val_vec.try_into().unwrap(),
-                                len: node_label_len,
-                            },
-                            plaintext_val: akd::storage::types::AkdValue(data),
-                            username: akd::storage::types::AkdLabel(username),
-                        })
-                    } else {
-                        None
+                        // explicitly check the array length for safety
+                        if node_label_val.len() == 32 {
+                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            return Some(ValueState {
+                                epoch,
+                                version,
+                                label: NodeLabel {
+                                    val,
+                                    len: node_label_len,
+                                },
+                                plaintext_val: akd::storage::types::AkdValue(data),
+                                username: akd::storage::types::AkdLabel(username),
+                            });
+                        }
                     }
+                    None
                 })
                 .await
                 .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
@@ -1221,24 +1223,26 @@ impl Storage for AsyncMySqlDatabase {
                         row.take(0),
                         row.take(1),
                         row.take(2),
-                        row.take(3),
+                        row.take::<Vec<_>, _>(3),
                         row.take(4),
                         row.take(5),
                     ) {
-                        let label_val_vec: Vec<u8> = node_label_val;
-                        Some(ValueState {
-                            epoch,
-                            version,
-                            label: NodeLabel {
-                                val: label_val_vec.try_into().unwrap(),
-                                len: node_label_len,
-                            },
-                            plaintext_val: akd::storage::types::AkdValue(data),
-                            username: akd::storage::types::AkdLabel(username),
-                        })
-                    } else {
-                        None
+                        // explicitly check the array length for safety
+                        if node_label_val.len() == 32 {
+                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            return Some(ValueState {
+                                epoch,
+                                version,
+                                label: NodeLabel {
+                                    val,
+                                    len: node_label_len,
+                                },
+                                plaintext_val: akd::storage::types::AkdValue(data),
+                                username: akd::storage::types::AkdLabel(username),
+                            });
+                        }
                     }
+                    None
                 })
                 .await
                 .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
