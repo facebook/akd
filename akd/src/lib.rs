@@ -287,7 +287,7 @@ pub mod history_tree_node;
 pub mod node_state;
 pub mod primitives;
 pub mod proof_structs;
-mod serialization;
+pub mod serialization;
 pub mod storage;
 mod utils;
 

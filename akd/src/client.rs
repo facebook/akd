@@ -36,12 +36,11 @@ pub fn verify_membership<H: Hasher>(
             )));
         }
     }
+
     let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
-    for i in (0..proof.dirs.len()).rev() {
-        // pull the hashes out of the label/hash(es) grouping
-        let hashes = proof.siblings[i].iter().map(|n| n.hash).collect();
-        final_hash =
-            build_and_hash_layer::<H>(hashes, proof.dirs[i], final_hash, proof.parent_labels[i])?;
+    for parent in proof.layer_proofs.iter().rev() {
+        let hashes = parent.siblings.iter().map(|n| n.hash).collect();
+        final_hash = build_and_hash_layer::<H>(hashes, parent.direction, final_hash, parent.label)?;
     }
 
     if final_hash == root_hash {

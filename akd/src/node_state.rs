@@ -7,6 +7,7 @@
 
 //! The representation for the label of a history tree node.
 
+use crate::errors::HistoryTreeNodeError;
 use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
@@ -183,7 +184,7 @@ impl NodeLabel {
         if other.get_prefix(self.get_len()) != *self {
             return Direction::None;
         }
-        Direction::Some(other.get_bit_at(self.get_len()).try_into().unwrap())
+        Direction::Some(other.get_bit_at(self.get_len()) as usize)
     }
 }
 
@@ -282,13 +283,13 @@ unsafe impl Sync for HistoryNodeState {}
 
 impl HistoryNodeState {
     /// Creates a new [HistoryNodeState]
-    pub fn new<H: Hasher>(key: NodeStateKey) -> Self {
+    pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, HistoryTreeNodeError> {
         const INIT: Option<HistoryChildState> = None;
-        HistoryNodeState {
-            value: from_digest::<H>(H::hash(&[0u8])).unwrap(),
+        Ok(HistoryNodeState {
+            value: from_digest::<H>(H::hash(&[0u8]))?,
             child_states: [INIT; ARITY],
             key,
-        }
+        })
     }
 
     /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
@@ -312,9 +313,9 @@ impl Clone for HistoryNodeState {
 impl fmt::Display for HistoryNodeState {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "\tvalue = {:?}", self.value).unwrap();
+        writeln!(f, "\tvalue = {:?}", self.value)?;
         for i in 0..ARITY {
-            writeln!(f, "\tchildren {}: {:?}", i, self.child_states[i]).unwrap();
+            writeln!(f, "\tchildren {}: {:?}", i, self.child_states[i])?;
         }
         write!(f, "")
     }
@@ -338,12 +339,16 @@ unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
-    pub fn new<H: Hasher>(label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
-        HistoryChildState {
+    pub fn new<H: Hasher>(
+        label: NodeLabel,
+        hash_val: H::Digest,
+        ep: u64,
+    ) -> Result<Self, HistoryTreeNodeError> {
+        Ok(HistoryChildState {
             label,
-            hash_val: from_digest::<H>(hash_val).unwrap(),
+            hash_val: from_digest::<H>(hash_val)?,
             epoch_version: ep,
-        }
+        })
     }
 }
 

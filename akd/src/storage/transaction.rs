@@ -107,7 +107,11 @@ impl Transaction {
         }
 
         // copy all the updated values out
-        let records = guard.mods.values().cloned().collect();
+        let mut records = guard.mods.values().cloned().collect::<Vec<_>>();
+
+        // sort according to transaction priority
+        records.sort_by_key(|r| r.transaction_priority());
+
         // flush the trans log
         (*guard).mods.clear();
 
@@ -167,5 +171,89 @@ impl Transaction {
 
         *(self.num_writes.write().await) += 1;
         debug!("END transaction set");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::append_only_zks::*;
+    use crate::history_tree_node::*;
+    use crate::node_state::*;
+    use crate::storage::types::*;
+    use rand::{rngs::OsRng, seq::SliceRandom};
+
+    #[tokio::test]
+    async fn test_commit_order() -> Result<(), StorageError> {
+        let azks = DbRecord::Azks(Azks {
+            num_nodes: 0,
+            latest_epoch: 0,
+        });
+        let node1 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+            label: NodeLabel::new(byte_arr_from_u64(0), 0),
+            birth_epoch: 1,
+            last_epoch: 1,
+            parent: NodeLabel::new(byte_arr_from_u64(0), 0),
+            node_type: NodeType::Root,
+        });
+        let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
+            birth_epoch: 1,
+            last_epoch: 1,
+            parent: NodeLabel::new(byte_arr_from_u64(0), 0),
+            node_type: NodeType::Leaf,
+        });
+        let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
+            value: vec![],
+            child_states: [None, None],
+            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1),
+        });
+        let node_state2 = DbRecord::HistoryNodeState(HistoryNodeState {
+            value: vec![],
+            child_states: [None, None],
+            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
+        });
+        let value1 = DbRecord::ValueState(ValueState {
+            username: AkdLabel("test".to_string()),
+            epoch: 1,
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
+            version: 1,
+            plaintext_val: AkdValue("abc123".to_string()),
+        });
+        let value2 = DbRecord::ValueState(ValueState {
+            username: AkdLabel("test".to_string()),
+            epoch: 2,
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
+            version: 2,
+            plaintext_val: AkdValue("abc1234".to_string()),
+        });
+
+        let records = vec![azks, node1, node2, node_state1, node_state2, value1, value2];
+        let mut rng = OsRng;
+
+        for _ in 1..10 {
+            let mut txn = Transaction::new();
+            txn.begin_transaction().await;
+
+            // set values in a random order
+            let mut shuffled = records.clone();
+            shuffled.shuffle(&mut rng);
+            for record in shuffled {
+                txn.set(&record).await;
+            }
+
+            // ensure that committed records are in ascending priority
+            let mut running_priority = 0;
+            for record in txn.commit_transaction().await? {
+                let priority = record.transaction_priority();
+                if priority > running_priority {
+                    running_priority = priority;
+                } else if priority < running_priority {
+                    panic!("Transaction did not obey record priority when committing");
+                }
+            }
+        }
+
+        Ok(())
     }
 }

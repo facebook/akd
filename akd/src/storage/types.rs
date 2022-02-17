@@ -168,6 +168,18 @@ impl DbRecord {
         }
     }
 
+    /// Returns the priority in which a record type in a transaction should be committed to storage.
+    /// A smaller value indicates higher priority in being written first.
+    /// An Azks record should always be updated last, so that any concurrent storage readers will
+    /// not see an increase in the current epoch until every other record for the new epoch has
+    /// been written to storage.
+    pub(crate) fn transaction_priority(&self) -> u8 {
+        match &self {
+            DbRecord::Azks(_) => 2,
+            _ => 1,
+        }
+    }
+
     /* Data Layer Builders */
 
     /// Build an azks instance from the properties

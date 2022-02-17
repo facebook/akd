@@ -73,7 +73,7 @@ impl std::fmt::Display for AkdError {
 }
 
 /// Errors thrown by HistoryTreeNodes
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
@@ -174,6 +174,8 @@ pub enum DirectoryError {
     VerifyLookupProof(String),
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
+    /// Tried to audit an invalid epoch range
+    InvalidEpoch(String),
     /// Error propagation
     Storage(StorageError),
     /// Error propagation for errors from the VRF crate
@@ -210,6 +212,9 @@ impl fmt::Display for DirectoryError {
                 write!(f, "The user {} did not exist at the epoch {}", uname, ep)
             }
             Self::VerifyKeyHistoryProof(err_string) => {
+                write!(f, "{}", err_string)
+            }
+            Self::InvalidEpoch(err_string) => {
                 write!(f, "{}", err_string)
             }
             Self::VerifyLookupProof(err_string) => {

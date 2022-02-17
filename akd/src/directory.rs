@@ -48,7 +48,6 @@ impl AkdLabel {
 /// The representation of a auditable key directory
 #[derive(Clone)]
 pub struct Directory<S, V> {
-    current_epoch: u64,
     storage: S,
     _v: PhantomData<V>,
 }
@@ -58,19 +57,17 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     pub async fn new<H: Hasher>(storage: &S, _v: PhantomData<V>) -> Result<Self, AkdError> {
-        let azks = {
-            if let Ok(azks) = Directory::<S, V>::get_azks_from_storage(storage).await {
-                azks
-            } else {
-                // generate a new one
-                let azks = Azks::new::<_, H>(storage).await?;
-                // store it
-                storage.set(DbRecord::Azks(azks.clone())).await?;
-                azks
-            }
-        };
+        if Directory::<S, V>::get_azks_from_storage(storage)
+            .await
+            .is_err()
+        {
+            // generate a new azks if one is not found
+            let azks = Azks::new::<_, H>(storage).await?;
+            // store it
+            storage.set(DbRecord::Azks(azks.clone())).await?;
+        }
+
         Ok(Directory {
-            current_epoch: azks.get_latest_epoch(),
             storage: storage.clone(),
             _v,
         })
@@ -84,7 +81,10 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
     ) -> Result<EpochHash<H>, AkdError> {
         let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
-        let next_epoch = self.current_epoch + 1;
+
+        let mut current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+        let next_epoch = current_epoch + 1;
 
         let mut keys: Vec<AkdLabel> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
@@ -96,7 +96,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         // read (i.e. the actual _data_ payload).
         let all_user_versions_retrieved = self
             .storage
-            .get_user_state_versions(&keys, ValueStateRetrievalFlag::MaxEpoch)
+            .get_user_state_versions(&keys, ValueStateRetrievalFlag::LeqEpoch(current_epoch))
             .await?;
 
         info!(
@@ -144,9 +144,6 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
             }
         }
         let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
-        // ideally the azks and the state would be updated together.
-        // It may also make sense to have a temp version of the server's database
-        let mut current_azks = self.retrieve_current_azks().await?;
 
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
@@ -181,29 +178,32 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
             }
         }
 
-        let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
-
-        self.current_epoch = next_epoch;
+        let root_hash = current_azks
+            .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+            .await?;
 
         self.storage.log_metrics(log::Level::Info).await;
 
-        Ok(EpochHash(self.current_epoch, root_hash))
+        Ok(EpochHash(current_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
 
     /// Provides proof for correctness of latest version
     pub async fn lookup<H: Hasher>(&self, uname: AkdLabel) -> Result<LookupProof<H>, AkdError> {
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
         match self
             .storage
-            .get_user_state(&uname, ValueStateRetrievalFlag::MaxEpoch)
+            .get_user_state(&uname, ValueStateRetrievalFlag::LeqEpoch(current_epoch))
             .await
         {
             Err(_) => {
                 // Need to throw an error
                 Err(AkdError::Directory(DirectoryError::NonExistentUser(
                     uname.0,
-                    self.current_epoch,
+                    current_epoch,
                 )))
             }
             Ok(latest_st) => {
@@ -216,7 +216,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 let non_existent_label = Self::get_nodelabel::<H>(&uname, true, current_version)?;
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
-                    epoch: self.current_epoch,
+                    epoch: current_epoch,
                     plaintext_value: latest_st.plaintext_val,
                     version: current_version,
                     exisitence_vrf_proof: self.get_label_proof::<H>(
@@ -225,11 +225,11 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                         current_version,
                     )?,
                     existence_proof: current_azks
-                        .get_membership_proof(&self.storage, existent_label, self.current_epoch)
+                        .get_membership_proof(&self.storage, existent_label, current_epoch)
                         .await?,
                     marker_vrf_proof: self.get_label_proof::<H>(&uname, false, marker_version)?,
                     marker_proof: current_azks
-                        .get_membership_proof(&self.storage, marker_label, self.current_epoch)
+                        .get_membership_proof(&self.storage, marker_label, current_epoch)
                         .await?,
                     freshness_vrf_proof: self.get_label_proof::<H>(
                         &uname,
@@ -237,11 +237,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                         current_version,
                     )?,
                     freshness_proof: current_azks
-                        .get_non_membership_proof(
-                            &self.storage,
-                            non_existent_label,
-                            self.current_epoch,
-                        )
+                        .get_non_membership_proof(&self.storage, non_existent_label, current_epoch)
                         .await?,
                 })
             }
@@ -258,17 +254,23 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         uname: &AkdLabel,
     ) -> Result<HistoryProof<H>, AkdError> {
         let username = uname.0.to_string();
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
             let mut proofs = Vec::<UpdateProof<H>>::new();
             for user_state in &this_user_data.states {
-                let proof = self.create_single_update_proof(uname, user_state).await?;
-                proofs.push(proof);
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof(uname, user_state).await?;
+                    proofs.push(proof);
+                }
             }
             Ok(HistoryProof { proofs })
         } else {
             Err(AkdError::Directory(DirectoryError::NonExistentUser(
                 username,
-                self.current_epoch,
+                current_epoch,
             )))
         }
     }
@@ -281,9 +283,23 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
         let current_azks = self.retrieve_current_azks().await?;
-        current_azks
-            .get_append_only_proof::<_, H>(&self.storage, audit_start_ep, audit_end_ep)
-            .await
+        let current_epoch = current_azks.get_latest_epoch();
+
+        if audit_start_ep >= audit_end_ep {
+            Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "Start epoch {} is greater than or equal the end epoch {}",
+                audit_start_ep, audit_end_ep
+            ))))
+        } else if current_epoch < audit_end_ep {
+            Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "End epoch {} is greater than the current epoch {}",
+                audit_end_ep, current_epoch
+            ))))
+        } else {
+            current_azks
+                .get_append_only_proof::<_, H>(&self.storage, audit_start_ep, audit_end_ep)
+                .await
+        }
     }
 
     /// Retrieves the current azks
@@ -484,7 +500,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         &self,
         current_azks: &Azks,
     ) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch::<H>(current_azks, self.current_epoch)
+        self.get_root_hash_at_epoch::<H>(current_azks, current_azks.get_latest_epoch())
             .await
     }
 }
@@ -557,7 +573,10 @@ mod tests {
     use crate::{
         auditor::audit_verify,
         client::{key_history_verify, lookup_verify},
-        primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::HardCodedClientVRF},
+        primitives::{
+            akd_vrf::HardCodedAkdVRF,
+            client_vrf::{ClientVRF, HardCodedClientVRF},
+        },
         storage::memory::AsyncInMemoryDatabase,
     };
     use winter_crypto::{hashers::Blake3_256, Digest};
@@ -841,7 +860,7 @@ mod tests {
         let current_azks = akd.retrieve_current_azks().await?;
 
         let audit_proof_1 = akd.audit(1, 2).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
@@ -851,7 +870,7 @@ mod tests {
         .await?;
 
         let audit_proof_2 = akd.audit(1, 3).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
@@ -861,7 +880,7 @@ mod tests {
         .await?;
 
         let audit_proof_3 = akd.audit(1, 4).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
@@ -871,7 +890,7 @@ mod tests {
         .await?;
 
         let audit_proof_4 = akd.audit(1, 5).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 5)
@@ -881,7 +900,7 @@ mod tests {
         .await?;
 
         let audit_proof_5 = akd.audit(2, 3).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
@@ -891,7 +910,7 @@ mod tests {
         .await?;
 
         let audit_proof_6 = akd.audit(2, 4).await?;
-        audit_verify::<Blake3_256<BaseElement>>(
+        audit_verify::<Blake3>(
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
                 .await?,
             akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
@@ -899,6 +918,119 @@ mod tests {
             audit_proof_6,
         )
         .await?;
+
+        let invalid_audit = akd.audit::<Blake3>(3, 3).await;
+        assert!(matches!(invalid_audit, Err(_)));
+
+        let invalid_audit = akd.audit::<Blake3>(3, 2).await;
+        assert!(matches!(invalid_audit, Err(_)));
+
+        let invalid_audit = akd.audit::<Blake3>(6, 7).await;
+        assert!(matches!(invalid_audit, Err(_)));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_during_publish() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let mut akd = Directory::<_, _>::new::<Blake3>(&db, PhantomData::<HardCodedAkdVRF>).await?;
+
+        // Publish twice
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world_2".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2_2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Make the current azks a "checkpoint" to reset to later
+        let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
+
+        // Publish for the third time
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world_3".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2_3".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // Reset the azks record back to previous epoch, to emulate an akd reader
+        // communicating with storage that is in the middle of a publish operation
+        db.set(DbRecord::Azks(checkpoint_azks))
+            .await
+            .expect("Error resetting directory to previous epoch");
+        let current_azks = akd.retrieve_current_azks().await?;
+        let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+        // History proof should not contain the third epoch's update but still verify
+        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        assert_eq!(2, root_hashes.len());
+        let vrf_pk = HardCodedClientVRF::get_public_key()?;
+        key_history_verify::<Blake3, HardCodedClientVRF>(
+            vrf_pk.clone(),
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
+
+        // Lookup proof should contain the checkpoint epoch's value and still verify
+        let lookup_proof = akd.lookup::<Blake3>(AkdLabel("hello".to_string())).await?;
+        assert_eq!(
+            AkdValue("world_2".to_string()),
+            lookup_proof.plaintext_value
+        );
+        lookup_verify::<Blake3, HardCodedClientVRF>(
+            vrf_pk,
+            root_hash,
+            AkdLabel("hello".to_string()),
+            lookup_proof,
+        )?;
+
+        // Audit proof should only work up until checkpoint's epoch
+        let audit_proof = akd.audit(1, 2).await?;
+        audit_verify::<Blake3>(
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+                .await?,
+            akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+                .await?,
+            audit_proof,
+        )
+        .await?;
+
+        let invalid_audit = akd.audit::<Blake3>(2, 3).await;
+        assert!(matches!(invalid_audit, Err(_)));
 
         Ok(())
     }

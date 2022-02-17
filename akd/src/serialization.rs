@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module contains serialization calls for helping serialize/deserialize digests
+
 use crate::errors::HistoryTreeNodeError;
 use serde::{Deserialize, Serialize};
 use winter_crypto::{Digest, Hasher};

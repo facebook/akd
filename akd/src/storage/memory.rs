@@ -394,10 +394,10 @@ impl AsyncInMemoryDbWithCache {
         let mut distribution: HashMap<usize, usize> = HashMap::new();
 
         for (_, val) in cache.iter() {
-            let len = bincode::serialize(val).map(|item| item.len()).unwrap();
-
-            let counter = distribution.entry(len).or_insert(0);
-            *counter += 1;
+            if let Ok(len) = bincode::serialize(val).map(|item| item.len()) {
+                let counter = distribution.entry(len).or_insert(0);
+                *counter += 1;
+            }
         }
 
         let mut sorted_keys: Vec<usize> = distribution.keys().cloned().collect();
