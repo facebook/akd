@@ -6,10 +6,16 @@
 // of this source tree.
 
 //! Includes the trait and an implementation of it to access secure data for the VRF.
-use vrf::openssl::{CipherSuite, Error};
-use vrf::{openssl::ECVRF, VRF};
 
-use crate::errors::{HardCodedVRFStorageError, VRFStorageError};
+use vrf::VRF;
+use crate::errors::VRFStorageError;
+
+#[cfg(test)]
+use vrf::openssl::{CipherSuite, Error};
+#[cfg(test)]
+use vrf::openssl::ECVRF;
+#[cfg(test)]
+use crate::errors::HardCodedVRFStorageError;
 /// A trait to get public and secret key for the VRF
 pub trait ClientVRF {
     /// The type of the public key
@@ -31,10 +37,12 @@ pub trait ClientVRF {
 /// Wrapper around the vrf crate implementation for ECVRF
 /// to prevent the need for lifetimes in testing.
 /// Other implementatoins may require saving vrf state to storage.
+#[cfg(test)]
 pub struct NoLifetimeECVRF {
     vrf: ECVRF,
 }
 
+#[cfg(test)]
 impl NoLifetimeECVRF {
     fn new() -> Result<Self, vrf::openssl::Error> {
         let vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI)?;
@@ -50,6 +58,7 @@ impl NoLifetimeECVRF {
     }
 }
 
+#[cfg(test)]
 impl VRF<Vec<u8>, Vec<u8>> for NoLifetimeECVRF {
     type Error = Error;
 
@@ -63,10 +72,10 @@ impl VRF<Vec<u8>, Vec<u8>> for NoLifetimeECVRF {
 }
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
-pub struct HardCodedClientVRF {
-    //const KEY_MATERIAL: &str = "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721";
-}
+#[cfg(test)]
+pub struct HardCodedClientVRF;
 
+#[cfg(test)]
 impl HardCodedClientVRF {
     fn get_secret_key_helper() -> Result<Vec<u8>, HardCodedVRFStorageError> {
         Ok(hex::decode(
@@ -81,6 +90,7 @@ impl HardCodedClientVRF {
     }
 }
 
+#[cfg(test)]
 impl ClientVRF for HardCodedClientVRF {
     type PK = Vec<u8>;
     type SK = Vec<u8>;
