@@ -28,7 +28,7 @@
 //! ## Setup
 //! A [directory::Directory] represents an AKD. To setup a [directory::Directory], we first need to decide on
 //! a database and a hash function. For this example, we use the [winter_crypto::hashers::Blake3_256] as the hash function,
-//! [storage::memory::AsyncInMemoryDatabase] as storage and [primitives::akd_vrf::HardCodedVRFKeyStorage].
+//! [storage::memory::AsyncInMemoryDatabase] as storage and [primitives::akd_vrf::HardCodedAkdVRF].
 //! ```
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
@@ -36,13 +36,14 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::VRFKeyStorage;
+//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
+//! use std::marker::PhantomData;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//! let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//! let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //! };
 //! ```
 //!
@@ -57,13 +58,14 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedVRFKeyStorage;
+//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
+//! use std::marker::PhantomData;
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_, HardCodedVRFKeyStorage>::new::<Blake3_256<BaseElement>>(&db, PhantomData<HardCodedVRFKeyStorage>).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -85,10 +87,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedVRFKeyStorage;
+//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_, HardCodedVRFKeyStorage>::new::<Blake3_256<BaseElement>>(&db, PhantomData<HardCodedVRFKeyStorage>).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -109,10 +112,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedVRFKeyStorage;
+//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::{ClientVRF, HardCodedClientVRF}};
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_, HardCodedVRFKeyStorage>::new::<Blake3_256<BaseElement>>(&db, PhantomData<HardCodedVRFKeyStorage>).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -122,9 +126,9 @@
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
 //!     // Get the VRF public key of the server
-//!     let vrf_pk = akd.get_public_key()?;
-//!     client::lookup_verify::<Blake3_256<BaseElement>>(
-//!         &vrf_pk,
+//!     let vrf_pk = HardCodedClientVRF::get_public_key().unwrap();
+//!     client::lookup_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
+//!         vrf_pk,
 //!         root_hash,
 //!         AkdLabel("hello".to_string()),
 //!         lookup_proof,
@@ -147,10 +151,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedVRFKeyStorage;
+//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_, HardCodedVRFKeyStorage>::new::<Blake3_256<BaseElement>>(&db, PhantomData<HardCodedVRFKeyStorage>).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -171,9 +176,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
+//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::{ClientVRF, HardCodedClientVRF}};
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -181,10 +188,10 @@
 //!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
-//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>>(&akd, &history_proof).await.unwrap();
-//!     let vrf_pk = akd.get_public_key();
-//!     key_history_verify::<Blake3_256<BaseElement>>(
-//!     &vrf_pk,
+//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
+//!     let vrf_pk = HardCodedClientVRF::get_public_key().unwrap();
+//!     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
+//!     vrf_pk,
 //!     root_hashes,
 //!     previous_root_hashes,
 //!     AkdLabel("hello".to_string()),
@@ -206,9 +213,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
+//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::HardCodedClientVRF};
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -234,10 +243,11 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedVRFKeyStorage;
+//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use std::marker::PhantomData;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_, HardCodedVRFKeyStorage>::new::<Blake3_256<BaseElement>>(&db, PhantomData<HardCodedVRFKeyStorage>).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)

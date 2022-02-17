@@ -8,7 +8,7 @@
 use akd::directory::Directory;
 use akd::directory::EpochHash;
 use akd::errors::AkdError;
-use akd::primitives::akd_vrf::VRFKeyStorage;
+use akd::primitives::akd_vrf::AkdVRF;
 use akd::storage::types::*;
 use akd::storage::Storage;
 use log::{debug, error, info};
@@ -41,7 +41,7 @@ async fn get_root_hash<S, H, V>(
 where
     S: Storage + Sync + Send,
     H: Hasher,
-    V: VRFKeyStorage,
+    V: AkdVRF,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
         match o_epoch {
@@ -57,7 +57,7 @@ pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut D
 where
     S: Storage + Sync + Send,
     H: Hasher,
-    V: VRFKeyStorage,
+    V: AkdVRF,
 {
     info!("Starting the verifiable directory host");
 
@@ -120,9 +120,9 @@ where
                         let hash = get_root_hash::<_, H, V>(directory, None).await;
                         match hash {
                             Some(Ok(root_hash)) => {
-                                let vrf_pk = directory.get_public_key()?;
-                                let verification = akd::client::lookup_verify(
-                                    &vrf_pk,
+                                let vrf_pk = directory.get_public_key().unwrap();
+                                let verification = akd::client::lookup_verify::<H, V>(
+                                    vrf_pk,
                                     root_hash,
                                     AkdLabel(a.clone()),
                                     proof,

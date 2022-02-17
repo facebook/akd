@@ -8,10 +8,10 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
-use hex::{FromHexError};
-use vrf::{openssl::{Error}};
+use hex::FromHexError;
+use vrf::openssl::Error;
 
-use crate::{node_state::NodeLabel};
+use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
 #[derive(Debug)]
@@ -239,7 +239,6 @@ pub enum StorageError {
     Connection(String),
 }
 
-
 /// Represents a VRF-storage-layer error
 #[derive(PartialEq, Debug)]
 pub enum VRFStorageError {
@@ -282,7 +281,6 @@ impl From<Error> for VRFStorageError {
     }
 }
 
-
 /// Represents a VRF-storage-layer error
 #[derive(PartialEq, Debug)]
 pub enum HardCodedVRFStorageError {
@@ -297,7 +295,6 @@ impl From<FromHexError> for HardCodedVRFStorageError {
         Self::GetSK(error.to_string())
     }
 }
-
 
 impl From<vrf::openssl::Error> for HardCodedVRFStorageError {
     fn from(error: Error) -> Self {
