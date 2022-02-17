@@ -6,12 +6,11 @@
 // of this source tree.
 
 //! Includes the trait and an implementation of it to access secure data for the VRF.
-use vrf::openssl::{CipherSuite, Error};
-use vrf::{openssl::ECVRF, VRF};
+use crate::errors::VRFStorageError;
+use crate::primitives::client_vrf::{ClientVRF, NoLifetimeECVRF};
 
-use crate::errors::{HardCodedVRFStorageError, VRFStorageError};
-
-use super::client_vrf::ClientVRF;
+use vrf::VRF;
+use vrf::openssl::Error;
 /// A trait to get public and secret key for the VRF
 pub trait AkdVRF: ClientVRF {
     /// Gets the secret key for the VRF
@@ -19,28 +18,6 @@ pub trait AkdVRF: ClientVRF {
 
     /// Generates the VRF proof
     fn prove(sk: Self::SK, alpha: &[u8]) -> Result<Vec<u8>, VRFStorageError>;
-}
-
-/// Wrapper around the vrf crate implementation for ECVRF
-/// to prevent the need for lifetimes in testing.
-/// Other implementatoins may require saving vrf state to storage.
-pub struct NoLifetimeECVRF {
-    vrf: ECVRF,
-}
-
-impl NoLifetimeECVRF {
-    fn new() -> Result<Self, vrf::openssl::Error> {
-        let vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI)?;
-        Ok(Self { vrf })
-    }
-
-    fn derive_public_key(&mut self, secret_key: Vec<u8>) -> Result<Vec<u8>, vrf::openssl::Error> {
-        self.vrf.derive_public_key(&secret_key)
-    }
-
-    fn proof_to_hash(&mut self, pi: &[u8]) -> Result<Vec<u8>, Error> {
-        self.vrf.proof_to_hash(pi)
-    }
 }
 
 impl VRF<Vec<u8>, Vec<u8>> for NoLifetimeECVRF {
@@ -61,13 +38,13 @@ pub struct HardCodedAkdVRF {
 }
 
 impl HardCodedAkdVRF {
-    fn get_secret_key_helper() -> Result<Vec<u8>, HardCodedVRFStorageError> {
+    fn get_secret_key_helper() -> Result<Vec<u8>, VRFStorageError> {
         Ok(hex::decode(
             "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721",
-        )?)
+        ).map_err(|hex_err| VRFStorageError::GetPK(hex_err.to_string()))?)
     }
 
-    fn get_public_key_helper() -> Result<Vec<u8>, HardCodedVRFStorageError> {
+    fn get_public_key_helper() -> Result<Vec<u8>, VRFStorageError> {
         let mut vrf = NoLifetimeECVRF::new()?;
         let sk = Self::get_secret_key_helper()?;
         Ok(vrf.derive_public_key(sk)?)

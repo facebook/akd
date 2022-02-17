@@ -8,7 +8,6 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
-use hex::FromHexError;
 use vrf::openssl::Error;
 
 use crate::node_state::NodeLabel;
@@ -271,51 +270,8 @@ impl fmt::Display for VRFStorageError {
     }
 }
 
-impl From<HardCodedVRFStorageError> for VRFStorageError {
-    fn from(error: HardCodedVRFStorageError) -> Self {
-        match error {
-            HardCodedVRFStorageError::GetPK(e) => Self::GetPK(e),
-            HardCodedVRFStorageError::GetSK(e) => Self::GetSK(e),
-        }
-    }
-}
-
 impl From<Error> for VRFStorageError {
     fn from(error: Error) -> Self {
         Self::VRFErr(error.to_string())
-    }
-}
-
-/// Represents a VRF-storage-layer error
-#[derive(PartialEq, Debug)]
-pub enum HardCodedVRFStorageError {
-    /// An error occurred when getting the public key
-    GetPK(String),
-    /// An error occurred getting the secret key
-    GetSK(String),
-}
-
-impl From<FromHexError> for HardCodedVRFStorageError {
-    fn from(error: FromHexError) -> Self {
-        Self::GetSK(error.to_string())
-    }
-}
-
-impl From<vrf::openssl::Error> for HardCodedVRFStorageError {
-    fn from(error: Error) -> Self {
-        Self::GetPK(error.to_string())
-    }
-}
-
-impl fmt::Display for HardCodedVRFStorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::GetSK(error_string) => {
-                write!(f, "{}", error_string)
-            }
-            Self::GetPK(error_string) => {
-                write!(f, "{}", error_string)
-            }
-        }
     }
 }

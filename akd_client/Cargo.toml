@@ -46,6 +46,8 @@ winter-utils = "0.2"
 winter-math = "0.2"
 tokio = { version = "1.10", features = ["full"] }
 wasm-bindgen-test = "0.3.13"
+hex = "0.4"
+vrf = "0.2.3"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
