@@ -961,7 +961,7 @@ mod tests {
 
         let expected = Err::<_, HistoryTreeNodeError>(HistoryTreeNodeError::NonexistentAtEpoch(
             NodeLabel::root(),
-            0,
+            123,
         ));
         assert_eq!(expected, out);
         Ok(())
