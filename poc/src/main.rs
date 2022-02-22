@@ -144,7 +144,7 @@ async fn main() {
 
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
+        let mut directory = Directory::<_>::new::<Blake3>(&db, false).await.unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
@@ -167,7 +167,9 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
+        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db, false)
+            .await
+            .unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
         });

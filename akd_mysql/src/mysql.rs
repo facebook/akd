@@ -870,6 +870,13 @@ impl Storage for AsyncMySqlDatabase {
         }
 
         // cache miss, log a real sql read op
+        self.get_direct::<St>(id).await
+    }
+
+    async fn get_direct<St: Storable>(
+        &self,
+        id: St::Key,
+    ) -> core::result::Result<DbRecord, StorageError> {
         *(self.num_reads.write().await) += 1;
 
         debug!("BEGIN MySQL get {:?}", id);
@@ -910,6 +917,13 @@ impl Storage for AsyncMySqlDatabase {
             Ok(Some(r)) => Ok(r),
             Ok(None) => Err(StorageError::GetData("Not found".to_string())),
             Err(error) => Err(StorageError::GetData(error.to_string())),
+        }
+    }
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self) {
+        if let Some(cache) = &self.cache {
+            cache.flush().await;
         }
     }
 

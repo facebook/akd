@@ -144,7 +144,7 @@ where
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
-    let mut akd = Directory::new::<Hash>(&db).await?;
+    let mut akd = Directory::new::<Hash>(&db, false).await?;
 
     let mut updates = vec![];
     for i in 0..15 {

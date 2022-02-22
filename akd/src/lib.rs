@@ -41,7 +41,7 @@
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//! let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//! let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //! };
 //! ```
 //!
@@ -61,7 +61,7 @@
 //! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -85,7 +85,7 @@
 //!use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -108,7 +108,7 @@
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -142,7 +142,7 @@
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -165,7 +165,7 @@
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -198,7 +198,7 @@
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -226,7 +226,7 @@
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
-//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db).await.unwrap();
+//!     let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db, false).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)

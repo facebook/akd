@@ -47,14 +47,23 @@ impl AkdLabel {
 #[derive(Clone)]
 pub struct Directory<S> {
     storage: S,
+    read_only: bool,
 }
 
 impl<S: Storage + Sync + Send> Directory<S> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new<H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        if Directory::get_azks_from_storage(storage).await.is_err() {
+    pub async fn new<H: Hasher>(storage: &S, read_only: bool) -> Result<Self, AkdError> {
+        let azks = Directory::get_azks_from_storage(storage, false).await;
+
+        if read_only && azks.is_err() {
+            return Err(AkdError::Directory(DirectoryError::Storage(
+                StorageError::GetData(
+                    "AZKS record not found and Directory constructed in read-only mode".to_string(),
+                ),
+            )));
+        } else if azks.is_err() {
             // generate a new azks if one is not found
             let azks = Azks::new::<_, H>(storage).await?;
             // store it
@@ -63,6 +72,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
         Ok(Directory {
             storage: storage.clone(),
+            read_only,
         })
     }
 
@@ -72,6 +82,14 @@ impl<S: Storage + Sync + Send> Directory<S> {
         updates: Vec<(AkdLabel, AkdValue)>,
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
+        if self.read_only {
+            return Err(AkdError::Directory(DirectoryError::Storage(
+                StorageError::SetData(
+                    "Directory cannot publish when created in read-only mode!".to_string(),
+                ),
+            )));
+        }
+
         let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
 
@@ -257,6 +275,32 @@ impl<S: Storage + Sync + Send> Directory<S> {
         }
     }
 
+    /// Poll for changes in the epoch number of the AZKS struct
+    /// stored in the storage layer. If an epoch change is detected, the cache is flushed immediately
+    /// so that new objects are retrieved from the storage layer
+    pub async fn poll_for_azks_changes(
+        &self,
+        period: tokio::time::Duration,
+    ) -> Result<(), AkdError> {
+        let mut last = Directory::get_azks_from_storage(&self.storage, true).await?;
+
+        loop {
+            // loop forever polling for changes
+            tokio::time::sleep(period).await;
+
+            let latest = Directory::get_azks_from_storage(&self.storage, true).await?;
+            if latest.latest_epoch > last.latest_epoch {
+                // an update was detected
+                last = latest;
+
+                self.storage.flush_cache().await;
+            }
+        }
+
+        #[allow(unreachable_code)]
+        Ok(())
+    }
+
     /// Returns an AppendOnlyProof for the leaves inserted into the underlying tree between
     /// the epochs audit_start_ep and audit_end_ep.
     pub async fn audit<H: Hasher>(
@@ -286,13 +330,22 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
     /// Retrieves the current azks
     pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
-        Directory::get_azks_from_storage(&self.storage).await
+        Directory::get_azks_from_storage(&self.storage, false).await
     }
 
-    async fn get_azks_from_storage(storage: &S) -> Result<Azks, crate::errors::AkdError> {
-        let got = storage
-            .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
-            .await?;
+    async fn get_azks_from_storage(
+        storage: &S,
+        ignore_cache: bool,
+    ) -> Result<Azks, crate::errors::AkdError> {
+        let got = if ignore_cache {
+            storage
+                .get_direct::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .await?
+        } else {
+            storage
+                .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .await?
+        };
         match got {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
@@ -518,7 +571,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         let current_azks = akd.retrieve_current_azks().await?;
         let hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
@@ -534,7 +587,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let mut akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         akd.publish::<Blake3>(
             vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string()))],
@@ -547,7 +600,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_lookup() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let mut akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -571,7 +624,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let mut akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -698,7 +751,7 @@ mod tests {
     #[tokio::test]
     async fn test_simple_audit() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let mut akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -855,7 +908,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_during_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3>(&db).await?;
+        let mut akd = Directory::<_>::new::<Blake3>(&db, false).await?;
 
         // Publish twice
         akd.publish::<Blake3>(
@@ -945,6 +998,24 @@ mod tests {
 
         let invalid_audit = akd.audit::<Blake3>(2, 3).await;
         assert!(matches!(invalid_audit, Err(_)));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_directory_read_only_mode() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        // There is no AZKS object in the storage layer, directory construction should fail
+        let akd = Directory::<_>::new::<Blake3>(&db, true).await;
+        assert!(matches!(akd, Err(_)));
+
+        // now create the AZKS
+        let akd = Directory::<_>::new::<Blake3>(&db, false).await;
+        assert!(matches!(akd, Ok(_)));
+
+        // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
+        let mut akd = Directory::<_>::new::<Blake3>(&db, true).await?;
+        assert!(matches!(akd.publish::<Blake3>(vec![], true).await, Err(_)));
 
         Ok(())
     }

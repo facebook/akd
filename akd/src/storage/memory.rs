@@ -136,6 +136,11 @@ impl Storage for AsyncInMemoryDatabase {
                 return Ok(result);
             }
         }
+        self.get_direct::<St>(id).await
+    }
+
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(&id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -156,6 +161,11 @@ impl Storage for AsyncInMemoryDatabase {
         } else {
             Err(StorageError::GetData("Not found".to_string()))
         }
+    }
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self) {
+        // no-op
     }
 
     /// Retrieve a batch of records by id
@@ -502,7 +512,11 @@ impl Storage for AsyncInMemoryDbWithCache {
                 return Ok(result);
             }
         }
+        self.get_direct::<St>(id).await
+    }
 
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(&id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -536,6 +550,11 @@ impl Storage for AsyncInMemoryDbWithCache {
                 }
             }
         }
+    }
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self) {
+        // no-op
     }
 
     async fn batch_get<St: Storable>(
