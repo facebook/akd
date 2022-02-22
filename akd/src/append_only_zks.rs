@@ -474,7 +474,7 @@ impl Azks {
             // cannot retrieve information for future epoch
             return Err(HistoryTreeNodeError::NonexistentAtEpoch(
                 NodeLabel::root(),
-                self.latest_epoch,
+                epoch,
             ));
         }
         let root_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
