@@ -49,7 +49,7 @@ impl Storable for Azks {
     }
 
     fn get_id(&self) -> u8 {
-        1u8
+        DEFAULT_AZKS_KEY
     }
 
     fn get_full_binary_key_id(key: &u8) -> Vec<u8> {
@@ -57,7 +57,7 @@ impl Storable for Azks {
     }
 
     fn key_from_full_binary(_bin: &[u8]) -> Result<u8, String> {
-        Ok(1u8)
+        Ok(DEFAULT_AZKS_KEY)
     }
 }
 

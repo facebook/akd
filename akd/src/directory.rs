@@ -22,6 +22,7 @@ use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
+use std::sync::Arc;
 use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
@@ -44,10 +45,26 @@ impl AkdLabel {
 }
 
 /// The representation of a auditable key directory
-#[derive(Clone)]
 pub struct Directory<S> {
     storage: S,
     read_only: bool,
+    /// The cache lock guarantees that the cache is not
+    /// flushed mid-proof generation. We allow multiple proof generations
+    /// to occur (RwLock.read() operations can have multiple) but we want
+    /// to make sure no generations are underway when a cache flush occurs
+    /// (in this case we do utilize the write() lock which can only occur 1
+    /// at a time).
+    cache_lock: Arc<tokio::sync::RwLock<()>>,
+}
+
+impl<S: Storage + Sync + Send> Clone for Directory<S> {
+    fn clone(&self) -> Self {
+        Self {
+            storage: self.storage.clone(),
+            read_only: self.read_only.clone(),
+            cache_lock: self.cache_lock.clone(),
+        }
+    }
 }
 
 impl<S: Storage + Sync + Send> Directory<S> {
@@ -73,6 +90,7 @@ impl<S: Storage + Sync + Send> Directory<S> {
         Ok(Directory {
             storage: storage.clone(),
             read_only,
+            cache_lock: Arc::new(tokio::sync::RwLock::new(())),
         })
     }
 
@@ -89,6 +107,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
                 ),
             )));
         }
+
+        // The guard will be dropped at the end of the publish
+        let _guard = self.cache_lock.read().await;
 
         let mut update_set = Vec::<Node<H>>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
@@ -202,6 +223,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
     /// Provides proof for correctness of latest version
     pub async fn lookup<H: Hasher>(&self, uname: AkdLabel) -> Result<LookupProof<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
@@ -253,6 +277,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         &self,
         uname: &AkdLabel,
     ) -> Result<HistoryProof<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
         let username = uname.0.to_string();
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
@@ -276,13 +303,19 @@ impl<S: Storage + Sync + Send> Directory<S> {
     }
 
     /// Poll for changes in the epoch number of the AZKS struct
-    /// stored in the storage layer. If an epoch change is detected, the cache is flushed immediately
-    /// so that new objects are retrieved from the storage layer
+    /// stored in the storage layer. If an epoch change is detected,
+    /// the object cache (if present) is flushed immediately so
+    /// that new objects are retrieved from the storage layer against
+    /// the "latest" epoch. There is a "special" flow in the storage layer
+    /// to do a storage-layer retrieval which ignores the cache
     pub async fn poll_for_azks_changes(
         &self,
         period: tokio::time::Duration,
+        change_detected: Option<tokio::sync::mpsc::Sender<()>>,
     ) -> Result<(), AkdError> {
-        let mut last = Directory::get_azks_from_storage(&self.storage, true).await?;
+        // Retrieve the same AZKS that all the other calls see (i.e. the version that could be cached
+        // at this point). We'll compare this via an uncached call when a change is notified
+        let mut last = Directory::get_azks_from_storage(&self.storage, false).await?;
 
         loop {
             // loop forever polling for changes
@@ -290,10 +323,22 @@ impl<S: Storage + Sync + Send> Directory<S> {
 
             let latest = Directory::get_azks_from_storage(&self.storage, true).await?;
             if latest.latest_epoch > last.latest_epoch {
-                // an update was detected
-                last = latest;
+                {
+                    // acquire a singleton lock prior to flushing the cache to assert that no
+                    // cache accesses are underway (i.e. publish/proof generations/etc)
+                    let _guard = self.cache_lock.write().await;
+                    // flush the cache in its entirety
+                    self.storage.flush_cache().await;
+                    // re-fetch the azks to load it into cache so when we release the cache lock
+                    // others will see the new AZKS loaded up and ready
+                    last = Directory::get_azks_from_storage(&self.storage, false).await?;
 
-                self.storage.flush_cache().await;
+                    // notify change occurred
+                    if let Some(channel) = &change_detected {
+                        channel.send(()).await.map_err(|send_err| AkdError::Directory(DirectoryError::Storage(StorageError::Connection(format!("Tokio MPSC sender failed to publish notification with error {:?}", send_err)))))?;
+                    }
+                    // drop the guard
+                }
             }
         }
 
@@ -308,6 +353,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         audit_start_ep: u64,
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
@@ -475,6 +523,9 @@ impl<S: Storage + Sync + Send> Directory<S> {
         current_azks: &Azks,
         epoch: u64,
     ) -> Result<H::Digest, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
         Ok(current_azks
             .get_root_hash_at_epoch::<_, H>(&self.storage, epoch)
             .await?)
@@ -1017,6 +1068,85 @@ mod tests {
         let mut akd = Directory::<_>::new::<Blake3>(&db, true).await?;
         assert!(matches!(akd.publish::<Blake3>(vec![], true).await, Err(_)));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+
+        // writer will write the AZKS record
+        let mut writer = Directory::<_>::new::<Blake3>(&db, false).await?;
+
+        writer
+            .publish::<Blake3>(
+                vec![
+                    (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                    (
+                        AkdLabel("hello2".to_string()),
+                        AkdValue("world2".to_string()),
+                    ),
+                ],
+                false,
+            )
+            .await?;
+
+        // reader will not write the AZKS but will be "polling" for AZKS changes
+        let reader = Directory::<_>::new::<Blake3>(&db, true).await?;
+
+        // start the poller
+        let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+        let reader_clone = reader.clone();
+        let _join_handle = tokio::task::spawn(async move {
+            reader_clone
+                .poll_for_azks_changes(tokio::time::Duration::from_millis(100), Some(tx))
+                .await
+        });
+
+        // verify a lookup proof, which will populate the cache
+        async_poll_helper_proof(&reader, AkdValue("world".to_string())).await?;
+
+        // publish epoch 2
+        writer
+            .publish::<Blake3>(
+                vec![
+                    (
+                        AkdLabel("hello".to_string()),
+                        AkdValue("world_2".to_string()),
+                    ),
+                    (
+                        AkdLabel("hello2".to_string()),
+                        AkdValue("world2_2".to_string()),
+                    ),
+                ],
+                false,
+            )
+            .await?;
+
+        // assert that the change is picked up in a reasonable time-frame and the cache is flushed
+        let notification =
+            tokio::time::timeout(tokio::time::Duration::from_secs(10), rx.recv()).await;
+        assert!(matches!(notification, Ok(Some(()))));
+
+        async_poll_helper_proof(&reader, AkdValue("world_2".to_string())).await?;
+
+        Ok(())
+    }
+
+    /*
+    =========== Test Helpers ===========
+    */
+
+    async fn async_poll_helper_proof<T: Storage + Sync + Send>(
+        reader: &Directory<T>,
+        value: AkdValue,
+    ) -> Result<(), AkdError> {
+        // reader should read "hello" and this will populate the "cache" a log
+        let lookup_proof = reader.lookup(AkdLabel("hello".to_string())).await?;
+        assert_eq!(value, lookup_proof.plaintext_value);
+        let current_azks = reader.retrieve_current_azks().await?;
+        let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
+        lookup_verify::<Blake3>(root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
         Ok(())
     }
 }

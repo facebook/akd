@@ -870,7 +870,12 @@ impl Storage for AsyncMySqlDatabase {
         }
 
         // cache miss, log a real sql read op
-        self.get_direct::<St>(id).await
+        let record = self.get_direct::<St>(id).await?;
+        if let Some(cache) = &self.cache {
+            // cache the result
+            cache.put(&record).await;
+        }
+        Ok(record)
     }
 
     async fn get_direct<St: Storable>(
@@ -902,11 +907,8 @@ impl Storage for AsyncMySqlDatabase {
 
             let result = self.check_for_infra_error(out)?;
             if let Some(mut row) = result {
+                // return result
                 let record = DbRecord::from_row::<St>(&mut row)?;
-                if let Some(cache) = &self.cache {
-                    cache.put(&record).await;
-                }
-                // return
                 return Ok::<Option<DbRecord>, MySqlError>(Some(record));
             }
             Ok::<Option<DbRecord>, MySqlError>(None)
