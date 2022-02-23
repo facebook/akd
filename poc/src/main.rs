@@ -144,11 +144,10 @@ async fn main() {
 
     let (tx, mut rx) = channel(2);
 
+    let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_, _>::new::<Blake3>(&db, PhantomData::<HardCodedAkdVRF>)
-            .await
-            .unwrap();
+        let mut directory = Directory::<_, _>::new::<Blake3>(&db, &vrf).await.unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
@@ -171,10 +170,9 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory =
-            Directory::<_, _>::new::<Blake3>(&mysql_db, PhantomData::<HardCodedAkdVRF>)
-                .await
-                .unwrap();
+        let mut directory = Directory::<_, _>::new::<Blake3>(&mysql_db, &vrf)
+            .await
+            .unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });

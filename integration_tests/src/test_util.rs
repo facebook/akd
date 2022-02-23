@@ -18,7 +18,6 @@ use rand::{thread_rng, Rng};
 use std::fs::File;
 use std::io;
 use std::io::Write;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Mutex;
 use tokio::time::{Duration, Instant};
@@ -130,6 +129,7 @@ impl log::Log for FileLogger {
 pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: AkdVRF>(
     mysql_db: &S,
     num_users: usize,
+    vrf: &V,
 ) {
     // generate the test data
     let mut rng = thread_rng();
@@ -146,7 +146,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send,
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, PhantomData::<V>).await;
+    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(mut dir) => {

@@ -46,8 +46,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
-
     use super::*;
 
     use crate::directory::Directory;
@@ -88,10 +86,11 @@ mod tests {
     pub async fn lookup_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut akd =
-            Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>)
-                .await
-                .unwrap();
+        let vrf = HardCodedAkdVRF {};
+
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+            .await
+            .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
                 (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
@@ -121,10 +120,10 @@ mod tests {
     #[tokio::test]
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd =
-            Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>)
-                .await
-                .unwrap();
+        let vrf = HardCodedAkdVRF {};
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+            .await
+            .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
                 (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
@@ -155,10 +154,10 @@ mod tests {
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut akd =
-            Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, PhantomData::<HardCodedAkdVRF>)
-                .await
-                .unwrap();
+        let vrf = HardCodedAkdVRF {};
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+            .await
+            .unwrap();
         // Commit to the first epoch
         akd.publish::<Blake3_256<BaseElement>>(
             vec![

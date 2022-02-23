@@ -14,7 +14,7 @@ use vrf::VRF;
 /// A trait to get public and secret key for the VRF
 pub trait AkdVRF: ClientVRF {
     /// Gets the secret key for the VRF
-    fn get_secret_key() -> Result<Self::SK, VRFStorageError>;
+    fn get_secret_key(&self) -> Result<Self::SK, VRFStorageError>;
 
     /// Generates the VRF proof
     fn prove(sk: Self::SK, alpha: &[u8]) -> Result<Vec<u8>, VRFStorageError>;
@@ -33,6 +33,7 @@ impl VRF<Vec<u8>, Vec<u8>> for NoLifetimeECVRF {
 }
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
+#[derive(Clone)]
 pub struct HardCodedAkdVRF {
     //const KEY_MATERIAL: &str = "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721";
 }
@@ -65,13 +66,13 @@ impl ClientVRF for HardCodedAkdVRF {
         Ok(vrf.proof_to_hash(pi)?)
     }
 
-    fn get_public_key() -> Result<Vec<u8>, VRFStorageError> {
+    fn get_public_key(&self) -> Result<Vec<u8>, VRFStorageError> {
         Self::get_public_key_helper()
     }
 }
 
 impl AkdVRF for HardCodedAkdVRF {
-    fn get_secret_key() -> Result<Vec<u8>, VRFStorageError> {
+    fn get_secret_key(&self) -> Result<Vec<u8>, VRFStorageError> {
         Self::get_secret_key_helper()
     }
 

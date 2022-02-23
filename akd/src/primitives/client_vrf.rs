@@ -12,7 +12,7 @@ use vrf::openssl::{CipherSuite, Error};
 use vrf::{openssl::ECVRF, VRF};
 
 /// A trait to get public and secret key for the VRF
-pub trait ClientVRF {
+pub trait ClientVRF: Clone {
     /// The type of the public key
     type PK: Clone;
     /// The type of the secret key
@@ -21,7 +21,7 @@ pub trait ClientVRF {
     type VRF: VRF<Self::PK, Self::SK>;
 
     /// Gets the public key for the VRF
-    fn get_public_key() -> Result<Self::PK, VRFStorageError>;
+    fn get_public_key(&self) -> Result<Self::PK, VRFStorageError>;
 
     /// Generates the VRF proof
     fn verify(y: Self::PK, pi: &[u8], alpha: &[u8]) -> Result<Vec<u8>, VRFStorageError>;
@@ -56,6 +56,7 @@ impl NoLifetimeECVRF {
 }
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
+#[derive(Clone)]
 pub struct HardCodedClientVRF;
 
 impl HardCodedClientVRF {
@@ -76,7 +77,7 @@ impl ClientVRF for HardCodedClientVRF {
     type SK = Vec<u8>;
     type VRF = NoLifetimeECVRF;
 
-    fn get_public_key() -> Result<Vec<u8>, VRFStorageError> {
+    fn get_public_key(&self) -> Result<Vec<u8>, VRFStorageError> {
         Self::get_public_key_helper()
     }
 

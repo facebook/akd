@@ -8,8 +8,6 @@
 //! This crate contains the tests for the client library which make sure that the
 //! base AKD library and this "lean" client result in the same outputs
 
-use std::marker::PhantomData;
-
 #[cfg(feature = "nostd")]
 use crate::alloc::string::ToString;
 
@@ -151,7 +149,8 @@ where
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
-    let mut akd = Directory::new::<Hash>(&db, PhantomData::<HardCodedAkdVRF>).await?;
+    let vrf = HardCodedAkdVRF {};
+    let mut akd = Directory::new::<Hash>(&db, &vrf).await?;
 
     let mut updates = vec![];
     for i in 0..15 {
@@ -170,7 +169,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
-    let vrf_pk = HardCodedClientVRF::get_public_key().unwrap();
+    let vrf_pk = vrf.get_public_key().unwrap();
     // create the "lean" lookup proof version
     let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
 

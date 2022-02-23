@@ -19,7 +19,8 @@ async fn test_directory_operations() {
 
     let db = InMemoryDb::new();
 
-    crate::test_util::directory_test_suite::<_, HardCodedAkdVRF>(&db, 500).await;
+    let vrf = HardCodedAkdVRF {};
+    crate::test_util::directory_test_suite::<_, HardCodedAkdVRF>(&db, 500, &vrf).await;
 
     info!("\n\n******** Finished In-Memory Directory Operations Integration Test ********\n\n");
 }
