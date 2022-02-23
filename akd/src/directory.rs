@@ -61,7 +61,7 @@ impl<S: Storage + Sync + Send> Clone for Directory<S> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
-            read_only: self.read_only.clone(),
+            read_only: self.read_only,
             cache_lock: self.cache_lock.clone(),
         }
     }

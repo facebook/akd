@@ -140,7 +140,7 @@ impl TimedCache {
             // someone's requesting the AZKS object, return it from the special "cache" storage
             let record = self.azks.read().await.clone();
             debug!("END cache retrieve");
-            if let Some(_) = &record {
+            if record.is_some() {
                 *(self.hit_count.write().await) += 1;
             }
             // AZKS objects cannot expire, they need to be manually flushed, so we don't need
