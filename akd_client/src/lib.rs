@@ -161,10 +161,11 @@ pub type LookupProof = types::LookupProof;
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 /// Verify a lookup proof in WebAssembly, utilizing serde serialized structures
-pub fn lookup_verify(root_hash: JsValue, label: JsValue, lookup_proof: JsValue) -> bool {
+pub fn lookup_verify(vrf_public_key:JsValue, root_hash: JsValue, label: JsValue, lookup_proof: JsValue) -> bool {
+    let vrf_public_key: Vec<u8> = vrf_public_key.into_serde().unwrap();
     let root_hash: Digest = root_hash.into_serde().unwrap();
     let label: AkdLabel = label.into_serde().unwrap();
     let proof: LookupProof = lookup_proof.into_serde().unwrap();
 
-    crate::verify::lookup_verify(root_hash, label, proof).is_ok()
+    crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof).is_ok()
 }
