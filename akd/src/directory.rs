@@ -395,7 +395,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         Ok(V::get_public_key()?)
     }
 
-    // FIXME: Make a real commitment here, alongwith a blinding factor.
+    // FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
     /// Gets the bytes for a value.
     pub fn value_to_bytes(_value: &AkdValue) -> [u8; 64] {
         [0u8; 64]
