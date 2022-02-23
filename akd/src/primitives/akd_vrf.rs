@@ -39,10 +39,8 @@ pub struct HardCodedAkdVRF {
 
 impl HardCodedAkdVRF {
     fn get_secret_key_helper() -> Result<Vec<u8>, VRFStorageError> {
-        Ok(
-            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
-                .map_err(|hex_err| VRFStorageError::GetPK(hex_err.to_string()))?,
-        )
+        hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .map_err(|hex_err| VRFStorageError::GetPK(hex_err.to_string()))
     }
 
     fn get_public_key_helper() -> Result<Vec<u8>, VRFStorageError> {
@@ -68,13 +66,13 @@ impl ClientVRF for HardCodedAkdVRF {
     }
 
     fn get_public_key() -> Result<Vec<u8>, VRFStorageError> {
-        Ok(Self::get_public_key_helper()?)
+        Self::get_public_key_helper()
     }
 }
 
 impl AkdVRF for HardCodedAkdVRF {
     fn get_secret_key() -> Result<Vec<u8>, VRFStorageError> {
-        Ok(Self::get_secret_key_helper()?)
+        Self::get_secret_key_helper()
     }
 
     fn prove(sk: Self::SK, alpha: &[u8]) -> Result<Vec<u8>, VRFStorageError> {

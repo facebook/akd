@@ -57,7 +57,7 @@ pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {
             if let Some(line) = record.line() {
                 format!(" ({}:{})", target_str, line)
             } else {
-                format!(" ({})", target_str.to_string())
+                format!(" ({})", target_str)
             }
         } else {
             "".to_string()

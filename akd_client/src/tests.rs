@@ -88,7 +88,7 @@ where
     H: winter_crypto::Hasher,
 {
     crate::types::LayerProof {
-        direction: direction,
+        direction,
         label: convert_label(parent),
         siblings: [convert_node(sibling)],
     }
