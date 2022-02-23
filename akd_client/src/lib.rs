@@ -51,6 +51,8 @@
 //! 2. wee_alloc: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
 //! is helpful in cases of constrained binary footprint size to help minimize
 //! 3. nostd: Disable use of the std library
+//! 4. vrf: Enable verification of VRFs (not compatible with [`nostd`]) client-side. Requires addition
+//! of the [`vrf`] crate as dependency.
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
@@ -106,6 +108,9 @@ pub enum VerificationErrorType {
 
     /// An error occurred verifying the lookup proof
     LookupProof,
+
+    /// An error occurred verifying a VRF label
+    Vrf,
 
     /// An unknown verification error occurred
     Unknown,

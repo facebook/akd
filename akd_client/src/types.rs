@@ -175,10 +175,16 @@ pub struct LookupProof {
     pub plaintext_value: AkdValue,
     /// The version of the record
     pub version: u64,
+    /// VRF proof for the label corresponding to this version
+    pub exisitence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof,
+    /// VRF proof for the marker preceding (less than or equal to) this version
+    pub marker_vrf_proof: Vec<u8>,
     /// Existence at specific marker
     pub marker_proof: MembershipProof,
+    /// VRF proof for the label corresponding to this version being stale
+    pub freshness_vrf_proof: Vec<u8>,
     /// Freshness proof (non member at previous epoch)
     pub freshness_proof: NonMembershipProof,
 }

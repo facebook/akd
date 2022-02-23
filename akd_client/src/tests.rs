@@ -136,8 +136,11 @@ where
         epoch: proof.epoch,
         version: proof.version,
         plaintext_value: proof.plaintext_value.0.as_bytes().to_vec(),
-        marker_proof: convert_membership_proof(&proof.marker_proof),
+        exisitence_vrf_proof: proof.exisitence_vrf_proof.clone(),
         existence_proof: convert_membership_proof(&proof.existence_proof),
+        marker_vrf_proof: proof.marker_vrf_proof.clone(),
+        marker_proof: convert_membership_proof(&proof.marker_proof),
+        freshness_vrf_proof: proof.freshness_vrf_proof.clone(),
         freshness_proof: convert_non_membership_proof(&proof.freshness_proof),
     }
 }
@@ -175,15 +178,21 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
 
     // perform the "traditional" AKD verification
     let akd_result = akd::client::lookup_verify::<Hash, HardCodedClientVRF>(
-        vrf_pk,
+        vrf_pk.clone(),
         root_hash,
-        target_label,
+        target_label.clone(),
         lookup_proof,
     );
 
-    let lean_result =
-        crate::verify::lookup_verify(to_digest::<Hash>(root_hash), vec![], internal_lookup_proof)
-            .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
+    let target_label_bytes = target_label.0.as_bytes().to_vec();
+
+    let lean_result = crate::verify::lookup_verify(
+        &vrf_pk,
+        to_digest::<Hash>(root_hash),
+        target_label_bytes,
+        internal_lookup_proof,
+    )
+    .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
     // check the two results to make sure they both verify
     assert!(matches!(akd_result, Ok(())));
     assert!(matches!(lean_result, Ok(())));
