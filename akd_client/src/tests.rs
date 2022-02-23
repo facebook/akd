@@ -13,8 +13,8 @@ use std::marker::PhantomData;
 #[cfg(feature = "nostd")]
 use crate::alloc::string::ToString;
 
-use akd::primitives::client_vrf::ClientVRF;
 use akd::primitives::akd_vrf::HardCodedAkdVRF;
+use akd::primitives::client_vrf::ClientVRF;
 use akd::primitives::client_vrf::HardCodedClientVRF;
 
 #[cfg(feature = "nostd")]

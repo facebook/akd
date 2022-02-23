@@ -642,7 +642,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut akd = Directory::<_, _>::new::<Blake3>(&db, PhantomData::<HardCodedAkdVRF>).await?;
@@ -931,7 +931,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_read_during_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let mut akd = Directory::<_, _>::new::<Blake3>(&db, PhantomData::<HardCodedAkdVRF>).await?;

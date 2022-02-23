@@ -38,13 +38,15 @@ pub struct NoLifetimeECVRF {
 }
 
 impl NoLifetimeECVRF {
-
     pub(crate) fn new() -> Result<Self, vrf::openssl::Error> {
         let vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI)?;
         Ok(Self { vrf })
     }
 
-    pub(crate) fn derive_public_key(&mut self, secret_key: Vec<u8>) -> Result<Vec<u8>, vrf::openssl::Error> {
+    pub(crate) fn derive_public_key(
+        &mut self,
+        secret_key: Vec<u8>,
+    ) -> Result<Vec<u8>, vrf::openssl::Error> {
         self.vrf.derive_public_key(&secret_key)
     }
 
@@ -53,15 +55,15 @@ impl NoLifetimeECVRF {
     }
 }
 
-
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
 pub struct HardCodedClientVRF;
 
 impl HardCodedClientVRF {
     fn get_secret_key_helper() -> Result<Vec<u8>, VRFStorageError> {
-        Ok(hex::decode(
-            "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721",
-        ).map_err(|hex_err| VRFStorageError::GetPK(hex_err.to_string()))?)
+        Ok(
+            hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
+                .map_err(|hex_err| VRFStorageError::GetPK(hex_err.to_string()))?,
+        )
     }
 
     fn get_public_key_helper() -> Result<Vec<u8>, VRFStorageError> {
