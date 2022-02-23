@@ -56,6 +56,7 @@
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
+//! cd akd_client # optional
 //! wasm-pack build --features wasm
 //! ```
 //! which currently has a resultant WASM file size of ~142KB and enabling wee_alloc yields roughly ~137KB binary size
@@ -160,17 +161,23 @@ pub type LookupProof = types::LookupProof;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-/// Verify a lookup proof in WebAssembly, utilizing serde serialized structures
+/// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
 pub fn lookup_verify(
-    vrf_public_key: JsValue,
-    root_hash: JsValue,
-    label: JsValue,
-    lookup_proof: JsValue,
+    vrf_public_key_slice: &[u8],
+    root_hash_slice: &[u8],
+    label_slice: &[u8],
+    lookup_proof_ref: JsValue,
 ) -> bool {
-    let vrf_public_key: Vec<u8> = vrf_public_key.into_serde().unwrap();
-    let root_hash: Digest = root_hash.into_serde().unwrap();
-    let label: AkdLabel = label.into_serde().unwrap();
-    let proof: LookupProof = lookup_proof.into_serde().unwrap();
+    // TODO: https://rustwasm.github.io/wasm-bindgen/reference/types/result.html
+    // (return a Result rather than panic the code)
+
+    let vrf_public_key: Vec<u8> = vrf_public_key_slice.to_vec();
+    let label: AkdLabel = label_slice.to_vec();
+
+    let mut root_hash: [u8; 32] = [0u8; 32];
+    root_hash.copy_from_slice(root_hash_slice);
+
+    let proof: LookupProof = lookup_proof_ref.into_serde().unwrap();
 
     crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof).is_ok()
 }
