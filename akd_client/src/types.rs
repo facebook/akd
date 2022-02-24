@@ -12,6 +12,8 @@
 //!
 //! Append-only and history proofs to come
 
+use std::convert::TryInto;
+
 use crate::ARITY;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -40,15 +42,16 @@ pub type Digest = [u8; crate::hash::DIGEST_BYTES];
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
-    pub val: u64,
+    pub val: [u8; 32],
     /// len keeps track of how long the binary string is
     pub len: u32,
 }
 
 impl NodeLabel {
     pub(crate) fn hash(&self) -> Digest {
-        let label_len_bytes = crate::hash::hash(&self.len.to_be_bytes());
-        crate::hash::merge_with_int(label_len_bytes, self.val)
+        let byte_label_len = crate::hash::hash(&self.len.to_be_bytes());
+        let byte_label_val = crate::hash::hash(&self.val);
+        crate::hash::merge(&[byte_label_len, byte_label_val])
     }
 
     /// Takes as input a pointer to the caller and another NodeLabel,
@@ -71,11 +74,15 @@ impl NodeLabel {
     }
 
     /// Returns the bit at a specified index, and a 0 on an out of range index
-    fn get_bit_at(&self, index: u32) -> u64 {
+    fn get_bit_at(&self, index: u32) -> u8 {
         if index >= self.len {
             return 0;
         }
-        (self.val >> (self.len - index - 1)) & 1
+
+        let usize_index: usize = index.try_into().unwrap();
+        let index_full_blocks = usize_index / 8;
+        let index_remainder = usize_index % 8;
+        (self.val[index_full_blocks] >> (7 - index_remainder)) & 1
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
@@ -84,13 +91,21 @@ impl NodeLabel {
             return *self;
         }
         if len == 0 {
-            Self { val: 0, len: 0 }
-        } else {
-            Self {
-                val: self.val >> (self.len - len),
-                len,
-            }
+            return Self {
+                val: [0u8; 32],
+                len: 0,
+            };
         }
+
+        let usize_len: usize = (len - 1).try_into().unwrap();
+        let len_remainder = usize_len % 8;
+        let len_div = usize_len / 8;
+
+        let mut out_val = [0u8; 32];
+        out_val[..len_div].clone_from_slice(&self.val[..len_div]);
+        out_val[len_div] = (self.val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
+
+        Self { val: out_val, len }
     }
 }
 
@@ -160,10 +175,16 @@ pub struct LookupProof {
     pub plaintext_value: AkdValue,
     /// The version of the record
     pub version: u64,
+    /// VRF proof for the label corresponding to this version
+    pub exisitence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof,
+    /// VRF proof for the marker preceding (less than or equal to) this version
+    pub marker_vrf_proof: Vec<u8>,
     /// Existence at specific marker
     pub marker_proof: MembershipProof,
+    /// VRF proof for the label corresponding to this version being stale
+    pub freshness_vrf_proof: Vec<u8>,
     /// Freshness proof (non member at previous epoch)
     pub freshness_proof: NonMembershipProof,
 }

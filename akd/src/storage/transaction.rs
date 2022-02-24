@@ -190,40 +190,40 @@ mod tests {
             latest_epoch: 0,
         });
         let node1 = DbRecord::HistoryTreeNode(HistoryTreeNode {
-            label: NodeLabel::new(0, 0),
+            label: NodeLabel::new(byte_arr_from_u64(0), 0),
             birth_epoch: 1,
             last_epoch: 1,
-            parent: NodeLabel::new(0, 0),
+            parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Root,
         });
         let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             birth_epoch: 1,
             last_epoch: 1,
-            parent: NodeLabel::new(0, 0),
+            parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Leaf,
         });
         let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
             value: vec![],
             child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(1, 1), 1),
+            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1),
         });
         let node_state2 = DbRecord::HistoryNodeState(HistoryNodeState {
             value: vec![],
             child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(1, 1), 2),
+            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
         });
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel("test".to_string()),
             epoch: 1,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 1,
             plaintext_val: AkdValue("abc123".to_string()),
         });
         let value2 = DbRecord::ValueState(ValueState {
             username: AkdLabel("test".to_string()),
             epoch: 2,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 2,
             plaintext_val: AkdValue("abc1234".to_string()),
         });

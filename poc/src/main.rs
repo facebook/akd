@@ -9,6 +9,7 @@
 // of this source tree.
 
 use akd::directory::Directory;
+use akd::primitives::akd_vrf::HardCodedAkdVRF;
 use akd::storage::Storage;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
@@ -19,6 +20,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;
 use std::io::*;
+use std::marker::PhantomData;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use structopt::StructOpt;
@@ -142,14 +144,15 @@ async fn main() {
 
     let (tx, mut rx) = channel(2);
 
+    let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_>::new::<Blake3>(&db).await.unwrap();
+        let mut directory = Directory::<_, _>::new::<Blake3>(&db, &vrf).await.unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
         tokio::spawn(async move {
-            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+            directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, None).await;
     } else {
@@ -167,9 +170,11 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory = Directory::<_>::new::<Blake3>(&mysql_db).await.unwrap();
+        let mut directory = Directory::<_, _>::new::<Blake3>(&mysql_db, &vrf)
+            .await
+            .unwrap();
         tokio::spawn(async move {
-            directory_host::init_host::<_, Blake3>(&mut rx, &mut directory).await
+            directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, Some(&mysql_db)).await;
     }
@@ -226,7 +231,7 @@ async fn process_input(
                         value.clone(),
                         1u64,
                         1u32,
-                        1u64,
+                        [1u8; 32],
                         1u64,
                     );
                     data.push(akd::storage::types::DbRecord::ValueState(state));

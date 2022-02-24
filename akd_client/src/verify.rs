@@ -9,12 +9,19 @@
 
 #[cfg(feature = "nostd")]
 use crate::alloc::string::ToString;
+#[cfg(feature = "vrf")]
+use crate::VerificationErrorType;
 #[cfg(feature = "nostd")]
 use alloc::format;
 
 use crate::hash::*;
 use crate::types::*;
 use crate::{verify_error, VerificationError, ARITY};
+
+#[cfg(feature = "vrf")]
+use vrf::openssl::CipherSuite;
+#[cfg(feature = "vrf")]
+use vrf::{openssl::ECVRF, VRF};
 
 /// Verify the membership proof
 pub fn verify_membership(
@@ -95,26 +102,117 @@ pub fn verify_nonmembership(
     Ok(verified)
 }
 
+/// This function is called to verify that a given NodeLabel is indeed
+/// the VRF for a given version (fresh or stale) for a username.
+/// Hence, it also takes as input the server's public key.
+#[cfg(feature = "vrf")]
+pub fn verify_vrf(
+    vrf_public_key: &[u8],
+    uname: &AkdLabel,
+    stale: bool,
+    version: u64,
+    pi: &Vec<u8>,
+    label: NodeLabel,
+) -> Result<(), VerificationError> {
+    let name_hash_bytes = hash(uname);
+    let stale_bytes = if stale { &[0u8] } else { &[1u8] };
+
+    let message = merge(&[name_hash_bytes, merge_with_int(hash(stale_bytes), version)]);
+
+    let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).map_err(|vrf_err| {
+        VerificationError {
+            error_type: VerificationErrorType::Vrf,
+            error_message: format!("Could not construct ECVRF struct: {}", vrf_err),
+        }
+    })?;
+    // VRF proof verification (returns VRF hash output)
+    let beta = vrf.verify(vrf_public_key, pi, &message);
+
+    match beta {
+        Ok(vec) => {
+            let expected_label = NodeLabel {
+                len: 256u32,
+                val: crate::utils::vec_to_u8_arr(vec),
+            };
+
+            if label == expected_label {
+                Ok(())
+            } else {
+                Err(VerificationError {
+                    error_type: VerificationErrorType::Vrf,
+                    error_message:
+                        "VRF Verification failed: Stale label not equal to the value from the VRF"
+                            .to_string(),
+                })
+            }
+        }
+        Err(e) => Err(VerificationError {
+            error_type: VerificationErrorType::Vrf,
+            error_message: format!("VRF Verification failed: {:?}", e),
+        }),
+    }
+}
+
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify(
+    _vrf_public_key: &[u8],
     root_hash: Digest,
     _akd_key: AkdLabel,
     proof: LookupProof,
 ) -> Result<(), VerificationError> {
     let _epoch = proof.epoch;
 
-    let _plaintext_value = proof.plaintext_value;
+    // let _plaintext_value = proof.plaintext_value;
+    #[cfg(feature = "vrf")]
     let version = proof.version;
 
-    let _marker_version = 1 << crate::utils::get_marker_version(version);
+    #[cfg(feature = "vrf")]
+    let marker_version = 1 << crate::utils::get_marker_version(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
-    // TODO: merge VRF verification changes
-
+    #[cfg(feature = "vrf")]
+    {
+        let fresh_label = existence_proof.label;
+        verify_vrf(
+            _vrf_public_key,
+            &_akd_key,
+            false,
+            version,
+            &proof.exisitence_vrf_proof,
+            fresh_label,
+        )?;
+    }
     verify_membership(root_hash, &existence_proof)?;
+
+    #[cfg(feature = "vrf")]
+    {
+        let marker_label = marker_proof.label;
+        verify_vrf(
+            _vrf_public_key,
+            &_akd_key,
+            false,
+            marker_version,
+            &proof.marker_vrf_proof,
+            marker_label,
+        )?;
+    }
+
     verify_membership(root_hash, &marker_proof)?;
+
+    #[cfg(feature = "vrf")]
+    {
+        let stale_label = freshness_proof.label;
+        verify_vrf(
+            _vrf_public_key,
+            &_akd_key,
+            true,
+            version,
+            &proof.freshness_vrf_proof,
+            stale_label,
+        )?;
+    }
 
     verify_nonmembership(root_hash, &freshness_proof)?;
 

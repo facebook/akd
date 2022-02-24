@@ -52,6 +52,11 @@ jobs:
         with:
           command: test
           args: --package akd_client --no-default-features --features wasm,blake3
+      - name: Test the lean client for VRF verification
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_client --features vrf
 
   clippy:
     name: Clippy

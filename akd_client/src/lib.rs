@@ -51,9 +51,12 @@
 //! 2. wee_alloc: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
 //! is helpful in cases of constrained binary footprint size to help minimize
 //! 3. nostd: Disable use of the std library
+//! 4. vrf: Enable verification of VRFs (not compatible with [`nostd`]) client-side. Requires addition
+//! of the [`vrf`] crate as dependency.
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
+//! cd akd_client # optional
 //! wasm-pack build --features wasm
 //! ```
 //! which currently has a resultant WASM file size of ~142KB and enabling wee_alloc yields roughly ~137KB binary size
@@ -107,6 +110,9 @@ pub enum VerificationErrorType {
     /// An error occurred verifying the lookup proof
     LookupProof,
 
+    /// An error occurred verifying a VRF label
+    Vrf,
+
     /// An unknown verification error occurred
     Unknown,
 }
@@ -155,11 +161,23 @@ pub type LookupProof = types::LookupProof;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-/// Verify a lookup proof in WebAssembly, utilizing serde serialized structures
-pub fn lookup_verify(root_hash: JsValue, label: JsValue, lookup_proof: JsValue) -> bool {
-    let root_hash: Digest = root_hash.into_serde().unwrap();
-    let label: AkdLabel = label.into_serde().unwrap();
-    let proof: LookupProof = lookup_proof.into_serde().unwrap();
+/// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
+pub fn lookup_verify(
+    vrf_public_key_slice: &[u8],
+    root_hash_slice: &[u8],
+    label_slice: &[u8],
+    lookup_proof_ref: JsValue,
+) -> bool {
+    // TODO: https://rustwasm.github.io/wasm-bindgen/reference/types/result.html
+    // (return a Result rather than panic the code)
 
-    crate::verify::lookup_verify(root_hash, label, proof).is_ok()
+    let vrf_public_key: Vec<u8> = vrf_public_key_slice.to_vec();
+    let label: AkdLabel = label_slice.to_vec();
+
+    let mut root_hash: [u8; 32] = [0u8; 32];
+    root_hash.copy_from_slice(root_hash_slice);
+
+    let proof: LookupProof = lookup_proof_ref.into_serde().unwrap();
+
+    crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof).is_ok()
 }
