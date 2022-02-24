@@ -145,14 +145,13 @@ impl VerificationError {
 
 impl Display for VerificationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let code =
-            match self.error_type {
-                VerificationErrorType::NoDirection => "No Direction",
-                VerificationErrorType::MembershipProof => "Membership Proof",
-                VerificationErrorType::LookupProof => "Lookup Proof",
-                VerificationErrorType::Vrf => "VRF",
-                VerificationErrorType::Unknown => "Unknown",
-            };
+        let code = match self.error_type {
+            VerificationErrorType::NoDirection => "No Direction",
+            VerificationErrorType::MembershipProof => "Membership Proof",
+            VerificationErrorType::LookupProof => "Lookup Proof",
+            VerificationErrorType::Vrf => "VRF",
+            VerificationErrorType::Unknown => "Unknown",
+        };
         write!(f, "Verification error ({}) - {}", code, self.error_message)
     }
 }
@@ -203,17 +202,18 @@ pub fn lookup_verify(
     root_hash.copy_from_slice(root_hash_slice);
 
     match lookup_proof_ref.into_serde() {
-        Ok(proof) => {
-            match crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof) {
-                Ok(_) => Ok(true),
-                Err(verification_error) => {
-                    let msg = format!("{}", verification_error);
-                    Err(JsValue::from_str(&msg))
-                }
+        Ok(proof) => match crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof) {
+            Ok(_) => Ok(true),
+            Err(verification_error) => {
+                let msg = format!("{}", verification_error);
+                Err(JsValue::from_str(&msg))
             }
         },
         Err(serialization_error) => {
-            let msg = format!("Error deserializing lookup proof structure: {}", serialization_error);
+            let msg = format!(
+                "Error deserializing lookup proof structure: {}",
+                serialization_error
+            );
             Err(JsValue::from_str(&msg))
         }
     }
