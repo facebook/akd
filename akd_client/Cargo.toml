@@ -53,3 +53,4 @@ vrf = "0.2.3"
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+lto = true
