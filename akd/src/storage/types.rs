@@ -192,11 +192,11 @@ impl DbRecord {
 
     /// Build a history tree node from the properties
     pub fn build_history_tree_node(
-        label_val: u64,
+        label_val: [u8; 32],
         label_len: u32,
         birth_epoch: u64,
         last_epoch: u64,
-        parent_label_val: u64,
+        parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
     ) -> HistoryTreeNode {
@@ -214,7 +214,7 @@ impl DbRecord {
         value: Vec<u8>,
         child_states: [Option<HistoryChildState>; ARITY],
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> HistoryNodeState {
         HistoryNodeState {
@@ -227,7 +227,7 @@ impl DbRecord {
     /// Build a history child state from the properties
     pub fn build_history_child_state(
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         hash_val: Vec<u8>,
         epoch_version: u64,
     ) -> HistoryChildState {
@@ -244,7 +244,7 @@ impl DbRecord {
         plaintext_val: String,
         version: u64,
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> ValueState {
         ValueState {

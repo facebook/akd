@@ -10,6 +10,11 @@
 
 #[cfg(feature = "nostd")]
 use crate::alloc::string::ToString;
+
+use akd::primitives::akd_vrf::HardCodedAkdVRF;
+use akd::primitives::client_vrf::ClientVRF;
+use akd::primitives::client_vrf::HardCodedClientVRF;
+
 #[cfg(feature = "nostd")]
 use alloc::format;
 #[cfg(feature = "nostd")]
@@ -35,7 +40,7 @@ use winter_crypto::hashers::Sha3_256;
 type Hash = Sha3_256<BaseElement>;
 
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-type Directory = akd::directory::Directory<InMemoryDb>;
+type Directory = akd::directory::Directory<InMemoryDb, HardCodedAkdVRF>;
 
 // ===================================
 // Test helpers
@@ -131,8 +136,11 @@ where
         epoch: proof.epoch,
         version: proof.version,
         plaintext_value: proof.plaintext_value.0.as_bytes().to_vec(),
-        marker_proof: convert_membership_proof(&proof.marker_proof),
+        exisitence_vrf_proof: proof.exisitence_vrf_proof.clone(),
         existence_proof: convert_membership_proof(&proof.existence_proof),
+        marker_vrf_proof: proof.marker_vrf_proof.clone(),
+        marker_proof: convert_membership_proof(&proof.marker_proof),
+        freshness_vrf_proof: proof.freshness_vrf_proof.clone(),
         freshness_proof: convert_non_membership_proof(&proof.freshness_proof),
     }
 }
@@ -144,7 +152,8 @@ where
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
-    let mut akd = Directory::new::<Hash>(&db, false).await?;
+    let vrf = HardCodedAkdVRF {};
+    let mut akd = Directory::new::<Hash>(&db, &vrf, false).await?;
 
     let mut updates = vec![];
     for i in 0..15 {
@@ -163,16 +172,27 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
-
+    let vrf_pk = vrf.get_public_key().unwrap();
     // create the "lean" lookup proof version
     let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
 
     // perform the "traditional" AKD verification
-    let akd_result = akd::client::lookup_verify::<Hash>(root_hash, target_label, lookup_proof);
+    let akd_result = akd::client::lookup_verify::<Hash, HardCodedClientVRF>(
+        vrf_pk.clone(),
+        root_hash,
+        target_label.clone(),
+        lookup_proof,
+    );
 
-    let lean_result =
-        crate::verify::lookup_verify(to_digest::<Hash>(root_hash), vec![], internal_lookup_proof)
-            .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
+    let target_label_bytes = target_label.0.as_bytes().to_vec();
+
+    let lean_result = crate::verify::lookup_verify(
+        &vrf_pk,
+        to_digest::<Hash>(root_hash),
+        target_label_bytes,
+        internal_lookup_proof,
+    )
+    .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
     // check the two results to make sure they both verify
     assert!(matches!(akd_result, Ok(())));
     assert!(matches!(lean_result, Ok(())));

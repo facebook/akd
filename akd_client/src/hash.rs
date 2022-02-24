@@ -80,6 +80,7 @@ pub(crate) fn merge(items: &[[u8; DIGEST_BYTES]]) -> PublicDigest {
 }
 
 /// Take a hash and merge a integer hash into it
+#[cfg(feature = "vrf")]
 pub(crate) fn merge_with_int(digest: PublicDigest, value: u64) -> PublicDigest {
     let mut data = [0; 40];
     data[..32].copy_from_slice(&digest);
@@ -96,8 +97,9 @@ pub(crate) fn build_and_hash_layer(
     ancestor_hash: PublicDigest,
     parent_label: NodeLabel,
 ) -> Result<PublicDigest, VerificationError> {
-    let direction = dir
-        .ok_or_else(|| verify_error!(NoDirection, PublicDigest, format!("{}", parent_label.val)))?;
+    let direction = dir.ok_or_else(|| {
+        verify_error!(NoDirection, PublicDigest, format!("{:?}", parent_label.val))
+    })?;
     let mut hashes_mut = hashes.to_vec();
     hashes_mut.insert(direction, ancestor_hash);
     Ok(hash_layer(hashes_mut, parent_label))

@@ -7,6 +7,8 @@
 
 //! This module implements record handling for a simple asynchronized mysql database
 
+use std::convert::TryInto;
+
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
@@ -451,6 +453,10 @@ impl MySqlStorable for DbRecord {
     where
         Self: std::marker::Sized,
     {
+        fn cast_err() -> MySqlError {
+            MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())
+        }
+
         match St::data_type() {
             StorageType::Azks => {
                 // epoch, num_nodes
@@ -474,6 +480,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(3),
                     row.take_opt(4),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
                     let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
                         bincode::deserialize(&child_states_bin_vec).map_err(
@@ -487,7 +494,7 @@ impl MySqlStorable for DbRecord {
                         value,
                         child_states_decoded,
                         label_len,
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::HistoryNodeState(node_state));
@@ -512,12 +519,15 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(5),
                     row.take_opt(6),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
+                    let parent_label_val_vec: Vec<u8> = parent_label_val;
+
                     let node = DbRecord::build_history_tree_node(
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
                         birth_epoch,
                         last_epoch,
-                        parent_label_val,
+                        parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
                     );
@@ -541,12 +551,13 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                 ) {
+                    let node_label_val_vec: Vec<u8> = node_label_val;
                     let state = DbRecord::build_user_state(
                         username,
                         data,
                         version,
                         node_label_len,
-                        node_label_val,
+                        node_label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::ValueState(state));
