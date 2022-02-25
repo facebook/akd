@@ -600,7 +600,8 @@ impl<'a> AsyncMySqlDatabase {
             }
 
             // Note that lines().count() returns the same number for lines with and without a final line ending.
-            let is_container_listed = std::str::from_utf8(&result.stdout).map(|str| str.lines().count() == NUM_LINES_EXPECTED);
+            let is_container_listed = std::str::from_utf8(&result.stdout)
+                .map(|str| str.lines().count() == NUM_LINES_EXPECTED);
             return is_container_listed.unwrap_or(false);
         }
 
