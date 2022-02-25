@@ -19,6 +19,7 @@ pub use crate::ecvrf::traits::VRFKeyStorage;
 mod tests;
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
+///
 /// const KEY_MATERIAL: &str = "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721";
 #[derive(Clone)]
 pub struct HardCodedAkdVRF;
