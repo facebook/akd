@@ -590,6 +590,7 @@ impl<'a> AsyncMySqlDatabase {
             // 4bd11d9e28f2   ecac195d15af   "docker-entrypoint.s…"   4 minutes ago   Up 4 minutes   33060/tcp, 0.0.0.0:8001->3306/tcp, :::8001->3306/tcp   seemless-test-db
             //
             // so there should be 2 output lines assuming all is successful and the container is running.
+            const NUM_LINES_EXPECTED: usize = 2;
 
             let err = std::str::from_utf8(&result.stderr);
             if let Ok(error_message) = err {
@@ -598,8 +599,10 @@ impl<'a> AsyncMySqlDatabase {
                 }
             }
 
-            let lines = std::str::from_utf8(&result.stdout).map(|str| str.lines().count() > 2);
-            return lines.unwrap_or(false);
+            // Note that lines().count() returns the same number for lines with and without a final line ending.
+            let is_container_listed = std::str::from_utf8(&result.stdout)
+                .map(|str| str.lines().count() == NUM_LINES_EXPECTED);
+            return is_container_listed.unwrap_or(false);
         }
 
         // docker may have thrown an error, just fail
