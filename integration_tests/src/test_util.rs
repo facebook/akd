@@ -149,7 +149,7 @@ pub(crate) async fn directory_test_suite<
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf).await;
+    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(mut dir) => {

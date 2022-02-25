@@ -49,7 +49,7 @@ impl Storable for Azks {
     }
 
     fn get_id(&self) -> u8 {
-        1u8
+        DEFAULT_AZKS_KEY
     }
 
     fn get_full_binary_key_id(key: &u8) -> Vec<u8> {
@@ -57,7 +57,7 @@ impl Storable for Azks {
     }
 
     fn key_from_full_binary(_bin: &[u8]) -> Result<u8, String> {
-        Ok(1u8)
+        Ok(DEFAULT_AZKS_KEY)
     }
 }
 
@@ -475,7 +475,7 @@ impl Azks {
             // cannot retrieve information for future epoch
             return Err(HistoryTreeNodeError::NonexistentAtEpoch(
                 NodeLabel::root(),
-                self.latest_epoch,
+                epoch,
             ));
         }
         let root_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
@@ -961,7 +961,7 @@ mod tests {
 
         let expected = Err::<_, HistoryTreeNodeError>(HistoryTreeNodeError::NonexistentAtEpoch(
             NodeLabel::root(),
-            0,
+            123,
         ));
         assert_eq!(expected, out);
         Ok(())

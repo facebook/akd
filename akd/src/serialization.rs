@@ -87,8 +87,7 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
 
         let vrf = HardCodedAkdVRF {};
-
-        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
@@ -121,7 +120,7 @@ mod tests {
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
@@ -153,9 +152,8 @@ mod tests {
     #[tokio::test]
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf)
+        let mut akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         // Commit to the first epoch

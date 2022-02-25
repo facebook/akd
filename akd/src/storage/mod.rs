@@ -78,6 +78,12 @@ pub trait Storage: Clone {
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
 
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self);
+
     /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
     /// was edited
     async fn get_epoch_lte_epoch(

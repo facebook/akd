@@ -44,7 +44,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //! };
 //! ```
 //!
@@ -67,7 +67,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // commit the latest changes
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -94,7 +94,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -120,7 +120,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -160,7 +160,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -185,7 +185,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
 //!          .await.unwrap();
@@ -223,7 +223,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
@@ -254,7 +254,7 @@
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf).await.unwrap();
+//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
 //!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
 //!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
