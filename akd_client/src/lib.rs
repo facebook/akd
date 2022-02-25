@@ -96,8 +96,11 @@ use std::fmt::Display;
 pub mod types;
 pub mod verify;
 
+#[cfg(feature = "vrf")]
+pub(crate) mod ecvrf;
 pub(crate) mod hash;
 pub(crate) mod utils;
+
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
 pub(crate) const ARITY: usize = 2;
@@ -135,7 +138,7 @@ pub struct VerificationError {
 }
 
 impl VerificationError {
-    pub(crate) fn build<T>(ty: Option<VerificationErrorType>, msg: Option<String>) -> Self {
+    pub(crate) fn build(ty: Option<VerificationErrorType>, msg: Option<String>) -> Self {
         Self {
             error_message: msg.unwrap_or_default(),
             error_type: ty.unwrap_or(VerificationErrorType::Unknown),
@@ -159,7 +162,7 @@ impl Display for VerificationError {
 macro_rules! verify_error {
     ($x:ident, $ty:ty, $msg:expr) => {{
         let etype = crate::VerificationErrorType::$x;
-        crate::VerificationError::build::<$ty>(Some(etype), Some($msg))
+        crate::VerificationError::build(Some(etype), Some($msg))
     }};
 }
 // export the macro for use in other modules

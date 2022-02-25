@@ -36,7 +36,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use akd::ecvrf::HardCodedAkdVRF;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
 //!
@@ -59,7 +59,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use akd::ecvrf::HardCodedAkdVRF;
 //! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
 //!
@@ -89,7 +89,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use akd::ecvrf::HardCodedAkdVRF;
 //!
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -115,7 +115,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::{ClientVRF, HardCodedClientVRF}};
+//! use akd::ecvrf::HardCodedAkdVRF;
 //!
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -130,9 +130,9 @@
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
 //!     // Get the VRF public key of the server
-//!     let vrf_pk = vrf.get_public_key().unwrap();
-//!     client::lookup_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-//!         vrf_pk,
+//!     let vrf_pk = akd.get_public_key().await.unwrap();
+//!     client::lookup_verify::<Blake3_256<BaseElement>>(
+//!         &vrf_pk,
 //!         root_hash,
 //!         AkdLabel("hello".to_string()),
 //!         lookup_proof,
@@ -155,7 +155,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use akd::ecvrf::HardCodedAkdVRF;
 //!
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -181,7 +181,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::{ClientVRF, HardCodedClientVRF}};
+//! use akd::ecvrf::HardCodedAkdVRF;
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
@@ -194,15 +194,15 @@
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
-//!     let vrf_pk = vrf.get_public_key().unwrap();
-//!     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-//!     vrf_pk,
-//!     root_hashes,
-//!     previous_root_hashes,
-//!     AkdLabel("hello".to_string()),
-//!     history_proof,
-//!     ).unwrap();
-//! };
+//!     let vrf_pk = akd.get_public_key().await.unwrap();
+//!     key_history_verify::<Blake3_256<BaseElement>>(
+//!         &vrf_pk,
+//!         root_hashes,
+//!         previous_root_hashes,
+//!         AkdLabel("hello".to_string()),
+//!         history_proof,
+//!         ).unwrap();
+//!     };
 //! ```
 //!
 //! ## Responding to an audit query
@@ -218,7 +218,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::{akd_vrf::HardCodedAkdVRF, client_vrf::HardCodedClientVRF};
+//! use akd::ecvrf::HardCodedAkdVRF;
 //!
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -249,7 +249,7 @@
 //! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 //! use akd::storage::Storage;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::primitives::akd_vrf::HardCodedAkdVRF;
+//! use akd::ecvrf::HardCodedAkdVRF;
 //!
 //! let db = AsyncInMemoryDatabase::new();
 //! async {
@@ -278,21 +278,17 @@
 //! ```
 //!
 //!
-//!
-//!
-//!
+
 #![warn(missing_docs)]
 #![allow(clippy::multiple_crate_versions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate rand;
-extern crate vrf;
 
 pub mod append_only_zks;
 pub mod directory;
 pub mod history_tree_node;
 pub mod node_state;
-pub mod primitives;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
@@ -300,9 +296,8 @@ mod utils;
 
 pub mod auditor;
 pub mod client;
-pub mod errors;
-
 pub mod ecvrf;
+pub mod errors;
 
 #[cfg(test)]
 pub mod tests;

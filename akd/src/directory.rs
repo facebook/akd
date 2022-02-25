@@ -9,13 +9,12 @@
 
 use crate::append_only_zks::Azks;
 
-use crate::node_state::{Node, NodeLabel};
-use crate::primitives::akd_vrf::AkdVRF;
+use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
+use crate::node_state::Node;
 use crate::proof_structs::*;
 
 use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
 
-use crate::serialization::from_digest;
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Storage;
 
@@ -52,7 +51,7 @@ pub struct Directory<S, V> {
     vrf: V,
 }
 
-impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
+impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -110,7 +109,10 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 None => {
                     // no data found for the user
                     let latest_version = 1;
-                    let label = self.get_nodelabel::<H>(&uname, false, latest_version)?;
+                    let label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, false, latest_version)
+                        .await?;
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
                     let value_to_add = H::hash(&Self::value_to_bytes(&val));
@@ -125,8 +127,14 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 Some(previous_version) => {
                     // Data found for the given user
                     let latest_version = *previous_version + 1;
-                    let stale_label = self.get_nodelabel::<H>(&uname, true, *previous_version)?;
-                    let fresh_label = self.get_nodelabel::<H>(&uname, false, latest_version)?;
+                    let stale_label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, true, *previous_version)
+                        .await?;
+                    let fresh_label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, false, latest_version)
+                        .await?;
                     let stale_value_to_add = H::hash(&[0u8]);
                     let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
                     update_set.push(Node::<H> {
@@ -211,31 +219,47 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 // added but the database is in the middle of an update
                 let current_version = latest_st.version;
                 let marker_version = 1 << get_marker_version(current_version);
-                let existent_label = self.get_nodelabel::<H>(&uname, false, current_version)?;
-                let marker_label = self.get_nodelabel::<H>(&uname, false, marker_version)?;
-                let non_existent_label = self.get_nodelabel::<H>(&uname, true, current_version)?;
+                let existent_label = self
+                    .vrf
+                    .get_node_label::<H>(&uname, false, current_version)
+                    .await?;
+                let marker_label = self
+                    .vrf
+                    .get_node_label::<H>(&uname, false, marker_version)
+                    .await?;
+                let non_existent_label = self
+                    .vrf
+                    .get_node_label::<H>(&uname, true, current_version)
+                    .await?;
                 let current_azks = self.retrieve_current_azks().await?;
                 Ok(LookupProof {
                     epoch: current_epoch,
                     plaintext_value: latest_st.plaintext_val,
                     version: current_version,
-                    exisitence_vrf_proof: self.get_label_proof::<H>(
-                        &uname,
-                        false,
-                        current_version,
-                    )?,
+                    exisitence_vrf_proof: self
+                        .vrf
+                        .get_label_proof::<H>(&uname, false, current_version)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
                     existence_proof: current_azks
                         .get_membership_proof(&self.storage, existent_label, current_epoch)
                         .await?,
-                    marker_vrf_proof: self.get_label_proof::<H>(&uname, false, marker_version)?,
+                    marker_vrf_proof: self
+                        .vrf
+                        .get_label_proof::<H>(&uname, false, marker_version)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
                     marker_proof: current_azks
                         .get_membership_proof(&self.storage, marker_label, current_epoch)
                         .await?,
-                    freshness_vrf_proof: self.get_label_proof::<H>(
-                        &uname,
-                        true,
-                        current_version,
-                    )?,
+                    freshness_vrf_proof: self
+                        .vrf
+                        .get_label_proof::<H>(&uname, true, current_version)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
                     freshness_proof: current_azks
                         .get_non_membership_proof(&self.storage, non_existent_label, current_epoch)
                         .await?,
@@ -324,70 +348,9 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
 
     /// HELPERS ///
 
-    // FIXME: we need to make this only work on the server, use a VRF and have another function
-    // that verifies nodelabel.
-    /// Returns the tree nodelabel that corresponds to a version of the akdkey argument.
-    /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
-    /// or a version that we are retiring.
-    pub(crate) fn get_nodelabel<H: Hasher>(
-        &self,
-        uname: &AkdLabel,
-        stale: bool,
-        version: u64,
-    ) -> Result<NodeLabel, DirectoryError> {
-        // Get the VRF secret key from the AkdVRF
-        let secret_key = self.vrf.get_secret_key()?;
-
-        let name_hash_bytes = H::hash(uname.0.as_bytes());
-        let mut stale_bytes = &[1u8];
-        if stale {
-            stale_bytes = &[0u8];
-        }
-
-        let hashed_label = H::merge(&[
-            name_hash_bytes,
-            H::merge_with_int(H::hash(stale_bytes), version),
-        ]);
-        let message_vec = from_digest::<H>(hashed_label).unwrap();
-        let message: &[u8] = message_vec.as_slice();
-
-        // VRF proof and hash output
-        let pi = V::prove(secret_key, message)?;
-        let hash = vec_to_u8_arr(V::vrf_to_hash(&pi, message)?);
-
-        Ok(NodeLabel::new(hash, 256u32))
-    }
-
-    pub(crate) fn get_label_proof<H: Hasher>(
-        &self,
-        uname: &AkdLabel,
-        stale: bool,
-        version: u64,
-    ) -> Result<Vec<u8>, DirectoryError> {
-        // Get the VRF secret key from the AkdVRF
-        let secret_key = self.vrf.get_secret_key()?;
-
-        let name_hash_bytes = H::hash(uname.0.as_bytes());
-        let mut stale_bytes = &[1u8];
-        if stale {
-            stale_bytes = &[0u8];
-        }
-
-        let hashed_label = H::merge(&[
-            name_hash_bytes,
-            H::merge_with_int(H::hash(stale_bytes), version),
-        ]);
-
-        let message_vec = from_digest::<H>(hashed_label).unwrap();
-        let message: &[u8] = message_vec.as_slice();
-
-        // VRF proof
-        Ok(V::prove(secret_key, message)?)
-    }
-
     /// Use this function to retrieve the VRF public key for this AKD.
-    pub fn get_public_key(&self) -> Result<V::PK, DirectoryError> {
-        Ok(self.vrf.get_public_key()?)
+    pub async fn get_public_key(&self) -> Result<VRFPublicKey, DirectoryError> {
+        Ok(self.vrf.get_vrf_public_key().await?)
     }
 
     // FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
@@ -406,24 +369,37 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         let plaintext_value = &user_state.plaintext_val;
         let version = &user_state.version;
 
-        let label_at_ep = self.get_nodelabel::<H>(uname, false, *version)?;
+        let label_at_ep = self.vrf.get_node_label::<H>(uname, false, *version).await?;
 
         let current_azks = self.retrieve_current_azks().await?;
-        let existence_vrf_proof = self.get_label_proof::<H>(uname, false, *version)?;
+        let existence_vrf_proof = self
+            .vrf
+            .get_label_proof::<H>(uname, false, *version)
+            .await?
+            .to_bytes()
+            .to_vec();
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
         let mut previous_val_stale_at_ep = Option::None;
         let mut previous_val_vrf_proof = Option::None;
         if *version > 1 {
-            let prev_label_at_ep = self.get_nodelabel::<H>(uname, true, *version - 1)?;
+            let prev_label_at_ep = self
+                .vrf
+                .get_node_label::<H>(uname, true, *version - 1)
+                .await?;
             previous_val_stale_at_ep = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
                     .await?,
             );
-            previous_val_vrf_proof =
-                Option::Some(self.get_label_proof::<H>(uname, true, *version - 1)?);
+            previous_val_vrf_proof = Option::Some(
+                self.vrf
+                    .get_label_proof::<H>(uname, true, *version - 1)
+                    .await?
+                    .to_bytes()
+                    .to_vec(),
+            );
         }
         let mut non_existence_before_ep = Option::None;
         if epoch != 0 {
@@ -441,12 +417,18 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
         let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
 
         for ver in version + 1..(1 << next_marker) {
-            let label_for_ver = self.get_nodelabel::<H>(uname, false, ver)?;
+            let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_next_few.push(non_existence_of_ver);
-            next_few_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver)?);
+            next_few_vrf_proofs.push(
+                self.vrf
+                    .get_label_proof::<H>(uname, false, ver)
+                    .await?
+                    .to_bytes()
+                    .to_vec(),
+            );
         }
 
         let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
@@ -454,12 +436,18 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
 
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
-            let label_for_ver = self.get_nodelabel::<H>(uname, false, ver)?;
+            let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver, epoch)
                 .await?;
             non_existence_of_future_markers.push(non_existence_of_ver);
-            future_marker_vrf_proofs.push(self.get_label_proof::<H>(uname, false, ver)?);
+            future_marker_vrf_proofs.push(
+                self.vrf
+                    .get_label_proof::<H>(uname, false, ver)
+                    .await?
+                    .to_bytes()
+                    .to_vec(),
+            );
         }
 
         Ok(UpdateProof {
@@ -515,7 +503,7 @@ fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: AkdVRF>(
+pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
@@ -552,16 +540,6 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: AkdV
     Ok((root_hashes, previous_root_hashes))
 }
 
-// Note that this is the truncating version, since the only thing being
-// verified where this is called is the final hash.
-// If the hash function's output is too large, truncating it should be ok.
-// tl;dr TRUNCATES!
-fn vec_to_u8_arr(vector_u8: Vec<u8>) -> [u8; 32] {
-    let mut out_arr = [0u8; 32];
-    out_arr[..vector_u8.len()].clone_from_slice(&vector_u8[..32]);
-    out_arr
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,10 +548,7 @@ mod tests {
         // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
         // client::{key_history_verify, lookup_verify},
         client::lookup_verify,
-        primitives::{
-            akd_vrf::HardCodedAkdVRF,
-            client_vrf::{ClientVRF, HardCodedClientVRF},
-        },
+        ecvrf::HardCodedAkdVRF,
         storage::memory::AsyncInMemoryDatabase,
     };
     use winter_crypto::{hashers::Blake3_256, Digest};
@@ -632,9 +607,9 @@ mod tests {
         let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
-        let vrf_pk = akd.get_public_key()?;
-        lookup_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-            vrf_pk.clone(),
+        let vrf_pk = akd.get_public_key().await?;
+        lookup_verify::<Blake3_256<BaseElement>>(
+            &vrf_pk,
             root_hash,
             AkdLabel("hello".to_string()),
             lookup_proof,
@@ -1001,7 +976,7 @@ mod tests {
         let (root_hashes, _previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         assert_eq!(2, root_hashes.len());
-        let vrf_pk = vrf.get_public_key()?;
+        let vrf_pk = akd.get_public_key().await?;
         // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
         // key_history_verify::<Blake3, HardCodedClientVRF>(
         //     vrf_pk.clone(),
@@ -1017,8 +992,8 @@ mod tests {
             AkdValue("world_2".to_string()),
             lookup_proof.plaintext_value
         );
-        lookup_verify::<Blake3, HardCodedClientVRF>(
-            vrf_pk,
+        lookup_verify::<Blake3>(
+            &vrf_pk,
             root_hash,
             AkdLabel("hello".to_string()),
             lookup_proof,

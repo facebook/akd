@@ -20,7 +20,7 @@ use rand::{CryptoRng, RngCore};
 
 use ed25519_dalek::{self, SecretKey as ed25519_PrivateKey};
 
-use crate::ecvrf::ecvrf::*;
+use crate::ecvrf::ecvrf_impl::*;
 
 /// A type family for schemes which know how to generate key material from
 /// a cryptographically-secure [`CryptoRng`][::rand::CryptoRng].

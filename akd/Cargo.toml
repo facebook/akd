@@ -25,7 +25,6 @@ async-trait = "0.1"
 tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-vrf = "0.2.3"
 
 curve25519-dalek = "3.2"
 ed25519-dalek = { version = "1", features = ["serde"]}

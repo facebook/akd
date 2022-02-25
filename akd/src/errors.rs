@@ -8,8 +8,6 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
-use vrf::openssl::Error;
-
 use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
@@ -177,18 +175,8 @@ pub enum DirectoryError {
     InvalidEpoch(String),
     /// Error propagation
     Storage(StorageError),
-    /// Error propagation for errors from the VRF crate
-    VRFErr(Error),
     /// Error propagation for errors from VRF storage
     VRFStorageErr(VRFStorageError),
-    /// Error thrown when vrf and NodeLabel not found equal
-    VRFLabelErr(String),
-}
-
-impl From<Error> for DirectoryError {
-    fn from(error: Error) -> Self {
-        Self::VRFErr(error)
-    }
 }
 
 impl From<VRFStorageError> for DirectoryError {
@@ -219,14 +207,8 @@ impl fmt::Display for DirectoryError {
             Self::VerifyLookupProof(err_string) => {
                 write!(f, "{}", err_string)
             }
-            Self::VRFErr(err) => {
-                write!(f, "Encountered a VRF error: {:?}", err,)
-            }
             Self::VRFStorageErr(err) => {
                 write!(f, "Encountered a VRF error: {:?}", err,)
-            }
-            Self::VRFLabelErr(err_string) => {
-                write!(f, "{}", err_string)
             }
         }
     }
@@ -267,11 +249,5 @@ impl fmt::Display for VRFStorageError {
                 write!(f, "{}", error_string)
             }
         }
-    }
-}
-
-impl From<Error> for VRFStorageError {
-    fn from(error: Error) -> Self {
-        Self::VRFErr(error.to_string())
     }
 }

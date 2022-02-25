@@ -8,7 +8,7 @@
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
 use super::VRFPublicKey;
-use super::{ecvrf::Output, VRFPrivateKey};
+use super::{ecvrf_impl::Output, Proof, VRFPrivateKey};
 use crate::serialization::from_digest;
 use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
 
@@ -24,7 +24,7 @@ use winter_crypto::Hasher;
 /// I.e. retrieve the byte vector 1 time, and simply keep serving it up without doing
 /// network access calls
 #[async_trait]
-pub trait VRFKeyStorage {
+pub trait VRFKeyStorage: Clone + Sync + Send {
     /* ======= To be implemented ====== */
 
     /// Retrieve the VRF Private key as a vector of bytes
@@ -64,6 +64,22 @@ pub trait VRFKeyStorage {
         stale: bool,
         version: u64,
     ) -> Result<NodeLabel, VRFStorageError> {
+        let proof = self.get_label_proof::<H>(uname, stale, version).await?;
+        let output: Output = (&proof).into();
+
+        let mut truncated_hash: [u8; 32] = [0u8; 32];
+        truncated_hash.copy_from_slice(&output.to_bytes()[..32]);
+
+        Ok(NodeLabel::new(truncated_hash, 256u32))
+    }
+
+    /// Retrieve the proof for a specific label
+    async fn get_label_proof<H: Hasher>(
+        &self,
+        uname: &AkdLabel,
+        stale: bool,
+        version: u64,
+    ) -> Result<Proof, VRFStorageError> {
         let key = self.get_vrf_private_key().await?;
         let name_hash_bytes = H::hash(uname.0.as_bytes());
         let mut stale_bytes = &[1u8];
@@ -80,12 +96,7 @@ pub trait VRFKeyStorage {
 
         // VRF proof and hash output
         let proof = key.prove(message);
-        let output: Output = (&proof).into();
-
-        let mut truncated_hash: [u8; 32] = [0u8; 32];
-        truncated_hash.copy_from_slice(&output.to_bytes()[..32]);
-
-        Ok(NodeLabel::new(truncated_hash, 256u32))
+        Ok(proof)
     }
 
     /// This function is called to verify that a given NodeLabel is indeed

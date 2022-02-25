@@ -8,11 +8,11 @@
 //!
 //! This module implements the ECVRF functionality for use in the AKD crate
 
-mod ecvrf;
+mod ecvrf_impl;
 mod traits;
 
 // export the functionality we want visible
-pub use crate::ecvrf::ecvrf::{VRFPrivateKey, VRFPublicKey};
+pub use crate::ecvrf::ecvrf_impl::{Proof, VRFPrivateKey, VRFPublicKey};
 pub use crate::ecvrf::traits::VRFKeyStorage;
 
 #[cfg(test)]
@@ -23,6 +23,9 @@ mod tests;
 /// const KEY_MATERIAL: &str = "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721";
 #[derive(Clone)]
 pub struct HardCodedAkdVRF;
+
+unsafe impl Sync for HardCodedAkdVRF {}
+unsafe impl Send for HardCodedAkdVRF {}
 
 #[async_trait::async_trait]
 impl VRFKeyStorage for HardCodedAkdVRF {

@@ -49,8 +49,8 @@ mod tests {
     use super::*;
 
     use crate::directory::Directory;
+    use crate::ecvrf::HardCodedAkdVRF;
     use crate::errors::AkdError;
-    use crate::primitives::akd_vrf::HardCodedAkdVRF;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};
