@@ -169,7 +169,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 }
             }
         }
-        let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
+        let insertion_set: Vec<Node<H>> = update_set.to_vec();
 
         if use_transaction {
             if let false = self.storage.begin_transaction().await {

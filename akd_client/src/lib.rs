@@ -61,6 +61,17 @@
 //! ```
 //! which currently has a resultant WASM file size of ~142KB and enabling wee_alloc yields roughly ~137KB binary size
 //!
+//! #### WASM Compilation and Deployment
+//!
+//! For WASM deployment of the AKD client, you'll want to read the [wasm_bindgen](https://rustwasm.github.io/wasm-bindgen/reference/deployment.html)
+//! documentation which has reference material dependent on your environment.
+//!
+//! #### WASM and VRFs
+//!
+//! Presently the VRF functionality of the AKD is **NOT** supported within
+//! WebAssembly (wasm) compilation. This is due to a downstream dependency
+//! on [`rust-openssl`] which doesn't support compilation to wasm at the moment
+//!
 //! # Client Types
 //!
 //! A small note about the types in this library. They are specifically independent of the main AKD crate because
@@ -72,6 +83,15 @@
 extern crate alloc;
 #[cfg(feature = "nostd")]
 use alloc::string::String;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
+// allocator.
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+use std::fmt::Display;
 
 pub mod types;
 pub mod verify;
@@ -81,16 +101,6 @@ pub(crate) mod utils;
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
 pub(crate) const ARITY: usize = 2;
-
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[cfg(test)]
 mod tests;
 
@@ -133,6 +143,19 @@ impl VerificationError {
     }
 }
 
+impl Display for VerificationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let code = match self.error_type {
+            VerificationErrorType::NoDirection => "No Direction",
+            VerificationErrorType::MembershipProof => "Membership Proof",
+            VerificationErrorType::LookupProof => "Lookup Proof",
+            VerificationErrorType::Vrf => "VRF",
+            VerificationErrorType::Unknown => "Unknown",
+        };
+        write!(f, "Verification error ({}) - {}", code, self.error_message)
+    }
+}
+
 macro_rules! verify_error {
     ($x:ident, $ty:ty, $msg:expr) => {{
         let etype = crate::VerificationErrorType::$x;
@@ -166,18 +189,32 @@ pub fn lookup_verify(
     vrf_public_key_slice: &[u8],
     root_hash_slice: &[u8],
     label_slice: &[u8],
+    // JSON struct representing the lookup proof
     lookup_proof_ref: JsValue,
-) -> bool {
-    // TODO: https://rustwasm.github.io/wasm-bindgen/reference/types/result.html
-    // (return a Result rather than panic the code)
-
+) -> Result<bool, JsValue> {
     let vrf_public_key: Vec<u8> = vrf_public_key_slice.to_vec();
     let label: AkdLabel = label_slice.to_vec();
 
+    if root_hash_slice.len() < 32 {
+        return Err(JsValue::from_str("Root hash byte length is too short"));
+    }
     let mut root_hash: [u8; 32] = [0u8; 32];
     root_hash.copy_from_slice(root_hash_slice);
 
-    let proof: LookupProof = lookup_proof_ref.into_serde().unwrap();
-
-    crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof).is_ok()
+    match lookup_proof_ref.into_serde() {
+        Ok(proof) => match crate::verify::lookup_verify(&vrf_public_key, root_hash, label, proof) {
+            Ok(_) => Ok(true),
+            Err(verification_error) => {
+                let msg = format!("{}", verification_error);
+                Err(JsValue::from_str(&msg))
+            }
+        },
+        Err(serialization_error) => {
+            let msg = format!(
+                "Error deserializing lookup proof structure: {}",
+                serialization_error
+            );
+            Err(JsValue::from_str(&msg))
+        }
+    }
 }
