@@ -59,18 +59,12 @@
 //! cd akd_client # optional
 //! wasm-pack build --features wasm
 //! ```
-//! which currently has a resultant WASM file size of ~142KB and enabling wee_alloc yields roughly ~137KB binary size
+//! which currently has a resultant WASM file size of ~191KB with VRF verification enabled
 //!
 //! #### WASM Compilation and Deployment
 //!
 //! For WASM deployment of the AKD client, you'll want to read the [wasm_bindgen](https://rustwasm.github.io/wasm-bindgen/reference/deployment.html)
 //! documentation which has reference material dependent on your environment.
-//!
-//! #### WASM and VRFs
-//!
-//! Presently the VRF functionality of the AKD is **NOT** supported within
-//! WebAssembly (wasm) compilation. This is due to a downstream dependency
-//! on [`rust-openssl`] which doesn't support compilation to wasm at the moment
 //!
 //! # Client Types
 //!
