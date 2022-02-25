@@ -147,7 +147,9 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_, _>::new::<Blake3>(&db, &vrf).await.unwrap();
+        let mut directory = Directory::<_, _>::new::<Blake3>(&db, &vrf, false)
+            .await
+            .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
@@ -170,7 +172,7 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory = Directory::<_, _>::new::<Blake3>(&mysql_db, &vrf)
+        let mut directory = Directory::<_, _>::new::<Blake3>(&mysql_db, &vrf, false)
             .await
             .unwrap();
         tokio::spawn(async move {

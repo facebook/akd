@@ -153,7 +153,7 @@ where
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let mut akd = Directory::new::<Hash>(&db, &vrf).await?;
+    let mut akd = Directory::new::<Hash>(&db, &vrf, false).await?;
 
     let mut updates = vec![];
     for i in 0..15 {
