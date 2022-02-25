@@ -143,7 +143,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
                 }
             }
         }
-        let insertion_set: Vec<Node<H>> = update_set.iter().copied().collect();
+        let insertion_set: Vec<Node<H>> = update_set.to_vec();
 
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
@@ -323,12 +323,6 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
     }
 
     /// HELPERS ///
-
-    #[allow(unused)]
-    fn username_to_nodelabel(_uname: &AkdLabel) -> NodeLabel {
-        // this function will need to read the VRF key off some function
-        unimplemented!()
-    }
 
     // FIXME: we need to make this only work on the server, use a VRF and have another function
     // that verifies nodelabel.

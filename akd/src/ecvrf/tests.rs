@@ -5,7 +5,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use super::*;
 use bincode::serialize;
 use core::convert::TryFrom;
 use curve25519_dalek::{
@@ -18,6 +17,10 @@ use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 
 use rand::{CryptoRng, RngCore};
+
+use ed25519_dalek::{self, SecretKey as ed25519_PrivateKey};
+
+use crate::ecvrf::ecvrf::*;
 
 /// A type family for schemes which know how to generate key material from
 /// a cryptographically-secure [`CryptoRng`][::rand::CryptoRng].
