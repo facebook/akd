@@ -1159,7 +1159,7 @@ mod tests {
         });
 
         // verify a lookup proof, which will populate the cache
-        async_poll_helper_proof(&vrf, &reader, AkdValue("world".to_string())).await?;
+        async_poll_helper_proof(&reader, AkdValue("world".to_string())).await?;
 
         // publish epoch 2
         writer
@@ -1183,7 +1183,7 @@ mod tests {
             tokio::time::timeout(tokio::time::Duration::from_secs(10), rx.recv()).await;
         assert!(matches!(notification, Ok(Some(()))));
 
-        async_poll_helper_proof(&vrf, &reader, AkdValue("world_2".to_string())).await?;
+        async_poll_helper_proof(&reader, AkdValue("world_2".to_string())).await?;
 
         Ok(())
     }
@@ -1192,8 +1192,7 @@ mod tests {
     =========== Test Helpers ===========
     */
 
-    async fn async_poll_helper_proof<T: Storage + Sync + Send, V: AkdVRF>(
-        vrf: &V,
+    async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage>(
         reader: &Directory<T, V>,
         value: AkdValue,
     ) -> Result<(), AkdError> {
@@ -1202,8 +1201,8 @@ mod tests {
         assert_eq!(value, lookup_proof.plaintext_value);
         let current_azks = reader.retrieve_current_azks().await?;
         let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
-        let pk = vrf.get_public_key()?;
-        lookup_verify::<Blake3, V>(pk, root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
+        let pk = reader.get_public_key().await?;
+        lookup_verify::<Blake3>(&pk, root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
         Ok(())
     }
 }
