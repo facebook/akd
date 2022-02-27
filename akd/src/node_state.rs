@@ -11,7 +11,7 @@ use crate::errors::HistoryTreeNodeError;
 use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
-use crate::{Direction, ARITY};
+use crate::{Direction, ARITY, EMPTY_VALUE};
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -286,7 +286,7 @@ impl HistoryNodeState {
     pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, HistoryTreeNodeError> {
         const INIT: Option<HistoryChildState> = None;
         Ok(HistoryNodeState {
-            value: from_digest::<H>(H::hash(&[0u8]))?,
+            value: from_digest::<H>(H::hash(&EMPTY_VALUE))?,
             child_states: [INIT; ARITY],
             key,
         })
@@ -747,11 +747,11 @@ mod tests {
 
     #[test]
     pub fn serialize_deserialize() {
-        use winter_crypto::hashers::Blake3_256;
+        use winter_crypto::hashers::Sha3_256;
         use winter_crypto::Hasher;
         use winter_math::fields::f128::BaseElement;
 
-        type Blake3 = Blake3_256<BaseElement>;
+        type Blake3 = Sha3_256<BaseElement>;
 
         let label = NodeLabel {
             val: byte_arr_from_u64(0),
