@@ -655,7 +655,10 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError>
         )
         .await?;
         leaf_hashes.push(Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&leaf_u64.to_be_bytes())]),
+            Blake3::merge(&[
+                Blake3::hash(&EMPTY_VALUE),
+                Blake3::hash(&leaf_u64.to_be_bytes()),
+            ]),
             hash_label::<Blake3>(new_leaf.label),
         ]));
         leaves.push(new_leaf);

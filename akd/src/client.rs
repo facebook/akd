@@ -18,7 +18,7 @@ use crate::{
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     serialization::from_digest,
     storage::types::AkdLabel,
-    Direction, ARITY, EMPTY_VALUE, EMPTY_LABEL,
+    Direction, ARITY, EMPTY_LABEL, EMPTY_VALUE,
 };
 
 /// Verifies membership, with respect to the root_hash
@@ -76,11 +76,13 @@ pub fn verify_nonmembership<H: Hasher>(
         let curr_label = proof.longest_prefix_children[i].label;
         // if curr_label != EMPTY_LABEL {
         lcp_real = lcp_real.get_longest_common_prefix(curr_label);
-        // } 
-        
+        // }
     }
     if lcp_real == EMPTY_LABEL {
-        lcp_real = NodeLabel {val: [0u8;32], len: 0};
+        lcp_real = NodeLabel {
+            val: [0u8; 32],
+            len: 0,
+        };
     }
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);

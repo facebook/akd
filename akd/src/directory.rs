@@ -666,14 +666,14 @@ mod tests {
         auditor::audit_verify,
         // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
         // client::{key_history_verify, lookup_verify},
-        client::{lookup_verify, key_history_verify},
+        client::{key_history_verify, lookup_verify},
         primitives::{
             akd_vrf::HardCodedAkdVRF,
             client_vrf::{ClientVRF, HardCodedClientVRF},
         },
         storage::memory::AsyncInMemoryDatabase,
     };
-    use winter_crypto::{hashers::{Blake3_256}, Digest};
+    use winter_crypto::{hashers::Blake3_256, Digest};
     use winter_math::fields::f128::BaseElement;
     type Blake3 = Blake3_256<BaseElement>;
 
@@ -684,7 +684,9 @@ mod tests {
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await?;
 
         let current_azks = akd.retrieve_current_azks().await?;
-        let hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await?;
+        let hash = akd
+            .get_root_hash::<Blake3_256<BaseElement>>(&current_azks)
+            .await?;
 
         // Ensuring that the root hash of an empty tree is equal to the following constant
         assert_eq!(
@@ -724,8 +726,6 @@ mod tests {
             false,
         )
         .await?;
-
-
 
         let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
         let current_azks = akd.retrieve_current_azks().await?;

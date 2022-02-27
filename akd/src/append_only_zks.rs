@@ -86,7 +86,6 @@ impl Azks {
         Ok(azks)
     }
 
-
     /// Inserts a single leaf and is only used for testing, since batching is more efficient.
     /// We just want to make sure batch insertions work correctly and this function is useful for that.
     pub async fn insert_leaf<S: Storage + Sync + Send, H: Hasher>(

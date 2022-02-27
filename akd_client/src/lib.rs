@@ -186,7 +186,10 @@ pub type LookupProof = types::LookupProof;
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
 
 /// The label used for an empty node
-pub const EMPTY_LABEL: NodeLabel = NodeLabel {val: [1u8; 32], len: 0};
+pub const EMPTY_LABEL: NodeLabel = NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]

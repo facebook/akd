@@ -561,9 +561,7 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(to_digest::<H>(
-            &self.get_state_at_epoch(storage, epoch).await?.value,
-        )?)
+        to_digest::<H>(&self.get_state_at_epoch(storage, epoch).await?.value)
     }
 
     pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(

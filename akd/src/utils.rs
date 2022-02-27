@@ -9,7 +9,10 @@
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
 // 3. If so, add child label to batch set
 
-use crate::{node_state::{NodeLabel, hash_label}, EMPTY_VALUE, EMPTY_LABEL};
+use crate::{
+    node_state::{hash_label, NodeLabel},
+    EMPTY_LABEL, EMPTY_VALUE,
+};
 use std::collections::HashSet;
 use winter_crypto::Hasher;
 

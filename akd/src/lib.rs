@@ -316,7 +316,10 @@ pub const LEAF_LEN: u32 = 256;
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
 
 /// The label used for an empty node
-pub const EMPTY_LABEL: NodeLabel = NodeLabel {val: [1u8; 32], len: 0};
+pub const EMPTY_LABEL: NodeLabel = NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
 
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent.
