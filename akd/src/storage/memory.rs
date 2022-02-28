@@ -4,7 +4,11 @@
 // LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
-//! This module contains various memory representations.
+
+//! This module contains an in-memory database for the AKD library as well as
+//! an in-memory implementation which contains some caching implementations for
+//! benchmarking
+
 use crate::errors::StorageError;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::{

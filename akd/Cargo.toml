@@ -11,7 +11,8 @@ readme = "../README.md"
 
 [features]
 bench = []
-vrf = []
+public-tests = ["rand"]
+default = []
 
 [dependencies]
 bincode = "1"
@@ -37,7 +38,7 @@ proptest = "1.0"
 proptest-derive = "0.3"
 # Work-around for activating feature in test profile
 # See: https://github.com/rust-lang/cargo/issues/2911
-akd = { path = ".", features = ["rand"] }
+akd = { path = ".", features = ["public-tests"] }
 
 [[bench]]
 name = "azks"

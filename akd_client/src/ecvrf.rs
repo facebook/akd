@@ -31,8 +31,8 @@ use curve25519_dalek::{
  * If you still see the error, you can simply ignore. It's harmless.
 */
 use ed25519_dalek::Digest;
-use ed25519_dalek::Sha512;
 use ed25519_dalek::PublicKey as ed25519_PublicKey;
+use ed25519_dalek::Sha512;
 
 const SUITE: u8 = 0x03;
 const ONE: u8 = 0x01;

@@ -12,8 +12,6 @@ winter-math = "0.2"
 [dev-dependencies]
 log = { version = "0.4.8", features = ["kv_unstable"] }
 tokio = { version = "1.10", features = ["full"] }
-akd = { path = "../akd", features = ["rand"] }
-akd_mysql = { path = "../akd_mysql" }
 serial_test = "*"
 mysql_async = "0.29"
 rand = "0.8"
@@ -22,3 +20,6 @@ thread-id = "3"
 multi_log = "0.1"
 clap = "2"
 hex = "0.4.3"
+
+akd = { path = "../akd", features = ["public-tests"] }
+akd_mysql = { path = "../akd_mysql" }

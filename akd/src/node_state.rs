@@ -384,6 +384,7 @@ impl fmt::Display for HistoryChildState {
     }
 }
 
+#[cfg(any(test, feature = "public-tests"))]
 pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();

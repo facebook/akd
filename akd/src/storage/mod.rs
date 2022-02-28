@@ -25,6 +25,7 @@ Various implementations supported by the library are imported here and usable at
 */
 pub mod memory;
 
+#[cfg(feature = "public-tests")]
 pub mod tests;
 
 /// Storable represents an _item_ which can be stored in the storage layer

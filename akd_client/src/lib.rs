@@ -73,6 +73,9 @@
 //! message which contains the data inside the proof. Therefore they'd need to be deserialized and handled independently
 //! of the AKD crate which wouldn't be a dependency anyways. This is why the types are independent and specified separately
 //! from the core AKD types.
+//!
+#![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nostd", no_std)]
 extern crate alloc;
 #[cfg(feature = "nostd")]
@@ -127,7 +130,9 @@ pub enum VerificationErrorType {
 /// AKD client verification error
 #[derive(Debug)]
 pub struct VerificationError {
+    /// Verification error human-readable message
     pub error_message: String,
+    /// Machine-readable error code for the verification error
     pub error_type: VerificationErrorType,
 }
 
@@ -166,18 +171,7 @@ pub(crate) use verify_error;
 // Type re-exports for usability
 // =================================
 
-// type re-exports for public library
-pub type AkdLabel = types::AkdLabel;
-pub type AkdValue = types::AkdValue;
-
-pub type Direction = types::Direction;
-pub type Digest = types::Digest;
-pub type NodeLabel = types::NodeLabel;
-pub type Node = types::Node;
-pub type LayerProof = types::LayerProof;
-pub type MembershipProof = types::MembershipProof;
-pub type NonMembershipProof = types::NonMembershipProof;
-pub type LookupProof = types::LookupProof;
+pub use types::*;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
