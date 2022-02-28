@@ -28,7 +28,7 @@
 //! ## Setup
 //! A [directory::Directory] represents an AKD. To setup a [directory::Directory], we first need to decide on
 //! a database and a hash function. For this example, we use the [winter_crypto::hashers::Blake3_256] as the hash function,
-//! [storage::memory::AsyncInMemoryDatabase] as storage and [primitives::akd_vrf::HardCodedAkdVRF].
+//! [storage::memory::AsyncInMemoryDatabase] as storage and [ecvrf::HardCodedAkdVRF].
 //! ```
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
@@ -277,6 +277,31 @@
 //! };
 //! ```
 //!
+//! # Compilation Features
+//!
+//! The _akd_ crate supports multiple compilation features
+//!
+//! 1. _serde_: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
+//! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
+//! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
+//!
+//! 2. _vrf_ (on by-default): Will enable support of verifiable random function (VRF) usage within the library. See [ecvrf] for documentation
+//! about the VRF functionality being utilized within AKD. This functionality is added protection so auditors don't see user identifiers directly
+//! and applies a level of user-randomness (think hashing) in the node labels such that clients cannot trivially generate node labels themselves
+//! for given identifiers, however they _can_ verify that a label is valid for a given identitifier. Transitively will add dependencies on crates
+//! [`curve25519-dalek`] and [`ed25519-dalek`]. You can disable the VRF functionality by adding the no-default-features flags to your cargo
+//! dependencies.
+//!
+//! 3. _public-tests_: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
+//! unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
+//! used only in unit testing scenarios by altering your Cargo.toml as such
+//! ```toml
+//! [dependencies]
+//! akd = { version = "0.5", features = ["vrf"] }
+//!
+//! [dev-dependencies]
+//! akd = { version = "0.5", features = ["vrf", "public-tests"] }
+//! ```
 //!
 
 #![warn(missing_docs)]

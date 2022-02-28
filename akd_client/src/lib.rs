@@ -8,7 +8,7 @@
 //! # Overview
 //!
 //! This crate contains a "lean" client to verify AKD proofs which doesn't depend on any
-//! dependencies other than the native hashing implementation. This makes it suitable
+//! crates other than the native hashing implementations and optionally VRF usage. This makes it suitable
 //! for embedded applications, e.g. inside limited clients (Android, iPhone, WebAssembly, etc)
 //! which may not have a large dependency library they can pull upon.
 //!
@@ -47,12 +47,12 @@
 //!
 //! Additionally there are some features **not** related to the underlying hash function utilization
 //!
-//! 1. wasm: Compile with web-assembly support for WASM compilation
-//! 2. wee_alloc: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
-//! is helpful in cases of constrained binary footprint size to help minimize
-//! 3. nostd: Disable use of the std library
-//! 4. vrf: Enable verification of VRFs (not compatible with [`nostd`]) client-side. Requires addition
-//! of the [`vrf`] crate as dependency.
+//! 1. _wasm_: Compile with web-assembly support for WASM compilation
+//! 2. _wee_alloc_: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
+//! is _helpful_ in cases of constrained binary footprint size to help minimize
+//! 3. _nostd_: Disable use of the std library
+//! 4. _vrf_: Enable verification of VRFs client-side. Requires addition of the crates [`curve25519-dalek`] and [`ed25519-dalek`]
+//! as dependencies
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
@@ -88,6 +88,7 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(not(feature = "nostd"))]
 use std::fmt::Display;
 
 pub mod types;
@@ -145,6 +146,7 @@ impl VerificationError {
     }
 }
 
+#[cfg(not(feature = "nostd"))]
 impl Display for VerificationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let code = match self.error_type {

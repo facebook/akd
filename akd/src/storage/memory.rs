@@ -324,6 +324,7 @@ impl Storage for AsyncInMemoryDatabase {
 
 /// Represents an in-memory database with caching and metric calculation for benchmarking
 #[derive(Debug)]
+#[cfg(feature = "public-tests")]
 pub struct AsyncInMemoryDbWithCache {
     db: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
     cache: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
@@ -333,15 +334,18 @@ pub struct AsyncInMemoryDbWithCache {
     trans: Transaction,
 }
 
+#[cfg(feature = "public-tests")]
 unsafe impl Send for AsyncInMemoryDbWithCache {}
+#[cfg(feature = "public-tests")]
 unsafe impl Sync for AsyncInMemoryDbWithCache {}
 
+#[cfg(feature = "public-tests")]
 impl Default for AsyncInMemoryDbWithCache {
     fn default() -> Self {
         Self::new()
     }
 }
-
+#[cfg(feature = "public-tests")]
 impl Clone for AsyncInMemoryDbWithCache {
     fn clone(&self) -> Self {
         Self {
@@ -354,7 +358,7 @@ impl Clone for AsyncInMemoryDbWithCache {
         }
     }
 }
-
+#[cfg(feature = "public-tests")]
 impl AsyncInMemoryDbWithCache {
     /// Creates a new in memory db with caching
     pub fn new() -> Self {
@@ -425,7 +429,7 @@ impl AsyncInMemoryDbWithCache {
         println!("---------------------");
     }
 }
-
+#[cfg(feature = "public-tests")]
 #[async_trait]
 impl Storage for AsyncInMemoryDbWithCache {
     async fn log_metrics(&self, level: log::Level) {

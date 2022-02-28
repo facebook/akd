@@ -14,13 +14,13 @@ use crate::storage::{Storable, Storage};
 use crate::{node_state::*, Direction, ARITY};
 use async_recursion::async_recursion;
 use log::debug;
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
-#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum NodeType {
     /// Nodes with this type only have dummy children.
     Leaf = 1,
@@ -50,8 +50,9 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 /// the past, the older states also need to be stored.
 /// While the states themselves can be stored elsewhere,
 /// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct HistoryTreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
@@ -66,7 +67,8 @@ pub struct HistoryTreeNode {
 }
 
 /// Wraps the label with which to find a node in storage.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, std::fmt::Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct NodeKey(pub NodeLabel);
 
 impl Storable for HistoryTreeNode {

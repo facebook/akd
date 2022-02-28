@@ -8,11 +8,11 @@
 //! This module contains the client verification calls to verify different membership types
 
 #[cfg(feature = "nostd")]
-use crate::alloc::string::ToString;
-#[cfg(feature = "nostd")]
 use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::ToString;
 #[cfg(feature = "vrf")]
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 
 use crate::hash::*;
 use crate::types::*;

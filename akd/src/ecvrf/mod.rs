@@ -5,15 +5,34 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module contains implementations of a
+//! [verifiable random function](https://en.wikipedia.org/wiki/Verifiable_random_function)
+//! (currently only ECVRF). VRFs can be used in the consensus protocol for leader election
+//! and in the case of this crate is used to anonymize the user id <-> node label mapping.
 //!
-//! This module implements the ECVRF functionality for use in the AKD crate
+//! VRFs allow us to have the server generate a constant mapping from a user id to a node label
+//! but the client cannot themselves generate the mapping, only verify it. They can confirm
+//! a user id matches the label, but don't have the ability to determine the labels of other
+//! users in the directory.
+//!
+//! This module implements an instantiation of a verifiable random function known as
+//! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-04).
+//!
 
+#[cfg(feature = "vrf")]
 mod ecvrf_impl;
+#[cfg(feature = "vrf")]
 mod traits;
-
 // export the functionality we want visible
+#[cfg(feature = "vrf")]
 pub use crate::ecvrf::ecvrf_impl::{Proof, VRFPrivateKey, VRFPublicKey};
+#[cfg(feature = "vrf")]
 pub use crate::ecvrf::traits::VRFKeyStorage;
+
+#[cfg(not(feature = "vrf"))]
+mod no_vrf;
+#[cfg(not(feature = "vrf"))]
+pub use crate::ecvrf::no_vrf::{Proof, VRFKeyStorage, VRFPrivateKey, VRFPublicKey};
 
 #[cfg(test)]
 mod tests;

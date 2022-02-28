@@ -12,11 +12,10 @@
 //!
 //! Append-only and history proofs to come
 
-use std::convert::TryInto;
-
 use crate::ARITY;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
+use core::convert::TryInto;
 
 // ============================================
 // Typedefs and constants

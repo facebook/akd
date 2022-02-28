@@ -7,8 +7,7 @@
 
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
-use super::VRFPublicKey;
-use super::{ecvrf_impl::Output, Proof, VRFPrivateKey};
+use super::{Proof, VRFPrivateKey, VRFPublicKey};
 use crate::serialization::from_digest;
 use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
 
@@ -58,7 +57,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<NodeLabel, VRFStorageError> {
         let proof = self.get_label_proof::<H>(uname, stale, version).await?;
-        let output: Output = (&proof).into();
+        let output: super::ecvrf_impl::Output = (&proof).into();
         Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
     }
 

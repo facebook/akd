@@ -13,6 +13,11 @@
 //! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-04).
 //!
 
+#[cfg(feature = "nostd")]
+use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::ToString;
+
 use crate::hash::*;
 use crate::{AkdLabel, NodeLabel, VerificationError, VerificationErrorType};
 use core::convert::TryFrom;
@@ -52,7 +57,7 @@ pub struct VRFPublicKey(ed25519_PublicKey);
 impl TryFrom<&[u8]> for VRFPublicKey {
     type Error = VerificationError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<VRFPublicKey, Self::Error> {
+    fn try_from(bytes: &[u8]) -> Result<VRFPublicKey, Self::Error> {
         if bytes.len() != ed25519_dalek::PUBLIC_KEY_LENGTH {
             return Err(VerificationError::build(
                 Some(VerificationErrorType::Vrf),
@@ -192,7 +197,7 @@ pub struct Proof {
 impl TryFrom<&[u8]> for Proof {
     type Error = VerificationError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<Proof, Self::Error> {
+    fn try_from(bytes: &[u8]) -> Result<Proof, Self::Error> {
         let mut c_buf = [0u8; 32];
         c_buf[..16].copy_from_slice(&bytes[32..48]);
         let mut s_buf = [0u8; 32];

@@ -12,7 +12,6 @@ use crate::history_tree_node::{HistoryTreeNode, NodeType};
 use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
 use crate::storage::Storable;
 use crate::ARITY;
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -29,21 +28,25 @@ pub enum StorageType {
 }
 
 /// The keys for this key-value store
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct AkdLabel(pub String);
 
 /// The types of value used in the key-value pairs of a AKD
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-#[serde(bound = "")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct AkdValue(pub String);
 
 /// State for a value at a given version for that key
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct ValueStateKey(pub String, pub u64);
 
 /// The state of the value for a given key, starting at a particular epoch.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-#[serde(bound = "")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct ValueState {
     /// The plaintext value of the user information in the directory
     pub plaintext_val: AkdValue, // This needs to be the plaintext value, to discuss
@@ -109,8 +112,9 @@ impl ValueState {
 }
 
 /// Data associated with a given key. That is all the states at the various epochs
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-#[serde(bound = "")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct KeyData {
     /// The vector of states of key data for a given AkdLabel
     pub states: Vec<ValueState>,
@@ -135,7 +139,8 @@ pub enum ValueStateRetrievalFlag {
 
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum DbRecord {
     /// An Azks
     Azks(Azks),

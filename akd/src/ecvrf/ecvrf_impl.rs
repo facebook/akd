@@ -5,13 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module contains implementations of a
-//! [verifiable random function](https://en.wikipedia.org/wiki/Verifiable_random_function)
-//! (currently only ECVRF). VRFs can be used in the consensus protocol for leader election.
-//!
-//! This module implements an instantiation of a verifiable random function known as
-//! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-04).
-//!
+//! This module contains the raw implementation implements the ECVRF functionality for use in the AKD crate
 
 use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
 use core::convert::TryFrom;
@@ -50,7 +44,8 @@ pub const OUTPUT_LENGTH: usize = 64;
 pub const PROOF_LENGTH: usize = 80;
 
 /// An ECVRF private key
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct VRFPrivateKey(pub(crate) ed25519_PrivateKey);
 
 impl core::ops::Deref for VRFPrivateKey {
@@ -60,7 +55,8 @@ impl core::ops::Deref for VRFPrivateKey {
     }
 }
 /// An ECVRF public key
-#[derive(Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct VRFPublicKey(ed25519_PublicKey);
 
 impl core::ops::Deref for VRFPublicKey {
