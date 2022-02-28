@@ -149,7 +149,7 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send,
     let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
-        Ok(mut dir) => {
+        Ok(dir) => {
             info!("AKD Directory started. Beginning tests");
 
             // Publish 3 epochs of user material

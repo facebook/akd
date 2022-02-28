@@ -90,7 +90,7 @@ impl<S: Storage + Sync + Send, V: AkdVRF> Directory<S, V> {
 
     /// Updates the directory to include the updated key-value pairs.
     pub async fn publish<H: Hasher>(
-        &mut self,
+        &self,
         updates: Vec<(AkdLabel, AkdValue)>,
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
@@ -698,7 +698,7 @@ mod tests {
     async fn test_simple_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         akd.publish::<Blake3>(
             vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string()))],
@@ -712,7 +712,7 @@ mod tests {
     async fn test_simple_lookup() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -743,7 +743,7 @@ mod tests {
     async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -1034,7 +1034,7 @@ mod tests {
     async fn test_read_during_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         // Publish twice
         akd.publish::<Blake3>(
@@ -1151,7 +1151,7 @@ mod tests {
         assert!(matches!(akd, Ok(_)));
 
         // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
         assert!(matches!(akd.publish::<Blake3>(vec![], true).await, Err(_)));
 
         Ok(())
@@ -1162,7 +1162,7 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         // writer will write the AZKS record
-        let mut writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         writer
             .publish::<Blake3>(
