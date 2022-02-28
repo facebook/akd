@@ -164,12 +164,8 @@ impl VRFPublicKey {
         self.verify(&proof, &message)?;
 
         let output: Output = (&proof).into();
-        // truncate the 64-byte hash to first 32 bytes
-        let mut expected_truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
-        expected_truncated_hash.copy_from_slice(&output.to_bytes()[..NODE_LABEL_LEN]);
-
         let expected_label = NodeLabel {
-            val: expected_truncated_hash,
+            val: output.to_truncated_bytes(),
             len: 256u32,
         };
         if expected_label == label {
@@ -224,10 +220,12 @@ impl TryFrom<&[u8]> for Proof {
 pub struct Output([u8; OUTPUT_LENGTH]);
 
 impl Output {
-    /// Converts an Output into bytes
-    #[inline]
-    pub fn to_bytes(&self) -> [u8; OUTPUT_LENGTH] {
-        self.0
+    /// Retrieve a truncated version of the hash output. Truncated
+    /// to 32 bytes (NODE_LABEL_LEN)
+    pub(crate) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
+        let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
+        truncated_hash.copy_from_slice(&self.0[..NODE_LABEL_LEN]);
+        truncated_hash
     }
 }
 

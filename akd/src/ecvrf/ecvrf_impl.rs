@@ -22,6 +22,10 @@ use curve25519_dalek::{
 };
 use winter_crypto::Hasher;
 
+/// The length of a node-label's value field in bytes.
+/// This is used for truncation of the hash to this many bytes
+const NODE_LABEL_LEN: usize = 32;
+
 /*
  * NOTE: rust-analyzer gives an "unresolved import" error for the following since the entire
  * ed25519-dalek crate utilized !#[cfg(not(test))] and rust-analyzer utlizes the test profile
@@ -227,9 +231,7 @@ impl VRFPublicKey {
         self.verify(&proof, message)?;
 
         let output: Output = (&proof).into();
-        let mut expected_truncated_hash: [u8; 32] = [0u8; 32];
-        expected_truncated_hash.copy_from_slice(&output.to_bytes()[..32]);
-        if NodeLabel::new(expected_truncated_hash, 256u32) == label {
+        if NodeLabel::new(output.to_truncated_bytes(), 256u32) == label {
             Ok(())
         } else {
             Err(VRFStorageError::VRFErr(
@@ -327,8 +329,17 @@ pub struct Output([u8; OUTPUT_LENGTH]);
 impl Output {
     /// Converts an Output into bytes
     #[inline]
+    #[cfg(test)]
     pub fn to_bytes(&self) -> [u8; OUTPUT_LENGTH] {
         self.0
+    }
+
+    /// Retrieve a truncated version of the hash output. Truncated
+    /// to 32 bytes (NODE_LABEL_LEN)
+    pub(crate) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
+        let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
+        truncated_hash.copy_from_slice(&self.0[..NODE_LABEL_LEN]);
+        truncated_hash
     }
 }
 

@@ -16,10 +16,6 @@ use async_trait::async_trait;
 use std::convert::TryInto;
 use winter_crypto::Hasher;
 
-/// The length of a node-label's value field in bytes.
-/// This is used for truncation of the hash to this many bytes
-const NODE_LABEL_LEN: usize = 32;
-
 /// Represents a secure storage of the VRF private key. Since the VRF private key
 /// should change never (if it does, the entire tree is no longer a consistent mapping
 /// of user -> node label), it is highly recommended to back this implementation with a
@@ -52,13 +48,6 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         self.get_vrf_private_key().await.map(|key| (&key).into())
     }
 
-    /// Generate a proof for the given input data (message/alpha)
-    async fn generate_proof(&self, message: &[u8]) -> Result<[u8; 80], VRFStorageError> {
-        self.get_vrf_private_key()
-            .await
-            .map(|result| result.prove(message).to_bytes())
-    }
-
     /// Returns the tree nodelabel that corresponds to a version of the uname argument.
     /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
     /// or a version that we are retiring.
@@ -70,11 +59,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     ) -> Result<NodeLabel, VRFStorageError> {
         let proof = self.get_label_proof::<H>(uname, stale, version).await?;
         let output: Output = (&proof).into();
-
-        let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
-        truncated_hash.copy_from_slice(&output.to_bytes()[..NODE_LABEL_LEN]);
-
-        Ok(NodeLabel::new(truncated_hash, 256u32))
+        Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
     }
 
     /// Retrieve the proof for a specific label
@@ -86,10 +71,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     ) -> Result<Proof, VRFStorageError> {
         let key = self.get_vrf_private_key().await?;
         let name_hash_bytes = H::hash(uname.0.as_bytes());
-        let mut stale_bytes = &[1u8];
-        if stale {
-            stale_bytes = &[0u8];
-        }
+        let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
         let hashed_label = H::merge(&[
             name_hash_bytes,
@@ -101,21 +83,5 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         // VRF proof and hash output
         let proof = key.prove(message);
         Ok(proof)
-    }
-
-    /// This function is called to verify that a given NodeLabel is indeed
-    /// the VRF for a given version (fresh or stale) for a username.
-    async fn verify_node_label<H: Hasher>(
-        &self,
-        uname: &AkdLabel,
-        stale: bool,
-        version: u64,
-        proof: &[u8],
-        label: NodeLabel,
-    ) -> Result<(), VRFStorageError> {
-        match self.get_vrf_public_key().await {
-            Ok(pk) => pk.verify_label::<H>(uname, stale, version, proof, label),
-            Err(other) => Err(other),
-        }
     }
 }
