@@ -664,8 +664,6 @@ mod tests {
     use super::*;
     use crate::{
         auditor::audit_verify,
-        // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
-        // client::{key_history_verify, lookup_verify},
         client::{key_history_verify, lookup_verify},
         primitives::{
             akd_vrf::HardCodedAkdVRF,
@@ -715,6 +713,7 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
         akd.publish::<Blake3>(
             vec![
                 (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
@@ -740,7 +739,6 @@ mod tests {
         Ok(())
     }
 
-    // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
     #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
@@ -1097,18 +1095,18 @@ mod tests {
         let history_proof = akd
             .key_history::<Blake3>(&AkdLabel("hello".to_string()))
             .await?;
-        let (root_hashes, _previous_root_hashes) =
+        let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         assert_eq!(2, root_hashes.len());
         let vrf_pk = vrf.get_public_key()?;
-        // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
-        // key_history_verify::<Blake3, HardCodedClientVRF>(
-        //     vrf_pk.clone(),
-        //     root_hashes,
-        //     previous_root_hashes,
-        //     AkdLabel("hello".to_string()),
-        //     history_proof,
-        // )?;
+
+        key_history_verify::<Blake3, HardCodedClientVRF>(
+            vrf_pk.clone(),
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
 
         // Lookup proof should contain the checkpoint epoch's value and still verify
         let lookup_proof = akd.lookup::<Blake3>(AkdLabel("hello".to_string())).await?;

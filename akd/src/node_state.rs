@@ -747,11 +747,11 @@ mod tests {
 
     #[test]
     pub fn serialize_deserialize() {
-        use winter_crypto::hashers::Sha3_256;
+        use winter_crypto::hashers::Blake3_256;
         use winter_crypto::Hasher;
         use winter_math::fields::f128::BaseElement;
 
-        type Blake3 = Sha3_256<BaseElement>;
+        type Blake3 = Blake3_256<BaseElement>;
 
         let label = NodeLabel {
             val: byte_arr_from_u64(0),
