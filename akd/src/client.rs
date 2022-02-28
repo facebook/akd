@@ -63,10 +63,6 @@ pub fn verify_nonmembership<H: Hasher>(
     let mut verified = true;
     let mut lcp_hash = H::hash(&EMPTY_VALUE);
     let mut lcp_real = proof.longest_prefix_children[0].label;
-    // if lcp_real == EMPTY_LABEL {
-    //     lcp_real = proof.longest_prefix_children[1].label;
-    // }
-    println!("Lcp real = {:?}", lcp_real);
     for i in 0..ARITY {
         let child_hash = H::merge(&[
             proof.longest_prefix_children[i].hash,
@@ -74,9 +70,7 @@ pub fn verify_nonmembership<H: Hasher>(
         ]);
         lcp_hash = H::merge(&[lcp_hash, child_hash]);
         let curr_label = proof.longest_prefix_children[i].label;
-        // if curr_label != EMPTY_LABEL {
         lcp_real = lcp_real.get_longest_common_prefix(curr_label);
-        // }
     }
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
