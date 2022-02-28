@@ -12,7 +12,9 @@ use crate::history_tree_node::*;
 use crate::node_state::*;
 use crate::storage::types::*;
 use crate::storage::Storage;
+#[cfg(feature = "rand")]
 use rand::distributions::Alphanumeric;
+#[cfg(feature = "rand")]
 use rand::{thread_rng, Rng};
 use tokio::time::{Duration, Instant};
 
@@ -47,9 +49,12 @@ mod memory_storage_tests {
 /// for consistency checks (e.g. mysql, memcached, etc)
 pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &mut S) {
     test_get_and_set_item(db).await;
-    test_user_data(db).await;
-    test_transactions(db).await;
-    test_batch_get_items(db).await;
+    #[cfg(feature = "rand")]
+    {
+        test_user_data(db).await;
+        test_transactions(db).await;
+        test_batch_get_items(db).await;
+    }
 }
 
 // *** New Test Helper Functions *** //
@@ -155,6 +160,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     }
 }
 
+#[cfg(feature = "rand")]
 async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
@@ -319,6 +325,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     }
 }
 
+#[cfg(feature = "rand")]
 async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
@@ -390,6 +397,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
     }
 }
 
+#[cfg(feature = "rand")]
 async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
     let rand_user: String = thread_rng()
         .sample_iter(&Alphanumeric)

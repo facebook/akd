@@ -23,23 +23,17 @@ use curve25519_dalek::{
 use winter_crypto::Hasher;
 
 /*
- * NOTE: rust-analyzer gives an "unresolved import" error for the following since they're
- * re-imported from inner-dependency crates. You can disable the warning in the preferences with
+ * NOTE: rust-analyzer gives an "unresolved import" error for the following since the entire
+ * ed25519-dalek crate utilized !#[cfg(not(test))] and rust-analyzer utlizes the test profile
+ * to scan code. Therefore we have a custom settings.json in the .vscode folder which adds a unsetTest
+ * flag to this specific crate. See: https://github.com/rust-analyzer/rust-analyzer/issues/7243
  *
- * ```json
- * "rust-analyzer.diagnostics.disabled": ["unresolved-import"]
- * ```
- *
- * This is a known problem with rust-analyzer and is documented in the issue
- * https://github.com/rust-analyzer/rust-analyzer/issues/6038
- * and
- * https://github.com/rust-analyzer/rust-analyzer/issues/7637
- *
- * You can also safely ignore it and move on with your day :)
+ * If you still see the error, you can simply ignore. It's harmless.
 */
-use ed25519_dalek::{
-    self, Digest, PublicKey as ed25519_PublicKey, SecretKey as ed25519_PrivateKey, Sha512,
-};
+use ed25519_dalek::Digest;
+use ed25519_dalek::Sha512;
+use ed25519_dalek::PublicKey as ed25519_PublicKey;
+use ed25519_dalek::SecretKey as ed25519_PrivateKey;
 
 const SUITE: u8 = 0x03;
 const ONE: u8 = 0x01;

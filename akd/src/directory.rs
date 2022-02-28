@@ -19,6 +19,7 @@ use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueState
 use crate::storage::Storage;
 
 use log::{debug, error, info};
+#[cfg(feature = "rand")]
 use rand::{CryptoRng, RngCore};
 
 use std::collections::HashMap;
@@ -30,6 +31,7 @@ use winter_crypto::Hasher;
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 
+#[cfg(feature = "rand")]
 impl AkdValue {
     /// Gets a random value for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -37,6 +39,7 @@ impl AkdValue {
     }
 }
 
+#[cfg(feature = "rand")]
 impl AkdLabel {
     /// Creates a random key for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
@@ -585,6 +588,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
     (64 - version.leading_zeros() - 1).into()
 }
 
+#[cfg(feature = "rand")]
 fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
     let mut byte_str = [0u8; 32];
     rng.fill_bytes(&mut byte_str);

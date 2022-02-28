@@ -12,6 +12,7 @@ use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY};
+#[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 
@@ -103,6 +104,7 @@ impl NodeLabel {
     }
 
     /// Generate a random NodeLabel for testing purposes
+    #[cfg(feature = "rand")]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // FIXME: should we always select length-64 labels?
         Self {

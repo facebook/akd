@@ -23,21 +23,16 @@ use curve25519_dalek::{
 };
 
 /*
- * NOTE: rust-analyzer gives an "unresolved import" error for the following since they're
- * re-imported from inner-dependency crates. You can disable the warning in the preferences with
+ * NOTE: rust-analyzer gives an "unresolved import" error for the following since the entire
+ * ed25519-dalek crate utilized !#[cfg(not(test))] and rust-analyzer utlizes the test profile
+ * to scan code. Therefore we have a custom settings.json in the .vscode folder which adds a unsetTest
+ * flag to this specific crate. See: https://github.com/rust-analyzer/rust-analyzer/issues/7243
  *
- * ```json
- * "rust-analyzer.diagnostics.disabled": ["unresolved-import"]
- * ```
- *
- * This is a known problem with rust-analyzer and is documented in the issue
- * https://github.com/rust-analyzer/rust-analyzer/issues/6038
- * and
- * https://github.com/rust-analyzer/rust-analyzer/issues/7637
- *
- * You can also safely ignore it and move on with your day :)
+ * If you still see the error, you can simply ignore. It's harmless.
 */
-use ed25519_dalek::{self, Digest, PublicKey as ed25519_PublicKey, Sha512};
+use ed25519_dalek::Digest;
+use ed25519_dalek::Sha512;
+use ed25519_dalek::PublicKey as ed25519_PublicKey;
 
 const SUITE: u8 = 0x03;
 const ONE: u8 = 0x01;
@@ -46,6 +41,10 @@ const THREE: u8 = 0x03;
 
 /// The number of bytes of [`Output`]
 pub const OUTPUT_LENGTH: usize = 64;
+
+/// The length of a node-label's value field in bytes.
+/// This is used for truncation of the hash to this many bytes
+pub(crate) const NODE_LABEL_LEN: usize = 32;
 
 /// An ECVRF public key
 pub struct VRFPublicKey(ed25519_PublicKey);
@@ -165,8 +164,9 @@ impl VRFPublicKey {
         self.verify(&proof, &message)?;
 
         let output: Output = (&proof).into();
-        let mut expected_truncated_hash: [u8; 32] = [0u8; 32];
-        expected_truncated_hash.copy_from_slice(&output.to_bytes()[..32]);
+        // truncate the 64-byte hash to first 32 bytes
+        let mut expected_truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
+        expected_truncated_hash.copy_from_slice(&output.to_bytes()[..NODE_LABEL_LEN]);
 
         let expected_label = NodeLabel {
             val: expected_truncated_hash,
@@ -177,10 +177,10 @@ impl VRFPublicKey {
         } else {
             Err(VerificationError::build(
                 Some(VerificationErrorType::Vrf),
-                Some(
-                    "Expected first 32 bytes of the proof output did NOT match the supplied label"
-                        .to_string(),
-                ),
+                Some(format!(
+                    "Expected first {} bytes of the proof output did NOT match the supplied label",
+                    NODE_LABEL_LEN
+                )),
             ))
         }
     }

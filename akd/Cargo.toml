@@ -11,13 +11,13 @@ readme = "../README.md"
 
 [features]
 bench = []
+vrf = []
 
 [dependencies]
 bincode = "1"
 winter-crypto = "0.2"
 winter-utils = "0.2"
 winter-math = "0.2"
-rand = "0.7"
 keyed_priority_queue = "0.3"
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
@@ -25,6 +25,7 @@ async-trait = "0.1"
 tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }
+rand = { version = "0.7", optional = true }
 
 curve25519-dalek = "3.2"
 ed25519-dalek = { version = "1", features = ["serde"]}
@@ -34,7 +35,9 @@ criterion = "0.3"
 serial_test = "0.5"
 proptest = "1.0"
 proptest-derive = "0.3"
-
+# Work-around for activating feature in test profile
+# See: https://github.com/rust-lang/cargo/issues/2911
+akd = { path = ".", features = ["rand"] }
 
 [[bench]]
 name = "azks"

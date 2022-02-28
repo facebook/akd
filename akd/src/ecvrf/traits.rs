@@ -16,6 +16,10 @@ use async_trait::async_trait;
 use std::convert::TryInto;
 use winter_crypto::Hasher;
 
+/// The length of a node-label's value field in bytes.
+/// This is used for truncation of the hash to this many bytes
+const NODE_LABEL_LEN: usize = 32;
+
 /// Represents a secure storage of the VRF private key. Since the VRF private key
 /// should change never (if it does, the entire tree is no longer a consistent mapping
 /// of user -> node label), it is highly recommended to back this implementation with a
@@ -67,8 +71,8 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         let proof = self.get_label_proof::<H>(uname, stale, version).await?;
         let output: Output = (&proof).into();
 
-        let mut truncated_hash: [u8; 32] = [0u8; 32];
-        truncated_hash.copy_from_slice(&output.to_bytes()[..32]);
+        let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
+        truncated_hash.copy_from_slice(&output.to_bytes()[..NODE_LABEL_LEN]);
 
         Ok(NodeLabel::new(truncated_hash, 256u32))
     }

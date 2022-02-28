@@ -283,6 +283,7 @@
 #![allow(clippy::multiple_crate_versions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(feature = "rand")]
 extern crate rand;
 
 pub mod append_only_zks;
