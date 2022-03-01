@@ -29,8 +29,8 @@ pub mod memory;
 #[cfg(feature = "public-tests")]
 pub mod tests;
 
-/// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(feature = "serde")]
+/// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
@@ -55,6 +55,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 }
 
 #[cfg(not(feature = "serde"))]
+/// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;

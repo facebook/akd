@@ -53,9 +53,6 @@ winter-math = "0.2"
 tokio = { version = "1.10", features = ["full"] }
 wasm-bindgen-test = "0.3.13"
 hex = "0.4"
-# Work-around for activating feature in test profile
-# See: https://github.com/rust-lang/cargo/issues/2911
-akd_client = { path = ".", features = ["vrf"]}
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
