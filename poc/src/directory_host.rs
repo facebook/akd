@@ -5,11 +5,11 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::{Directory, EpochHash};
 use akd::ecvrf::VRFKeyStorage;
 use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::Storage;
+use akd::{Directory, EpochHash};
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
@@ -68,7 +68,13 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish::<H>(vec![(AkdLabel(a.clone()), AkdValue(b.clone()))], false)
+                    .publish::<H>(
+                        vec![(
+                            AkdLabel(a.as_bytes().to_vec()),
+                            AkdValue(b.as_bytes().to_vec()),
+                        )],
+                        false,
+                    )
                     .await
                 {
                     Ok(EpochHash(epoch, hash)) => {
@@ -96,7 +102,12 @@ where
                     .publish::<H>(
                         batches
                             .into_iter()
-                            .map(|(key, value)| (AkdLabel(key), AkdValue(value)))
+                            .map(|(key, value)| {
+                                (
+                                    AkdLabel(key.as_bytes().to_vec()),
+                                    AkdValue(value.as_bytes().to_vec()),
+                                )
+                            })
                             .collect(),
                         with_trans,
                     )
@@ -114,7 +125,7 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup::<H>(AkdLabel(a.clone())).await {
+                match directory.lookup::<H>(AkdLabel(a.as_bytes().to_vec())).await {
                     Ok(proof) => {
                         let hash = get_root_hash::<_, H, V>(directory, None).await;
                         match hash {
@@ -123,7 +134,7 @@ where
                                 let verification = akd::client::lookup_verify::<H>(
                                     &vrf_pk,
                                     root_hash,
-                                    AkdLabel(a.clone()),
+                                    AkdLabel(a.as_bytes().to_vec()),
                                     proof,
                                 );
                                 if verification.is_err() {
@@ -150,7 +161,10 @@ where
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory.key_history::<H>(&AkdLabel(a.clone())).await {
+                match directory
+                    .key_history::<H>(&AkdLabel(a.as_bytes().to_vec()))
+                    .await
+                {
                     Ok(_proof) => {
                         let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();

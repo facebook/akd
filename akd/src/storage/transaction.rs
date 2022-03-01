@@ -214,18 +214,18 @@ mod tests {
             key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
         });
         let value1 = DbRecord::ValueState(ValueState {
-            username: AkdLabel("test".to_string()),
+            username: AkdLabel("test".as_bytes().to_vec()),
             epoch: 1,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 1,
-            plaintext_val: AkdValue("abc123".to_string()),
+            plaintext_val: AkdValue("abc123".as_bytes().to_vec()),
         });
         let value2 = DbRecord::ValueState(ValueState {
-            username: AkdLabel("test".to_string()),
+            username: AkdLabel("test".as_bytes().to_vec()),
             epoch: 2,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 2,
-            plaintext_val: AkdValue("abc1234".to_string()),
+            plaintext_val: AkdValue("abc1234".as_bytes().to_vec()),
         });
 
         let records = vec![azks, node1, node2, node_state1, node_state2, value1, value2];

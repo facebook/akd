@@ -9,13 +9,13 @@
 
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
-use akd::NodeLabel;
-use akd::node_state::HistoryNodeState;
 use akd::history_tree_node::HistoryTreeNode;
+use akd::node_state::HistoryNodeState;
 use akd::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
+use akd::NodeLabel;
 use async_trait::async_trait;
 use log::{debug, error, info, trace, warn};
 use mysql_async::prelude::*;

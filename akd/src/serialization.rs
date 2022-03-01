@@ -97,10 +97,13 @@ mod tests {
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
                 (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
                 ),
             ],
             false,
@@ -109,7 +112,7 @@ mod tests {
         .unwrap();
         // Generate latest proof
         let lookup_proof = akd
-            .lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string()))
+            .lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".as_bytes().to_vec()))
             .await
             .unwrap();
 
@@ -130,10 +133,13 @@ mod tests {
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
                 (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
                 ),
             ],
             false,
@@ -142,7 +148,7 @@ mod tests {
         .unwrap();
         // Generate latest proof
         let history_proof = akd
-            .key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string()))
+            .key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".as_bytes().to_vec()))
             .await
             .unwrap();
 
@@ -164,10 +170,13 @@ mod tests {
         // Commit to the first epoch
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
                 (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
                 ),
             ],
             false,
@@ -178,12 +187,12 @@ mod tests {
         akd.publish::<Blake3_256<BaseElement>>(
             vec![
                 (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world3".to_string()),
+                    AkdLabel("hello3".as_bytes().to_vec()),
+                    AkdValue("world3".as_bytes().to_vec()),
                 ),
                 (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world4".to_string()),
+                    AkdLabel("hello4".as_bytes().to_vec()),
+                    AkdValue("world4".as_bytes().to_vec()),
                 ),
             ],
             false,

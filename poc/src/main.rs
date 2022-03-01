@@ -8,9 +8,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::Storage;
+use akd::Directory;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
 use commands::Command;
@@ -229,8 +229,8 @@ async fn process_input(
                 let mut data = Vec::new();
                 for value in values.iter() {
                     let state = akd::storage::types::DbRecord::build_user_state(
-                        value.clone(),
-                        value.clone(),
+                        value.as_bytes().to_vec(),
+                        value.as_bytes().to_vec(),
                         1u64,
                         1u32,
                         [1u8; 32],

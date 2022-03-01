@@ -12,10 +12,10 @@ use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 use crate::{
-    Azks,
     errors::{AkdError, AzksError},
     proof_structs::AppendOnlyProof,
     storage::memory::AsyncInMemoryDatabase,
+    Azks,
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.

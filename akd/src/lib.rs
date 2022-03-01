@@ -69,8 +69,8 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!          (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!       .await;
 //! };
 //! ```
@@ -95,11 +95,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".as_bytes().to_vec())).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -121,11 +121,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".as_bytes().to_vec())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
@@ -134,7 +134,7 @@
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!         &vrf_pk,
 //!         root_hash,
-//!         AkdLabel("hello".to_string()),
+//!         AkdLabel("hello".as_bytes().to_vec()),
 //!         lookup_proof,
 //!     ).unwrap();
 //! };
@@ -161,11 +161,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".as_bytes().to_vec())).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -186,11 +186,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".as_bytes().to_vec())).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
@@ -199,7 +199,7 @@
 //!         &vrf_pk,
 //!         root_hashes,
 //!         previous_root_hashes,
-//!         AkdLabel("hello".to_string()),
+//!         AkdLabel("hello".as_bytes().to_vec()),
 //!         history_proof,
 //!         ).unwrap();
 //!     };
@@ -225,12 +225,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".as_bytes().to_vec()), AkdValue("world3".as_bytes().to_vec())),
+//!         (AkdLabel("hello4".as_bytes().to_vec()), AkdValue("world4".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -256,12 +256,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
+//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".as_bytes().to_vec()), AkdValue("world3".as_bytes().to_vec())),
+//!         (AkdLabel("hello4".as_bytes().to_vec()), AkdValue("world4".as_bytes().to_vec())),], false)
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -314,20 +314,20 @@ extern crate rand;
 // Due to the amount of types an implementing storage layer needs to access,
 // it's quite unreasonable
 pub mod append_only_zks;
+pub mod auditor;
+pub mod client;
 pub mod directory;
+pub mod ecvrf;
+pub mod errors;
 pub mod history_tree_node;
 pub mod node_state;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
-pub mod auditor;
-pub mod client;
-pub mod ecvrf;
-pub mod errors;
 
-mod utils;
 #[cfg(test)]
 mod tests;
+mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
@@ -350,6 +350,66 @@ pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLab
     val: [1u8; 32],
     len: 0,
 };
+
+/*
+                  _  /)
+                 mo / )
+                 |/)\)
+                  /\_
+                  \__|=
+                 (    )
+                 __)(__
+           _____/      \\_____
+          |                  ||
+          |  _     ___   _   ||
+          | | \     |   | \  ||
+          | |  |    |   |  | ||
+          | |_/     |   |_/  ||
+          | | \     |   |    ||
+          | |  \    |   |    ||
+          | |   \. _|_. | .  ||
+          |                  ||
+  *       | *   **    * **   |**      **
+
+As bytes:
+20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5f 20 20 2f 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 6d 6f 20 2f 20 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 2f 29 5c 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 2f 5c 5f 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5c 5f 5f 7c 3d 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 28 20 20 20 20 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5f 5f 29 28 5f 5f 0a 20 20 20 20 20 20 20 20 20 20 20 5f 5f 5f 5f 5f 2f 20 20 20 20 20 20 5c 5c 5f 5f 5f 5f 5f 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 5f 20 20 20 20 20 5f 5f 5f 20 20 20 5f 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 5c 20 20 20 20 20 7c 20 20 20 7c 20 5c 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 7c 20 20 20 20 7c 20 20 20 7c 20 20 7c 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 5f 2f 20 20 20 20 20 7c 20 20 20 7c 5f 2f 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 5c 20 20 20 20 20 7c 20 20 20 7c 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 5c 20 20 20 20 7c 20 20 20 7c 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 20 5c 2e 20 5f 7c 5f 2e 20 7c 20 2e 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 7c 0a 20 20 2a 20 20 20 20 20 20 20 7c 20 2a 20 20 20 2a 2a 20 20 20 20 2a 20 2a 2a 20 20 20 7c 2a 2a 20 20 20 20 20 20 2a 2a
+*/
+/// A "tombstone" is a false value in an AKD ValueState
+pub const TOMBSTONE: &[u8] = &[
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x5f, 0x20, 0x20, 0x2f, 0x29, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x6d, 0x6f, 0x20, 0x2f, 0x20, 0x29, 0x0a,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x7c, 0x2f, 0x29, 0x5c, 0x29, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x2f, 0x5c, 0x5f, 0x0a, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x5c,
+    0x5f, 0x5f, 0x7c, 0x3d, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x28, 0x20, 0x20, 0x20, 0x20, 0x29, 0x0a, 0x20, 0x20, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x5f, 0x5f,
+    0x29, 0x28, 0x5f, 0x5f, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x5f, 0x5f, 0x5f, 0x5f, 0x5f, 0x2f, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x5c, 0x5c, 0x5f, 0x5f,
+    0x5f, 0x5f, 0x5f, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x20, 0x5f, 0x20, 0x20, 0x20, 0x20, 0x20, 0x5f, 0x5f, 0x5f, 0x20, 0x20, 0x20, 0x5f, 0x20, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x20, 0x5c, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x5c, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x7c,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x5f, 0x2f, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x7c, 0x5f, 0x2f, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x20, 0x5c, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x20, 0x20, 0x5c, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20, 0x7c, 0x20, 0x20, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x7c, 0x20, 0x20, 0x20, 0x5c, 0x2e, 0x20, 0x5f, 0x7c, 0x5f, 0x2e, 0x20, 0x7c, 0x20, 0x2e, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+    0x20, 0x7c, 0x7c, 0x0a, 0x20, 0x20, 0x2a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x7c, 0x20,
+    0x2a, 0x20, 0x20, 0x20, 0x2a, 0x2a, 0x20, 0x20, 0x20, 0x20, 0x2a, 0x20, 0x2a, 0x2a, 0x20, 0x20,
+    0x20, 0x7c, 0x2a, 0x2a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x2a, 0x2a,
+];
 
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent.

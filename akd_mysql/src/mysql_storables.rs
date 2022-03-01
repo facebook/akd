@@ -10,7 +10,7 @@
 use std::convert::TryInto;
 
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
-use akd::node_state::{NodeStateKey, HistoryNodeState, HistoryChildState};
+use akd::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
 use akd::ARITY;

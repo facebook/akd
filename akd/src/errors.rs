@@ -166,7 +166,7 @@ impl fmt::Display for AzksError {
 #[derive(Debug)]
 pub enum DirectoryError {
     /// Looked up a user not in the directory
-    NonExistentUser(String, u64),
+    NonExistentUser(Vec<u8>, u64),
     /// Lookup proof did not verify
     VerifyLookupProof(String),
     /// Key-History proof did not verify
@@ -196,7 +196,16 @@ impl fmt::Display for DirectoryError {
                 )
             }
             Self::NonExistentUser(uname, ep) => {
-                write!(f, "The user {} did not exist at the epoch {}", uname, ep)
+                if let Ok(str) = std::str::from_utf8(uname) {
+                    write!(f, "The user {} did not exist at the epoch {}", str, ep)
+                } else {
+                    write!(
+                        f,
+                        "The user 0x{} did not exist at the epoch {}",
+                        hex::encode(uname),
+                        ep
+                    )
+                }
             }
             Self::VerifyKeyHistoryProof(err_string) => {
                 write!(f, "{}", err_string)

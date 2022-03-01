@@ -7,9 +7,9 @@ extern crate thread_id;
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::Directory;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::types::{AkdLabel, AkdValue};
+use akd::Directory;
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
 use rand::distributions::Alphanumeric;
@@ -159,7 +159,10 @@ pub(crate) async fn directory_test_suite<
             for i in 1..=3 {
                 let mut data = Vec::new();
                 for value in users.iter() {
-                    data.push((AkdLabel(value.clone()), AkdValue(format!("{}", i))));
+                    data.push((
+                        AkdLabel(value.as_bytes().to_vec()),
+                        AkdValue(format!("{}", i).as_bytes().to_vec()),
+                    ));
                 }
 
                 if let Err(error) = dir.publish::<Blake3>(data, true).await {
@@ -174,7 +177,7 @@ pub(crate) async fn directory_test_suite<
             let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
 
             for user in users.iter().choose_multiple(&mut rng, 10) {
-                let key = AkdLabel(user.clone());
+                let key = AkdLabel(user.as_bytes().to_vec());
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
@@ -191,7 +194,7 @@ pub(crate) async fn directory_test_suite<
 
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
-                let key = AkdLabel(user.clone());
+                let key = AkdLabel(user.as_bytes().to_vec());
                 match dir.key_history::<Blake3>(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
