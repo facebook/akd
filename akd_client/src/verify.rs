@@ -11,6 +11,7 @@
 use crate::alloc::string::ToString;
 #[cfg(feature = "vrf")]
 use crate::VerificationErrorType;
+use crate::EMPTY_VALUE;
 #[cfg(feature = "nostd")]
 use alloc::format;
 
@@ -67,7 +68,7 @@ pub fn verify_nonmembership(
     proof: &NonMembershipProof,
 ) -> Result<bool, VerificationError> {
     let mut verified = true;
-    let mut lcp_hash = hash(&[]);
+    let mut lcp_hash = hash(&EMPTY_VALUE);
     let mut lcp_real = proof.longest_prefix_children[0].label;
     for i in 0..ARITY {
         let child_hash = merge(&[

@@ -82,7 +82,7 @@ impl Transaction {
     }
 
     /// Start a transaction in the storage layer
-    pub async fn begin_transaction(&mut self) -> bool {
+    pub async fn begin_transaction(&self) -> bool {
         debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
         let out = if (*guard).active {
@@ -96,7 +96,7 @@ impl Transaction {
     }
 
     /// Commit a transaction in the storage layer
-    pub async fn commit_transaction(&mut self) -> Result<Vec<DbRecord>, StorageError> {
+    pub async fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
         debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
@@ -121,7 +121,7 @@ impl Transaction {
     }
 
     /// Rollback a transaction
-    pub async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
         debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
@@ -232,7 +232,7 @@ mod tests {
         let mut rng = OsRng;
 
         for _ in 1..10 {
-            let mut txn = Transaction::new();
+            let txn = Transaction::new();
             txn.begin_transaction().await;
 
             // set values in a random order

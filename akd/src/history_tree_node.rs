@@ -11,7 +11,7 @@ use crate::errors::{HistoryTreeNodeError, StorageError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction, ARITY};
+use crate::{node_state::*, Direction, ARITY, EMPTY_LABEL, EMPTY_VALUE};
 use async_recursion::async_recursion;
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -403,7 +403,7 @@ impl HistoryTreeNode {
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
         let epoch_node_state = self.get_state_at_epoch(storage, epoch).await?;
-        let mut new_hash = H::hash(&[]);
+        let mut new_hash = H::hash(&EMPTY_VALUE);
         for child_index in 0..ARITY {
             new_hash = H::merge(&[
                 new_hash,
@@ -561,9 +561,7 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
     ) -> Result<H::Digest, HistoryTreeNodeError> {
-        Ok(to_digest::<H>(
-            &self.get_state_at_epoch(storage, epoch).await?.value,
-        )?)
+        to_digest::<H>(&self.get_state_at_epoch(storage, epoch).await?.value)
     }
 
     pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
@@ -575,7 +573,7 @@ impl HistoryTreeNode {
             return self.get_value_at_epoch::<_, H>(storage, epoch).await;
         }
         let children = self.get_state_at_epoch(storage, epoch).await?.child_states;
-        let mut new_hash = H::hash(&[]);
+        let mut new_hash = H::hash(&EMPTY_VALUE);
         for child in children.iter().take(ARITY) {
             let hash_val = optional_history_child_state_to_hash::<H>(child)?;
             new_hash = H::merge(&[new_hash, to_digest::<H>(&hash_val)?]);
@@ -794,7 +792,7 @@ pub(crate) fn optional_history_child_state_to_label(
 ) -> NodeLabel {
     match input {
         Some(child_state) => child_state.label,
-        None => NodeLabel::root(),
+        None => EMPTY_LABEL,
     }
 }
 
@@ -833,7 +831,7 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
 
     let mut new_state: HistoryNodeState =
         HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch))?;
-    new_state.value = from_digest::<H>(H::merge(&[H::hash(&[]), H::hash(value)]))?;
+    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), H::hash(value)]))?;
 
     set_state_map(storage, new_state).await?;
 
