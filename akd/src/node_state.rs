@@ -262,9 +262,9 @@ impl Storable for HistoryNodeState {
 
     fn get_full_binary_key_id(key: &NodeStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryNodeState as u8];
-        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.len.to_le_bytes());
         result.extend_from_slice(&key.0.val);
-        result.extend_from_slice(&key.1.to_be_bytes());
+        result.extend_from_slice(&key.1.to_le_bytes());
         result
     }
 
@@ -278,9 +278,9 @@ impl Storable for HistoryNodeState {
         let epoch_bytes: [u8; 8] = bin[37..=44]
             .try_into()
             .expect("Slice with incorrect length");
-        let len = u32::from_be_bytes(len_bytes);
+        let len = u32::from_le_bytes(len_bytes);
         let val = val_bytes;
-        let epoch = u64::from_be_bytes(epoch_bytes);
+        let epoch = u64::from_le_bytes(epoch_bytes);
 
         Ok(NodeStateKey(NodeLabel { len, val }, epoch))
     }

@@ -98,7 +98,7 @@ impl TryFrom<&[u8]> for VRFPublicKey {
 impl VRFPublicKey {
     /// Given a [`Proof`] and an input, returns whether or not the proof is valid for the input
     /// and public key
-    pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VerificationError> {
+    fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VerificationError> {
         let h_point = self.hash_to_curve(alpha);
         let pk_point = match CompressedEdwardsY::from_slice(self.0.as_bytes()).decompress() {
             Some(pt) => pt,
@@ -126,7 +126,7 @@ impl VRFPublicKey {
         }
     }
 
-    pub(super) fn hash_to_curve(&self, alpha: &[u8]) -> EdwardsPoint {
+    fn hash_to_curve(&self, alpha: &[u8]) -> EdwardsPoint {
         let mut result = [0u8; 32];
         let mut counter = 0;
         let mut wrapped_point: Option<EdwardsPoint> = None;
@@ -149,7 +149,7 @@ impl VRFPublicKey {
     /// This function is called to verify that a given NodeLabel is indeed
     /// the VRF for a given version (fresh or stale) for a username.
     /// Hence, it also takes as input the server's public key.
-    pub fn verify_label(
+    pub(crate) fn verify_label(
         &self,
         uname: &AkdLabel,
         stale: bool,
@@ -227,7 +227,7 @@ pub struct Output([u8; OUTPUT_LENGTH]);
 impl Output {
     /// Retrieve a truncated version of the hash output. Truncated
     /// to 32 bytes (NODE_LABEL_LEN)
-    pub(crate) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
+    pub(super) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
         let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
         truncated_hash.copy_from_slice(&self.0[..NODE_LABEL_LEN]);
         truncated_hash
@@ -247,7 +247,7 @@ impl<'a> From<&'a Proof> for Output {
     }
 }
 
-pub(super) fn hash_points(points: &[EdwardsPoint]) -> ed25519_Scalar {
+fn hash_points(points: &[EdwardsPoint]) -> ed25519_Scalar {
     let mut result = [0u8; 32];
     let mut hash = Sha512::new().chain(&[SUITE, TWO]);
     for point in points.iter() {

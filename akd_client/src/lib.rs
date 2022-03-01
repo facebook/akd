@@ -91,13 +91,16 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[cfg(not(feature = "nostd"))]
 use std::fmt::Display;
 
-pub mod types;
+// Types are re-exported at the root level for visbility
+mod types;
+pub use types::*;
+// verify types are not re-exported, to not clutter the root path
 pub mod verify;
 
-#[cfg(feature = "vrf")]
-pub(crate) mod ecvrf;
 pub(crate) mod hash;
 pub(crate) mod utils;
+#[cfg(feature = "vrf")]
+pub(crate) mod ecvrf;
 
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
@@ -170,10 +173,8 @@ macro_rules! verify_error {
 pub(crate) use verify_error;
 
 // =================================
-// Type re-exports for usability
+// WASM specific functions
 // =================================
-
-pub use types::*;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]

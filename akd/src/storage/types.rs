@@ -73,7 +73,7 @@ impl crate::storage::Storable for ValueState {
 
     fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::ValueState as u8];
-        result.extend_from_slice(&key.1.to_be_bytes());
+        result.extend_from_slice(&key.1.to_le_bytes());
         result.extend_from_slice(key.0.as_bytes());
 
         result
@@ -84,7 +84,7 @@ impl crate::storage::Storable for ValueState {
             return Err("Not enough bytes to form a proper key".to_string());
         }
         let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
-        let epoch = u64::from_be_bytes(epoch_bytes);
+        let epoch = u64::from_le_bytes(epoch_bytes);
         if let Ok(username) = std::str::from_utf8(&bin[9..]) {
             Ok(ValueStateKey(username.to_string(), epoch))
         } else {

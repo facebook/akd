@@ -19,7 +19,7 @@ use crate::types::*;
 use crate::{verify_error, VerificationError, ARITY};
 
 /// Verify the membership proof
-pub fn verify_membership(
+fn verify_membership(
     root_hash: Digest,
     proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
@@ -57,7 +57,7 @@ pub fn verify_membership(
 }
 
 /// Verifies the non-membership proof with respect to the root hash
-pub fn verify_nonmembership(
+fn verify_nonmembership(
     root_hash: Digest,
     proof: &NonMembershipProof,
 ) -> Result<bool, VerificationError> {
@@ -101,7 +101,7 @@ pub fn verify_nonmembership(
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
 #[cfg(feature = "vrf")]
-pub fn verify_vrf(
+fn verify_vrf(
     vrf_public_key: &[u8],
     uname: &AkdLabel,
     stale: bool,

@@ -84,7 +84,7 @@ impl Storable for HistoryTreeNode {
 
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryTreeNode as u8];
-        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.len.to_le_bytes());
         result.extend_from_slice(&key.0.val);
         result
     }
@@ -96,7 +96,7 @@ impl Storable for HistoryTreeNode {
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
         let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
-        let len = u32::from_be_bytes(len_bytes);
+        let len = u32::from_le_bytes(len_bytes);
 
         Ok(NodeKey(NodeLabel::new(val_bytes, len)))
     }
