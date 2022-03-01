@@ -1221,7 +1221,7 @@ impl Storage for AsyncMySqlDatabase {
                 ValueStateRetrievalFlag::MinEpoch => statement_text += " ORDER BY `epoch` ASC",
                 ValueStateRetrievalFlag::LeqEpoch(epoch) => {
                     params_map.push(("the_epoch", Value::from(epoch)));
-                    statement_text += " AND `epoch` <= :the_epoch";
+                    statement_text += " AND `epoch` <= :the_epoch ORDER BY `epoch` DESC";
                 }
             }
 
