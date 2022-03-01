@@ -19,10 +19,7 @@ use crate::types::*;
 use crate::{verify_error, VerificationError, ARITY};
 
 /// Verify the membership proof
-fn verify_membership(
-    root_hash: Digest,
-    proof: &MembershipProof,
-) -> Result<(), VerificationError> {
+fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), VerificationError> {
     if proof.label.len == 0 {
         let final_hash = merge(&[proof.hash_val, proof.label.hash()]);
         if final_hash == root_hash {
@@ -62,7 +59,7 @@ fn verify_nonmembership(
     proof: &NonMembershipProof,
 ) -> Result<bool, VerificationError> {
     let mut verified = true;
-    let mut lcp_hash = hash(&[]);
+    let mut lcp_hash = hash(&EMPTY_VALUE);
     let mut lcp_real = proof.longest_prefix_children[0].label;
     for i in 0..ARITY {
         let child_hash = merge(&[

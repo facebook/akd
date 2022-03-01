@@ -10,6 +10,7 @@
 
 use core::slice;
 
+use crate::EMPTY_VALUE;
 #[cfg(feature = "nostd")]
 use alloc::format;
 #[cfg(feature = "nostd")]
@@ -106,8 +107,8 @@ pub(crate) fn build_and_hash_layer(
 }
 
 /// Helper for build_and_hash_layer
-fn hash_layer(hashes: Vec<PublicDigest>, parent_label: NodeLabel) -> PublicDigest {
-    let mut new_hash = hash(&[]); //hash_label::<H>(parent_label);
+pub(crate) fn hash_layer(hashes: Vec<PublicDigest>, parent_label: NodeLabel) -> PublicDigest {
+    let mut new_hash = hash(&EMPTY_VALUE); //hash_label::<H>(parent_label);
     for child_hash in hashes.iter().take(ARITY) {
         new_hash = merge(&[new_hash, *child_hash]);
     }

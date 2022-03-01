@@ -75,17 +75,17 @@ impl Storage for AsyncInMemoryDatabase {
         }
     }
 
-    async fn begin_transaction(&mut self) -> bool {
+    async fn begin_transaction(&self) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
     }
 
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&self) -> Result<(), StorageError> {
         self.trans.rollback_transaction().await
     }
 
@@ -450,17 +450,17 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
     }
 
-    async fn begin_transaction(&mut self) -> bool {
+    async fn begin_transaction(&self) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
     }
 
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&self) -> Result<(), StorageError> {
         self.trans.rollback_transaction().await
     }
 

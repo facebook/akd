@@ -32,6 +32,15 @@ pub type AkdValue = Vec<u8>;
 /// at compilation time)
 pub type Digest = [u8; crate::hash::DIGEST_BYTES];
 
+/// The value to be hashed every time an empty node's hash is to be considered
+pub const EMPTY_VALUE: [u8; 1] = [0u8];
+
+/// The label used for an empty node
+pub const EMPTY_LABEL: NodeLabel = NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
+
 // ============================================
 // Structs
 // ============================================

@@ -17,7 +17,7 @@ use crate::{
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::AkdLabel,
-    Direction, ARITY,
+    Direction, ARITY, EMPTY_LABEL, EMPTY_VALUE,
 };
 
 /// Verifies membership, with respect to the root_hash
@@ -60,7 +60,7 @@ pub fn verify_nonmembership<H: Hasher>(
     proof: &NonMembershipProof<H>,
 ) -> Result<bool, AkdError> {
     let mut verified = true;
-    let mut lcp_hash = H::hash(&[]);
+    let mut lcp_hash = H::hash(&EMPTY_VALUE);
     let mut lcp_real = proof.longest_prefix_children[0].label;
     for i in 0..ARITY {
         let child_hash = H::merge(&[
@@ -68,7 +68,14 @@ pub fn verify_nonmembership<H: Hasher>(
             hash_label::<H>(proof.longest_prefix_children[i].label),
         ]);
         lcp_hash = H::merge(&[lcp_hash, child_hash]);
-        lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children[i].label);
+        let curr_label = proof.longest_prefix_children[i].label;
+        lcp_real = lcp_real.get_longest_common_prefix(curr_label);
+    }
+    if lcp_real == EMPTY_LABEL {
+        lcp_real = NodeLabel {
+            val: [0u8; 32],
+            len: 0,
+        };
     }
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
@@ -302,7 +309,7 @@ fn build_and_hash_layer<H: Hasher>(
 
 /// Helper for build_and_hash_layer
 fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::Digest {
-    let mut new_hash = H::hash(&[]); //hash_label::<H>(parent_label);
+    let mut new_hash = H::hash(&EMPTY_VALUE); //hash_label::<H>(parent_label);
     for child_hash in hashes.iter().take(ARITY) {
         new_hash = H::merge(&[new_hash, *child_hash]);
     }

@@ -92,7 +92,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     /// Updates the directory to include the updated key-value pairs.
     pub async fn publish<H: Hasher>(
-        &mut self,
+        &self,
         updates: Vec<(AkdLabel, AkdValue)>,
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
@@ -640,9 +640,7 @@ mod tests {
     use super::*;
     use crate::{
         auditor::audit_verify,
-        // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
-        // client::{key_history_verify, lookup_verify},
-        client::lookup_verify,
+        client::{key_history_verify, lookup_verify},
         ecvrf::HardCodedAkdVRF,
         storage::memory::AsyncInMemoryDatabase,
     };
@@ -654,10 +652,12 @@ mod tests {
     async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await?;
 
         let current_azks = akd.retrieve_current_azks().await?;
-        let hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+        let hash = akd
+            .get_root_hash::<Blake3_256<BaseElement>>(&current_azks)
+            .await?;
 
         // Ensuring that the root hash of an empty tree is equal to the following constant
         assert_eq!(
@@ -671,7 +671,7 @@ mod tests {
     async fn test_simple_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         akd.publish::<Blake3>(
             vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string()))],
@@ -685,7 +685,7 @@ mod tests {
     async fn test_simple_lookup() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         akd.publish::<Blake3>(
             vec![
@@ -712,137 +712,137 @@ mod tests {
         Ok(())
     }
 
-    // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
-    //#[tokio::test]
-    // async fn test_simple_key_history() -> Result<(), AkdError> {
-    //     let db = AsyncInMemoryDatabase::new();
-    //     let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf).await?;
+    #[tokio::test]
+    async fn test_simple_key_history() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let vrf = HardCodedAkdVRF {};
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![
-    //             (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-    //             (
-    //                 AkdLabel("hello2".to_string()),
-    //                 AkdValue("world2".to_string()),
-    //             ),
-    //         ],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![
-    //             (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-    //             (
-    //                 AkdLabel("hello2".to_string()),
-    //                 AkdValue("world2".to_string()),
-    //             ),
-    //         ],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![
+                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![
-    //             (
-    //                 AkdLabel("hello".to_string()),
-    //                 AkdValue("world3".to_string()),
-    //             ),
-    //             (
-    //                 AkdLabel("hello2".to_string()),
-    //                 AkdValue("world4".to_string()),
-    //             ),
-    //         ],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".to_string()),
+                    AkdValue("world3".to_string()),
+                ),
+                (
+                    AkdLabel("hello2".to_string()),
+                    AkdValue("world4".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![
-    //             (
-    //                 AkdLabel("hello3".to_string()),
-    //                 AkdValue("world".to_string()),
-    //             ),
-    //             (
-    //                 AkdLabel("hello4".to_string()),
-    //                 AkdValue("world2".to_string()),
-    //             ),
-    //         ],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello3".to_string()),
+                    AkdValue("world".to_string()),
+                ),
+                (
+                    AkdLabel("hello4".to_string()),
+                    AkdValue("world2".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![(
-    //             AkdLabel("hello".to_string()),
-    //             AkdValue("world_updated".to_string()),
-    //         )],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".to_string()),
+                AkdValue("world_updated".to_string()),
+            )],
+            false,
+        )
+        .await?;
 
-    //     akd.publish::<Blake3>(
-    //         vec![
-    //             (
-    //                 AkdLabel("hello3".to_string()),
-    //                 AkdValue("world6".to_string()),
-    //             ),
-    //             (
-    //                 AkdLabel("hello4".to_string()),
-    //                 AkdValue("world12".to_string()),
-    //             ),
-    //         ],
-    //         false,
-    //     )
-    //     .await?;
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello3".to_string()),
+                    AkdValue("world6".to_string()),
+                ),
+                (
+                    AkdLabel("hello4".to_string()),
+                    AkdValue("world12".to_string()),
+                ),
+            ],
+            false,
+        )
+        .await?;
 
-    //     let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
-    //     let (root_hashes, previous_root_hashes) =
-    //         get_key_history_hashes(&akd, &history_proof).await?;
-    //     let vrf_pk = akd.get_public_key()?;
-    //     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-    //         vrf_pk.clone(),
-    //         root_hashes,
-    //         previous_root_hashes,
-    //         AkdLabel("hello".to_string()),
-    //         history_proof,
-    //     )?;
+        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        let vrf_pk = akd.get_public_key().await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
 
-    //     let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
-    //     let (root_hashes, previous_root_hashes) =
-    //         get_key_history_hashes(&akd, &history_proof).await?;
-    //     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-    //         vrf_pk.clone(),
-    //         root_hashes,
-    //         previous_root_hashes,
-    //         AkdLabel("hello2".to_string()),
-    //         history_proof,
-    //     )?;
+        let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello2".to_string()),
+            history_proof,
+        )?;
 
-    //     let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
-    //     let (root_hashes, previous_root_hashes) =
-    //         get_key_history_hashes(&akd, &history_proof).await?;
-    //     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-    //         vrf_pk.clone(),
-    //         root_hashes,
-    //         previous_root_hashes,
-    //         AkdLabel("hello3".to_string()),
-    //         history_proof,
-    //     )?;
+        let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello3".to_string()),
+            history_proof,
+        )?;
 
-    //     let history_proof = akd.key_history(&AkdLabel("hello4".to_string())).await?;
-    //     let (root_hashes, previous_root_hashes) =
-    //         get_key_history_hashes(&akd, &history_proof).await?;
-    //     key_history_verify::<Blake3_256<BaseElement>, HardCodedClientVRF>(
-    //         vrf_pk,
-    //         root_hashes,
-    //         previous_root_hashes,
-    //         AkdLabel("hello4".to_string()),
-    //         history_proof,
-    //     )?;
+        let history_proof = akd.key_history(&AkdLabel("hello4".to_string())).await?;
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello4".to_string()),
+            history_proof,
+        )?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     #[allow(unused)]
     #[tokio::test]
@@ -1007,7 +1007,7 @@ mod tests {
     async fn test_read_during_publish() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         // Publish twice
         akd.publish::<Blake3>(
@@ -1068,18 +1068,17 @@ mod tests {
         let history_proof = akd
             .key_history::<Blake3>(&AkdLabel("hello".to_string()))
             .await?;
-        let (root_hashes, _previous_root_hashes) =
+        let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         assert_eq!(2, root_hashes.len());
         let vrf_pk = akd.get_public_key().await?;
-        // BUG: Key history verification is failing on small-sized trees. It's being addressed in Issue #144
-        // key_history_verify::<Blake3, HardCodedClientVRF>(
-        //     vrf_pk.clone(),
-        //     root_hashes,
-        //     previous_root_hashes,
-        //     AkdLabel("hello".to_string()),
-        //     history_proof,
-        // )?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".to_string()),
+            history_proof,
+        )?;
 
         // Lookup proof should contain the checkpoint epoch's value and still verify
         let lookup_proof = akd.lookup::<Blake3>(AkdLabel("hello".to_string())).await?;
@@ -1124,7 +1123,7 @@ mod tests {
         assert!(matches!(akd, Ok(_)));
 
         // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
-        let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
         assert!(matches!(akd.publish::<Blake3>(vec![], true).await, Err(_)));
 
         Ok(())
@@ -1135,7 +1134,7 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         // writer will write the AZKS record
-        let mut writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+        let writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         writer
             .publish::<Blake3>(

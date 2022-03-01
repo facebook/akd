@@ -13,7 +13,7 @@ use crate::serialization::from_digest;
 use crate::serialization::{digest_deserialize, digest_serialize};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
-use crate::{Direction, ARITY};
+use crate::{Direction, ARITY, EMPTY_VALUE};
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 
@@ -293,7 +293,7 @@ impl HistoryNodeState {
     pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, HistoryTreeNodeError> {
         const INIT: Option<HistoryChildState> = None;
         Ok(HistoryNodeState {
-            value: from_digest::<H>(H::hash(&[0u8]))?,
+            value: from_digest::<H>(H::hash(&EMPTY_VALUE))?,
             child_states: [INIT; ARITY],
             key,
         })

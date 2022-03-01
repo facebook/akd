@@ -330,6 +330,17 @@ pub mod tests;
 
 /// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;
+/// The length of a leaf node's label
+pub const LEAF_LEN: u32 = 256;
+
+/// The value to be hashed every time an empty node's hash is to be considered
+pub const EMPTY_VALUE: [u8; 1] = [0u8];
+
+/// The label used for an empty node
+pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
 
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent.

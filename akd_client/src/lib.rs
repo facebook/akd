@@ -97,10 +97,10 @@ pub use types::*;
 // verify types are not re-exported, to not clutter the root path
 pub mod verify;
 
-pub(crate) mod hash;
-pub(crate) mod utils;
 #[cfg(feature = "vrf")]
 pub(crate) mod ecvrf;
+pub(crate) mod hash;
+pub(crate) mod utils;
 
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
