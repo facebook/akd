@@ -29,15 +29,15 @@ mod memory_storage_tests {
     #[tokio::test]
     #[serial]
     async fn test_v2_in_memory_db_with_caching() {
-        let mut db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
+        let db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
     }
 
     #[tokio::test]
     #[serial]
     async fn test_v2_in_memory_db() {
-        let mut db = AsyncInMemoryDatabase::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
+        let db = AsyncInMemoryDatabase::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
     }
 }
 
@@ -45,7 +45,7 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &mut S) {
+pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -319,7 +319,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     }
 }
 
-async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
+async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(

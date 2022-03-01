@@ -703,7 +703,7 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Start a transaction in the storage layer
-    async fn begin_transaction(&mut self) -> bool {
+    async fn begin_transaction(&self) -> bool {
         // disable the cache cleaning since we're in a write transaction
         // and will want to keep cache'd objects for the life of the transaction
         if let Some(cache) = &self.cache {
@@ -714,7 +714,7 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Commit a transaction in the storage layer
-    async fn commit_transaction(&mut self) -> core::result::Result<(), StorageError> {
+    async fn commit_transaction(&self) -> core::result::Result<(), StorageError> {
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -727,7 +727,7 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Rollback a transaction
-    async fn rollback_transaction(&mut self) -> core::result::Result<(), StorageError> {
+    async fn rollback_transaction(&self) -> core::result::Result<(), StorageError> {
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {

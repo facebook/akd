@@ -182,6 +182,15 @@ pub type MembershipProof = types::MembershipProof;
 pub type NonMembershipProof = types::NonMembershipProof;
 pub type LookupProof = types::LookupProof;
 
+/// The value to be hashed every time an empty node's hash is to be considered
+pub const EMPTY_VALUE: [u8; 1] = [0u8];
+
+/// The label used for an empty node
+pub const EMPTY_LABEL: NodeLabel = NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
+
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 /// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
