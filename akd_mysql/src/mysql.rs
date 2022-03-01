@@ -9,8 +9,9 @@
 
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
+use akd::NodeLabel;
+use akd::node_state::HistoryNodeState;
 use akd::history_tree_node::HistoryTreeNode;
-use akd::node_state::NodeLabel;
 use akd::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
@@ -476,9 +477,9 @@ impl<'a> AsyncMySqlDatabase {
         let head = &records[0];
         let statement = |i: usize| -> String {
             match &head {
-                DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::append_only_zks::Azks>(i),
+                DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::Azks>(i),
                 DbRecord::HistoryNodeState(_) => {
-                    DbRecord::set_batch_statement::<akd::node_state::HistoryNodeState>(i)
+                    DbRecord::set_batch_statement::<HistoryNodeState>(i)
                 }
                 DbRecord::HistoryTreeNode(_) => DbRecord::set_batch_statement::<HistoryTreeNode>(i),
                 DbRecord::ValueState(_) => {
@@ -1498,7 +1499,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_epoch_lte_epoch(
         &self,
-        node_label: akd::node_state::NodeLabel,
+        node_label: NodeLabel,
         epoch_in_question: u64,
     ) -> core::result::Result<u64, StorageError> {
         *(self.num_reads.write().await) += 1;

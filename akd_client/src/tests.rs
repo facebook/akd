@@ -21,7 +21,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use akd::errors::AkdError;
-use akd::storage::types::{AkdLabel, AkdValue};
+use akd::{AkdLabel, AkdValue};
 
 use crate::hash::DIGEST_BYTES;
 use winter_math::fields::f128::BaseElement;
@@ -38,7 +38,7 @@ use winter_crypto::hashers::Sha3_256;
 type Hash = Sha3_256<BaseElement>;
 
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-type Directory = akd::directory::Directory<InMemoryDb, HardCodedAkdVRF>;
+type Directory = akd::Directory<InMemoryDb, HardCodedAkdVRF>;
 
 // ===================================
 // Test helpers
@@ -58,14 +58,14 @@ where
     }
 }
 
-fn convert_label(proof: akd::node_state::NodeLabel) -> crate::types::NodeLabel {
+fn convert_label(proof: akd::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
         len: proof.len,
         val: proof.val,
     }
 }
 
-fn convert_node<H>(node: akd::node_state::Node<H>) -> crate::types::Node
+fn convert_node<H>(node: akd::Node<H>) -> crate::types::Node
 where
     H: winter_crypto::Hasher,
 {
@@ -76,9 +76,9 @@ where
 }
 
 fn convert_layer_proof<H>(
-    parent: akd::node_state::NodeLabel,
+    parent: akd::NodeLabel,
     direction: akd::Direction,
-    sibling: akd::node_state::Node<H>,
+    sibling: akd::Node<H>,
 ) -> crate::types::LayerProof
 where
     H: winter_crypto::Hasher,

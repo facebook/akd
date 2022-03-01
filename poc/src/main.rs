@@ -8,7 +8,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::directory::Directory;
+use akd::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::Storage;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};

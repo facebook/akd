@@ -12,7 +12,7 @@ use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 use crate::{
-    append_only_zks::Azks,
+    Azks,
     errors::{AkdError, AzksError},
     proof_structs::AppendOnlyProof,
     storage::memory::AsyncInMemoryDatabase,

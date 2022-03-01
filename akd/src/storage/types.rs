@@ -7,11 +7,10 @@
 
 //! Various storage and representation related types
 
-use crate::append_only_zks::Azks;
+use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
+use crate::{ARITY, Azks, NodeLabel};
 use crate::storage::Storable;
-use crate::ARITY;
 use std::convert::TryInto;
 
 /// Various elements that can be stored

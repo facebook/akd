@@ -10,6 +10,7 @@
 use std::convert::TryInto;
 
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
+use akd::node_state::{NodeStateKey, HistoryNodeState, HistoryChildState};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
 use akd::ARITY;
@@ -353,8 +354,8 @@ impl MySqlStorable for DbRecord {
                         // Since these are constructed from a safe key, they should never fail
                         // so we'll leave the unwrap to simplify
                         let bin = St::get_full_binary_key_id(key);
-                        let back: akd::node_state::NodeStateKey =
-                            akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
+                        let back: NodeStateKey =
+                            HistoryNodeState::key_from_full_binary(&bin).unwrap();
                         vec![
                             (format!("label_len{}", idx), Value::from(back.0.len)),
                             (format!("label_val{}", idx), Value::from(back.0.val)),
@@ -414,7 +415,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => {
                 let bin = St::get_full_binary_key_id(key);
 
-                if let Ok(back) = akd::node_state::HistoryNodeState::key_from_full_binary(&bin) {
+                if let Ok(back) = HistoryNodeState::key_from_full_binary(&bin) {
                     Some(params! {
                         "label_len" => back.0.len,
                         "label_val" => back.0.val,
@@ -482,7 +483,7 @@ impl MySqlStorable for DbRecord {
                 ) {
                     let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
+                    let child_states_decoded: [Option<HistoryChildState>; ARITY] =
                         bincode::deserialize(&child_states_bin_vec).map_err(
                             |serialization_err| {
                                 MySqlError::Other(

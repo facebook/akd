@@ -5,8 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::directory::Directory;
-use akd::directory::EpochHash;
+use akd::{Directory, EpochHash};
 use akd::ecvrf::VRFKeyStorage;
 use akd::errors::AkdError;
 use akd::storage::types::*;

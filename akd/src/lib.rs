@@ -311,6 +311,8 @@
 #[cfg(feature = "rand")]
 extern crate rand;
 
+// Due to the amount of types an implementing storage layer needs to access,
+// it's quite unreasonable
 pub mod append_only_zks;
 pub mod directory;
 pub mod history_tree_node;
@@ -318,15 +320,22 @@ pub mod node_state;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
-mod utils;
-
 pub mod auditor;
 pub mod client;
 pub mod ecvrf;
 pub mod errors;
 
+mod utils;
 #[cfg(test)]
-pub mod tests;
+mod tests;
+
+// ========== Type re-exports which are commonly used ========== //
+pub use append_only_zks::Azks;
+pub use directory::{Directory, EpochHash};
+pub use node_state::{Node, NodeLabel};
+pub use storage::types::{AkdLabel, AkdValue};
+
+// ========== Constants and type aliases ========== //
 
 /// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;

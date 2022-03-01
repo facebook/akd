@@ -7,7 +7,7 @@ extern crate thread_id;
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::directory::Directory;
+use akd::Directory;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::types::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
