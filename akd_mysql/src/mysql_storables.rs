@@ -224,7 +224,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -232,7 +232,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryTreeNode => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`))",
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))",
                         TEMP_IDS_TABLE
                     )
                 )
