@@ -556,7 +556,9 @@ impl<'a> AsyncMySqlDatabase {
 
         for path in potential_docker_paths {
             output = Command::new(path)
-                .args(["container", "ls", "-f", "name=akd-test-db"])
+                // Name filter lists containers containing the name. See https://docs.docker.com/engine/reference/commandline/ps/.
+                // This regex ensures exact match.
+                .args(["container", "ls", "-f", "name=^/akd-test-db$"])
                 .output();
             match &output {
                 Ok(result) => {
