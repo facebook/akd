@@ -133,9 +133,9 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(&id).await {
+            if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
                 return Ok(result);
             }
@@ -144,8 +144,8 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
-        let bin_id = St::get_full_binary_key_id(&id);
+    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+        let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
             if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
@@ -175,16 +175,33 @@ impl Storage for AsyncInMemoryDatabase {
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
-        ids: Vec<St::Key>,
+        ids: &[St::Key],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
-        for key in ids.into_iter() {
+        for key in ids.iter() {
             if let Ok(result) = self.get::<St>(key).await {
                 map.push(result);
             }
             // swallow errors (i.e. not found)
         }
         Ok(map)
+    }
+
+    async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        let data = self.batch_get::<ValueState>(keys).await?;
+        let mut new_data = vec![];
+        for record in data {
+            if let DbRecord::ValueState(value_state) = record {
+                new_data.push(DbRecord::ValueState(ValueState {
+                    epoch: value_state.epoch,
+                    label: value_state.label,
+                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
+                    username: value_state.username,
+                    version: value_state.version,
+                }));
+            }
+        }
+        self.batch_set(new_data).await
     }
 
     /// Retrieve the user data for a given user
@@ -290,7 +307,7 @@ impl Storage for AsyncInMemoryDatabase {
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(ids)
+            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
             .await?;
         let mut epochs = data
             .into_iter()
@@ -514,9 +531,9 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(())
     }
 
-    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(&id).await {
+            if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
                 return Ok(result);
             }
@@ -525,8 +542,8 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
-        let bin_id = St::get_full_binary_key_id(&id);
+    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+        let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
             if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
@@ -561,23 +578,39 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
     }
 
-    /// Flush the caching of objects (if present)
     async fn flush_cache(&self) {
         // no-op
     }
 
     async fn batch_get<St: Storable>(
         &self,
-        ids: Vec<St::Key>,
+        ids: &[St::Key],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
-        for key in ids.into_iter() {
+        for key in ids.iter() {
             if let Ok(result) = self.get::<St>(key).await {
                 map.push(result);
             }
             // swallow errors (i.e. not found)
         }
         Ok(map)
+    }
+
+    async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        let data = self.batch_get::<ValueState>(keys).await?;
+        let mut new_data = vec![];
+        for record in data {
+            if let DbRecord::ValueState(value_state) = record {
+                new_data.push(DbRecord::ValueState(ValueState {
+                    epoch: value_state.epoch,
+                    label: value_state.label,
+                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
+                    username: value_state.username,
+                    version: value_state.version,
+                }));
+            }
+        }
+        self.batch_set(new_data).await
     }
 
     async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
@@ -681,7 +714,7 @@ impl Storage for AsyncInMemoryDbWithCache {
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(ids)
+            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
             .await?;
         let mut epochs = data
             .into_iter()

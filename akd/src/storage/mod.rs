@@ -104,13 +104,20 @@ pub trait Storage: Clone {
     async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the data layer
-    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError>;
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError>;
 
     /// Flush the caching of objects (if present)
     async fn flush_cache(&self);
+
+    /// Convert the given value state's into tombstones, replacing the plaintext value with
+    /// the tombstone key array
+    async fn tombstone_value_states(
+        &self,
+        keys: &[types::ValueStateKey],
+    ) -> Result<(), StorageError>;
 
     /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
     /// was edited
@@ -121,10 +128,8 @@ pub trait Storage: Clone {
     ) -> Result<u64, StorageError>;
 
     /// Retrieve a batch of records by id
-    async fn batch_get<St: Storable>(
-        &self,
-        ids: Vec<St::Key>,
-    ) -> Result<Vec<DbRecord>, StorageError>;
+    async fn batch_get<St: Storable>(&self, ids: &[St::Key])
+        -> Result<Vec<DbRecord>, StorageError>;
 
     /* User data searching */
 

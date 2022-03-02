@@ -365,23 +365,22 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .collect::<Vec<_>>();
         let mut batch = self
             .storage
-            .batch_get::<ValueState>(keys)
+            .batch_get::<ValueState>(&keys)
             .await?
             .into_iter()
-            .map(|potential| {
+            .filter_map(|potential| {
                 if let DbRecord::ValueState(vs) = potential {
                     Some(vs)
                 } else {
                     None
                 }
             })
-            .flatten()
             .collect::<Vec<_>>();
 
         // sort in ascending epoch order (in case of DB not respecting ordering)
         batch.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
 
-        if batch.len() == 0 {
+        if batch.is_empty() {
             Err(AkdError::Directory(DirectoryError::NoUpdatesInPeriod(
                 username,
                 start_epoch,
@@ -485,11 +484,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<Azks, crate::errors::AkdError> {
         let got = if ignore_cache {
             storage
-                .get_direct::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .get_direct::<Azks>(&crate::append_only_zks::DEFAULT_AZKS_KEY)
                 .await?
         } else {
             storage
-                .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .get::<Azks>(&crate::append_only_zks::DEFAULT_AZKS_KEY)
                 .await?
         };
         match got {

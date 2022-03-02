@@ -50,6 +50,7 @@ pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
     test_user_data(db).await;
     test_transactions(db).await;
     test_batch_get_items(db).await;
+    test_tombstoning_data(db).await.unwrap();
 }
 
 // *** New Test Helper Functions *** //
@@ -64,7 +65,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     assert_eq!(Ok(()), set_result);
 
     let get_result = storage
-        .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+        .get::<Azks>(&crate::append_only_zks::DEFAULT_AZKS_KEY)
         .await;
     if let Ok(DbRecord::Azks(got_azks)) = get_result {
         assert_eq!(got_azks.latest_epoch, azks.latest_epoch);
@@ -94,7 +95,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let set_result = storage.set(DbRecord::HistoryTreeNode(node2.clone())).await;
     assert_eq!(Ok(()), set_result);
 
-    let get_result = storage.get::<HistoryTreeNode>(key).await;
+    let get_result = storage.get::<HistoryTreeNode>(&key).await;
     if let Ok(DbRecord::HistoryTreeNode(got_node)) = get_result {
         assert_eq!(got_node.label, node.label);
         assert_eq!(got_node.parent, node.parent);
@@ -105,7 +106,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         panic!("Failed to retrieve History Tree Node");
     }
 
-    let get_result = storage.get::<HistoryTreeNode>(key2).await;
+    let get_result = storage.get::<HistoryTreeNode>(&key2).await;
     if let Err(err) = get_result {
         panic!("Failed to retrieve history tree node (2) {:?}", err)
     }
@@ -122,7 +123,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         .await;
     assert_eq!(Ok(()), set_result);
 
-    let get_result = storage.get::<HistoryNodeState>(key).await;
+    let get_result = storage.get::<HistoryNodeState>(&key).await;
     if let Ok(DbRecord::HistoryNodeState(got_state)) = get_result {
         assert_eq!(got_state.value, node_state.value);
         assert_eq!(got_state.child_states, node_state.child_states);
@@ -143,7 +144,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
 
-    let get_result = storage.get::<ValueState>(key).await;
+    let get_result = storage.get::<ValueState>(&key).await;
     if let Ok(DbRecord::ValueState(got_state)) = get_result {
         assert_eq!(got_state.username, value.username);
         assert_eq!(got_state.epoch, value.epoch);
@@ -190,7 +191,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     let toc: Duration = Instant::now() - tic;
     println!("Storage batch op: {} ms", toc.as_millis());
     let got = storage
-        .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10))
+        .get::<ValueState>(&ValueStateKey(rand_users[0].clone(), 10))
         .await;
     if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
@@ -200,7 +201,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
         .iter()
         .map(|user| ValueStateKey(user.clone(), 1))
         .collect();
-    let got_all = storage.batch_get::<ValueState>(keys).await;
+    let got_all = storage.batch_get::<ValueState>(&keys).await;
     match got_all {
         Err(_) => panic!("Failed to retrieve batch of user at specific epochs"),
         Ok(lst) if lst.len() != rand_users.len() => {
@@ -367,7 +368,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     let toc: Duration = Instant::now() - tic;
     println!("Storage batch op: {} ms", toc.as_millis());
     let got = storage
-        .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10))
+        .get::<ValueState>(&ValueStateKey(rand_users[0].clone(), 10))
         .await;
     if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
@@ -381,7 +382,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     println!("Transactional storage batch op: {} ms", toc.as_millis());
 
     let got = storage
-        .get::<ValueState>(ValueStateKey(rand_users[0].clone(), 10 + 10000))
+        .get::<ValueState>(&ValueStateKey(rand_users[0].clone(), 10 + 10000))
         .await;
     if got.is_err() {
         panic!("Failed to retrieve a user after batch insert");
@@ -490,7 +491,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
     );
 
     let specifc_result = storage
-        .get::<ValueState>(ValueStateKey(sample_state.username.0.clone(), 123))
+        .get::<ValueState>(&ValueStateKey(sample_state.username.0.clone(), 123))
         .await;
     if let Ok(DbRecord::ValueState(state)) = specifc_result {
         assert_eq!(
@@ -583,4 +584,66 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
 
     let data = storage.get_user_data(&sample_state_2.username).await;
     assert_eq!(4, data.unwrap().states.len());
+}
+
+async fn test_tombstoning_data<S: Storage + Sync + Send>(storage: &S) -> Result<(), crate::errors::AkdError> {
+    let rand_user = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect::<String>()
+        .as_bytes()
+        .to_vec();
+    let rand_value = rand_user.clone();
+
+    let mut sample_state = ValueState {
+        plaintext_val: AkdValue(rand_value.clone()),
+        version: 1u64,
+        label: NodeLabel {
+            val: byte_arr_from_u64(1),
+            len: 1u32,
+        },
+        epoch: 1u64,
+        username: AkdLabel(rand_user),
+    };
+    let mut sample_state2 = sample_state.clone();
+    sample_state2.username = AkdLabel("tombstone_test_user".as_bytes().to_vec());
+
+    // Load up a bunch of data into the storage layer
+    for i in 0..5 {
+        sample_state.version = i;
+        sample_state.epoch = i;
+        sample_state2.version = i;
+        sample_state2.epoch = i;
+
+        assert_eq!(Ok(()), storage.set(DbRecord::ValueState(sample_state.clone())).await);
+        assert_eq!(Ok(()), storage.set(DbRecord::ValueState(sample_state2.clone())).await);
+    }
+
+    let data = storage.get_user_data(&sample_state.username).await.unwrap();
+    assert_eq!(5, data.states.len());
+    let data = storage.get_user_data(&sample_state2.username).await.unwrap();
+    assert_eq!(5, data.states.len());
+
+    let keys_to_tombstone = [
+        ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 0u64),
+        ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 1u64),
+
+        ValueStateKey(sample_state.username.0.clone(), 0u64),
+        ValueStateKey(sample_state.username.0.clone(), 1u64),
+        ValueStateKey(sample_state.username.0.clone(), 2u64),
+    ];
+
+    // tombstone the given states
+    storage.tombstone_value_states(&keys_to_tombstone).await?;
+
+    let got = storage.get::<ValueState>(&ValueStateKey(sample_state.username.0.clone(), 0u64)).await?;
+    if let DbRecord::ValueState(value_state) = got {
+        assert_eq!(0u64, value_state.epoch);
+        assert_eq!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
+    } else {
+        panic!("Unable to retrieve back the value_state we tombstoned");
+    }
+
+    Ok(())
 }
