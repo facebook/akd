@@ -94,6 +94,12 @@ fn verify_nonmembership(
     Ok(verified)
 }
 
+fn hash_plaintext_value(value: &AkdValue) -> Digest {
+    let single_hash = hash(&crate::utils::value_to_bytes(value));
+    let expected = merge(&[hash(&EMPTY_VALUE), single_hash]);
+    expected
+}
+
 /// This function is called to verify that a given NodeLabel is indeed
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
@@ -119,7 +125,6 @@ pub fn lookup_verify(
 ) -> Result<(), VerificationError> {
     let _epoch = proof.epoch;
 
-    // let _plaintext_value = proof.plaintext_value;
     #[cfg(feature = "vrf")]
     let version = proof.version;
 
@@ -128,6 +133,14 @@ pub fn lookup_verify(
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
+
+    if hash_plaintext_value(&proof.plaintext_value) != existence_proof.hash_val {
+        return Err(verify_error!(
+            LookupProof,
+            bool,
+            "Hash of plaintext value did not match existence proof hash".to_string()
+        ));
+    }
 
     #[cfg(feature = "vrf")]
     {

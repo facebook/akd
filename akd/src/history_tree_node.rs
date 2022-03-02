@@ -819,7 +819,7 @@ pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
 pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
-    value: &[u8],
+    value: &H::Digest,
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
@@ -833,7 +833,7 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
 
     let mut new_state: HistoryNodeState =
         HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch))?;
-    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), H::hash(value)]))?;
+    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), value.clone()]))?;
 
     set_state_map(storage, new_state).await?;
 

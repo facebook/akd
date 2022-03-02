@@ -121,10 +121,25 @@ impl Storage for AsyncInMemoryDatabase {
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = &record {
                 let username = value_state.username.0.clone();
-                u_guard
-                    .entry(username)
-                    .or_insert_with(Vec::new)
-                    .push(value_state.clone());
+                match u_guard.get(&username) {
+                    Some(old_states) => {
+                        let mut value_states = old_states.clone();
+                        if let Some(position) = value_states
+                            .iter()
+                            .position(|r| r.epoch == value_state.epoch)
+                        {
+                            // replace
+                            value_states[position] = value_state.clone();
+                        } else {
+                            // append
+                            value_states.push(value_state.clone());
+                        }
+                        u_guard.insert(username, value_states);
+                    }
+                    None => {
+                        u_guard.insert(username, vec![value_state.clone()]);
+                    }
+                }
             } else {
                 guard.insert(record.get_full_binary_id(), record);
             }
@@ -188,10 +203,19 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        if keys.len() == 0 {
+            return Ok(());
+        }
+
         let data = self.batch_get::<ValueState>(keys).await?;
         let mut new_data = vec![];
         for record in data {
             if let DbRecord::ValueState(value_state) = record {
+                debug!(
+                    "Tombstoning 0x{}",
+                    hex::encode(value_state.username.0.clone())
+                );
+
                 new_data.push(DbRecord::ValueState(ValueState {
                     epoch: value_state.epoch,
                     label: value_state.label,
@@ -201,7 +225,13 @@ impl Storage for AsyncInMemoryDatabase {
                 }));
             }
         }
-        self.batch_set(new_data).await
+
+        if new_data.len() > 0 {
+            debug!("Tombstoning {} entries", new_data.len());
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
     }
 
     /// Retrieve the user data for a given user
@@ -519,10 +549,25 @@ impl Storage for AsyncInMemoryDbWithCache {
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = &record {
                 let username = value_state.username.0.clone();
-                u_guard
-                    .entry(username)
-                    .or_insert_with(Vec::new)
-                    .push(value_state.clone());
+                match u_guard.get(&username) {
+                    Some(old_states) => {
+                        let mut value_states = old_states.clone();
+                        if let Some(position) = value_states
+                            .iter()
+                            .position(|r| r.epoch == value_state.epoch)
+                        {
+                            // replace
+                            value_states[position] = value_state.clone();
+                        } else {
+                            // append
+                            value_states.push(value_state.clone());
+                        }
+                        u_guard.insert(username, value_states);
+                    }
+                    None => {
+                        u_guard.insert(username, vec![value_state.clone()]);
+                    }
+                }
             } else {
                 *calls += 1;
                 guard.insert(record.get_full_binary_id(), record);
@@ -597,6 +642,10 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        if keys.len() == 0 {
+            return Ok(());
+        }
+
         let data = self.batch_get::<ValueState>(keys).await?;
         let mut new_data = vec![];
         for record in data {
@@ -610,7 +659,12 @@ impl Storage for AsyncInMemoryDbWithCache {
                 }));
             }
         }
-        self.batch_set(new_data).await
+
+        if new_data.len() > 0 {
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
     }
 
     async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {

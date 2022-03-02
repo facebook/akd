@@ -8,9 +8,6 @@
 //! This crate contains the tests for the client library which make sure that the
 //! base AKD library and this "lean" client result in the same outputs
 
-#[cfg(feature = "nostd")]
-use crate::alloc::string::ToString;
-
 use akd::ecvrf::HardCodedAkdVRF;
 
 #[cfg(feature = "nostd")]

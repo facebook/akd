@@ -105,13 +105,18 @@ pub fn lookup_verify<H: Hasher>(
     akd_key: AkdLabel,
     proof: LookupProof<H>,
 ) -> Result<(), AkdError> {
-    let _plaintext_value = proof.plaintext_value;
     let version = proof.version;
 
     let marker_version = 1 << get_marker_version(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
+
+    if hash_plaintext_value::<H>(&proof.plaintext_value) != existence_proof.hash_val {
+        return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
+            "Hash of plaintext value did not match expected hash in existence proof".to_string(),
+        )));
+    }
 
     let fresh_label = existence_proof.label;
     vrf_pk.verify_label::<H>(
@@ -204,16 +209,18 @@ fn verify_single_update_proof<H: Hasher>(
             // the real value available
             (true, true)
         }
-        (_, bytes) => (
-            false,
-            H::hash(&crate::utils::value_to_bytes(bytes)) == existence_at_ep.hash_val,
-        ),
+        (_, bytes) => {
+            // No tombstone so hash the value found, and compare to the existence proof's value
+            (
+                false,
+                hash_plaintext_value::<H>(bytes) == existence_at_ep.hash_val,
+            )
+        }
     };
     if !value_hash_valid {
-        println!("Hash of plaintext value did not match the membership proof hash");
-        // return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
-        //     format!("Hash of plaintext value did not match the membership proof hash"),
-        // )));
+        return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
+            format!("Hash of plaintext value (v: {}) did not match expected hash in existence proof at epoch {}", version, epoch),
+        )));
     }
 
     // ***** PART 1 ***************************
@@ -341,4 +348,10 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     }
     new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
     new_hash
+}
+
+fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
+    let single_hash = H::hash(&crate::utils::value_to_bytes(value));
+    let expected = H::merge(&[H::hash(&EMPTY_VALUE), single_hash]);
+    expected
 }

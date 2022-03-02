@@ -21,7 +21,7 @@ use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
 use tokio::time::Instant;
-use winter_crypto::{Digest, Hasher};
+use winter_crypto::Hasher;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
@@ -98,7 +98,7 @@ impl Azks {
         let new_leaf = get_leaf_node::<H, S>(
             storage,
             node.label,
-            node.hash.as_bytes().as_ref(),
+            &node.hash,
             NodeLabel::root(),
             self.latest_epoch,
         )
@@ -232,7 +232,7 @@ impl Azks {
                 get_leaf_node::<H, S>(
                     storage,
                     node.label,
-                    node.hash.as_bytes().as_ref(),
+                    &node.hash,
                     NodeLabel::root(),
                     self.latest_epoch,
                 )
@@ -320,7 +320,7 @@ impl Azks {
         for (i, child) in state.child_states.iter().enumerate() {
             match child {
                 None => {
-                    println!("i = {}, empty", i);
+                    debug!("i = {}, empty", i);
                     continue;
                 }
                 Some(child) => {
@@ -330,7 +330,7 @@ impl Azks {
                         self.get_latest_epoch(),
                     )
                     .await?;
-                    println!("Label of child {} is {:?}", i, unwrapped_child.label);
+                    debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
                         hash: unwrapped_child
@@ -340,7 +340,7 @@ impl Azks {
                 }
             }
         }
-        println!("Lcp label = {:?}", longest_prefix);
+        debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
             longest_prefix,
