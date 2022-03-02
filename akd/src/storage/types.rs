@@ -168,6 +168,18 @@ impl DbRecord {
         }
     }
 
+    /// Returns the priority in which a record type in a transaction should be committed to storage.
+    /// A smaller value indicates higher priority in being written first.
+    /// An Azks record should always be updated last, so that any concurrent storage readers will
+    /// not see an increase in the current epoch until every other record for the new epoch has
+    /// been written to storage.
+    pub(crate) fn transaction_priority(&self) -> u8 {
+        match &self {
+            DbRecord::Azks(_) => 2,
+            _ => 1,
+        }
+    }
+
     /* Data Layer Builders */
 
     /// Build an azks instance from the properties
@@ -180,11 +192,11 @@ impl DbRecord {
 
     /// Build a history tree node from the properties
     pub fn build_history_tree_node(
-        label_val: u64,
+        label_val: [u8; 32],
         label_len: u32,
         birth_epoch: u64,
         last_epoch: u64,
-        parent_label_val: u64,
+        parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
     ) -> HistoryTreeNode {
@@ -202,7 +214,7 @@ impl DbRecord {
         value: Vec<u8>,
         child_states: [Option<HistoryChildState>; ARITY],
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> HistoryNodeState {
         HistoryNodeState {
@@ -215,7 +227,7 @@ impl DbRecord {
     /// Build a history child state from the properties
     pub fn build_history_child_state(
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         hash_val: Vec<u8>,
         epoch_version: u64,
     ) -> HistoryChildState {
@@ -232,7 +244,7 @@ impl DbRecord {
         plaintext_val: String,
         version: u64,
         label_len: u32,
-        label_val: u64,
+        label_val: [u8; 32],
         epoch: u64,
     ) -> ValueState {
         ValueState {

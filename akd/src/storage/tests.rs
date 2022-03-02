@@ -29,15 +29,15 @@ mod memory_storage_tests {
     #[tokio::test]
     #[serial]
     async fn test_v2_in_memory_db_with_caching() {
-        let mut db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
+        let db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
     }
 
     #[tokio::test]
     #[serial]
     async fn test_v2_in_memory_db() {
-        let mut db = AsyncInMemoryDatabase::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(&mut db).await;
+        let db = AsyncInMemoryDatabase::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
     }
 }
 
@@ -45,7 +45,7 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &mut S) {
+pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -76,17 +76,17 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === HistoryTreeNode storage === //
 
     let node = HistoryTreeNode {
-        label: NodeLabel::new(13, 4),
+        label: NodeLabel::new(byte_arr_from_u64(13), 4),
         birth_epoch: 123,
         last_epoch: 234,
-        parent: NodeLabel::new(1, 1),
+        parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
     };
     let mut node2 = node.clone();
-    node2.label = NodeLabel::new(16, 4);
+    node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);
 
-    let key = NodeKey(NodeLabel::new(13, 4));
-    let key2 = NodeKey(NodeLabel::new(16, 4));
+    let key = NodeKey(NodeLabel::new(byte_arr_from_u64(13), 4));
+    let key2 = NodeKey(NodeLabel::new(byte_arr_from_u64(16), 4));
 
     let set_result = storage.set(DbRecord::HistoryTreeNode(node.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -111,7 +111,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     }
 
     // === HistoryNodeState storage === //
-    let key = NodeStateKey(NodeLabel::new(1, 1), 1);
+    let key = NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1);
     let node_state = HistoryNodeState {
         value: vec![],
         child_states: [None, None],
@@ -136,7 +136,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let value = ValueState {
         username: AkdLabel("test".to_string()),
         epoch: 1,
-        label: NodeLabel::new(1, 1),
+        label: NodeLabel::new(byte_arr_from_u64(1), 1),
         version: 1,
         plaintext_val: AkdValue("abc123".to_string()),
     };
@@ -176,7 +176,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                 plaintext_val: AkdValue(value.clone()),
                 version: epoch,
                 label: NodeLabel {
-                    val: 1u64,
+                    val: byte_arr_from_u64(1),
                     len: 1u32,
                 },
                 epoch,
@@ -319,7 +319,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     }
 }
 
-async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
+async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     let mut rand_users: Vec<String> = vec![];
     for _ in 0..20 {
         rand_users.push(
@@ -340,7 +340,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &mut S) {
                 plaintext_val: AkdValue(value.clone()),
                 version: 1u64,
                 label: NodeLabel {
-                    val: 1u64,
+                    val: byte_arr_from_u64(1),
                     len: 1u32,
                 },
                 epoch,
@@ -405,7 +405,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
-            val: 1u64,
+            val: byte_arr_from_u64(1),
             len: 1u32,
         },
         epoch: 1u64,
@@ -480,7 +480,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 123,
             version: 2,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -495,7 +495,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             ValueState {
                 epoch: 123,
                 version: 2,
-                label: NodeLabel::new(1, 1),
+                label: NodeLabel::new(byte_arr_from_u64(1), 1),
                 plaintext_val: AkdValue(rand_value.clone()),
                 username: sample_state.username.clone(),
             },
@@ -523,7 +523,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 123,
             version: 2,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -537,7 +537,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 1,
             version: 1,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
@@ -551,7 +551,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         Ok(ValueState {
             epoch: 456,
             version: 3,
-            label: NodeLabel::new(1, 1),
+            label: NodeLabel::new(byte_arr_from_u64(1), 1),
             plaintext_val: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),

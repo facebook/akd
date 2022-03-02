@@ -7,6 +7,8 @@
 
 //! This module implements record handling for a simple asynchronized mysql database
 
+use std::convert::TryInto;
+
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
@@ -33,11 +35,11 @@ const SELECT_USER_DATA: &str =
 pub(crate) trait MySqlStorable {
     fn set_statement(&self) -> String;
 
-    fn set_params(&self) -> mysql_async::Params;
+    fn set_params(&self) -> Option<mysql_async::Params>;
 
     fn set_batch_statement<St: Storable>(items: usize) -> String;
 
-    fn set_batch_params(items: &[DbRecord]) -> mysql_async::Params;
+    fn set_batch_params(items: &[DbRecord]) -> Result<mysql_async::Params>;
 
     fn get_statement<St: Storable>() -> String;
 
@@ -69,22 +71,27 @@ impl MySqlStorable for DbRecord {
         }
     }
 
-    fn set_params(&self) -> mysql_async::Params {
+    fn set_params(&self) -> Option<mysql_async::Params> {
         match &self {
-            DbRecord::Azks(azks) => {
-                params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes }
-            }
+            DbRecord::Azks(azks) => Some(
+                params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
+            ),
             DbRecord::HistoryNodeState(state) => {
-                let bin_data = bincode::serialize(&state.child_states).unwrap();
-                let id = state.get_id();
-                params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data }
+                if let Ok(bin_data) = bincode::serialize(&state.child_states) {
+                    let id = state.get_id();
+                    Some(
+                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data },
+                    )
+                } else {
+                    None
+                }
             }
-            DbRecord::HistoryTreeNode(node) => {
-                params! { "label_len" => node.label.len, "label_val" => node.label.val, "birth_epoch" => node.birth_epoch, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 }
-            }
-            DbRecord::ValueState(state) => {
-                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() }
-            }
+            DbRecord::HistoryTreeNode(node) => Some(
+                params! { "label_len" => node.label.len, "label_val" => node.label.val, "birth_epoch" => node.birth_epoch, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
+            ),
+            DbRecord::ValueState(state) => Some(
+                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() },
+            ),
         }
     }
 
@@ -128,73 +135,72 @@ impl MySqlStorable for DbRecord {
         }
     }
 
-    fn set_batch_params(items: &[DbRecord]) -> mysql_async::Params {
+    fn set_batch_params(items: &[DbRecord]) -> Result<mysql_async::Params> {
         let param_batch = items
             .iter()
             .enumerate()
             .map(|(idx, item)| match &item {
-                DbRecord::Azks(azks) => {
-                    vec![
-                        ("key".to_string(), Value::from(1u8)),
-                        ("epoch".to_string(), Value::from(azks.latest_epoch)),
-                        ("num_nodes".to_string(), Value::from(azks.num_nodes)),
-                    ]
-                }
+                DbRecord::Azks(azks) => Ok(vec![
+                    ("key".to_string(), Value::from(1u8)),
+                    ("epoch".to_string(), Value::from(azks.latest_epoch)),
+                    ("num_nodes".to_string(), Value::from(azks.num_nodes)),
+                ]),
                 DbRecord::HistoryNodeState(state) => {
-                    let bin_data = bincode::serialize(&state.child_states).unwrap();
-                    let id = state.get_id();
-                    vec![
-                        (format!("label_len{}", idx), Value::from(id.0.len)),
-                        (format!("label_val{}", idx), Value::from(id.0.val)),
-                        (format!("epoch{}", idx), Value::from(id.1)),
-                        (format!("value{}", idx), Value::from(state.value.clone())),
-                        (format!("child_states{}", idx), Value::from(bin_data)),
-                    ]
+                    if let Ok(bin_data) = bincode::serialize(&state.child_states) {
+                        let id = state.get_id();
+                        Ok(vec![
+                            (format!("label_len{}", idx), Value::from(id.0.len)),
+                            (format!("label_val{}", idx), Value::from(id.0.val)),
+                            (format!("epoch{}", idx), Value::from(id.1)),
+                            (format!("value{}", idx), Value::from(state.value.clone())),
+                            (format!("child_states{}", idx), Value::from(bin_data)),
+                        ])
+                    } else {
+                        Err(MySqlError::Other("Failed to serialize child states".into()))
+                    }
                 }
-                DbRecord::HistoryTreeNode(node) => {
-                    vec![
-                        (format!("label_len{}", idx), Value::from(node.label.len)),
-                        (format!("label_val{}", idx), Value::from(node.label.val)),
-                        (format!("birth_epoch{}", idx), Value::from(node.birth_epoch)),
-                        (format!("last_epoch{}", idx), Value::from(node.last_epoch)),
-                        (
-                            format!("parent_label_len{}", idx),
-                            Value::from(node.parent.len),
-                        ),
-                        (
-                            format!("parent_label_val{}", idx),
-                            Value::from(node.parent.val),
-                        ),
-                        (
-                            format!("node_type{}", idx),
-                            Value::from(node.node_type as u8),
-                        ),
-                    ]
-                }
-                DbRecord::ValueState(state) => {
-                    vec![
-                        (format!("username{}", idx), Value::from(state.get_id().0)),
-                        (format!("epoch{}", idx), Value::from(state.epoch)),
-                        (format!("version{}", idx), Value::from(state.version)),
-                        (
-                            format!("node_label_len{}", idx),
-                            Value::from(state.label.len),
-                        ),
-                        (
-                            format!("node_label_val{}", idx),
-                            Value::from(state.label.val),
-                        ),
-                        (
-                            format!("data{}", idx),
-                            Value::from(state.plaintext_val.0.clone()),
-                        ),
-                    ]
-                }
+                DbRecord::HistoryTreeNode(node) => Ok(vec![
+                    (format!("label_len{}", idx), Value::from(node.label.len)),
+                    (format!("label_val{}", idx), Value::from(node.label.val)),
+                    (format!("birth_epoch{}", idx), Value::from(node.birth_epoch)),
+                    (format!("last_epoch{}", idx), Value::from(node.last_epoch)),
+                    (
+                        format!("parent_label_len{}", idx),
+                        Value::from(node.parent.len),
+                    ),
+                    (
+                        format!("parent_label_val{}", idx),
+                        Value::from(node.parent.val),
+                    ),
+                    (
+                        format!("node_type{}", idx),
+                        Value::from(node.node_type as u8),
+                    ),
+                ]),
+                DbRecord::ValueState(state) => Ok(vec![
+                    (format!("username{}", idx), Value::from(state.get_id().0)),
+                    (format!("epoch{}", idx), Value::from(state.epoch)),
+                    (format!("version{}", idx), Value::from(state.version)),
+                    (
+                        format!("node_label_len{}", idx),
+                        Value::from(state.label.len),
+                    ),
+                    (
+                        format!("node_label_val{}", idx),
+                        Value::from(state.label.val),
+                    ),
+                    (
+                        format!("data{}", idx),
+                        Value::from(state.plaintext_val.0.clone()),
+                    ),
+                ]),
             })
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        mysql_async::Params::from(param_batch)
+        Ok(mysql_async::Params::from(param_batch))
     }
 
     fn get_statement<St: Storable>() -> String {
@@ -218,7 +224,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryNodeState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -226,7 +232,7 @@ impl MySqlStorable for DbRecord {
             StorageType::HistoryTreeNode => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`))",
+                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))",
                         TEMP_IDS_TABLE
                     )
                 )
@@ -344,6 +350,8 @@ impl MySqlStorable for DbRecord {
                     .iter()
                     .enumerate()
                     .map(|(idx, key)| {
+                        // Since these are constructed from a safe key, they should never fail
+                        // so we'll leave the unwrap to simplify
                         let bin = St::get_full_binary_key_id(key);
                         let back: akd::node_state::NodeStateKey =
                             akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
@@ -364,6 +372,8 @@ impl MySqlStorable for DbRecord {
                     .enumerate()
                     .map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
+                        // Since these are constructed from a safe key, they should never fail
+                        // so we'll leave the unwrap to simplify
                         let back: NodeKey = HistoryTreeNode::key_from_full_binary(&bin).unwrap();
                         vec![
                             (format!("label_len{}", idx), Value::from(back.0.len)),
@@ -381,6 +391,8 @@ impl MySqlStorable for DbRecord {
                     .enumerate()
                     .map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
+                        // Since these are constructed from a safe key, they should never fail
+                        // so we'll leave the unwrap to simplify
                         let back: akd::storage::types::ValueStateKey =
                             akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
                         vec![
@@ -401,30 +413,38 @@ impl MySqlStorable for DbRecord {
             StorageType::Azks => None,
             StorageType::HistoryNodeState => {
                 let bin = St::get_full_binary_key_id(key);
-                let back: akd::node_state::NodeStateKey =
-                    akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
-                Some(params! {
-                    "label_len" => back.0.len,
-                    "label_val" => back.0.val,
-                    "epoch" => back.1
-                })
+
+                if let Ok(back) = akd::node_state::HistoryNodeState::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "label_len" => back.0.len,
+                        "label_val" => back.0.val,
+                        "epoch" => back.1
+                    })
+                } else {
+                    None
+                }
             }
             StorageType::HistoryTreeNode => {
                 let bin = St::get_full_binary_key_id(key);
-                let back: NodeKey = HistoryTreeNode::key_from_full_binary(&bin).unwrap();
-                Some(params! {
-                    "label_len" => back.0.len,
-                    "label_val" => back.0.val,
-                })
+                if let Ok(back) = HistoryTreeNode::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "label_len" => back.0.len,
+                        "label_val" => back.0.val,
+                    })
+                } else {
+                    None
+                }
             }
             StorageType::ValueState => {
                 let bin = St::get_full_binary_key_id(key);
-                let back: akd::storage::types::ValueStateKey =
-                    akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
-                Some(params! {
-                    "username" => back.0,
-                    "epoch" => back.1
-                })
+                if let Ok(back) = akd::storage::types::ValueState::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "username" => back.0,
+                        "epoch" => back.1
+                    })
+                } else {
+                    None
+                }
             }
         }
     }
@@ -433,6 +453,10 @@ impl MySqlStorable for DbRecord {
     where
         Self: std::marker::Sized,
     {
+        fn cast_err() -> MySqlError {
+            MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())
+        }
+
         match St::data_type() {
             StorageType::Azks => {
                 // epoch, num_nodes
@@ -456,14 +480,21 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(3),
                     row.take_opt(4),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
                     let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
-                        bincode::deserialize(&child_states_bin_vec).unwrap();
+                        bincode::deserialize(&child_states_bin_vec).map_err(
+                            |serialization_err| {
+                                MySqlError::Other(
+                                    format!("Serialization error {}", serialization_err).into(),
+                                )
+                            },
+                        )?;
                     let node_state = DbRecord::build_history_node_state(
                         value,
                         child_states_decoded,
                         label_len,
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::HistoryNodeState(node_state));
@@ -488,12 +519,15 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(5),
                     row.take_opt(6),
                 ) {
+                    let label_val_vec: Vec<u8> = label_val;
+                    let parent_label_val_vec: Vec<u8> = parent_label_val;
+
                     let node = DbRecord::build_history_tree_node(
-                        label_val,
+                        label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
                         birth_epoch,
                         last_epoch,
-                        parent_label_val,
+                        parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
                     );
@@ -517,12 +551,13 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                 ) {
+                    let node_label_val_vec: Vec<u8> = node_label_val;
                     let state = DbRecord::build_user_state(
                         username,
                         data,
                         version,
                         node_label_len,
-                        node_label_val,
+                        node_label_val_vec.try_into().map_err(|_| cast_err())?,
                         epoch,
                     );
                     return Ok(DbRecord::ValueState(state));

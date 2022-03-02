@@ -71,17 +71,17 @@ impl Storage for AsyncInMemoryDatabase {
         }
     }
 
-    async fn begin_transaction(&mut self) -> bool {
+    async fn begin_transaction(&self) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
     }
 
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&self) -> Result<(), StorageError> {
         self.trans.rollback_transaction().await
     }
 
@@ -136,6 +136,11 @@ impl Storage for AsyncInMemoryDatabase {
                 return Ok(result);
             }
         }
+        self.get_direct::<St>(id).await
+    }
+
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(&id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -156,6 +161,11 @@ impl Storage for AsyncInMemoryDatabase {
         } else {
             Err(StorageError::GetData("Not found".to_string()))
         }
+    }
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self) {
+        // no-op
     }
 
     /// Retrieve a batch of records by id
@@ -298,8 +308,9 @@ impl Storage for AsyncInMemoryDatabase {
                 return Ok(item);
             }
         }
+
         Err(StorageError::GetData(format!(
-            "Node (val: {}, len: {}) did not exist <= epoch {}",
+            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
     }
@@ -393,10 +404,10 @@ impl AsyncInMemoryDbWithCache {
         let mut distribution: HashMap<usize, usize> = HashMap::new();
 
         for (_, val) in cache.iter() {
-            let len = bincode::serialize(val).map(|item| item.len()).unwrap();
-
-            let counter = distribution.entry(len).or_insert(0);
-            *counter += 1;
+            if let Ok(len) = bincode::serialize(val).map(|item| item.len()) {
+                let counter = distribution.entry(len).or_insert(0);
+                *counter += 1;
+            }
         }
 
         let mut sorted_keys: Vec<usize> = distribution.keys().cloned().collect();
@@ -431,17 +442,17 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
     }
 
-    async fn begin_transaction(&mut self) -> bool {
+    async fn begin_transaction(&self) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&mut self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
     }
 
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError> {
+    async fn rollback_transaction(&self) -> Result<(), StorageError> {
         self.trans.rollback_transaction().await
     }
 
@@ -502,7 +513,11 @@ impl Storage for AsyncInMemoryDbWithCache {
                 return Ok(result);
             }
         }
+        self.get_direct::<St>(id).await
+    }
 
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(&id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -536,6 +551,11 @@ impl Storage for AsyncInMemoryDbWithCache {
                 }
             }
         }
+    }
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self) {
+        // no-op
     }
 
     async fn batch_get<St: Storable>(
@@ -676,7 +696,7 @@ impl Storage for AsyncInMemoryDbWithCache {
             }
         }
         Err(StorageError::GetData(format!(
-            "Node (val: {}, len: {}) did not exist <= epoch {}",
+            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
     }
