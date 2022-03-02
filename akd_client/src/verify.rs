@@ -96,8 +96,8 @@ fn verify_nonmembership(
 
 fn hash_plaintext_value(value: &AkdValue) -> Digest {
     let single_hash = hash(&crate::utils::value_to_bytes(value));
-    let expected = merge(&[hash(&EMPTY_VALUE), single_hash]);
-    expected
+    
+    merge(&[hash(&EMPTY_VALUE), single_hash])
 }
 
 /// This function is called to verify that a given NodeLabel is indeed

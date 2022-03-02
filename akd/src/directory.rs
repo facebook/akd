@@ -1472,4 +1472,108 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_tombstoned_key_history() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let vrf = HardCodedAkdVRF {};
+        // epoch 0
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+        // epoch 1
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // epoch 2
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world2".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // epoch 3
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world3".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // epoch 4
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world4".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // epoch 5
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world5".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // Epochs 1-5, we're going to tombstone 1 & 2
+        let vrf_pk = akd.get_public_key().await?;
+
+        // tombstone epochs 1 & 2
+        let tombstones = [
+            crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 1u64),
+            crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 2u64),
+        ];
+        db.tombstone_value_states(&tombstones).await?;
+
+        let history_proof = akd
+            .key_history::<Blake3>(&AkdLabel("hello".as_bytes().to_vec()))
+            .await?;
+        assert_eq!(5, history_proof.proofs.len());
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+
+        // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
+        let tombstones = key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes.clone(),
+            previous_root_hashes.clone(),
+            AkdLabel("hello".as_bytes().to_vec()),
+            history_proof.clone(),
+            false,
+        );
+        assert!(matches!(tombstones, Err(_)));
+
+        // We should be able to verify tombstones assuming the client is accepting
+        // of tombstoned states
+        let tombstones = key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".as_bytes().to_vec()),
+            history_proof,
+            true,
+        )?;
+        assert!(tombstones[0] == true);
+        assert!(tombstones[1] == true);
+        assert!(tombstones[2] == false);
+        assert!(tombstones[3] == false);
+        assert!(tombstones[4] == false);
+
+        Ok(())
+    }
 }
