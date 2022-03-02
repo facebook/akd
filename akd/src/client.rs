@@ -148,25 +148,32 @@ pub fn lookup_verify<H: Hasher>(
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
+/// Returns back the vector of tombstones identified, were the validity of the
+/// value <=> hash could not be verified because the value has been removed from the
+/// storage layer
 pub fn key_history_verify<H: Hasher>(
     vrf_pk: &VRFPublicKey,
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
     uname: AkdLabel,
     proof: HistoryProof<H>,
-) -> Result<(), AkdError> {
+    allow_tombstones: bool,
+) -> Result<Vec<bool>, AkdError> {
+    let mut tombstones = vec![];
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof::<H>(
+        let tombstone = verify_single_update_proof::<H>(
             root_hash,
             vrf_pk,
             previous_root_hash,
             update_proof,
             &uname,
+            allow_tombstones,
         )?;
+        tombstones.push(tombstone);
     }
-    Ok(())
+    Ok(tombstones)
 }
 
 /// Verifies a single update proof
@@ -176,9 +183,9 @@ fn verify_single_update_proof<H: Hasher>(
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
     uname: &AkdLabel,
-) -> Result<(), AkdError> {
+    allow_tombstones: bool,
+) -> Result<bool, AkdError> {
     let epoch = proof.epoch;
-    let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
 
     let existence_vrf_proof = proof.existence_vrf_proof;
@@ -189,6 +196,25 @@ fn verify_single_update_proof<H: Hasher>(
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
 
     let non_existence_before_ep = &proof.non_existence_before_ep;
+
+    let (tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
+        (true, bytes) if bytes.0 == crate::TOMBSTONE => {
+            // A tombstone was encountered, we need to just take the
+            // hash of the value at "face value" since we don't have
+            // the real value available
+            (true, true)
+        }
+        (_, bytes) => (
+            false,
+            H::hash(&crate::utils::value_to_bytes(bytes)) == existence_at_ep.hash_val,
+        ),
+    };
+    if !value_hash_valid {
+        println!("Hash of plaintext value did not match the membership proof hash");
+        // return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
+        //     format!("Hash of plaintext value did not match the membership proof hash"),
+        // )));
+    }
 
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
@@ -289,7 +315,7 @@ fn verify_single_update_proof<H: Hasher>(
         }
     }
 
-    Ok(())
+    Ok(tombstone)
 }
 
 /// Hashes all the children of a node, as well as their labels

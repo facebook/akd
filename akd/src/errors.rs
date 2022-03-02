@@ -177,6 +177,8 @@ pub enum DirectoryError {
     Storage(StorageError),
     /// Error propagation for errors from VRF storage
     VRFStorageErr(VRFStorageError),
+    /// The user has no history between the start and ending epochs
+    NoUpdatesInPeriod(Vec<u8>, u64, u64),
 }
 
 impl From<VRFStorageError> for DirectoryError {
@@ -217,7 +219,24 @@ impl fmt::Display for DirectoryError {
                 write!(f, "{}", err_string)
             }
             Self::VRFStorageErr(err) => {
-                write!(f, "Encountered a VRF error: {:?}", err,)
+                write!(f, "Encountered a VRF error: {:?}", err)
+            }
+            Self::NoUpdatesInPeriod(uname, start, end) => {
+                if let Ok(str) = std::str::from_utf8(uname) {
+                    write!(
+                        f,
+                        "The user {} had no updated between {} -> {}",
+                        str, start, end
+                    )
+                } else {
+                    write!(
+                        f,
+                        "The user 0x{} had no updated between {} -> {}",
+                        hex::encode(uname),
+                        start,
+                        end
+                    )
+                }
             }
         }
     }

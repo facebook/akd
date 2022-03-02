@@ -209,6 +209,7 @@ pub(crate) async fn directory_test_suite<
                             previous_root_hashes,
                             key,
                             proof,
+                            false,
                         ) {
                             panic!("History proof failed to verify {:?}", error);
                         }

@@ -144,7 +144,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .await?;
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
-                    let value_to_add = H::hash(&Self::value_to_bytes(&val));
+                    let value_to_add = H::hash(&crate::utils::value_to_bytes(&val));
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -165,7 +165,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = H::hash(&[0u8]);
-                    let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
+                    let fresh_value_to_add = H::hash(&crate::utils::value_to_bytes(&val));
                     update_set.push(Node::<H> {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -334,6 +334,72 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
     }
 
+    /// Takes in the current state of the server and a label along with
+    /// a range starting epoch.
+    ///
+    /// If the label is present in the current state,
+    /// this function returns all the values ever associated with it after start_epoch,
+    /// and the epoch at which each value was first committed to the server state.
+    /// It also returns the proof of the latest version being served at all times.
+    pub async fn limited_key_history<H: Hasher>(
+        &self,
+        start_epoch: u64,
+        uname: &AkdLabel,
+    ) -> Result<HistoryProof<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
+        let username = uname.0.clone();
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
+        if start_epoch >= current_epoch {
+            return Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "start_epoch ({}) needs to be before the current epoch {}",
+                start_epoch, current_epoch
+            ))));
+        }
+
+        let keys = (start_epoch..current_epoch)
+            .map(|epoch| crate::storage::types::ValueStateKey(uname.0.clone(), epoch))
+            .collect::<Vec<_>>();
+        let mut batch = self
+            .storage
+            .batch_get::<ValueState>(keys)
+            .await?
+            .into_iter()
+            .map(|potential| {
+                if let DbRecord::ValueState(vs) = potential {
+                    Some(vs)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        // sort in ascending epoch order (in case of DB not respecting ordering)
+        batch.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
+
+        if batch.len() == 0 {
+            Err(AkdError::Directory(DirectoryError::NoUpdatesInPeriod(
+                username,
+                start_epoch,
+                current_epoch,
+            )))
+        } else {
+            let mut proofs = Vec::<UpdateProof<H>>::new();
+            for user_state in batch {
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof(uname, &user_state).await?;
+                    proofs.push(proof);
+                }
+            }
+            Ok(HistoryProof { proofs })
+        }
+    }
+
     /// Poll for changes in the epoch number of the AZKS struct
     /// stored in the storage layer. If an epoch change is detected,
     /// the object cache (if present) is flushed immediately so
@@ -442,13 +508,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Use this function to retrieve the VRF public key for this AKD.
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, DirectoryError> {
         Ok(self.vrf.get_vrf_public_key().await?)
-    }
-
-    // FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
-    /// Gets the bytes for a value.
-    pub fn value_to_bytes(_value: &AkdValue) -> [u8; 64] {
-        [0u8; 64]
-        // unimplemented!()
     }
 
     async fn create_single_update_proof<H: Hasher>(
@@ -820,6 +879,7 @@ mod tests {
             previous_root_hashes,
             AkdLabel("hello".as_bytes().to_vec()),
             history_proof,
+            false,
         )?;
 
         let history_proof = akd
@@ -833,6 +893,7 @@ mod tests {
             previous_root_hashes,
             AkdLabel("hello2".as_bytes().to_vec()),
             history_proof,
+            false,
         )?;
 
         let history_proof = akd
@@ -846,6 +907,7 @@ mod tests {
             previous_root_hashes,
             AkdLabel("hello3".as_bytes().to_vec()),
             history_proof,
+            false,
         )?;
 
         let history_proof = akd
@@ -859,6 +921,7 @@ mod tests {
             previous_root_hashes,
             AkdLabel("hello4".as_bytes().to_vec()),
             history_proof,
+            false,
         )?;
 
         Ok(())
@@ -1107,6 +1170,7 @@ mod tests {
             previous_root_hashes,
             AkdLabel("hello".as_bytes().to_vec()),
             history_proof,
+            false,
         )?;
 
         // Lookup proof should contain the checkpoint epoch's value and still verify
@@ -1245,6 +1309,168 @@ mod tests {
             AkdLabel("hello".as_bytes().to_vec()),
             lookup_proof,
         )?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_key_history() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let vrf = HardCodedAkdVRF {};
+        // epoch 0
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+        // epoch 1
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // epoch 2
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // epoch 3
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello".as_bytes().to_vec()),
+                    AkdValue("world3".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello2".as_bytes().to_vec()),
+                    AkdValue("world4".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // epoch 4
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello3".as_bytes().to_vec()),
+                    AkdValue("world".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello4".as_bytes().to_vec()),
+                    AkdValue("world2".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // epoch 5
+        akd.publish::<Blake3>(
+            vec![(
+                AkdLabel("hello".as_bytes().to_vec()),
+                AkdValue("world_updated".as_bytes().to_vec()),
+            )],
+            false,
+        )
+        .await?;
+
+        // epoch 6
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello3".as_bytes().to_vec()),
+                    AkdValue("world6".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello4".as_bytes().to_vec()),
+                    AkdValue("world12".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        // epoch 7
+        akd.publish::<Blake3>(
+            vec![
+                (
+                    AkdLabel("hello3".as_bytes().to_vec()),
+                    AkdValue("world7".as_bytes().to_vec()),
+                ),
+                (
+                    AkdLabel("hello4".as_bytes().to_vec()),
+                    AkdValue("world13".as_bytes().to_vec()),
+                ),
+            ],
+            false,
+        )
+        .await?;
+
+        let vrf_pk = akd.get_public_key().await?;
+
+        // "hello" was updated in epochs 1,2,3,5
+        let history_proof = akd
+            .limited_key_history::<Blake3>(3, &AkdLabel("hello".as_bytes().to_vec()))
+            .await?;
+        assert_eq!(2, history_proof.proofs.len());
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".as_bytes().to_vec()),
+            history_proof,
+            false,
+        )?;
+
+        let history_proof = akd
+            .limited_key_history::<Blake3>(2, &AkdLabel("hello".as_bytes().to_vec()))
+            .await?;
+        assert_eq!(3, history_proof.proofs.len());
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel("hello".as_bytes().to_vec()),
+            history_proof,
+            false,
+        )?;
+
+        // The user didn't update their key between epoch's 6 and current, therefore we have NonExistentUser in that range
+        let history_proof = akd
+            .limited_key_history::<Blake3>(6, &AkdLabel("hello".as_bytes().to_vec()))
+            .await;
+        assert!(matches!(
+            history_proof,
+            Err(AkdError::Directory(DirectoryError::NoUpdatesInPeriod(
+                _,
+                _,
+                _
+            )))
+        ));
+
         Ok(())
     }
 }

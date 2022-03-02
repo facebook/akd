@@ -201,6 +201,7 @@
 //!         previous_root_hashes,
 //!         AkdLabel("hello".as_bytes().to_vec()),
 //!         history_proof,
+//!         false,
 //!         ).unwrap();
 //!     };
 //! ```
@@ -374,7 +375,11 @@ pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLab
 As bytes:
 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5f 20 20 2f 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 6d 6f 20 2f 20 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 2f 29 5c 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 2f 5c 5f 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5c 5f 5f 7c 3d 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 28 20 20 20 20 29 0a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 5f 5f 29 28 5f 5f 0a 20 20 20 20 20 20 20 20 20 20 20 5f 5f 5f 5f 5f 2f 20 20 20 20 20 20 5c 5c 5f 5f 5f 5f 5f 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 5f 20 20 20 20 20 5f 5f 5f 20 20 20 5f 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 5c 20 20 20 20 20 7c 20 20 20 7c 20 5c 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 7c 20 20 20 20 7c 20 20 20 7c 20 20 7c 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 5f 2f 20 20 20 20 20 7c 20 20 20 7c 5f 2f 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 5c 20 20 20 20 20 7c 20 20 20 7c 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 5c 20 20 20 20 7c 20 20 20 7c 20 20 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 7c 20 20 20 5c 2e 20 5f 7c 5f 2e 20 7c 20 2e 20 20 7c 7c 0a 20 20 20 20 20 20 20 20 20 20 7c 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 7c 7c 0a 20 20 2a 20 20 20 20 20 20 20 7c 20 2a 20 20 20 2a 2a 20 20 20 20 2a 20 2a 2a 20 20 20 7c 2a 2a 20 20 20 20 20 20 2a 2a
 */
-/// A "tombstone" is a false value in an AKD ValueState
+/// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
+/// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
+/// verify the raw value
+///
+/// See [GitHub issue #130](https://github.com/novifinancial/akd/issues/130) for more context
 pub const TOMBSTONE: &[u8] = &[
     0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
     0x20, 0x20, 0x5f, 0x20, 0x20, 0x2f, 0x29, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,

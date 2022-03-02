@@ -210,8 +210,7 @@ impl Azks {
         );
 
         self.increment_epoch();
-        self.preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
-            .await?;
+
         let mut hash_q = KeyedPriorityQueue::<NodeLabel, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(
