@@ -26,7 +26,7 @@ async fn test_mysql_db() {
             panic!("Error creating test database: {}", error);
         }
 
-        let mut mysql_db = AsyncMySqlDatabase::new(
+        let mysql_db = AsyncMySqlDatabase::new(
             "localhost",
             "test_db",
             Option::from("root"),
@@ -42,7 +42,7 @@ async fn test_mysql_db() {
         }
 
         // The test cases
-        akd::storage::tests::run_test_cases_for_storage_impl(&mut mysql_db).await;
+        akd::storage::tests::run_test_cases_for_storage_impl(&mysql_db).await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {

@@ -13,6 +13,29 @@ use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, D
 use serde::{Deserialize, Serialize};
 use winter_crypto::Hasher;
 
+/// Proof value at a single layer of the tree
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(bound = "")]
+pub struct LayerProof<H: Hasher> {
+    /// The parent's label
+    pub label: NodeLabel,
+    /// Siblings of the parent
+    pub siblings: [Node<H>; ARITY - 1],
+    /// The direction
+    pub direction: Direction,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for LayerProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            siblings: self.siblings,
+            direction: self.direction,
+        }
+    }
+}
+
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -24,13 +47,19 @@ pub struct MembershipProof<H: Hasher> {
     #[serde(serialize_with = "digest_serialize")]
     #[serde(deserialize_with = "digest_deserialize")]
     pub hash_val: H::Digest,
-    /// The parent node labels
-    pub parent_labels: Vec<NodeLabel>,
-    /// The sibling label/digest tuples
-    pub siblings: Vec<[Node<H>; ARITY - 1]>,
-    /// The node sibling hashes
-    /// The directions
-    pub dirs: Vec<Direction>,
+    /// The proofs at the layers up the tree
+    pub layer_proofs: Vec<LayerProof<H>>,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for MembershipProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            label: self.label,
+            hash_val: self.hash_val,
+            layer_proofs: self.layer_proofs.clone(),
+        }
+    }
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
@@ -112,11 +141,17 @@ pub struct LookupProof<H: Hasher> {
     pub plaintext_value: AkdValue,
     /// The version of the record
     pub version: u64,
+    /// VRF proof for the label corresponding to this version
+    pub exisitence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof<H>,
+    /// VRF proof for the marker preceding (less than or equal to) this version
+    pub marker_vrf_proof: Vec<u8>,
     /// Existence at specific marker
     pub marker_proof: MembershipProof<H>,
-    /// Freshness proof (non member at previous epoch)
+    /// VRF proof for the label corresponding to this version being stale
+    pub freshness_vrf_proof: Vec<u8>,
+    /// Freshness proof (non membership of stale label)
     pub freshness_proof: NonMembershipProof<H>,
 }
 
@@ -130,6 +165,9 @@ impl<H: Hasher> Clone for LookupProof<H> {
             existence_proof: self.existence_proof.clone(),
             marker_proof: self.marker_proof.clone(),
             freshness_proof: self.freshness_proof.clone(),
+            exisitence_vrf_proof: self.exisitence_vrf_proof.clone(),
+            marker_vrf_proof: self.marker_vrf_proof.clone(),
+            freshness_vrf_proof: self.freshness_vrf_proof.clone(),
         }
     }
 }
@@ -150,14 +188,22 @@ pub struct UpdateProof<H: Hasher> {
     pub plaintext_value: AkdValue,
     /// Version at this update
     pub version: u64,
+    /// VRF proof for the label for the current version
+    pub existence_vrf_proof: Vec<u8>,
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof<H>,
+    /// VRF proof for the label for the previous version which became stale
+    pub previous_val_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
     pub previous_val_stale_at_ep: Option<MembershipProof<H>>,
     /// Proof that this value didn't exist prior to this ep
     pub non_existence_before_ep: Option<NonMembershipProof<H>>,
+    /// VRF Proofs for the labels of the next few values
+    pub next_few_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that the next few values did not exist at this time
     pub non_existence_of_next_few: Vec<NonMembershipProof<H>>,
+    /// VRF proofs for the labels of future marker entries
+    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
 }
@@ -174,6 +220,10 @@ impl<H: Hasher> Clone for UpdateProof<H> {
             non_existence_before_ep: self.non_existence_before_ep.clone(),
             non_existence_of_next_few: self.non_existence_of_next_few.clone(),
             non_existence_of_future_markers: self.non_existence_of_future_markers.clone(),
+            existence_vrf_proof: self.existence_vrf_proof.clone(),
+            previous_val_vrf_proof: self.previous_val_vrf_proof.clone(),
+            next_few_vrf_proofs: self.next_few_vrf_proofs.clone(),
+            future_marker_vrf_proofs: self.future_marker_vrf_proofs.clone(),
         }
     }
 }

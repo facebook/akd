@@ -58,13 +58,13 @@ pub trait Storage: Clone {
     async fn log_metrics(&self, level: log::Level);
 
     /// Start a transaction in the storage layer
-    async fn begin_transaction(&mut self) -> bool;
+    async fn begin_transaction(&self) -> bool;
 
     /// Commit a transaction in the storage layer
-    async fn commit_transaction(&mut self) -> Result<(), StorageError>;
+    async fn commit_transaction(&self) -> Result<(), StorageError>;
 
     /// Rollback a transaction
-    async fn rollback_transaction(&mut self) -> Result<(), StorageError>;
+    async fn rollback_transaction(&self) -> Result<(), StorageError>;
 
     /// Retrieve a flag determining if there is a transaction active
     async fn is_transaction_active(&self) -> bool;
@@ -77,6 +77,12 @@ pub trait Storage: Clone {
 
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+
+    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
+    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError>;
+
+    /// Flush the caching of objects (if present)
+    async fn flush_cache(&self);
 
     /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
     /// was edited

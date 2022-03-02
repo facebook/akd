@@ -7,6 +7,27 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug unit tests in library 'akd_client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=akd_client",
+                    "--features=sha3_256,nostd",
+                    "--no-default-features"
+                ],
+                "filter": {
+                    "name": "akd_client",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'akd'",
             "cargo": {
                 "args": [

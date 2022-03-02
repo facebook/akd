@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module contains serialization calls for helping serialize/deserialize digests
+
 use crate::errors::HistoryTreeNodeError;
 use serde::{Deserialize, Serialize};
 use winter_crypto::{Digest, Hasher};
@@ -48,6 +50,7 @@ mod tests {
 
     use crate::directory::Directory;
     use crate::errors::AkdError;
+    use crate::primitives::akd_vrf::HardCodedAkdVRF;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};
@@ -83,7 +86,8 @@ mod tests {
     pub async fn lookup_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
 
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
+        let vrf = HardCodedAkdVRF {};
+        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
@@ -115,7 +119,8 @@ mod tests {
     #[tokio::test]
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
+        let vrf = HardCodedAkdVRF {};
+        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         akd.publish::<Blake3_256<BaseElement>>(
@@ -147,8 +152,8 @@ mod tests {
     #[tokio::test]
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
-
-        let mut akd = Directory::<_>::new::<Blake3_256<BaseElement>>(&db)
+        let vrf = HardCodedAkdVRF {};
+        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
         // Commit to the first epoch

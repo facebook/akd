@@ -27,6 +27,7 @@ struct CachedItem {
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
 pub struct TimedCache {
+    azks: Arc<tokio::sync::RwLock<Option<DbRecord>>>,
     map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     can_clean: Arc<tokio::sync::RwLock<bool>>,
@@ -59,6 +60,7 @@ impl TimedCache {
 impl Clone for TimedCache {
     fn clone(&self) -> Self {
         TimedCache {
+            azks: self.azks.clone(),
             map: self.map.clone(),
             last_clean: self.last_clean.clone(),
             can_clean: self.can_clean.clone(),
@@ -112,6 +114,7 @@ impl TimedCache {
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
         };
         Self {
+            azks: Arc::new(tokio::sync::RwLock::new(None)),
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             can_clean: Arc::new(tokio::sync::RwLock::new(true)),
@@ -125,7 +128,25 @@ impl TimedCache {
         self.clean().await;
 
         debug!("BEGIN cache retrieve {:?}", key);
+
         let full_key = St::get_full_binary_key_id(key);
+
+        // special case for AZKS
+        if full_key
+            == crate::append_only_zks::Azks::get_full_binary_key_id(
+                &crate::append_only_zks::DEFAULT_AZKS_KEY,
+            )
+        {
+            // someone's requesting the AZKS object, return it from the special "cache" storage
+            let record = self.azks.read().await.clone();
+            debug!("END cache retrieve");
+            if record.is_some() {
+                *(self.hit_count.write().await) += 1;
+            }
+            // AZKS objects cannot expire, they need to be manually flushed, so we don't need
+            // to check the expiration as below
+            return record;
+        }
 
         let guard = self.map.read().await;
         let ptr: &HashMap<_, _> = &*guard;
@@ -149,14 +170,21 @@ impl TimedCache {
         self.clean().await;
 
         debug!("BEGIN cache put");
-        let mut guard = self.map.write().await;
         let key = record.get_full_binary_id();
-        // overwrite any existing items since a flush is requested
-        let item = CachedItem {
-            expiration: Instant::now() + self.item_lifetime,
-            data: record.clone(),
-        };
-        (*guard).insert(key, item);
+
+        // special case for AZKS
+        if let DbRecord::Azks(azks_ref) = &record {
+            let mut guard = self.azks.write().await;
+            *guard = Some(DbRecord::Azks(azks_ref.clone()));
+        } else {
+            let mut guard = self.map.write().await;
+            // overwrite any existing items since a flush is requested
+            let item = CachedItem {
+                expiration: Instant::now() + self.item_lifetime,
+                data: record.clone(),
+            };
+            (*guard).insert(key, item);
+        }
         debug!("END cache put");
     }
 
@@ -167,12 +195,17 @@ impl TimedCache {
         debug!("BEGIN cache put batch");
         let mut guard = self.map.write().await;
         for record in records.iter() {
-            let key = record.get_full_binary_id();
-            let item = CachedItem {
-                expiration: Instant::now() + self.item_lifetime,
-                data: record.clone(),
-            };
-            (*guard).insert(key, item);
+            if let DbRecord::Azks(azks_ref) = &record {
+                let mut azks_guard = self.azks.write().await;
+                *azks_guard = Some(DbRecord::Azks(azks_ref.clone()));
+            } else {
+                let key = record.get_full_binary_id();
+                let item = CachedItem {
+                    expiration: Instant::now() + self.item_lifetime,
+                    data: record.clone(),
+                };
+                (*guard).insert(key, item);
+            }
         }
         debug!("END cache put batch");
     }
@@ -182,6 +215,8 @@ impl TimedCache {
         debug!("BEGIN cache flush");
         let mut guard = self.map.write().await;
         (*guard).clear();
+        let mut azks_guard = self.azks.write().await;
+        *azks_guard = None;
         debug!("END cache flush");
     }
 
