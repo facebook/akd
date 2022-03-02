@@ -62,19 +62,6 @@ impl<H: Hasher> Clone for MembershipProof<H> {
     }
 }
 
-// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<H: Hasher> Clone for MembershipProof<H> {
-    fn clone(&self) -> Self {
-        Self {
-            label: self.label,
-            hash_val: self.hash_val,
-            parent_labels: self.parent_labels.clone(),
-            siblings: self.siblings.clone(),
-            dirs: self.dirs.clone(),
-        }
-    }
-}
-
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
