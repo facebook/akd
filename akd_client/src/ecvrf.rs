@@ -5,13 +5,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module contains the client-side verification implementation of a
 //! [verifiable random function](https://en.wikipedia.org/wiki/Verifiable_random_function)
-//! (currently only ECVRF). VRFs can be used in the consensus protocol for leader election.
+//! (currently only ECVRF). VRFs are used, in the case of this crate, to anonymize the
+//! user id <-> node label mapping into a 1-way hash, which is verifyable without being
+//! regeneratable without the secret key.
 //!
 //! This module implements an instantiation of a verifiable random function known as
 //! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-04).
 //!
+//! Adapted from Diem's NextGen Crypto module available [here](https://github.com/diem/diem/blob/502936fbd59e35276e2cf455532b143796d68a16/crypto/nextgen_crypto/src/vrf/ecvrf.rs)
 
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -226,7 +228,10 @@ pub struct Output([u8; OUTPUT_LENGTH]);
 
 impl Output {
     /// Retrieve a truncated version of the hash output. Truncated
-    /// to 32 bytes (NODE_LABEL_LEN)
+    /// to 32 bytes (NODE_LABEL_LEN). Truncation is for future-guarding
+    /// should we change the hash function to a smaller (e.g. BLAKE3) search
+    /// space. Presently it's SHA512, however for this purpose truncation is safe
+    /// since we're just comparing the first 32 bytes rather than the full 64
     pub(super) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
         let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
         truncated_hash.copy_from_slice(&self.0[..NODE_LABEL_LEN]);

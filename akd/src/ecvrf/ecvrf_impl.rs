@@ -331,7 +331,10 @@ impl Output {
     }
 
     /// Retrieve a truncated version of the hash output. Truncated
-    /// to 32 bytes (NODE_LABEL_LEN)
+    /// to 32 bytes (NODE_LABEL_LEN). Truncation is for future-guarding
+    /// should we change the hash function to a smaller (e.g. BLAKE3) search
+    /// space. Presently it's SHA512, however for this purpose truncation is safe
+    /// since we're just comparing the first 32 bytes rather than the full 64
     pub(crate) fn to_truncated_bytes(&self) -> [u8; NODE_LABEL_LEN] {
         let mut truncated_hash: [u8; NODE_LABEL_LEN] = [0u8; NODE_LABEL_LEN];
         truncated_hash.copy_from_slice(&self.0[..NODE_LABEL_LEN]);

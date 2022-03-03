@@ -44,9 +44,6 @@ criterion = "0.3"
 serial_test = "0.5"
 proptest = "1.0"
 proptest-derive = "0.3"
-# Work-around for activating feature in test profile
-# See: https://github.com/rust-lang/cargo/issues/2911
-akd = { path = ".", features = ["public-tests", "vrf"] }
 
 [[bench]]
 name = "azks"

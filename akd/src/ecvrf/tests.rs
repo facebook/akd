@@ -5,6 +5,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module contains tests on the Elliptic curve VRF implemented within the
+//! AKD crate. Adapted from [here](https://github.com/diem/diem/blob/502936fbd59e35276e2cf455532b143796d68a16/crypto/nextgen_crypto/src/vrf/unit_tests/vrf_test.rs)
+
 use bincode::serialize;
 use core::convert::TryFrom;
 use curve25519_dalek::{

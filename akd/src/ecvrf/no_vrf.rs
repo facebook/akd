@@ -100,9 +100,9 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     /// Retrieve the proof for a specific label
     async fn get_label_proof<H: Hasher>(
         &self,
-        uname: &AkdLabel,
-        stale: bool,
-        version: u64,
+        _uname: &AkdLabel,
+        _stale: bool,
+        _version: u64,
     ) -> Result<Proof, VRFStorageError> {
         Ok(Proof {})
     }
