@@ -18,6 +18,6 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 
 // FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
 /// Gets the bytes for a value.
-pub(crate) fn value_to_bytes(value: &crate::AkdValue) -> Vec<u8> {
-    value.clone()
+pub(crate) fn value_to_bytes(value: &crate::AkdValue) -> crate::Digest {
+    crate::hash::hash(value)
 }

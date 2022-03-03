@@ -144,7 +144,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .await?;
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
-                    let value_to_add = H::hash(&crate::utils::value_to_bytes(&val));
+                    let value_to_add = crate::utils::value_to_bytes::<H>(&val);
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -165,7 +165,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = H::hash(&[0u8]);
-                    let fresh_value_to_add = H::hash(&crate::utils::value_to_bytes(&val));
+                    let fresh_value_to_add = crate::utils::value_to_bytes::<H>(&val);
                     update_set.push(Node::<H> {
                         label: stale_label,
                         hash: stale_value_to_add,
