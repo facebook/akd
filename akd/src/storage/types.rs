@@ -164,7 +164,9 @@ impl Clone for DbRecord {
 }
 
 impl DbRecord {
-    pub(crate) fn get_full_binary_id(&self) -> Vec<u8> {
+    /// Compte a serialized id from the record's fields. This id is useful to use as key
+    /// in key-value stores.
+    pub fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),
             DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
