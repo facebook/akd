@@ -8,14 +8,15 @@
 //! Note that the proofs [`AppendOnlyProof`], [`MembershipProof`] and [`NonMembershipProof`] are Merkle Patricia tree proofs,
 //! while the proofs [`HistoryProof`] and [`LookupProof`] are AKD proofs.
 
+#[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
 use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, Direction, ARITY};
-use serde::{Deserialize, Serialize};
 use winter_crypto::Hasher;
 
 /// Proof value at a single layer of the tree
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct LayerProof<H: Hasher> {
     /// The parent's label
     pub label: NodeLabel,
@@ -38,14 +39,15 @@ impl<H: Hasher> Clone for LayerProof<H> {
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct MembershipProof<H: Hasher> {
     /// The node label
     pub label: NodeLabel,
     /// The hash of the value
-    #[serde(serialize_with = "digest_serialize")]
-    #[serde(deserialize_with = "digest_deserialize")]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "digest_serialize"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "digest_deserialize"))]
     pub hash_val: H::Digest,
     /// The proofs at the layers up the tree
     pub layer_proofs: Vec<LayerProof<H>>,
@@ -64,8 +66,9 @@ impl<H: Hasher> Clone for MembershipProof<H> {
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct NonMembershipProof<H: Hasher> {
     /// The label in question
     pub label: NodeLabel,
@@ -94,8 +97,9 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
 /// and the vec of inserted is the set of leaves inserted between these epochs.
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
 /// as the leaves, it should result in the final root hash.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct AppendOnlyProof<H: Hasher> {
     /// The inserted nodes & digests
     pub inserted: Vec<Node<H>>,
@@ -119,8 +123,9 @@ impl<H: Hasher> Clone for AppendOnlyProof<H> {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct LookupProof<H: Hasher> {
     /// The epoch of this record
     pub epoch: u64,
@@ -166,8 +171,9 @@ impl<H: Hasher> Clone for LookupProof<H> {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct UpdateProof<H: Hasher> {
     /// Epoch of this update
     pub epoch: u64,
@@ -216,8 +222,9 @@ impl<H: Hasher> Clone for UpdateProof<H> {
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct HistoryProof<H: Hasher> {
     /// The update proofs in the key history
     pub proofs: Vec<UpdateProof<H>>,

@@ -23,8 +23,6 @@ use std::marker::{Send, Sync};
 use tokio::time::Instant;
 use winter_crypto::{Digest, Hasher};
 
-use serde::{Deserialize, Serialize};
-
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 
 /// The default azks key
@@ -32,8 +30,9 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct Azks {
     /// The latest complete epoch
     pub latest_epoch: u64,

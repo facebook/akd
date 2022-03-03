@@ -12,11 +12,10 @@
 //!
 //! Append-only and history proofs to come
 
-use std::convert::TryInto;
-
 use crate::ARITY;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
+use core::convert::TryInto;
 
 // ============================================
 // Typedefs and constants
@@ -32,6 +31,15 @@ pub type AkdValue = Vec<u8>;
 /// A hash digest (size will depend on hashing algorithm specified
 /// at compilation time)
 pub type Digest = [u8; crate::hash::DIGEST_BYTES];
+
+/// The value to be hashed every time an empty node's hash is to be considered
+pub const EMPTY_VALUE: [u8; 1] = [0u8];
+
+/// The label used for an empty node
+pub const EMPTY_LABEL: NodeLabel = NodeLabel {
+    val: [1u8; 32],
+    len: 0,
+};
 
 // ============================================
 // Structs

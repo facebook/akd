@@ -8,7 +8,7 @@
 //! # Overview
 //!
 //! This crate contains a "lean" client to verify AKD proofs which doesn't depend on any
-//! dependencies other than the native hashing implementation. This makes it suitable
+//! crates other than the native hashing implementations and optionally VRF usage. This makes it suitable
 //! for embedded applications, e.g. inside limited clients (Android, iPhone, WebAssembly, etc)
 //! which may not have a large dependency library they can pull upon.
 //!
@@ -47,30 +47,24 @@
 //!
 //! Additionally there are some features **not** related to the underlying hash function utilization
 //!
-//! 1. wasm: Compile with web-assembly support for WASM compilation
-//! 2. wee_alloc: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
-//! is helpful in cases of constrained binary footprint size to help minimize
-//! 3. nostd: Disable use of the std library
-//! 4. vrf: Enable verification of VRFs (not compatible with [`nostd`]) client-side. Requires addition
-//! of the [`vrf`] crate as dependency.
+//! 1. _wasm_: Compile with web-assembly support for WASM compilation
+//! 2. _wee_alloc_: Utilize the WEE allocator, which is roughly 1KB instead of 10KB as a allocator but slower. This
+//! is _helpful_ in cases of constrained binary footprint size to help minimize
+//! 3. _nostd_: Disable use of the std library
+//! 4. _vrf_: Enable verification of VRFs client-side. Requires addition of the crates [`curve25519-dalek`] and [`ed25519-dalek`]
+//! as dependencies
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
 //! cd akd_client # optional
 //! wasm-pack build --features wasm
 //! ```
-//! which currently has a resultant WASM file size of ~142KB and enabling wee_alloc yields roughly ~137KB binary size
+//! which currently has a resultant WASM file size of ~191KB with VRF verification enabled
 //!
 //! #### WASM Compilation and Deployment
 //!
 //! For WASM deployment of the AKD client, you'll want to read the [wasm_bindgen](https://rustwasm.github.io/wasm-bindgen/reference/deployment.html)
 //! documentation which has reference material dependent on your environment.
-//!
-//! #### WASM and VRFs
-//!
-//! Presently the VRF functionality of the AKD is **NOT** supported within
-//! WebAssembly (wasm) compilation. This is due to a downstream dependency
-//! on [`rust-openssl`] which doesn't support compilation to wasm at the moment
 //!
 //! # Client Types
 //!
@@ -79,6 +73,9 @@
 //! message which contains the data inside the proof. Therefore they'd need to be deserialized and handled independently
 //! of the AKD crate which wouldn't be a dependency anyways. This is why the types are independent and specified separately
 //! from the core AKD types.
+//!
+#![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nostd", no_std)]
 extern crate alloc;
 #[cfg(feature = "nostd")]
@@ -91,13 +88,20 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(not(feature = "nostd"))]
 use std::fmt::Display;
 
-pub mod types;
+// Types are re-exported at the root level for visbility
+mod types;
+pub use types::*;
+// verify types are not re-exported, to not clutter the root path
 pub mod verify;
 
+#[cfg(feature = "vrf")]
+pub(crate) mod ecvrf;
 pub(crate) mod hash;
 pub(crate) mod utils;
+
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
 pub(crate) const ARITY: usize = 2;
@@ -130,12 +134,14 @@ pub enum VerificationErrorType {
 /// AKD client verification error
 #[derive(Debug)]
 pub struct VerificationError {
+    /// Verification error human-readable message
     pub error_message: String,
+    /// Machine-readable error code for the verification error
     pub error_type: VerificationErrorType,
 }
 
 impl VerificationError {
-    pub(crate) fn build<T>(ty: Option<VerificationErrorType>, msg: Option<String>) -> Self {
+    pub(crate) fn build(ty: Option<VerificationErrorType>, msg: Option<String>) -> Self {
         Self {
             error_message: msg.unwrap_or_default(),
             error_type: ty.unwrap_or(VerificationErrorType::Unknown),
@@ -143,6 +149,7 @@ impl VerificationError {
     }
 }
 
+#[cfg(not(feature = "nostd"))]
 impl Display for VerificationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let code = match self.error_type {
@@ -159,37 +166,15 @@ impl Display for VerificationError {
 macro_rules! verify_error {
     ($x:ident, $ty:ty, $msg:expr) => {{
         let etype = crate::VerificationErrorType::$x;
-        crate::VerificationError::build::<$ty>(Some(etype), Some($msg))
+        crate::VerificationError::build(Some(etype), Some($msg))
     }};
 }
 // export the macro for use in other modules
 pub(crate) use verify_error;
 
 // =================================
-// Type re-exports for usability
+// WASM specific functions
 // =================================
-
-// type re-exports for public library
-pub type AkdLabel = types::AkdLabel;
-pub type AkdValue = types::AkdValue;
-
-pub type Direction = types::Direction;
-pub type Digest = types::Digest;
-pub type NodeLabel = types::NodeLabel;
-pub type Node = types::Node;
-pub type LayerProof = types::LayerProof;
-pub type MembershipProof = types::MembershipProof;
-pub type NonMembershipProof = types::NonMembershipProof;
-pub type LookupProof = types::LookupProof;
-
-/// The value to be hashed every time an empty node's hash is to be considered
-pub const EMPTY_VALUE: [u8; 1] = [0u8];
-
-/// The label used for an empty node
-pub const EMPTY_LABEL: NodeLabel = NodeLabel {
-    val: [1u8; 32],
-    len: 0,
-};
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]

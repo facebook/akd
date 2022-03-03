@@ -10,26 +10,40 @@ repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
 
 [features]
-bench = []
+bench = ["public-tests"]
+public-tests = ["rand", "bincode", "serde"]
+vrf = ["curve25519-dalek", "ed25519-dalek"]
+default = ["vrf"]
 
 [dependencies]
-bincode = "1"
-winter-crypto = "0.2"
-winter-utils = "0.2"
-winter-math = "0.2"
-rand = "0.8"
-keyed_priority_queue = "0.3"
+## Required dependencies ##
 hex = "0.4"
-serde = { version = "1", features = ["derive"] }
 async-trait = "0.1"
 tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-vrf = "0.2.3"
+winter-crypto = "0.2"
+winter-utils = "0.2"
+winter-math = "0.2"
+keyed_priority_queue = "0.3"
+
+## Optional Dependencies ##
+bincode = { version = "1", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+rand = { version = "0.7", optional = true }
+curve25519-dalek = { version = "3.2", optional = true }
+ed25519-dalek = { version = "1", optional = true}
+
+[target.'cfg(all(features = "serde", features = "vrf"))'.dependencies]
+# In the event that VRF's are enabled, AND builder has requested serde support
+# Add the serde flag to the dalek crate
+ed25519-dalek = { version = "1", features = ["serde"]}
 
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
+proptest = "1.0"
+proptest-derive = "0.3"
 
 [[bench]]
 name = "azks"

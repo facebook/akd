@@ -8,12 +8,14 @@
 //! The representation for the label of a history tree node.
 
 use crate::errors::HistoryTreeNodeError;
-use crate::serialization::{digest_deserialize, digest_serialize, from_digest};
+use crate::serialization::from_digest;
+#[cfg(feature = "serde")]
+use crate::serialization::{digest_deserialize, digest_serialize};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY, EMPTY_VALUE};
+#[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
-use serde::{Deserialize, Serialize};
 
 use std::{
     convert::TryInto,
@@ -22,13 +24,14 @@ use std::{
 use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
     /// the hash associated to this label
-    #[serde(serialize_with = "digest_serialize")]
-    #[serde(deserialize_with = "digest_deserialize")]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "digest_serialize"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "digest_deserialize"))]
     pub hash: H::Digest,
 }
 
@@ -49,7 +52,8 @@ impl<H: Hasher> Clone for Node<H> {
 /// Since the label itself may have any number of zeros pre-pended,
 /// just using a native type, unless it is a bit-vector, wouldn't work.
 /// Hence, we need a custom representation.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
     pub val: [u8; 32],
@@ -103,6 +107,7 @@ impl NodeLabel {
     }
 
     /// Generate a random NodeLabel for testing purposes
+    #[cfg(feature = "rand")]
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // FIXME: should we always select length-64 labels?
         Self {
@@ -196,8 +201,9 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     H::merge(&[byte_label_len, byte_label_val])
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 /// A HistoryNodeState represents the state of a [crate::history_tree_node::HistoryTreeNode] at a given epoch.
 /// As you may see, when looking at [HistoryChildState], the node needs to include
 /// its hashed value, the hashed values of its children and the labels of its children.
@@ -216,7 +222,8 @@ pub struct HistoryNodeState {
 
 /// This struct is just used for storage access purposes.
 /// parameters are node label and epoch
-#[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct NodeStateKey(pub NodeLabel, pub u64);
 
 impl PartialOrd for NodeStateKey {
@@ -255,9 +262,9 @@ impl Storable for HistoryNodeState {
 
     fn get_full_binary_key_id(key: &NodeStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryNodeState as u8];
-        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.len.to_le_bytes());
         result.extend_from_slice(&key.0.val);
-        result.extend_from_slice(&key.1.to_be_bytes());
+        result.extend_from_slice(&key.1.to_le_bytes());
         result
     }
 
@@ -271,9 +278,9 @@ impl Storable for HistoryNodeState {
         let epoch_bytes: [u8; 8] = bin[37..=44]
             .try_into()
             .expect("Slice with incorrect length");
-        let len = u32::from_be_bytes(len_bytes);
+        let len = u32::from_le_bytes(len_bytes);
         let val = val_bytes;
-        let epoch = u64::from_be_bytes(epoch_bytes);
+        let epoch = u64::from_le_bytes(epoch_bytes);
 
         Ok(NodeStateKey(NodeLabel { len, val }, epoch))
     }
@@ -325,7 +332,8 @@ impl fmt::Display for HistoryNodeState {
 /// and contains all the information its parent might need about it in an operation.
 /// The dummy_marker represents whether this child was real or a dummy.
 /// In particular, the children of a leaf node are dummies.
-#[derive(Debug, Serialize, Deserialize, Eq)]
+#[derive(Debug, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct HistoryChildState {
     /// Child node's label
     pub label: NodeLabel,
@@ -382,6 +390,7 @@ impl fmt::Display for HistoryChildState {
     }
 }
 
+#[cfg(any(test, feature = "public-tests"))]
 pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();

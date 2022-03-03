@@ -20,7 +20,7 @@ thread-id = "3"
 multi_log = "0.1"
 clap = "2"
 
-akd = { path = "../akd" }
+akd = { path = "../akd", features = ["public-tests"] }
 akd_mysql = { path = "../akd_mysql" }
 
 [dev-dependencies]

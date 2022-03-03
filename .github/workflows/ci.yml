@@ -34,7 +34,7 @@ jobs:
           echo "MySQL container is up"
       - name: Check container akd-test-db logs
         run: docker logs akd-test-db
-      - name: Test
+      - name: Test general profile
         uses: actions-rs/cargo@v1
         with:
           command: test
@@ -46,12 +46,17 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,sha3_256
+          args: --package akd_client --no-default-features --features wasm,sha3_256,vrf
+      - name: Test AKD with no-vrf support
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd --no-default-features --features public-tests
       - name: Test the lean client for wasm and BLAKE3 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,blake3
+          args: --package akd_client --no-default-features --features wasm,blake3,vrf
       - name: Test the lean client for VRF verification
         uses: actions-rs/cargo@v1
         with:

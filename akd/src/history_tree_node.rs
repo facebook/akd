@@ -14,13 +14,13 @@ use crate::storage::{Storable, Storage};
 use crate::{node_state::*, Direction, ARITY, EMPTY_LABEL, EMPTY_VALUE};
 use async_recursion::async_recursion;
 use log::debug;
-use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
-#[derive(Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum NodeType {
     /// Nodes with this type only have dummy children.
     Leaf = 1,
@@ -50,8 +50,9 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 /// the past, the older states also need to be stored.
 /// While the states themselves can be stored elsewhere,
 /// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(bound = "")]
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct HistoryTreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
@@ -66,7 +67,8 @@ pub struct HistoryTreeNode {
 }
 
 /// Wraps the label with which to find a node in storage.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, std::fmt::Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct NodeKey(pub NodeLabel);
 
 impl Storable for HistoryTreeNode {
@@ -82,7 +84,7 @@ impl Storable for HistoryTreeNode {
 
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::HistoryTreeNode as u8];
-        result.extend_from_slice(&key.0.len.to_be_bytes());
+        result.extend_from_slice(&key.0.len.to_le_bytes());
         result.extend_from_slice(&key.0.val);
         result
     }
@@ -94,7 +96,7 @@ impl Storable for HistoryTreeNode {
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
         let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
-        let len = u32::from_be_bytes(len_bytes);
+        let len = u32::from_le_bytes(len_bytes);
 
         Ok(NodeKey(NodeLabel::new(val_bytes, len)))
     }

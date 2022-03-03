@@ -11,9 +11,7 @@
 #[cfg(feature = "nostd")]
 use crate::alloc::string::ToString;
 
-use akd::primitives::akd_vrf::HardCodedAkdVRF;
-use akd::primitives::client_vrf::ClientVRF;
-use akd::primitives::client_vrf::HardCodedClientVRF;
+use akd::ecvrf::HardCodedAkdVRF;
 
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -172,22 +170,18 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
-    let vrf_pk = vrf.get_public_key().unwrap();
+    let vrf_pk = akd.get_public_key().await.unwrap();
     // create the "lean" lookup proof version
     let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
 
     // perform the "traditional" AKD verification
-    let akd_result = akd::client::lookup_verify::<Hash, HardCodedClientVRF>(
-        vrf_pk.clone(),
-        root_hash,
-        target_label.clone(),
-        lookup_proof,
-    );
+    let akd_result =
+        akd::client::lookup_verify::<Hash>(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
     let target_label_bytes = target_label.0.as_bytes().to_vec();
 
     let lean_result = crate::verify::lookup_verify(
-        &vrf_pk,
+        &vrf_pk.to_bytes(),
         to_digest::<Hash>(root_hash),
         target_label_bytes,
         internal_lookup_proof,

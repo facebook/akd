@@ -11,6 +11,7 @@ use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
+#[cfg(feature = "serde")]
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -25,12 +26,39 @@ Various implementations supported by the library are imported here and usable at
 */
 pub mod memory;
 
+#[cfg(feature = "public-tests")]
 pub mod tests;
 
+#[cfg(feature = "serde")]
 /// Storable represents an _item_ which can be stored in the storage layer
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
+
+    /// Must return a valid storage type
+    fn data_type() -> StorageType;
+
+    /// Retrieve an instance of the id of this storable. The combination of the
+    /// storable's StorageType and this id are _globally_ unique
+    fn get_id(&self) -> Self::Key;
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_id(&self) -> Vec<u8> {
+        Self::get_full_binary_key_id(&self.get_id())
+    }
+
+    /// Retrieve the full binary version of a key (for comparisons)
+    fn get_full_binary_key_id(key: &Self::Key) -> Vec<u8>;
+
+    /// Reformat a key from the full-binary specification
+    fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
+}
+
+#[cfg(not(feature = "serde"))]
+/// Storable represents an _item_ which can be stored in the storage layer
+pub trait Storable: Clone + Sync {
+    /// This particular storage will have a key type
+    type Key: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;

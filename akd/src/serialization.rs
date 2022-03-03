@@ -8,8 +8,11 @@
 //! This module contains serialization calls for helping serialize/deserialize digests
 
 use crate::errors::HistoryTreeNodeError;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use winter_crypto::{Digest, Hasher};
+#[cfg(feature = "serde")]
+use winter_crypto::Digest;
+use winter_crypto::Hasher;
 use winter_utils::{Deserializable, Serializable, SliceReader};
 
 /// Converts from &[u8] to H::Digest
@@ -26,6 +29,7 @@ pub fn from_digest<H: Hasher>(input: H::Digest) -> Result<Vec<u8>, HistoryTreeNo
 }
 
 /// A serde serializer for the type `winter_crypto::Digest`
+#[cfg(feature = "serde")]
 pub fn digest_serialize<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
@@ -35,6 +39,7 @@ where
 }
 
 /// A serde deserializer for the type `winter_crypto::Digest`
+#[cfg(feature = "serde")]
 pub fn digest_deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -49,8 +54,8 @@ mod tests {
     use super::*;
 
     use crate::directory::Directory;
+    use crate::ecvrf::HardCodedAkdVRF;
     use crate::errors::AkdError;
-    use crate::primitives::akd_vrf::HardCodedAkdVRF;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};

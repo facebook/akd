@@ -8,7 +8,7 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::primitives::akd_vrf::AkdVRF;
+use akd::ecvrf::VRFKeyStorage;
 use akd::storage::types::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
@@ -126,7 +126,10 @@ impl log::Log for FileLogger {
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
-pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: AkdVRF>(
+pub(crate) async fn directory_test_suite<
+    S: akd::storage::Storage + Sync + Send,
+    V: VRFKeyStorage,
+>(
     mysql_db: &S,
     num_users: usize,
     vrf: &V,
@@ -175,9 +178,9 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send,
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
-                        let vrf_pk = dir.get_public_key().unwrap();
+                        let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify::<Blake3, V>(vrf_pk, root_hash, key, proof)
+                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, key, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -196,9 +199,9 @@ pub(crate) async fn directory_test_suite<S: akd::storage::Storage + Sync + Send,
                             akd::directory::get_key_history_hashes::<_, Blake3, V>(&dir, &proof)
                                 .await
                                 .unwrap();
-                        let vrf_pk = dir.get_public_key().unwrap();
-                        if let Err(error) = akd::client::key_history_verify::<Blake3, V>(
-                            vrf_pk,
+                        let vrf_pk = dir.get_public_key().await.unwrap();
+                        if let Err(error) = akd::client::key_history_verify::<Blake3>(
+                            &vrf_pk,
                             root_hashes,
                             previous_root_hashes,
                             key,

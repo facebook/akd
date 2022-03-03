@@ -8,27 +8,18 @@
 //! This module contains the client verification calls to verify different membership types
 
 #[cfg(feature = "nostd")]
-use crate::alloc::string::ToString;
-#[cfg(feature = "vrf")]
-use crate::VerificationErrorType;
-use crate::EMPTY_VALUE;
-#[cfg(feature = "nostd")]
 use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::ToString;
+#[cfg(feature = "vrf")]
+use core::convert::TryFrom;
 
 use crate::hash::*;
 use crate::types::*;
 use crate::{verify_error, VerificationError, ARITY};
 
-#[cfg(feature = "vrf")]
-use vrf::openssl::CipherSuite;
-#[cfg(feature = "vrf")]
-use vrf::{openssl::ECVRF, VRF};
-
 /// Verify the membership proof
-pub fn verify_membership(
-    root_hash: Digest,
-    proof: &MembershipProof,
-) -> Result<(), VerificationError> {
+fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), VerificationError> {
     if proof.label.len == 0 {
         let final_hash = merge(&[proof.hash_val, proof.label.hash()]);
         if final_hash == root_hash {
@@ -63,7 +54,7 @@ pub fn verify_membership(
 }
 
 /// Verifies the non-membership proof with respect to the root hash
-pub fn verify_nonmembership(
+fn verify_nonmembership(
     root_hash: Digest,
     proof: &NonMembershipProof,
 ) -> Result<bool, VerificationError> {
@@ -107,51 +98,16 @@ pub fn verify_nonmembership(
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
 #[cfg(feature = "vrf")]
-pub fn verify_vrf(
+fn verify_vrf(
     vrf_public_key: &[u8],
     uname: &AkdLabel,
     stale: bool,
     version: u64,
-    pi: &Vec<u8>,
+    pi: &[u8],
     label: NodeLabel,
 ) -> Result<(), VerificationError> {
-    let name_hash_bytes = hash(uname);
-    let stale_bytes = if stale { &[0u8] } else { &[1u8] };
-
-    let message = merge(&[name_hash_bytes, merge_with_int(hash(stale_bytes), version)]);
-
-    let mut vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI).map_err(|vrf_err| {
-        VerificationError {
-            error_type: VerificationErrorType::Vrf,
-            error_message: format!("Could not construct ECVRF struct: {}", vrf_err),
-        }
-    })?;
-    // VRF proof verification (returns VRF hash output)
-    let beta = vrf.verify(vrf_public_key, pi, &message);
-
-    match beta {
-        Ok(vec) => {
-            let expected_label = NodeLabel {
-                len: 256u32,
-                val: crate::utils::vec_to_u8_arr(vec),
-            };
-
-            if label == expected_label {
-                Ok(())
-            } else {
-                Err(VerificationError {
-                    error_type: VerificationErrorType::Vrf,
-                    error_message:
-                        "VRF Verification failed: Stale label not equal to the value from the VRF"
-                            .to_string(),
-                })
-            }
-        }
-        Err(e) => Err(VerificationError {
-            error_type: VerificationErrorType::Vrf,
-            error_message: format!("VRF Verification failed: {:?}", e),
-        }),
-    }
+    let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
+    vrf_pk.verify_label(uname, stale, version, pi, label)
 }
 
 /// Verifies a lookup with respect to the root_hash

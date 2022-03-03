@@ -80,14 +80,14 @@ pub(crate) fn merge(items: &[[u8; DIGEST_BYTES]]) -> PublicDigest {
     hash(data)
 }
 
-/// Take a hash and merge a integer hash into it
+/// Take a hash and merge it with an integer and hash the resulting bytes
 #[cfg(feature = "vrf")]
 pub(crate) fn merge_with_int(digest: PublicDigest, value: u64) -> PublicDigest {
-    let mut data = [0; 40];
-    data[..32].copy_from_slice(&digest);
-    // this comes from winter_crypto::Hasher. I'm not a fan of using LE bytes, but it's what's there presently so this is for compat
-    // since AKD utilizes the winter_crypto implementation
-    data[32..].copy_from_slice(&value.to_le_bytes());
+    let mut data = [0; DIGEST_BYTES + 8];
+    data[..DIGEST_BYTES].copy_from_slice(&digest);
+    // this comes from winter_crypto::Hasher. We stick with little-endian bytes everywhere
+    // to avoid system-specific implementation headaches
+    data[DIGEST_BYTES..].copy_from_slice(&value.to_le_bytes());
     hash(&data)
 }
 

@@ -9,7 +9,7 @@
 // of this source tree.
 
 use akd::directory::Directory;
-use akd::primitives::akd_vrf::HardCodedAkdVRF;
+use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::Storage;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::arg_enum;
