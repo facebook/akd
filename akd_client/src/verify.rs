@@ -96,7 +96,7 @@ fn verify_nonmembership(
 
 fn hash_plaintext_value(value: &AkdValue) -> Digest {
     let single_hash = hash(&crate::utils::value_to_bytes(value));
-    
+
     merge(&[hash(&EMPTY_VALUE), single_hash])
 }
 

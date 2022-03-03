@@ -1118,6 +1118,10 @@ impl Storage for AsyncMySqlDatabase {
         // the active transaction and caches with replacing nodes which were updated? Anyways it's a
         // relatively minor improvement here, due to proper use of batch operations
 
+        if keys.len() == 0 {
+            return Ok(());
+        }
+
         let data = self.batch_get::<ValueState>(keys).await?;
         let mut new_data = vec![];
         for record in data {
@@ -1131,7 +1135,12 @@ impl Storage for AsyncMySqlDatabase {
                 }));
             }
         }
-        self.batch_set(new_data).await
+        if new_data.len() > 0 {
+            debug!("Tombstoning {} entries", new_data.len());
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
     }
 
     async fn get_user_data(

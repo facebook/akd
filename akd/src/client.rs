@@ -352,6 +352,6 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
 
 fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
     let single_hash = H::hash(&crate::utils::value_to_bytes(value));
-    let expected = H::merge(&[H::hash(&EMPTY_VALUE), single_hash]);
-    expected
+
+    H::merge(&[H::hash(&EMPTY_VALUE), single_hash])
 }

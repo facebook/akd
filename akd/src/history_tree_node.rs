@@ -833,7 +833,7 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
 
     let mut new_state: HistoryNodeState =
         HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch))?;
-    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), value.clone()]))?;
+    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), *value]))?;
 
     set_state_map(storage, new_state).await?;
 

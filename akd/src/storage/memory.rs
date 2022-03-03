@@ -203,7 +203,7 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Ok(());
         }
 
@@ -226,7 +226,7 @@ impl Storage for AsyncInMemoryDatabase {
             }
         }
 
-        if new_data.len() > 0 {
+        if !new_data.is_empty() {
             debug!("Tombstoning {} entries", new_data.len());
             self.batch_set(new_data).await?;
         }
@@ -642,7 +642,7 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Ok(());
         }
 
@@ -660,7 +660,7 @@ impl Storage for AsyncInMemoryDbWithCache {
             }
         }
 
-        if new_data.len() > 0 {
+        if !new_data.is_empty() {
             self.batch_set(new_data).await?;
         }
 
