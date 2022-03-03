@@ -1118,7 +1118,7 @@ impl Storage for AsyncMySqlDatabase {
         // the active transaction and caches with replacing nodes which were updated? Anyways it's a
         // relatively minor improvement here, due to proper use of batch operations
 
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Ok(());
         }
 
@@ -1135,7 +1135,7 @@ impl Storage for AsyncMySqlDatabase {
                 }));
             }
         }
-        if new_data.len() > 0 {
+        if !new_data.is_empty() {
             debug!("Tombstoning {} entries", new_data.len());
             self.batch_set(new_data).await?;
         }
