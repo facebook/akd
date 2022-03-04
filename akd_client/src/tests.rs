@@ -20,7 +20,7 @@ use alloc::vec;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
 
-use akd::errors::AkdError;
+use akd::errors::{AkdError, StorageError};
 use akd::storage::types::{AkdLabel, AkdValue};
 
 use crate::hash::DIGEST_BYTES;
@@ -186,7 +186,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         target_label_bytes,
         internal_lookup_proof,
     )
-    .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
     // check the two results to make sure they both verify
     assert!(matches!(akd_result, Ok(())));
     assert!(matches!(lean_result, Ok(())));

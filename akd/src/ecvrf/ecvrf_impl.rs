@@ -7,7 +7,7 @@
 
 //! This module contains the raw implementation implements the ECVRF functionality for use in the AKD crate
 
-use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
+use crate::{errors::VrfError, node_state::NodeLabel, storage::types::AkdLabel};
 use core::convert::TryFrom;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT,
@@ -105,25 +105,22 @@ impl VRFExpandedPrivateKey {
 }
 
 impl TryFrom<&[u8]> for VRFPrivateKey {
-    type Error = VRFStorageError;
+    type Error = VrfError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<VRFPrivateKey, VRFStorageError> {
+    fn try_from(bytes: &[u8]) -> std::result::Result<VRFPrivateKey, VrfError> {
         match ed25519_PrivateKey::from_bytes(bytes) {
             Ok(result) => Ok(VRFPrivateKey(result)),
-            Err(sig_err) => Err(VRFStorageError::GetSK(format!(
-                "Signature error {}",
-                sig_err
-            ))),
+            Err(sig_err) => Err(VrfError::SigningKey(format!("Signature error {}", sig_err))),
         }
     }
 }
 
 impl TryFrom<&[u8]> for VRFPublicKey {
-    type Error = VRFStorageError;
+    type Error = VrfError;
 
     fn try_from(bytes: &[u8]) -> std::result::Result<VRFPublicKey, Self::Error> {
         if bytes.len() != ed25519_dalek::PUBLIC_KEY_LENGTH {
-            return Err(VRFStorageError::VRFErr("Wrong length".to_string()));
+            return Err(VrfError::Verification("Wrong length".to_string()));
         }
 
         let mut bits: [u8; 32] = [0u8; 32];
@@ -132,20 +129,17 @@ impl TryFrom<&[u8]> for VRFPublicKey {
         let compressed = curve25519_dalek::edwards::CompressedEdwardsY(bits);
         let point = compressed
             .decompress()
-            .ok_or_else(|| VRFStorageError::VRFErr("Deserialization failed".to_string()))?;
+            .ok_or_else(|| VrfError::Verification("Deserialization failed".to_string()))?;
 
         // Check if the point lies on a small subgroup. This is required
         // when using curves with a small cofactor (in ed25519, cofactor = 8).
         if point.is_small_order() {
-            return Err(VRFStorageError::VRFErr("Small subgroup".to_string()));
+            return Err(VrfError::Verification("Small subgroup".to_string()));
         }
 
         match ed25519_PublicKey::from_bytes(bytes) {
             Ok(result) => Ok(VRFPublicKey(result)),
-            Err(sig_err) => Err(VRFStorageError::GetPK(format!(
-                "Signature error {}",
-                sig_err
-            ))),
+            Err(sig_err) => Err(VrfError::PublicKey(format!("Signature error {}", sig_err))),
         }
     }
 }
@@ -153,12 +147,12 @@ impl TryFrom<&[u8]> for VRFPublicKey {
 impl VRFPublicKey {
     /// Given a [`Proof`] and an input, returns whether or not the proof is valid for the input
     /// and public key
-    pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VRFStorageError> {
+    pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VrfError> {
         let h_point = self.hash_to_curve(alpha);
         let pk_point = match CompressedEdwardsY::from_slice(self.as_bytes()).decompress() {
             Some(pt) => pt,
             None => {
-                return Err(VRFStorageError::VRFErr(
+                return Err(VrfError::Verification(
                     "Failed to decompress public key into Edwards point".to_string(),
                 ))
             }
@@ -173,7 +167,7 @@ impl VRFPublicKey {
         if proof.c == cprime {
             Ok(())
         } else {
-            Err(VRFStorageError::VRFErr(
+            Err(VrfError::Verification(
                 "The proof failed to verify for this public key".to_string(),
             ))
         }
@@ -209,7 +203,7 @@ impl VRFPublicKey {
         version: u64,
         proof: &[u8],
         label: NodeLabel,
-    ) -> Result<(), VRFStorageError> {
+    ) -> Result<(), VrfError> {
         // Initialization of VRF context by providing a curve
 
         let name_hash_bytes = H::hash(uname.0.as_bytes());
@@ -230,7 +224,7 @@ impl VRFPublicKey {
         if NodeLabel::new(output.to_truncated_bytes(), 256u32) == label {
             Ok(())
         } else {
-            Err(VRFStorageError::VRFErr(
+            Err(VrfError::Verification(
                 "Expected first 32 bytes of the proof output did NOT match the supplied label"
                     .to_string(),
             ))
@@ -294,9 +288,9 @@ impl Proof {
 }
 
 impl TryFrom<&[u8]> for Proof {
-    type Error = VRFStorageError;
+    type Error = VrfError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<Proof, VRFStorageError> {
+    fn try_from(bytes: &[u8]) -> std::result::Result<Proof, VrfError> {
         let mut c_buf = [0u8; 32];
         c_buf[..16].copy_from_slice(&bytes[32..48]);
         let mut s_buf = [0u8; 32];
@@ -305,7 +299,7 @@ impl TryFrom<&[u8]> for Proof {
         let pk_point = match CompressedEdwardsY::from_slice(&bytes[..32]).decompress() {
             Some(pt) => pt,
             None => {
-                return Err(VRFStorageError::VRFErr(
+                return Err(VrfError::Verification(
                     "Failed to decompress public key into Edwards Point".to_string(),
                 ))
             }

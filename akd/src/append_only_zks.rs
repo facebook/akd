@@ -157,7 +157,7 @@ impl Azks {
 
             // This for loop is just getting the keys for states that need to be loaded.
             for node in &nodes {
-                node_states.push(get_state_map_key(node, node.get_latest_epoch()?));
+                node_states.push(get_state_map_key(node, node.get_latest_epoch()));
             }
             let states = storage.batch_get::<HistoryNodeState>(node_states).await?;
             load_count += states.len() as u64;
@@ -393,7 +393,7 @@ impl Azks {
     ) -> Result<AppendOnlyHelper<H>, AkdError> {
         let mut unchanged = Vec::<Node<H>>::new();
         let mut leaves = Vec::<Node<H>>::new();
-        if node.get_latest_epoch()? <= start_epoch {
+        if node.get_latest_epoch() <= start_epoch {
             if node.is_root() {
                 // this is the case where the root is unchanged since the last epoch
                 return Ok((unchanged, leaves));
@@ -402,7 +402,7 @@ impl Azks {
             unchanged.push(Node::<H> {
                 label: node.label,
                 hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch()?)
+                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
                     .await?,
             });
             return Ok((unchanged, leaves));
@@ -415,7 +415,7 @@ impl Azks {
             leaves.push(Node::<H> {
                 label: node.label,
                 hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch()?)
+                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
                     .await?,
             });
         } else {
@@ -459,7 +459,7 @@ impl Azks {
     pub async fn get_root_hash<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
+    ) -> Result<H::Digest, AkdError> {
         self.get_root_hash_at_epoch::<_, H>(storage, self.get_latest_epoch())
             .await
     }
@@ -471,12 +471,11 @@ impl Azks {
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
+    ) -> Result<H::Digest, AkdError> {
         if self.latest_epoch < epoch {
             // cannot retrieve information for future epoch
-            return Err(HistoryTreeNodeError::NonexistentAtEpoch(
-                NodeLabel::root(),
-                epoch,
+            return Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::NonexistentAtEpoch(NodeLabel::root(), epoch),
             ));
         }
         let root_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
@@ -485,7 +484,7 @@ impl Azks {
             self.get_latest_epoch(),
         )
         .await?;
-        root_node.get_value_at_epoch::<_, H>(storage, epoch).await
+        Ok(root_node.get_value_at_epoch::<_, H>(storage, epoch).await?)
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -960,9 +959,8 @@ mod tests {
 
         let out = azks.get_root_hash_at_epoch::<_, Blake3>(&db, 123).await;
 
-        let expected = Err::<_, HistoryTreeNodeError>(HistoryTreeNodeError::NonexistentAtEpoch(
-            NodeLabel::root(),
-            123,
+        let expected = Err::<_, AkdError>(AkdError::HistoryTreeNode(
+            HistoryTreeNodeError::NonexistentAtEpoch(NodeLabel::root(), 123),
         ));
         assert_eq!(expected, out);
         Ok(())

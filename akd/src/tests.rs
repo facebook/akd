@@ -31,7 +31,7 @@ type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 //  Test set_child_without_hash and get_child_at_existing_epoch
 
 #[tokio::test]
-async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
     let ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -54,10 +54,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
         set_child == Some(child_hist_node_1),
         "Child in direction is not equal to the set value"
     );
-    assert!(
-        root.get_latest_epoch().unwrap_or(0) == 1,
-        "Latest epochs don't match!"
-    );
+    assert!(root.get_latest_epoch() == 1, "Latest epochs don't match!");
     assert!(
         root.birth_epoch == root.last_epoch,
         "How would the last epoch be different from the birth epoch without an update?"
@@ -67,7 +64,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), HistoryTreeNodeErro
 }
 
 #[tokio::test]
-async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_set_children_without_hash_at_root() -> Result<(), AkdError> {
     let ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -118,7 +115,7 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
     let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep.unwrap_or(0) == 1, "Latest epochs don't match!");
+    assert!(latest_ep == 1, "Latest epochs don't match!");
     assert!(
         root.birth_epoch == root.last_epoch,
         "How would the last epoch be different from the birth epoch without an update?"
@@ -128,7 +125,7 @@ async fn test_set_children_without_hash_at_root() -> Result<(), HistoryTreeNodeE
 }
 
 #[tokio::test]
-async fn test_set_children_without_hash_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdError> {
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -207,7 +204,7 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
     let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
+    assert!(latest_ep == 2, "Latest epochs don't match!");
     assert!(
         root.birth_epoch < root.last_epoch,
         "How is the last epoch not higher than the birth epoch after an udpate?"
@@ -217,7 +214,7 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), History
 }
 
 #[tokio::test]
-async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdError> {
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -295,7 +292,7 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
     let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep.unwrap_or(0) == 2, "Latest epochs don't match!");
+    assert!(latest_ep == 2, "Latest epochs don't match!");
     assert!(
         root.birth_epoch < root.last_epoch,
         "How is the last epoch not higher than the birth epoch after an udpate?"
@@ -306,7 +303,7 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), Histo
 
 //  Test get_child_at_epoch
 #[tokio::test]
-pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeError> {
+pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
     let init_ep = 0;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(init_ep)).await?;
@@ -378,7 +375,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
         Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
     }
     let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep.unwrap_or(0) == 4, "Latest epochs don't match!");
+    assert!(latest_ep == 4, "Latest epochs don't match!");
     assert!(
         root.birth_epoch < root.last_epoch,
         "How is the last epoch not higher than the birth epoch after an udpate?"
@@ -390,7 +387,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), HistoryTreeNodeErro
 // insert_single_leaf tests
 
 #[tokio::test]
-async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -446,7 +443,7 @@ async fn test_insert_single_leaf_root() -> Result<(), HistoryTreeNodeError> {
 }
 
 #[tokio::test]
-async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError> {
+async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -531,7 +528,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), HistoryTreeNodeError
 }
 
 #[tokio::test]
-async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTreeNodeError> {
+async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -637,7 +634,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), HistoryTr
 }
 
 #[tokio::test]
-async fn test_insert_single_leaf_full_tree() -> Result<(), HistoryTreeNodeError> {
+async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     root.write_to_storage(&db).await?;

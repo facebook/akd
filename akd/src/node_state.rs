@@ -7,7 +7,7 @@
 
 //! The representation for the label of a history tree node.
 
-use crate::errors::HistoryTreeNodeError;
+use crate::errors::AkdError;
 use crate::serialization::from_digest;
 #[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
@@ -290,7 +290,7 @@ unsafe impl Sync for HistoryNodeState {}
 
 impl HistoryNodeState {
     /// Creates a new [HistoryNodeState]
-    pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, HistoryTreeNodeError> {
+    pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, AkdError> {
         const INIT: Option<HistoryChildState> = None;
         Ok(HistoryNodeState {
             value: from_digest::<H>(H::hash(&EMPTY_VALUE))?,
@@ -351,7 +351,7 @@ impl HistoryChildState {
         label: NodeLabel,
         hash_val: H::Digest,
         ep: u64,
-    ) -> Result<Self, HistoryTreeNodeError> {
+    ) -> Result<Self, AkdError> {
         Ok(HistoryChildState {
             label,
             hash_val: from_digest::<H>(hash_val)?,

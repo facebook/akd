@@ -7,7 +7,7 @@
 
 //! This module contains serialization calls for helping serialize/deserialize digests
 
-use crate::errors::HistoryTreeNodeError;
+use crate::errors::{AkdError, HistoryTreeNodeError};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
@@ -16,13 +16,13 @@ use winter_crypto::Hasher;
 use winter_utils::{Deserializable, Serializable, SliceReader};
 
 /// Converts from &[u8] to H::Digest
-pub fn to_digest<H: Hasher>(input: &[u8]) -> Result<H::Digest, HistoryTreeNodeError> {
-    H::Digest::read_from(&mut SliceReader::new(input))
-        .map_err(|_| HistoryTreeNodeError::SerializationError)
+pub fn to_digest<H: Hasher>(input: &[u8]) -> Result<H::Digest, AkdError> {
+    Ok(H::Digest::read_from(&mut SliceReader::new(input))
+        .map_err(|_| HistoryTreeNodeError::DigestDeserializationFailed)?)
 }
 
 /// Converts from H::Digest to Vec<u8>
-pub fn from_digest<H: Hasher>(input: H::Digest) -> Result<Vec<u8>, HistoryTreeNodeError> {
+pub fn from_digest<H: Hasher>(input: H::Digest) -> Result<Vec<u8>, AkdError> {
     let mut output = vec![];
     input.write_into(&mut output);
     Ok(output)
