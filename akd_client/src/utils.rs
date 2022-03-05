@@ -8,7 +8,6 @@
 //! Utility functions
 
 /// Retrieve the marker version
-#[cfg(feature = "vrf")]
 pub(crate) fn get_marker_version(version: u64) -> u64 {
     64u64 - (version.leading_zeros() as u64) - 1u64
 }
