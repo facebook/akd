@@ -148,6 +148,31 @@ impl NodeLabel {
         Self::new(out_val, len)
     }
 
+    pub(crate) fn get_sibling_prefix(&self, mut len: u32) -> Self {
+        if len > self.get_len() {
+            len = self.get_len();
+        }
+
+        if len == 0 {
+            return Self::new([0u8; 32], 0);
+        }
+
+        let usize_len: usize = (len - 1).try_into().unwrap();
+        let byte_index = usize_len / 8;
+        let bit_index = usize_len % 8;
+
+        let bit_flip_marker: u8 = 0b1 << (7 - bit_index);
+
+        let mut val = self.get_val();
+        val[byte_index] ^= bit_flip_marker;
+
+        let mut out_val = [0u8; 32];
+        out_val[..byte_index].clone_from_slice(&self.val[..byte_index]);
+        out_val[byte_index] = (val[byte_index] >> (7 - bit_index)) << (7 - bit_index);
+
+        Self::new(out_val, len)
+    }
+
     /// Takes as input a pointer to the caller and another NodeLabel,
     /// returns a NodeLabel that is the longest common prefix of the two.
     #[must_use]
@@ -395,6 +420,15 @@ pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();
     output_arr[..8].clone_from_slice(&input_arr[..8]);
+    output_arr
+}
+
+// Use test profile here other wise cargo complains function is never used.
+#[cfg(test)]
+fn byte_arr_from_u64_suffix(input_int: u64) -> [u8; 32] {
+    let mut output_arr = [0u8; 32];
+    let input_arr = input_int.to_be_bytes();
+    output_arr[24..32].clone_from_slice(&input_arr[..8]);
     output_arr
 }
 
@@ -750,6 +784,51 @@ mod tests {
             label_2,
             computed
         )
+    }
+
+    #[test]
+    pub fn test_get_sibling_prefix() {
+        let label0 = NodeLabel::new(byte_arr_from_u64(0b0 << 63), 1);
+        let label0_sibling = NodeLabel::new(byte_arr_from_u64(0b1 << 63), 1);
+
+        assert!(label0.get_sibling_prefix(1) == label0_sibling);
+
+        let label1 = NodeLabel::new(byte_arr_from_u64(0b1 << 63), 1);
+        let label1_sibling = NodeLabel::new(byte_arr_from_u64(0b0 << 63), 1);
+
+        assert!(label1.get_sibling_prefix(1) == label1_sibling);
+
+        let label_rand_len_30 = NodeLabel::new(
+            byte_arr_from_u64(
+                0b1010000000000110001111001000001000001000110100101010111111001110u64,
+            ),
+            30,
+        );
+        let label_rand_len_30_prefix_15_sibling = NodeLabel::new(
+            byte_arr_from_u64(
+                0b1010000000000100000000000000000000000000000000000000000000000000u64,
+            ),
+            15,
+        );
+
+        assert!(label_rand_len_30.get_sibling_prefix(15) == label_rand_len_30_prefix_15_sibling);
+
+        let label_rand_len_256 = NodeLabel::new(
+            byte_arr_from_u64_suffix(
+                0b1010000000000110001111001000001000001000110100101010111111001110u64,
+            ),
+            256,
+        );
+        let label_rand_len_256_prefix_256_sibling = NodeLabel::new(
+            byte_arr_from_u64_suffix(
+                0b1010000000000110001111001000001000001000110100101010111111001111u64,
+            ),
+            256,
+        );
+
+        assert!(
+            label_rand_len_256.get_sibling_prefix(256) == label_rand_len_256_prefix_256_sibling
+        );
     }
 
     // Test for serialization / deserialization
