@@ -562,9 +562,7 @@ impl<'a> AsyncMySqlDatabase {
         } else {
             panic!("Unknown call type to record call stats for.")
         }
-        let call_count = (*stats)
-            .entry(caller_name + &"~".to_string() + &data_type)
-            .or_insert(0);
+        let call_count = (*stats).entry(caller_name + "~" + &data_type).or_insert(0);
         *call_count += 1;
     }
 
