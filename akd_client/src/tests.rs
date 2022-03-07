@@ -184,20 +184,12 @@ where
             existence_vrf_proof: proof.existence_vrf_proof.clone(),
             existence_at_ep: convert_membership_proof(&proof.existence_at_ep),
             previous_val_vrf_proof: proof.previous_val_vrf_proof.clone(),
-            previous_val_stale_at_ep: if proof.previous_val_stale_at_ep.is_some() {
-                Some(convert_membership_proof(
-                    &proof.previous_val_stale_at_ep.clone().unwrap(),
-                ))
-            } else {
-                None
-            },
-            non_existence_before_ep: if proof.non_existence_before_ep.is_some() {
-                Some(convert_non_membership_proof(
-                    &proof.non_existence_before_ep.clone().unwrap(),
-                ))
-            } else {
-                None
-            },
+            previous_val_stale_at_ep: proof.previous_val_stale_at_ep.clone().map(|val| convert_membership_proof(
+                &val
+            )),
+            non_existence_before_ep: proof.non_existence_before_ep.clone().map(|val| convert_non_membership_proof(
+                &val
+            )),
             next_few_vrf_proofs: proof.next_few_vrf_proofs.clone(),
             non_existence_of_next_few: proof
                 .non_existence_of_next_few

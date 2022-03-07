@@ -187,7 +187,7 @@ pub fn key_history_verify(
     vrf_public_key: &[u8],
     root_hashes: Vec<Digest>,
     previous_root_hashes: Vec<Option<Digest>>,
-    _akd_key: AkdLabel,
+    akd_key: AkdLabel,
     proof: HistoryProof,
 ) -> Result<(), VerificationError> {
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
@@ -198,11 +198,9 @@ pub fn key_history_verify(
             vrf_public_key,
             previous_root_hash,
             update_proof,
-            &_akd_key,
+            &akd_key,
         )?;
     }
-    // use crate::VerificationErrorType;
-    // Err(VerificationError {error_message: "Not implemented".to_string(), error_type: VerificationErrorType::Unknown})
     Ok(())
 }
 
