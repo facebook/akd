@@ -204,6 +204,7 @@ pub struct LookupProof {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateProof {
     /// Epoch of this update
@@ -233,6 +234,7 @@ pub struct UpdateProof {
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryProof {
     /// The update proofs in the key history

@@ -184,7 +184,7 @@ pub fn lookup_verify(
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
 pub fn key_history_verify(
-    _vrf_public_key: &[u8],
+    vrf_public_key: &[u8],
     root_hashes: Vec<Digest>,
     previous_root_hashes: Vec<Option<Digest>>,
     _akd_key: AkdLabel,
@@ -195,7 +195,7 @@ pub fn key_history_verify(
         let previous_root_hash = previous_root_hashes[count];
         verify_single_update_proof(
             root_hash,
-            &_vrf_public_key,
+            vrf_public_key,
             previous_root_hash,
             update_proof,
             &_akd_key,
@@ -209,7 +209,7 @@ pub fn key_history_verify(
 /// Verifies a single update proof
 fn verify_single_update_proof(
     root_hash: Digest,
-    _vrf_public_key: &[u8],
+    vrf_public_key: &[u8],
     previous_root_hash: Option<Digest>,
     proof: UpdateProof,
     uname: &AkdLabel,
@@ -229,8 +229,8 @@ fn verify_single_update_proof(
     #[cfg(feature = "vrf")]
     {
         verify_vrf(
-            &_vrf_public_key,
-            &uname,
+            vrf_public_key,
+            uname,
             false,
             version,
             &proof.existence_vrf_proof,
@@ -277,11 +277,11 @@ fn verify_single_update_proof(
                 .ok_or(vrf_previous_null_err)?;
 
             verify_vrf(
-                &_vrf_public_key,
-                &uname,
+                vrf_public_key,
+                uname,
                 true,
                 version - 1,
-                &previous_val_vrf_proof,
+                previous_val_vrf_proof,
                 previous_val_stale_at_ep.label,
             )?;
         }
@@ -317,7 +317,7 @@ fn verify_single_update_proof(
         {
             let vrf_pf = &proof.next_few_vrf_proofs[i];
             let ver_label = pf.label;
-            verify_vrf(&_vrf_public_key, uname, false, ver, &vrf_pf, ver_label)?;
+            verify_vrf(vrf_public_key, uname, false, ver, vrf_pf, ver_label)?;
         }
         if !verify_nonmembership(root_hash, pf)? {
             return Err(VerificationError {error_message:
@@ -335,7 +335,7 @@ fn verify_single_update_proof(
         {
             let vrf_pf = &proof.future_marker_vrf_proofs[i];
             let ver_label = pf.label;
-            verify_vrf(&_vrf_public_key, uname, false, ver, &vrf_pf, ver_label)?;
+            verify_vrf(vrf_public_key, uname, false, ver, vrf_pf, ver_label)?;
         }
         if !verify_nonmembership(root_hash, pf)? {
             return Err(VerificationError {error_message:
