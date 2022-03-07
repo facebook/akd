@@ -564,7 +564,7 @@ impl<'a> AsyncMySqlDatabase {
         }
         let call_count = (*stats)
             .entry(caller_name + &"~".to_string() + &data_type)
-            .or_insert(1);
+            .or_insert(0);
         *call_count += 1;
     }
 
