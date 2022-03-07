@@ -16,7 +16,7 @@ use akd::storage::types::{
 };
 use akd::storage::{Storable, Storage};
 use async_trait::async_trait;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -732,7 +732,9 @@ impl Storage for AsyncMySqlDatabase {
         *tw = Duration::from_millis(0);
 
         match level {
-            log::Level::Trace => trace!("{}", msg),
+            // Currently logs cannot be captured unless they are
+            // println!. Normally Level::Trace should use the trace! macro.
+            log::Level::Trace => println!("{}", msg),
             log::Level::Debug => debug!("{}", msg),
             log::Level::Info => info!("{}", msg),
             log::Level::Warn => warn!("{}", msg),

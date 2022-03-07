@@ -358,6 +358,6 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
 async fn reset_mysql_db<S: akd::storage::Storage + Sync + Send>(mysql_db: &S) {
-    mysql_db.log_metrics(Level::Info).await;
+    mysql_db.log_metrics(Level::Trace).await;
     mysql_db.flush_cache().await;
 }
