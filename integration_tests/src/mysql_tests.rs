@@ -111,7 +111,7 @@ async fn test_lookups() {
             );
         }
     } else {
-        panic!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        warn!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
     }
 
     info!("\n\n******** Completed MySQL Lookup Tests ********\n\n");
