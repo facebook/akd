@@ -58,6 +58,32 @@ where
     }
 }
 
+fn to_digest_vec<H>(hash_vec: Vec<H::Digest>) -> Vec<crate::types::Digest>
+where
+    H: winter_crypto::Hasher,
+{
+    let mut digest_vec = Vec::<crate::types::Digest>::new();
+    for hash_elem in hash_vec {
+        digest_vec.push(to_digest::<H>(hash_elem));
+    }
+    digest_vec
+}
+
+fn to_digest_vec_opt<H>(hash_vec: Vec<Option<H::Digest>>) -> Vec<Option<crate::types::Digest>>
+where
+    H: winter_crypto::Hasher,
+{
+    let mut digest_vec_opt = Vec::<Option<crate::types::Digest>>::new();
+    for hash_elem in hash_vec {
+        if let Some(h) = hash_elem {
+            digest_vec_opt.push(Some(to_digest::<H>(h)));
+        } else {
+            digest_vec_opt.push(None);
+        }
+    }
+    digest_vec_opt
+}
+
 fn convert_label(proof: akd::node_state::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
         len: proof.len,
@@ -143,6 +169,49 @@ where
     }
 }
 
+fn convert_history_proof<H>(
+    history_proof: &akd::proof_structs::HistoryProof<H>,
+) -> crate::types::HistoryProof
+where
+    H: winter_crypto::Hasher,
+{
+    let mut res_update_proofs = Vec::<crate::types::UpdateProof>::new();
+    for proof in &history_proof.proofs {
+        let update_proof = crate::types::UpdateProof {
+            epoch: proof.epoch,
+            plaintext_value: proof.plaintext_value.0.as_bytes().to_vec(),
+            version: proof.version,
+            existence_vrf_proof: proof.existence_vrf_proof.clone(),
+            existence_at_ep: convert_membership_proof(&proof.existence_at_ep),
+            previous_val_vrf_proof: proof.previous_val_vrf_proof.clone(),
+            previous_val_stale_at_ep: proof
+                .previous_val_stale_at_ep
+                .clone()
+                .map(|val| convert_membership_proof(&val)),
+            non_existence_before_ep: proof
+                .non_existence_before_ep
+                .clone()
+                .map(|val| convert_non_membership_proof(&val)),
+            next_few_vrf_proofs: proof.next_few_vrf_proofs.clone(),
+            non_existence_of_next_few: proof
+                .non_existence_of_next_few
+                .iter()
+                .map(|non_memb_proof| convert_non_membership_proof(&non_memb_proof))
+                .collect(),
+            future_marker_vrf_proofs: proof.future_marker_vrf_proofs.clone(),
+            non_existence_of_future_markers: proof
+                .non_existence_of_future_markers
+                .iter()
+                .map(|non_exist_markers| convert_non_membership_proof(&non_exist_markers))
+                .collect(),
+        };
+        res_update_proofs.push(update_proof);
+    }
+    crate::types::HistoryProof {
+        proofs: res_update_proofs,
+    }
+}
+
 // ===================================
 // Test cases
 // ===================================
@@ -191,6 +260,120 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     assert!(matches!(akd_result, Ok(())));
     assert!(matches!(lean_result, Ok(())));
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
+    let db = InMemoryDb::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let vrf_pk = akd.get_public_key().await.unwrap();
+    let key = AkdLabel("label".to_string());
+    let key_bytes = key.0.as_bytes().to_vec();
+    const EPOCHS: usize = 10;
+
+    // publishes key versions in multiple epochs
+    for epoch in 1..=EPOCHS {
+        let data = vec![(key.clone(), AkdValue(format!("value{}", epoch)))];
+        akd.publish::<Hash>(data, true).await?;
+    }
+
+    // retrieves and verifies history proofs for the key
+    let proof = akd.key_history::<Hash>(&key).await?;
+    let internal_proof = convert_history_proof::<Hash>(&proof);
+    let (mut root_hashes, previous_root_hashes) =
+        akd::directory::get_key_history_hashes::<_, Hash, HardCodedAkdVRF>(&akd, &proof)
+            .await
+            .unwrap();
+
+    // verifies num of root hashes created
+    assert_eq!(root_hashes.len(), EPOCHS);
+
+    // verifies both traditional and lean history verification passes
+    {
+        let akd_result = akd::client::key_history_verify::<Hash>(
+            &vrf_pk,
+            root_hashes.clone(),
+            previous_root_hashes.clone(),
+            key.clone(),
+            proof.clone(),
+        );
+        let lean_result = crate::verify::key_history_verify(
+            &vrf_pk.to_bytes(),
+            to_digest_vec::<Hash>(root_hashes.clone()),
+            to_digest_vec_opt::<Hash>(previous_root_hashes.clone()),
+            key_bytes.clone(),
+            internal_proof.clone(),
+        );
+        assert!(matches!(akd_result, Ok(())), "{:?}", akd_result);
+        assert!(matches!(lean_result, Ok(())), "{:?}", lean_result);
+    }
+
+    // corrupts root_hashes[0] and verifies both traditional and lean history verification fail
+    {
+        root_hashes[0] = root_hashes[1];
+        // performs traditional AKD verification
+        let akd_result = akd::client::key_history_verify::<Hash>(
+            &vrf_pk,
+            root_hashes.clone(),
+            previous_root_hashes.clone(),
+            key.clone(),
+            proof.clone(),
+        );
+        // performs "lean" history verification
+        let lean_result = crate::verify::key_history_verify(
+            &vrf_pk.to_bytes(),
+            to_digest_vec::<Hash>(root_hashes),
+            to_digest_vec_opt::<Hash>(previous_root_hashes),
+            key_bytes,
+            internal_proof,
+        );
+        assert!(akd_result.is_err(), "{:?}", akd_result);
+        assert!(lean_result.is_err(), "{:?}", lean_result);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
+    let db = InMemoryDb::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let vrf_pk = akd.get_public_key().await.unwrap();
+    let key = AkdLabel("label".to_string());
+    let key_bytes = key.0.as_bytes().to_vec();
+
+    // publishes single key-value
+    akd.publish::<Hash>(vec![(key.clone(), AkdValue(format!("value")))], true)
+        .await?;
+
+    // retrieves and verifies history proofs for the key
+    let proof = akd.key_history::<Hash>(&key).await?;
+    let internal_proof = convert_history_proof::<Hash>(&proof);
+    let (root_hashes, previous_root_hashes) =
+        akd::directory::get_key_history_hashes::<_, Hash, HardCodedAkdVRF>(&akd, &proof)
+            .await
+            .unwrap();
+    assert_eq!(root_hashes.len(), 1);
+
+    // verifies both traditional and lean history verification passes
+    let akd_result = akd::client::key_history_verify::<Hash>(
+        &vrf_pk,
+        root_hashes.clone(),
+        previous_root_hashes.clone(),
+        key,
+        proof,
+    );
+    let lean_result = crate::verify::key_history_verify(
+        &vrf_pk.to_bytes(),
+        to_digest_vec::<Hash>(root_hashes),
+        to_digest_vec_opt::<Hash>(previous_root_hashes),
+        key_bytes,
+        internal_proof,
+    );
+    assert!(matches!(akd_result, Ok(())), "{:?}", akd_result);
+    assert!(matches!(lean_result, Ok(())), "{:?}", lean_result);
     Ok(())
 }
 

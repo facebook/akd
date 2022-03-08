@@ -17,10 +17,6 @@
                     "--features=sha3_256,nostd",
                     "--no-default-features"
                 ],
-                "filter": {
-                    "name": "akd_client",
-                    "kind": "lib"
-                }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
