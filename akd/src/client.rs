@@ -202,7 +202,7 @@ fn verify_single_update_proof<H: Hasher>(
 
     let non_existence_before_ep = &proof.non_existence_before_ep;
 
-    let (tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
+    let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
         (true, bytes) if bytes.0 == crate::TOMBSTONE => {
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
@@ -322,9 +322,9 @@ fn verify_single_update_proof<H: Hasher>(
         }
     }
 
-    // return the vector of flags which indicate if the value <=> hash mapping was verified
+    // return indicator of if the value <=> hash mapping was verified
     // or if the hash was simply taken at face-value. True = hash mapping verified
-    Ok(tombstone)
+    Ok(is_tombstone)
 }
 
 /// Hashes all the children of a node, as well as their labels

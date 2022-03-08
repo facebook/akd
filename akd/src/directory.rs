@@ -1475,4 +1475,46 @@ mod tests {
 
         Ok(())
     }
+
+    // // Test coverage on issue #144, verification failures with small trees (<4 nodes)
+    // #[tokio::test]
+    // async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
+    //     let db = AsyncInMemoryDatabase::new();
+    //     let vrf = HardCodedAkdVRF {};
+    //     // epoch 0
+    //     let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    //     let mut updates = vec![];
+    //     for i in 0..1 {
+    //         updates.push((
+    //             AkdLabel(format!("hello{}", i).as_bytes().to_vec()),
+    //             AkdValue(format!("hello{}", i).as_bytes().to_vec()),
+    //         ));
+    //     }
+
+    //     akd.publish::<Blake3>(updates).await?;
+
+    //     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
+
+    //     // retrieve the lookup proof
+    //     let lookup_proof = akd.lookup(target_label.clone()).await?;
+    //     // retrieve the root hash
+    //     let current_azks = akd.retrieve_current_azks().await?;
+    //     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+    //     let vrf_pk = vrf.get_vrf_public_key().await?;
+
+    //     // perform the "traditional" AKD verification
+    //     let akd_result = crate::client::lookup_verify::<Blake3>(
+    //         &vrf_pk,
+    //         root_hash,
+    //         target_label.clone(),
+    //         lookup_proof,
+    //     );
+
+    //     // check the two results to make sure they both verify
+    //     assert!(matches!(akd_result, Ok(())));
+
+    //     Ok(())
+    // }
 }

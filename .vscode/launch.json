@@ -13,14 +13,8 @@
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=akd_client",
-                    "--features=sha3_256,nostd",
-                    "--no-default-features"
+                    "--package=akd_client"
                 ],
-                "filter": {
-                    "name": "akd_client",
-                    "kind": "lib"
-                }
             },
             "args": [],
             "cwd": "${workspaceFolder}"

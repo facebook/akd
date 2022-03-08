@@ -124,6 +124,9 @@ pub enum VerificationErrorType {
     /// An error occurred verifying the lookup proof
     LookupProof,
 
+    /// An error occurred verifying the history proof
+    HistoryProof,
+
     /// An error occurred verifying a VRF label
     Vrf,
 
@@ -156,6 +159,7 @@ impl Display for VerificationError {
             VerificationErrorType::NoDirection => "No Direction",
             VerificationErrorType::MembershipProof => "Membership Proof",
             VerificationErrorType::LookupProof => "Lookup Proof",
+            VerificationErrorType::HistoryProof => "History Proof",
             VerificationErrorType::Vrf => "VRF",
             VerificationErrorType::Unknown => "Unknown",
         };
