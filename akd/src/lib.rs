@@ -51,7 +51,7 @@
 //! ## Adding key-value pairs to the akd
 //! To add key-value pairs to the akd, we assume that the types of keys and the corresponding values are String.
 //! After adding key-value pairs to the akd's data structure, it also needs to be committed. To do this, after running the setup, as in the previous step,
-//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel(String), AkdValue(String)). See below for example usage.
+//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel::from_utf8_str(String), AkdValue::from_utf8_str(String)). See below for example usage.
 //! ```
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
@@ -69,8 +69,8 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!          (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!          (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!       .await;
 //! };
 //! ```
@@ -95,11 +95,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".as_bytes().to_vec())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -121,11 +121,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".as_bytes().to_vec())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
@@ -134,7 +134,7 @@
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!         &vrf_pk,
 //!         root_hash,
-//!         AkdLabel("hello".as_bytes().to_vec()),
+//!         AkdLabel::from_utf8_str("hello"),
 //!         lookup_proof,
 //!     ).unwrap();
 //! };
@@ -161,11 +161,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".as_bytes().to_vec())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -186,11 +186,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".as_bytes().to_vec())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
@@ -199,7 +199,7 @@
 //!         &vrf_pk,
 //!         root_hashes,
 //!         previous_root_hashes,
-//!         AkdLabel("hello".as_bytes().to_vec()),
+//!         AkdLabel::from_utf8_str("hello"),
 //!         history_proof,
 //!         false,
 //!         ).unwrap();
@@ -226,12 +226,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".as_bytes().to_vec()), AkdValue("world3".as_bytes().to_vec())),
-//!         (AkdLabel("hello4".as_bytes().to_vec()), AkdValue("world4".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
+//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -257,12 +257,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".as_bytes().to_vec()), AkdValue("world".as_bytes().to_vec())),
-//!         (AkdLabel("hello2".as_bytes().to_vec()), AkdValue("world2".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".as_bytes().to_vec()), AkdValue("world3".as_bytes().to_vec())),
-//!         (AkdLabel("hello4".as_bytes().to_vec()), AkdValue("world4".as_bytes().to_vec())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
+//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -313,7 +313,10 @@
 extern crate rand;
 
 // Due to the amount of types an implementing storage layer needs to access,
-// it's quite unreasonable
+// it's quite unreasonable to expose them all at the crate root, and a storage
+// implementer will simply need to import the necessary inner types which are
+// a dependency of ths [`Storage`] trait anyways
+
 pub mod append_only_zks;
 pub mod auditor;
 pub mod client;

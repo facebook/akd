@@ -160,12 +160,12 @@ pub(crate) async fn directory_test_suite<
                 let mut data = Vec::new();
                 for value in users.iter() {
                     data.push((
-                        AkdLabel(value.as_bytes().to_vec()),
+                        AkdLabel::from_utf8_str(value),
                         AkdValue(format!("{}", i).as_bytes().to_vec()),
                     ));
                 }
 
-                if let Err(error) = dir.publish::<Blake3>(data, true).await {
+                if let Err(error) = dir.publish::<Blake3>(data).await {
                     panic!("Error publishing batch {:?}", error);
                 } else {
                     info!("Published epoch {}", i);
@@ -177,7 +177,7 @@ pub(crate) async fn directory_test_suite<
             let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
 
             for user in users.iter().choose_multiple(&mut rng, 10) {
-                let key = AkdLabel(user.as_bytes().to_vec());
+                let key = AkdLabel::from_utf8_str(user);
                 match dir.lookup::<Blake3>(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
@@ -194,7 +194,7 @@ pub(crate) async fn directory_test_suite<
 
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
-                let key = AkdLabel(user.as_bytes().to_vec());
+                let key = AkdLabel::from_utf8_str(user);
                 match dir.key_history::<Blake3>(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {

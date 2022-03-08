@@ -69,7 +69,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<Proof, VRFStorageError> {
         let key = self.get_vrf_private_key().await?;
-        let name_hash_bytes = H::hash(&uname.0);
+        let name_hash_bytes = H::hash(uname);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
         let hashed_label = H::merge(&[

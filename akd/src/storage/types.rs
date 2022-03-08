@@ -31,11 +31,38 @@ pub enum StorageType {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct AkdLabel(pub Vec<u8>);
 
+impl AkdLabel {
+    /// Build an [`AkdLabel`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+}
+
+impl core::ops::Deref for AkdLabel {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 /// The types of value used in the key-value pairs of a AKD
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(bound = ""))]
 pub struct AkdValue(pub Vec<u8>);
+
+impl AkdValue {
+    /// Build an [`AkdValue`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+}
+
+impl core::ops::Deref for AkdValue {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -67,7 +94,7 @@ impl crate::storage::Storable for ValueState {
     }
 
     fn get_id(&self) -> ValueStateKey {
-        ValueStateKey(self.username.0.clone(), self.epoch)
+        ValueStateKey(self.username.to_vec(), self.epoch)
     }
 
     fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {

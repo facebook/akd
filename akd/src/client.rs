@@ -153,9 +153,9 @@ pub fn lookup_verify<H: Hasher>(
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
-/// Returns back the vector of tombstones identified, were the validity of the
-/// value <=> hash could not be verified because the value has been removed from the
-/// storage layer
+/// Returns a vector of whether the validity of a hash could be verified.
+/// When false, the value <=> hash validity at the position could not be
+/// verified because the value has been removed ("tombstoned") from the storage layer.
 pub fn key_history_verify<H: Hasher>(
     vrf_pk: &VRFPublicKey,
     root_hashes: Vec<H::Digest>,
@@ -168,7 +168,7 @@ pub fn key_history_verify<H: Hasher>(
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        let tombstone = verify_single_update_proof::<H>(
+        let is_tombstone = verify_single_update_proof::<H>(
             root_hash,
             vrf_pk,
             previous_root_hash,
@@ -176,7 +176,7 @@ pub fn key_history_verify<H: Hasher>(
             &uname,
             allow_tombstones,
         )?;
-        tombstones.push(tombstone);
+        tombstones.push(is_tombstone);
     }
     Ok(tombstones)
 }
@@ -322,6 +322,8 @@ fn verify_single_update_proof<H: Hasher>(
         }
     }
 
+    // return the vector of flags which indicate if the value <=> hash mapping was verified
+    // or if the hash was simply taken at face-value. True = hash mapping verified
     Ok(tombstone)
 }
 

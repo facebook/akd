@@ -67,7 +67,6 @@ enum OtherMode {
     BenchPublish {
         num_users: u64,
         num_updates_per_user: u64,
-        use_transactions: Option<bool>,
     },
     #[structopt(about = "Benchmark lookup API")]
     BenchLookup {
@@ -255,14 +254,7 @@ async fn process_input(
             OtherMode::BenchPublish {
                 num_users,
                 num_updates_per_user,
-                use_transactions,
             } => {
-                let use_trans = if let Some(tr) = use_transactions {
-                    *tr
-                } else {
-                    true
-                };
-
                 println!("======= Benchmark operation requested ======= ");
                 println!(
                     "Beginning PUBLISH benchmark of {} users with {} updates/user",
@@ -298,7 +290,7 @@ async fn process_input(
                         .collect();
                     let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                     let rpc = directory_host::Rpc(
-                        directory_host::DirectoryCommand::PublishBatch(user_data, use_trans),
+                        directory_host::DirectoryCommand::PublishBatch(user_data),
                         Some(rpc_tx),
                     );
                     let sent = tx.clone().send(rpc).await;
@@ -362,7 +354,7 @@ async fn process_input(
                 info!("Inserting {} users", num_users);
                 let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
                 let rpc = directory_host::Rpc(
-                    directory_host::DirectoryCommand::PublishBatch(user_data.clone(), true),
+                    directory_host::DirectoryCommand::PublishBatch(user_data.clone()),
                     Some(rpc_tx),
                 );
                 let sent = tx.clone().send(rpc).await;

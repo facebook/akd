@@ -25,7 +25,7 @@ pub(crate) struct Rpc(
 #[derive(Debug)]
 pub enum DirectoryCommand {
     Publish(String, String),
-    PublishBatch(Vec<(String, String)>, bool),
+    PublishBatch(Vec<(String, String)>),
     Lookup(String),
     KeyHistory(String),
     Audit(u64, u64),
@@ -68,13 +68,10 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish::<H>(
-                        vec![(
-                            AkdLabel(a.as_bytes().to_vec()),
-                            AkdValue(b.as_bytes().to_vec()),
-                        )],
-                        false,
-                    )
+                    .publish::<H>(vec![(
+                        AkdLabel::from_utf8_str(&a),
+                        AkdValue::from_utf8_str(&b),
+                    )])
                     .await
                 {
                     Ok(EpochHash(epoch, hash)) => {
@@ -95,7 +92,7 @@ where
                     }
                 }
             }
-            (DirectoryCommand::PublishBatch(batches, with_trans), Some(response)) => {
+            (DirectoryCommand::PublishBatch(batches), Some(response)) => {
                 let tic = Instant::now();
                 let len = batches.len();
                 match directory
@@ -104,12 +101,11 @@ where
                             .into_iter()
                             .map(|(key, value)| {
                                 (
-                                    AkdLabel(key.as_bytes().to_vec()),
-                                    AkdValue(value.as_bytes().to_vec()),
+                                    AkdLabel::from_utf8_str(&key),
+                                    AkdValue::from_utf8_str(&value),
                                 )
                             })
                             .collect(),
-                        with_trans,
                     )
                     .await
                 {
@@ -125,7 +121,7 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup::<H>(AkdLabel(a.as_bytes().to_vec())).await {
+                match directory.lookup::<H>(AkdLabel::from_utf8_str(&a)).await {
                     Ok(proof) => {
                         let hash = get_root_hash::<_, H, V>(directory, None).await;
                         match hash {
@@ -134,7 +130,7 @@ where
                                 let verification = akd::client::lookup_verify::<H>(
                                     &vrf_pk,
                                     root_hash,
-                                    AkdLabel(a.as_bytes().to_vec()),
+                                    AkdLabel::from_utf8_str(&a),
                                     proof,
                                 );
                                 if verification.is_err() {
@@ -162,7 +158,7 @@ where
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
                 match directory
-                    .key_history::<H>(&AkdLabel(a.as_bytes().to_vec()))
+                    .key_history::<H>(&AkdLabel::from_utf8_str(&a))
                     .await
                 {
                     Ok(_proof) => {

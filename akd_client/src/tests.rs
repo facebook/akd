@@ -130,7 +130,7 @@ where
     crate::types::LookupProof {
         epoch: proof.epoch,
         version: proof.version,
-        plaintext_value: proof.plaintext_value.0.clone(),
+        plaintext_value: proof.plaintext_value.to_vec(),
         exisitence_vrf_proof: proof.exisitence_vrf_proof.clone(),
         existence_proof: convert_membership_proof(&proof.existence_proof),
         marker_vrf_proof: proof.marker_vrf_proof.clone(),
@@ -158,7 +158,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         ));
     }
 
-    akd.publish::<Hash>(updates, true).await?;
+    akd.publish::<Hash>(updates).await?;
 
     let target_label = AkdLabel(format!("hello{}", 10).as_bytes().to_vec());
 
@@ -175,7 +175,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let akd_result =
         akd::client::lookup_verify::<Hash>(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
-    let target_label_bytes = target_label.0;
+    let target_label_bytes = target_label.to_vec();
 
     let lean_result = crate::verify::lookup_verify(
         &vrf_pk.to_bytes(),

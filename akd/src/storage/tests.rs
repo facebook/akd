@@ -135,11 +135,11 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === ValueState storage === //
     let key = ValueStateKey("test".as_bytes().to_vec(), 1);
     let value = ValueState {
-        username: AkdLabel("test".as_bytes().to_vec()),
+        username: AkdLabel::from_utf8_str("test"),
         epoch: 1,
         label: NodeLabel::new(byte_arr_from_u64(1), 1),
         version: 1,
-        plaintext_val: AkdValue("abc123".as_bytes().to_vec()),
+        plaintext_val: AkdValue::from_utf8_str("abc123"),
     };
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -415,7 +415,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         username: AkdLabel(rand_user),
     };
     let mut sample_state_2 = sample_state.clone();
-    sample_state_2.username = AkdLabel("test_user".as_bytes().to_vec());
+    sample_state_2.username = AkdLabel::from_utf8_str("test_user");
 
     let result = storage
         .set(DbRecord::ValueState(sample_state.clone()))
@@ -491,7 +491,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
     );
 
     let specifc_result = storage
-        .get::<ValueState>(&ValueStateKey(sample_state.username.0.clone(), 123))
+        .get::<ValueState>(&ValueStateKey(sample_state.username.to_vec(), 123))
         .await;
     if let Ok(DbRecord::ValueState(state)) = specifc_result {
         assert_eq!(
@@ -609,7 +609,7 @@ async fn test_tombstoning_data<S: Storage + Sync + Send>(
         username: AkdLabel(rand_user),
     };
     let mut sample_state2 = sample_state.clone();
-    sample_state2.username = AkdLabel("tombstone_test_user".as_bytes().to_vec());
+    sample_state2.username = AkdLabel::from_utf8_str("tombstone_test_user");
 
     // Load up a bunch of data into the storage layer
     for i in 0..5 {
@@ -643,16 +643,16 @@ async fn test_tombstoning_data<S: Storage + Sync + Send>(
     let keys_to_tombstone = [
         ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 0u64),
         ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 1u64),
-        ValueStateKey(sample_state.username.0.clone(), 0u64),
-        ValueStateKey(sample_state.username.0.clone(), 1u64),
-        ValueStateKey(sample_state.username.0.clone(), 2u64),
+        ValueStateKey(sample_state.username.to_vec(), 0u64),
+        ValueStateKey(sample_state.username.to_vec(), 1u64),
+        ValueStateKey(sample_state.username.to_vec(), 2u64),
     ];
 
     // tombstone the given states
     storage.tombstone_value_states(&keys_to_tombstone).await?;
 
     let got = storage
-        .get::<ValueState>(&ValueStateKey(sample_state.username.0.clone(), 0u64))
+        .get::<ValueState>(&ValueStateKey(sample_state.username.to_vec(), 0u64))
         .await?;
     if let DbRecord::ValueState(value_state) = got {
         assert_eq!(0u64, value_state.epoch);
