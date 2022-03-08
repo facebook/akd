@@ -196,3 +196,47 @@ pub struct LookupProof {
     /// Freshness proof (non member at previous epoch)
     pub freshness_proof: NonMembershipProof,
 }
+
+/// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
+/// For each version of the value associated with the key, the verifier must check that:
+/// * the version was included in the claimed epoch,
+/// * the previous version was retired at this epoch,
+/// * the version did not exist prior to this epoch,
+/// * the next few versions (up until the next marker), did not exist at this epoch,
+/// * the future marker versions did  not exist at this epoch.
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateProof {
+    /// Epoch of this update
+    pub epoch: u64,
+    /// Value at this update
+    pub plaintext_value: AkdValue,
+    /// Version at this update
+    pub version: u64,
+    /// VRF proof for the label for the current version
+    pub existence_vrf_proof: Vec<u8>,
+    /// Membership proof to show that the key was included in this epoch
+    pub existence_at_ep: MembershipProof,
+    /// VRF proof for the label for the previous version which became stale
+    pub previous_val_vrf_proof: Option<Vec<u8>>,
+    /// Proof that previous value was set to old at this epoch
+    pub previous_val_stale_at_ep: Option<MembershipProof>,
+    /// Proof that this value didn't exist prior to this ep
+    pub non_existence_before_ep: Option<NonMembershipProof>,
+    /// VRF Proofs for the labels of the next few values
+    pub next_few_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the next few values did not exist at this time
+    pub non_existence_of_next_few: Vec<NonMembershipProof>,
+    /// VRF proofs for the labels of future marker entries
+    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that future markers did not exist
+    pub non_existence_of_future_markers: Vec<NonMembershipProof>,
+}
+
+/// This proof is just an array of [`UpdateProof`]s.
+#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryProof {
+    /// The update proofs in the key history
+    pub proofs: Vec<UpdateProof>,
+}
