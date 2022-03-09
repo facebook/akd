@@ -242,3 +242,122 @@ pub(crate) async fn directory_test_suite<
         }
     }
 }
+
+pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFKeyStorage>(
+    mysql_db: &S,
+    vrf: &V,
+    num_users: u64,
+    num_epochs: u64,
+    num_lookups: usize,
+) {
+    // generate the test data
+    let mut rng = thread_rng();
+
+    let mut users: Vec<String> = vec![];
+    for _ in 0..num_users {
+        users.push(
+            thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(30)
+                .map(char::from)
+                .collect(),
+        );
+    }
+
+    // create & test the directory
+    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
+    match maybe_dir {
+        Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
+        Ok(dir) => {
+            info!("AKD Directory started. Beginning tests");
+
+            // Publish `num_epochs` epochs of user material
+            for i in 1..=num_epochs {
+                let mut data = Vec::new();
+                for value in users.iter() {
+                    data.push((AkdLabel(value.clone()), AkdValue(format!("{}", i))));
+                }
+
+                if let Err(error) = dir.publish::<Blake3>(data, true).await {
+                    panic!("Error publishing batch {:?}", error);
+                } else {
+                    info!("Published epoch {}", i);
+                }
+            }
+
+            // Perform `num_lookup` random lookup proofs on the published users
+            let azks = dir.retrieve_current_azks().await.unwrap();
+            let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
+
+            // Pick a set of users to lookup
+            let mut labels = Vec::new();
+            for user in users.iter().choose_multiple(&mut rng, num_lookups) {
+                let label = AkdLabel(user.clone());
+                labels.push(label);
+            }
+
+            println!("Metrics after publish(es).");
+            reset_mysql_db::<S>(&mysql_db).await;
+
+            let start = Instant::now();
+            // Lookup selected users one by one
+            for label in labels.clone() {
+                match dir.lookup::<Blake3>(label.clone()).await {
+                    Err(error) => panic!("Error looking up user information {:?}", error),
+                    Ok(proof) => {
+                        let vrf_pk = dir.get_public_key().await.unwrap();
+                        if let Err(error) =
+                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, label, proof)
+                        {
+                            panic!("Lookup proof failed to verify {:?}", error);
+                        }
+                    }
+                }
+            }
+            println!(
+                "Individual {} lookups took {}ms.",
+                num_lookups,
+                start.elapsed().as_millis()
+            );
+
+            println!("Metrics after individual lookups:");
+            reset_mysql_db::<S>(&mysql_db).await;
+
+            let start = Instant::now();
+            // Bulk lookup selected users
+            match dir.batch_lookup::<Blake3>(&labels).await {
+                Err(error) => panic!("Error batch looking up user information {:?}", error),
+                Ok(proofs) => {
+                    assert_eq!(labels.len(), proofs.len());
+
+                    let vrf_pk = dir.get_public_key().await.unwrap();
+                    for i in 0..proofs.len() {
+                        let label = labels[i].clone();
+                        let proof = proofs[i].clone();
+                        if let Err(error) =
+                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, label, proof)
+                        {
+                            panic!("Batch lookup failed to verify for index {} {:?}", i, error);
+                        }
+                    }
+                }
+            }
+            println!(
+                "Bulk {} lookups took {}ms.",
+                num_lookups,
+                start.elapsed().as_millis()
+            );
+
+            println!("Metrics after lookup proofs: ");
+            reset_mysql_db::<S>(&mysql_db).await;
+        }
+    }
+}
+
+// Reset MySQL database by logging metrics which resets the metrics, and flushing cache.
+// These allow us to accurately assess the additional efficiency of
+// bulk lookup proofs.
+async fn reset_mysql_db<S: akd::storage::Storage + Sync + Send>(mysql_db: &S) {
+    mysql_db.log_metrics(Level::Trace).await;
+    mysql_db.flush_cache().await;
+}

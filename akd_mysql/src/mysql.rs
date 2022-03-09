@@ -16,7 +16,7 @@ use akd::storage::types::{
 };
 use akd::storage::{Storable, Storage};
 use async_trait::async_trait;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -79,7 +79,9 @@ pub struct AsyncMySqlDatabase {
     trans: LocalTransaction,
 
     num_reads: Arc<tokio::sync::RwLock<u64>>,
+    read_call_stats: Arc<tokio::sync::RwLock<HashMap<String, u64>>>,
     num_writes: Arc<tokio::sync::RwLock<u64>>,
+    write_call_stats: Arc<tokio::sync::RwLock<HashMap<String, u64>>>,
     time_read: Arc<tokio::sync::RwLock<Duration>>,
     time_write: Arc<tokio::sync::RwLock<Duration>>,
 
@@ -118,7 +120,9 @@ impl Clone for AsyncMySqlDatabase {
             trans: LocalTransaction::new(),
 
             num_reads: self.num_reads.clone(),
+            read_call_stats: self.read_call_stats.clone(),
             num_writes: self.num_writes.clone(),
+            write_call_stats: self.write_call_stats.clone(),
             time_read: self.time_read.clone(),
             time_write: self.time_write.clone(),
 
@@ -169,7 +173,9 @@ impl<'a> AsyncMySqlDatabase {
             trans: LocalTransaction::new(),
 
             num_reads: Arc::new(tokio::sync::RwLock::new(0)),
+            read_call_stats: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
+            write_call_stats: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             time_read: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
             time_write: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
 
@@ -412,6 +418,8 @@ impl<'a> AsyncMySqlDatabase {
         trans: Option<mysql_async::Transaction<'a>>,
     ) -> Result<()> {
         *(self.num_writes.write().await) += 1;
+        self.record_call_stats('w', "internal_set".to_string(), "".to_string())
+            .await;
 
         debug!("BEGIN MySQL set");
         let tic = Instant::now();
@@ -454,6 +462,8 @@ impl<'a> AsyncMySqlDatabase {
         }
 
         *(self.num_writes.write().await) += records.len() as u64;
+        self.record_call_stats('w', "internal_batch_set".to_string(), "".to_string())
+            .await;
 
         debug!("BEGIN Computing mysql parameters");
         #[allow(clippy::needless_collect)]
@@ -541,6 +551,19 @@ impl<'a> AsyncMySqlDatabase {
             .await?;
 
         Ok(())
+    }
+
+    async fn record_call_stats(&self, call_type: char, caller_name: String, data_type: String) {
+        let mut stats;
+        if call_type == 'r' {
+            stats = self.read_call_stats.write().await;
+        } else if call_type == 'w' {
+            stats = self.write_call_stats.write().await;
+        } else {
+            panic!("Unknown call type to record call stats for.")
+        }
+        let call_count = (*stats).entry(caller_name + "~" + &data_type).or_insert(0);
+        *call_count += 1;
     }
 
     fn try_dockers() -> std::io::Result<std::process::Output> {
@@ -674,12 +697,20 @@ impl Storage for AsyncMySqlDatabase {
         }
 
         let mut r = self.num_reads.write().await;
+        let mut rcs = self.read_call_stats.write().await;
         let mut w = self.num_writes.write().await;
+        let mut wcs = self.write_call_stats.write().await;
         let mut tr = self.time_read.write().await;
         let mut tw = self.time_write.write().await;
 
+        // Sort call stats for consistency.
+        let mut rcs_vec = (*rcs).iter().collect::<Vec<_>>();
+        let mut wcs_vec = (*wcs).iter().collect::<Vec<_>>();
+        rcs_vec.sort_by_key(|rc| rc.0);
+        wcs_vec.sort_by_key(|wc| wc.0);
+
         let msg = format!(
-            "MySQL writes: {}, MySQL reads: {}, Time read: {} s, Time write: {} s\n\t{}\n\t{}\n\t{}",
+            "MySQL writes: {}, MySQL reads: {}, Time read: {} s, Time write: {} s\n\t{}\n\t{}\n\t{}\nRead call stats: {:?}\nWrite call stats: {:?}\n",
             *w,
             *r,
             (*tr).as_secs_f64(),
@@ -687,15 +718,21 @@ impl Storage for AsyncMySqlDatabase {
             tree_size,
             node_state_size,
             value_state_size,
+            rcs_vec,
+            wcs_vec,
         );
 
         *r = 0;
+        *rcs = HashMap::new();
         *w = 0;
+        *wcs = HashMap::new();
         *tr = Duration::from_millis(0);
         *tw = Duration::from_millis(0);
 
         match level {
-            log::Level::Trace => trace!("{}", msg),
+            // Currently logs cannot be captured unless they are
+            // println!. Normally Level::Trace should use the trace! macro.
+            log::Level::Trace => println!("{}", msg),
             log::Level::Debug => debug!("{}", msg),
             log::Level::Info => info!("{}", msg),
             log::Level::Warn => warn!("{}", msg),
@@ -890,6 +927,12 @@ impl Storage for AsyncMySqlDatabase {
         id: St::Key,
     ) -> core::result::Result<DbRecord, StorageError> {
         *(self.num_reads.write().await) += 1;
+        self.record_call_stats(
+            'r',
+            "get_direct:".to_string(),
+            format!("{:?}", St::data_type()),
+        )
+        .await;
 
         debug!("BEGIN MySQL get {:?}", id);
         let result = async {
@@ -1085,6 +1128,12 @@ impl Storage for AsyncMySqlDatabase {
             };
 
             *(self.num_reads.write().await) += 1;
+            self.record_call_stats(
+                'r',
+                "batch_get".to_string(),
+                format!("{:?}", St::data_type()),
+            )
+            .await;
 
             match result.await {
                 Ok(result_vec) => {
@@ -1105,6 +1154,9 @@ impl Storage for AsyncMySqlDatabase {
         // This is the same as previous logic under "get_all"
 
         *(self.num_reads.write().await) += 1;
+        self.record_call_stats('r', "get_user_data".to_string(), "".to_string())
+            .await;
+
         // DO NOT log the user info, it's PII in the future
         debug!("BEGIN MySQL get user data");
         let result = async {
@@ -1198,6 +1250,8 @@ impl Storage for AsyncMySqlDatabase {
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<ValueState, StorageError> {
         *(self.num_reads.write().await) += 1;
+        self.record_call_stats('r', "get_user_state".to_string(), "".to_string())
+            .await;
 
         debug!("BEGIN MySQL get user state (flag {:?})", flag);
         let result = async {
@@ -1309,6 +1363,8 @@ impl Storage for AsyncMySqlDatabase {
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<HashMap<AkdLabel, u64>, StorageError> {
         *(self.num_reads.write().await) += 1;
+        self.record_call_stats('r', "get_user_state_versions".to_string(), "".to_string())
+            .await;
 
         let mut results = HashMap::new();
 
@@ -1502,6 +1558,8 @@ impl Storage for AsyncMySqlDatabase {
         epoch_in_question: u64,
     ) -> core::result::Result<u64, StorageError> {
         *(self.num_reads.write().await) += 1;
+        self.record_call_stats('r', "get_epoch_lte_epoch".to_string(), "".to_string())
+            .await;
 
         let result = async {
             let tic = Instant::now();
