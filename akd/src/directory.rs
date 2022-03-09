@@ -230,8 +230,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
             .await?;
 
-        // self.storage.log_metrics(log::Level::Info).await;
-
         Ok(EpochHash(current_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
@@ -299,8 +297,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .await?,
         };
 
-        // self.storage.log_metrics(log::Level::Info).await;
-
         Ok(lookup_proof)
     }
 
@@ -352,8 +348,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .await?,
             );
         }
-
-        // self.storage.log_metrics(log::Level::Info).await;
 
         Ok(lookup_proofs)
     }
