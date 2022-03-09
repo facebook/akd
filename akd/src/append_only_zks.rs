@@ -24,6 +24,7 @@ use tokio::time::Instant;
 use winter_crypto::Hasher;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
+use std::collections::HashSet;
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
@@ -132,9 +133,6 @@ impl Azks {
         storage: &S,
         insertion_set: &[Node<H>],
     ) -> Result<u64, AkdError> {
-        let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
-
         let prefixes_set = crate::utils::build_prefixes_set(
             insertion_set
                 .iter()
@@ -142,6 +140,18 @@ impl Azks {
                 .collect::<Vec<NodeLabel>>()
                 .as_ref(),
         );
+
+        self.bfs_preload_nodes::<S, H>(storage, prefixes_set).await
+    }
+
+    /// Preloads given nodes using breadth-first search.
+    pub async fn bfs_preload_nodes<S: Storage + Sync + Send, H: Hasher>(
+        &self,
+        storage: &S,
+        nodes_to_load: HashSet<NodeLabel>,
+    ) -> Result<u64, AkdError> {
+        let mut load_count: u64 = 0;
+        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
         while !current_nodes.is_empty() {
             let nodes = HistoryTreeNode::batch_get_from_storage(
@@ -166,7 +176,7 @@ impl Azks {
             // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
             // individually for each node's state.
             for node in &nodes {
-                if !prefixes_set.contains(&node.label) {
+                if !nodes_to_load.contains(&node.label) {
                     // Only continue to traverse nodes which are relevant prefixes to insertion_set
                     continue;
                 }
