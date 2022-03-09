@@ -493,6 +493,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         akd::directory::get_key_history_hashes(&akd, &history_proof).await?;
 
     // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
+    // check main client output
     let tombstones = akd::client::key_history_verify::<Hash>(
         &vrf_pk,
         root_hashes.clone(),
@@ -503,6 +504,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     );
     assert!(matches!(tombstones, Err(_)));
 
+    // check lean client output
     let internal_proof = convert_history_proof::<Hash>(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
@@ -516,6 +518,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
 
     // We should be able to verify tombstones assuming the client is accepting
     // of tombstoned states
+    // check main client output
     let tombstones = akd::client::key_history_verify::<Hash>(
         &vrf_pk,
         root_hashes.clone(),
@@ -530,6 +533,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(false, tombstones[3]);
     assert_eq!(false, tombstones[4]);
 
+    // check lean client output
     let internal_proof = convert_history_proof::<Hash>(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),

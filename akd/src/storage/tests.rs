@@ -606,7 +606,7 @@ async fn test_tombstoning_data<S: Storage + Sync + Send>(
             len: 1u32,
         },
         epoch: 1u64,
-        username: AkdLabel(rand_user),
+        username: AkdLabel(rand_user.clone()),
     };
     let mut sample_state2 = sample_state.clone();
     sample_state2.username = AkdLabel::from_utf8_str("tombstone_test_user");
@@ -651,15 +651,27 @@ async fn test_tombstoning_data<S: Storage + Sync + Send>(
     // tombstone the given states
     storage.tombstone_value_states(&keys_to_tombstone).await?;
 
-    let got = storage
-        .get::<ValueState>(&ValueStateKey(sample_state.username.to_vec(), 0u64))
-        .await?;
-    if let DbRecord::ValueState(value_state) = got {
-        assert_eq!(0u64, value_state.epoch);
-        assert_eq!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
-    } else {
-        panic!("Unable to retrieve back the value_state we tombstoned");
-    }
+    for label in [
+        AkdLabel::from_utf8_str("tombstone_test_user"),
+        AkdLabel(rand_user),
+    ] {
+        for version in 0..5 {
+            let key = ValueStateKey(label.to_vec(), version);
+            let got = storage.get::<ValueState>(&key).await?;
 
+            if let DbRecord::ValueState(value_state) = got {
+                assert_eq!(version, value_state.epoch);
+                if keys_to_tombstone.contains(&key) {
+                    // should be a tombstone
+                    assert_eq!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
+                } else {
+                    // should NOT be a tombstone
+                    assert_ne!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
+                }
+            } else {
+                panic!("Unable to retrieve value state {:?}", key);
+            }
+        }
+    }
     Ok(())
 }
