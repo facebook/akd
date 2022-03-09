@@ -80,7 +80,7 @@ impl MySqlStorable for DbRecord {
                 if let Ok(bin_data) = bincode::serialize(&state.child_states) {
                     let id = state.get_id();
                     Some(
-                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data },
+                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value, "child_states" => bin_data },
                     )
                 } else {
                     None
@@ -152,7 +152,7 @@ impl MySqlStorable for DbRecord {
                             (format!("label_len{}", idx), Value::from(id.0.len)),
                             (format!("label_val{}", idx), Value::from(id.0.val)),
                             (format!("epoch{}", idx), Value::from(id.1)),
-                            (format!("value{}", idx), Value::from(state.value.clone())),
+                            (format!("value{}", idx), Value::from(state.value)),
                             (format!("child_states{}", idx), Value::from(bin_data)),
                         ])
                     } else {

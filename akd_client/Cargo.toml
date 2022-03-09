@@ -46,7 +46,7 @@ wasm = ["wasm-bindgen", "serde"]
 vrf = ["curve25519-dalek", "ed25519-dalek"]
 
 [dev-dependencies]
-akd = { path = "../akd", version = "^0.5.0", features = ["rand", "vrf"] }
+akd = { path = "../akd", version = "^0.5.0", features = ["vrf", "public-tests"] }
 winter-crypto = "0.2"
 winter-utils = "0.2"
 winter-math = "0.2"
