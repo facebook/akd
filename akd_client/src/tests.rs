@@ -194,13 +194,13 @@ where
             non_existence_of_next_few: proof
                 .non_existence_of_next_few
                 .iter()
-                .map(|non_memb_proof| convert_non_membership_proof(&non_memb_proof))
+                .map(|non_memb_proof| convert_non_membership_proof(non_memb_proof))
                 .collect(),
             future_marker_vrf_proofs: proof.future_marker_vrf_proofs.clone(),
             non_existence_of_future_markers: proof
                 .non_existence_of_future_markers
                 .iter()
-                .map(|non_exist_markers| convert_non_membership_proof(&non_exist_markers))
+                .map(|non_exist_markers| convert_non_membership_proof(non_exist_markers))
                 .collect(),
         };
         res_update_proofs.push(update_proof);
@@ -533,8 +533,8 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let internal_proof = convert_history_proof::<Hash>(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
-        to_digest_vec::<Hash>(root_hashes.clone()),
-        to_digest_vec_opt::<Hash>(previous_root_hashes.clone()),
+        to_digest_vec::<Hash>(root_hashes),
+        to_digest_vec_opt::<Hash>(previous_root_hashes),
         AkdLabel::from_utf8_str("hello").to_vec(),
         internal_proof,
         true,

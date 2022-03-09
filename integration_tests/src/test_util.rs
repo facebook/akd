@@ -279,10 +279,10 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             for i in 1..=num_epochs {
                 let mut data = Vec::new();
                 for value in users.iter() {
-                    data.push((AkdLabel(value.clone()), AkdValue(format!("{}", i))));
+                    data.push((AkdLabel::from_utf8_str(value), AkdValue(format!("{}", i).as_bytes().to_vec())));
                 }
 
-                if let Err(error) = dir.publish::<Blake3>(data, true).await {
+                if let Err(error) = dir.publish::<Blake3>(data).await {
                     panic!("Error publishing batch {:?}", error);
                 } else {
                     info!("Published epoch {}", i);
@@ -296,7 +296,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             // Pick a set of users to lookup
             let mut labels = Vec::new();
             for user in users.iter().choose_multiple(&mut rng, num_lookups) {
-                let label = AkdLabel(user.clone());
+                let label = AkdLabel::from_utf8_str(user);
                 labels.push(label);
             }
 
