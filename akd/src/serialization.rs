@@ -13,19 +13,17 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use winter_crypto::Digest;
 use winter_crypto::Hasher;
-use winter_utils::{Deserializable, Serializable, SliceReader};
+use winter_utils::{Deserializable, SliceReader};
 
 /// Converts from &[u8] to H::Digest
 pub fn to_digest<H: Hasher>(input: &[u8]) -> Result<H::Digest, AkdError> {
     Ok(H::Digest::read_from(&mut SliceReader::new(input))
-        .map_err(|_| HistoryTreeNodeError::DigestDeserializationFailed)?)
+        .map_err(|msg| HistoryTreeNodeError::DigestDeserializationFailed(format!("{}", msg)))?)
 }
 
 /// Converts from H::Digest to Vec<u8>
-pub fn from_digest<H: Hasher>(input: H::Digest) -> Result<Vec<u8>, AkdError> {
-    let mut output = vec![];
-    input.write_into(&mut output);
-    Ok(output)
+pub fn from_digest<H: Hasher>(input: H::Digest) -> Vec<u8> {
+    input.as_bytes().to_vec()
 }
 
 /// A serde serializer for the type `winter_crypto::Digest`

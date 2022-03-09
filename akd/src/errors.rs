@@ -97,7 +97,7 @@ pub enum HistoryTreeNodeError {
     /// The state of a node did not exist at a given epoch
     NoStateAtEpoch(NodeLabel, u64),
     /// Failed to deserialize a digest
-    DigestDeserializationFailed,
+    DigestDeserializationFailed(String),
 }
 
 impl std::error::Error for HistoryTreeNodeError {}
@@ -140,8 +140,8 @@ impl fmt::Display for HistoryTreeNodeError {
                     label, epoch
                 )
             }
-            Self::DigestDeserializationFailed => {
-                write!(f, "Encountered a serialization error")
+            Self::DigestDeserializationFailed(inner_error) => {
+                write!(f, "Encountered a serialization error {}", inner_error)
             }
         }
     }

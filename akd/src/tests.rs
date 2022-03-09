@@ -39,8 +39,7 @@ async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
         NodeLabel::new(byte_arr_from_u64(1), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     root.write_to_storage(&db).await?;
     root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()))
         .await?;
@@ -72,14 +71,12 @@ async fn test_set_children_without_hash_at_root() -> Result<(), AkdError> {
         NodeLabel::new(byte_arr_from_u64(1), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(byte_arr_from_u64(0), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     root.write_to_storage(&db).await?;
     assert!(
         root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
@@ -133,14 +130,12 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdErro
         NodeLabel::new(byte_arr_from_u64(11), 2),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(byte_arr_from_u64(00), 2),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     root.write_to_storage(&db).await?;
     assert!(
         root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1))
@@ -161,14 +156,12 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdErro
         NodeLabel::new(byte_arr_from_u64(1), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(byte_arr_from_u64(0), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     root.write_to_storage(&db).await?;
     assert!(
         root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
@@ -222,14 +215,12 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdEr
         NodeLabel::new(byte_arr_from_u64(11), 2),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(byte_arr_from_u64(00), 2),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     root.write_to_storage(&db).await?;
     assert!(
         root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
@@ -250,14 +241,12 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdEr
         NodeLabel::new(byte_arr_from_u64(1), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(byte_arr_from_u64(0), 1),
         Blake3::hash(&[0u8]),
         ep,
-    )
-    .unwrap();
+    );
     assert!(
         root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
             .await
@@ -316,14 +305,12 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
             ),
             Blake3::hash(&[0u8]),
             2 * ep,
-        )
-        .unwrap();
+        );
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0), ep.clone().try_into().unwrap()),
             Blake3::hash(&[0u8]),
             2 * ep,
-        )
-        .unwrap();
+        );
         root.write_to_storage(&db).await?;
         root.set_child::<_, Blake3>(&db, 2 * ep, &(Direction::Some(1), child_hist_node_1))
             .await?;
@@ -340,8 +327,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
         ),
         Blake3::hash(&[0u8]),
         2 * ep_existing,
-    )
-    .unwrap();
+    );
     let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
         NodeLabel::new(
             byte_arr_from_u64(0),
@@ -349,8 +335,7 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
         ),
         Blake3::hash(&[0u8]),
         2 * ep_existing,
-    )
-    .unwrap();
+    );
 
     let set_child_1 = root
         .get_child_at_epoch::<_, Blake3>(&db, 1, Direction::Some(1))
@@ -603,10 +588,10 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
     ]);
 
     let mut leaf_0_as_child = new_leaf.to_node_child_state::<_, Blake3>(&db).await?;
-    leaf_0_as_child.hash_val = from_digest::<Blake3>(leaf_0_hash).unwrap();
+    leaf_0_as_child.hash_val = from_digest::<Blake3>(leaf_0_hash);
 
     let mut leaf_3_as_child = leaf_3.to_node_child_state::<_, Blake3>(&db).await?;
-    leaf_3_as_child.hash_val = from_digest::<Blake3>(leaf_3_hash).unwrap();
+    leaf_3_as_child.hash_val = from_digest::<Blake3>(leaf_3_hash);
 
     root.write_to_storage(&db).await?;
     let mut num_nodes = 1;

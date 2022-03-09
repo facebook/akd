@@ -76,7 +76,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        let message_vec = from_digest::<H>(hashed_label).unwrap();
+        let message_vec = from_digest::<H>(hashed_label);
         let message: &[u8] = message_vec.as_slice();
 
         // VRF proof and hash output

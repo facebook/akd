@@ -7,7 +7,6 @@
 
 //! The representation for the label of a history tree node.
 
-use crate::errors::AkdError;
 use crate::serialization::from_digest;
 #[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
@@ -290,13 +289,13 @@ unsafe impl Sync for HistoryNodeState {}
 
 impl HistoryNodeState {
     /// Creates a new [HistoryNodeState]
-    pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, AkdError> {
+    pub fn new<H: Hasher>(key: NodeStateKey) -> Self {
         const INIT: Option<HistoryChildState> = None;
-        Ok(HistoryNodeState {
-            value: from_digest::<H>(H::hash(&EMPTY_VALUE))?,
+        HistoryNodeState {
+            value: from_digest::<H>(H::hash(&EMPTY_VALUE)),
             child_states: [INIT; ARITY],
             key,
-        })
+        }
     }
 
     /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
@@ -347,16 +346,12 @@ unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
-    pub fn new<H: Hasher>(
-        label: NodeLabel,
-        hash_val: H::Digest,
-        ep: u64,
-    ) -> Result<Self, AkdError> {
-        Ok(HistoryChildState {
+    pub fn new<H: Hasher>(label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
+        HistoryChildState {
             label,
-            hash_val: from_digest::<H>(hash_val)?,
+            hash_val: from_digest::<H>(hash_val),
             epoch_version: ep,
-        })
+        }
     }
 }
 
