@@ -611,6 +611,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let mut rng = OsRng;
         let num_nodes = 10;
         let db = AsyncInMemoryDatabase::new();
@@ -646,6 +648,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_permuted() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let num_nodes = 10;
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
@@ -683,6 +687,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_permuted() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -715,6 +721,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_failing() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -756,6 +764,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
 
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
@@ -793,6 +803,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -826,6 +838,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
@@ -856,6 +870,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
 
@@ -895,6 +911,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let num_nodes = 10;
         let mut rng = OsRng;
 
@@ -954,6 +972,8 @@ mod tests {
 
     #[tokio::test]
     async fn future_epoch_throws_error() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let azks = Azks::new::<_, Blake3>(&db).await?;
 

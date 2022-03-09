@@ -644,6 +644,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await?;
@@ -663,6 +665,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_publish() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
@@ -677,6 +681,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_lookup() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
@@ -708,6 +714,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_key_history() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
@@ -841,6 +849,8 @@ mod tests {
     #[allow(unused)]
     #[tokio::test]
     async fn test_simple_audit() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
@@ -999,6 +1009,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_during_publish() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
@@ -1106,6 +1118,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_directory_read_only_mode() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         // There is no AZKS object in the storage layer, directory construction should fail
@@ -1125,6 +1139,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         // writer will write the AZKS record

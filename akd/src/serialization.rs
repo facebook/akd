@@ -70,6 +70,8 @@ mod tests {
 
     #[test]
     pub fn serialize_deserialize() {
+        crate::test_utils::init_logger(log::Level::Info);
+
         use winter_crypto::hashers::Blake3_256;
         use winter_crypto::Hasher;
         use winter_math::fields::f128::BaseElement;
@@ -87,6 +89,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn lookup_proof_roundtrip() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
 
         let vrf = HardCodedAkdVRF {};
@@ -121,6 +125,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
@@ -154,6 +160,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
+        crate::test_utils::init_logger(log::Level::Info);
+
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)

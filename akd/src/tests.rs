@@ -32,6 +32,8 @@ type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
 
 #[tokio::test]
 async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -64,6 +66,8 @@ async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_set_children_without_hash_at_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -123,6 +127,8 @@ async fn test_set_children_without_hash_at_root() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -208,6 +214,8 @@ async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdErro
 
 #[tokio::test]
 async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let mut ep = 1;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -293,6 +301,8 @@ async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdEr
 //  Test get_child_at_epoch
 #[tokio::test]
 pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let init_ep = 0;
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(init_ep)).await?;
@@ -373,6 +383,8 @@ pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -429,6 +441,8 @@ async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -514,6 +528,8 @@ async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     let new_leaf = get_leaf_node::<Blake3, _>(
@@ -620,6 +636,8 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
 
 #[tokio::test]
 async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
+    crate::test_utils::init_logger(log::Level::Info);
+
     let db = InMemoryDb::new();
     let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
     root.write_to_storage(&db).await?;
@@ -694,4 +712,17 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
 
     assert!(root_val == expected, "Root hash not equal to expected");
     Ok(())
+}
+
+#[test]
+// Comment the following line to see log messages being written in failed testing scenarios
+#[should_panic(expected = "boom.")]
+fn boom() {
+    crate::test_utils::init_logger(log::Level::Info);
+
+    log::error!("Uh oh!");
+    log::debug!("I'm not going to print");
+    log::warn!("Hmmm a warning? Do I care?");
+
+    panic!("boom.");
 }
