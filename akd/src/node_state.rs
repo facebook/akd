@@ -148,6 +148,12 @@ impl NodeLabel {
         Self::new(out_val, len)
     }
 
+    // The sibling of a node in a binary tree has the same label as its sibling
+    // except its last bit is flipped (e.g., 000 and 001 are siblings).
+    // This function returns the sibling prefix of a specified length.
+    // The rest of the node label after the flipped bit is padded with zeroes.
+    // For instance, 010100 (length = 6) with sibling prefix length = 3 is 01[1]000 (length = 3)
+    // -- [bit] denoting flipped bit.
     pub(crate) fn get_sibling_prefix(&self, mut len: u32) -> Self {
         if len > self.get_len() {
             len = self.get_len();
