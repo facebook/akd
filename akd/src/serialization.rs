@@ -21,9 +21,9 @@ pub fn to_digest<H: Hasher>(input: &[u8]) -> Result<H::Digest, AkdError> {
         .map_err(|msg| HistoryTreeNodeError::DigestDeserializationFailed(format!("{}", msg)))?)
 }
 
-/// Converts from H::Digest to Vec<u8>
-pub fn from_digest<H: Hasher>(input: H::Digest) -> Vec<u8> {
-    input.as_bytes().to_vec()
+/// Converts from H::Digest to [u8; 32]
+pub fn from_digest<H: Hasher>(input: H::Digest) -> [u8; 32] {
+    input.as_bytes()
 }
 
 /// A serde serializer for the type `winter_crypto::Digest`

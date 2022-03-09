@@ -330,10 +330,12 @@ impl HistoryTreeNode {
                 let child_st = self
                     .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch(), dir_leaf)
                     .await?
-                    .ok_or(HistoryTreeNodeError::NoChildAtEpoch(
-                        self.get_latest_epoch(),
-                        dir_leaf.unwrap_or(0),
-                    ))?;
+                    .ok_or_else(|| {
+                        HistoryTreeNodeError::NoChildAtEpoch(
+                            self.get_latest_epoch(),
+                            dir_leaf.unwrap_or(0),
+                        )
+                    })?;
 
                 debug!("BEGIN get child node from storage");
                 let mut child_node =
@@ -788,9 +790,9 @@ impl HistoryTreeNode {
 
 pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
     input: &Option<HistoryChildState>,
-) -> Vec<u8> {
+) -> [u8; 32] {
     match input {
-        Some(child_state) => child_state.hash_val.clone(),
+        Some(child_state) => child_state.hash_val,
         None => from_digest::<H>(crate::utils::empty_node_hash::<H>()),
     }
 }
@@ -882,8 +884,7 @@ pub(crate) async fn get_state_map<S: Storage + Sync + Send>(
     key: u64,
 ) -> Result<HistoryNodeState, StorageError> {
     let state_key = get_state_map_key(node, key);
-    if let Ok(DbRecord::HistoryNodeState(state)) =
-        storage.get::<HistoryNodeState>(state_key.clone()).await
+    if let Ok(DbRecord::HistoryNodeState(state)) = storage.get::<HistoryNodeState>(state_key).await
     {
         Ok(state)
     } else {

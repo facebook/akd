@@ -204,12 +204,12 @@ mod tests {
             node_type: NodeType::Leaf,
         });
         let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: vec![],
+            value: [0u8; 32],
             child_states: [None, None],
             key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1),
         });
         let node_state2 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: vec![],
+            value: [0u8; 32],
             child_states: [None, None],
             key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
         });

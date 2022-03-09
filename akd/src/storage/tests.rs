@@ -113,7 +113,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === HistoryNodeState storage === //
     let key = NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1);
     let node_state = HistoryNodeState {
-        value: vec![],
+        value: [0u8; 32],
         child_states: [None, None],
         key,
     };

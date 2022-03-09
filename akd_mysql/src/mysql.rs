@@ -344,7 +344,7 @@ impl<'a> AsyncMySqlDatabase {
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_NODE_STATES
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, "
-            + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
+            + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(32), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
         tx.query_drop(command).await?;
 

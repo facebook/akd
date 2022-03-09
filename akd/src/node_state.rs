@@ -212,7 +212,7 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 /// To be used in its parent, alongwith the label.
 pub struct HistoryNodeState {
     /// The hash at this node state
-    pub value: Vec<u8>,
+    pub value: [u8; 32],
     /// The states of the children at this time
     pub child_states: [Option<HistoryChildState>; ARITY],
     /// A unique key
@@ -307,7 +307,7 @@ impl HistoryNodeState {
 impl Clone for HistoryNodeState {
     fn clone(&self) -> Self {
         Self {
-            value: self.value.clone(),
+            value: self.value,
             child_states: self.child_states.clone(),
             key: self.key,
         }
@@ -337,7 +337,7 @@ pub struct HistoryChildState {
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
-    pub hash_val: Vec<u8>,
+    pub hash_val: [u8; 32],
     /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,
 }
@@ -359,7 +359,7 @@ impl Clone for HistoryChildState {
     fn clone(&self) -> Self {
         Self {
             label: self.label,
-            hash_val: self.hash_val.clone(),
+            hash_val: self.hash_val,
             epoch_version: self.epoch_version,
         }
     }
