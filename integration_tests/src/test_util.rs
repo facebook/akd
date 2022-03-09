@@ -279,7 +279,10 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             for i in 1..=num_epochs {
                 let mut data = Vec::new();
                 for value in users.iter() {
-                    data.push((AkdLabel::from_utf8_str(value), AkdValue(format!("{}", i).as_bytes().to_vec())));
+                    data.push((
+                        AkdLabel::from_utf8_str(value),
+                        AkdValue(format!("{}", i).as_bytes().to_vec()),
+                    ));
                 }
 
                 if let Err(error) = dir.publish::<Blake3>(data).await {
