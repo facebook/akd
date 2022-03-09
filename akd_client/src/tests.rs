@@ -196,13 +196,13 @@ where
             non_existence_of_next_few: proof
                 .non_existence_of_next_few
                 .iter()
-                .map(|non_memb_proof| convert_non_membership_proof(&non_memb_proof))
+                .map(|non_memb_proof| convert_non_membership_proof(non_memb_proof))
                 .collect(),
             future_marker_vrf_proofs: proof.future_marker_vrf_proofs.clone(),
             non_existence_of_future_markers: proof
                 .non_existence_of_future_markers
                 .iter()
-                .map(|non_exist_markers| convert_non_membership_proof(&non_exist_markers))
+                .map(|non_exist_markers| convert_non_membership_proof(non_exist_markers))
                 .collect(),
         };
         res_update_proofs.push(update_proof);
@@ -345,7 +345,7 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
     let key_bytes = key.0.as_bytes().to_vec();
 
     // publishes single key-value
-    akd.publish::<Hash>(vec![(key.clone(), AkdValue(format!("value")))], true)
+    akd.publish::<Hash>(vec![(key.clone(), AkdValue("value".to_string()))], true)
         .await?;
 
     // retrieves and verifies history proofs for the key

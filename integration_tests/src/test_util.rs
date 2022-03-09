@@ -297,7 +297,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             }
 
             println!("Metrics after publish(es).");
-            reset_mysql_db::<S>(&mysql_db).await;
+            reset_mysql_db::<S>(mysql_db).await;
 
             let start = Instant::now();
             // Lookup selected users one by one
@@ -321,7 +321,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             );
 
             println!("Metrics after individual lookups:");
-            reset_mysql_db::<S>(&mysql_db).await;
+            reset_mysql_db::<S>(mysql_db).await;
 
             let start = Instant::now();
             // Bulk lookup selected users
@@ -349,7 +349,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             );
 
             println!("Metrics after lookup proofs: ");
-            reset_mysql_db::<S>(&mysql_db).await;
+            reset_mysql_db::<S>(mysql_db).await;
         }
     }
 }
