@@ -406,11 +406,15 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
 
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
+            let mut user_data = this_user_data.states;
+            // reverse sort from highest epoch to lowest
+            user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+
             let mut proofs = Vec::<UpdateProof<H>>::new();
-            for user_state in &this_user_data.states {
+            for user_state in user_data {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
-                    let proof = self.create_single_update_proof(uname, user_state).await?;
+                    let proof = self.create_single_update_proof(uname, &user_state).await?;
                     proofs.push(proof);
                 }
             }
@@ -430,63 +434,41 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Takes in the current state of the server and a label along with
-    /// a range starting epoch.
+    /// a "top" number of key updates to generate a proof for.
     ///
     /// If the label is present in the current state,
-    /// this function returns all the values ever associated with it after start_epoch,
-    /// and the epoch at which each value was first committed to the server state.
-    /// It also returns the proof of the latest version being served at all times.
+    /// this function returns all the values & proof of validity
+    /// up to `top_n_updates` results.
     pub async fn limited_key_history<H: Hasher>(
         &self,
-        start_epoch: u64,
+        top_n_updates: usize,
         uname: &AkdLabel,
     ) -> Result<HistoryProof<H>, AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let username = uname.to_vec();
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
-        if start_epoch >= current_epoch {
-            return Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
-                "start_epoch ({}) needs to be before the current epoch {}",
-                start_epoch, current_epoch
-            ))));
-        }
+        let mut user_data = self.storage.get_user_data(uname).await?.states;
+        // reverse sort from highest epoch to lowest
+        user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
 
-        // TODO: This call is quite expensive, since it's assumed most epochs do NOT have a
-        // user updating their key. Therefore we're fetching far more keys than exist values.
-        // See Issue #165
-        let keys = (start_epoch..current_epoch)
-            .map(|epoch| crate::storage::types::ValueStateKey(uname.to_vec(), epoch))
-            .collect::<Vec<_>>();
-        let mut batch = self
-            .storage
-            .batch_get::<ValueState>(&keys)
-            .await?
+        let limited_history = user_data
             .into_iter()
-            .filter_map(|potential| {
-                if let DbRecord::ValueState(vs) = potential {
-                    Some(vs)
-                } else {
-                    None
-                }
-            })
+            .take(top_n_updates)
             .collect::<Vec<_>>();
 
-        // sort in ascending epoch order (in case of DB not respecting ordering)
-        batch.sort_by(|a, b| a.epoch.partial_cmp(&b.epoch).unwrap());
-
-        if batch.is_empty() {
-            Err(AkdError::Directory(DirectoryError::NoUpdatesInPeriod(
-                username,
-                start_epoch,
-                current_epoch,
-            )))
+        if limited_history.is_empty() {
+            let msg = if let Ok(username_str) = std::str::from_utf8(&uname.to_vec()) {
+                format!("User {}", username_str)
+            } else {
+                format!("User {:?}", uname)
+            };
+            Err(AkdError::Storage(StorageError::NotFound(msg)))
         } else {
             let mut proofs = Vec::<UpdateProof<H>>::new();
-            for user_state in batch {
+            for user_state in limited_history {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
                     let proof = self.create_single_update_proof(uname, &user_state).await?;
@@ -1443,26 +1425,33 @@ mod tests {
 
         let vrf_pk = akd.get_public_key().await?;
 
-        // "hello" was updated in epochs 1,2,3,5
+        // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
+        let history_proof = akd
+            .limited_key_history::<Blake3>(1, &AkdLabel::from_utf8_str("hello"))
+            .await?;
+        assert_eq!(1, history_proof.proofs.len());
+        assert_eq!(5, history_proof.proofs[0].epoch);
+
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel::from_utf8_str("hello"),
+            history_proof,
+            false,
+        )?;
+
+        // Take the top 3 results, and check that we're getting the right epoch updates
         let history_proof = akd
             .limited_key_history::<Blake3>(3, &AkdLabel::from_utf8_str("hello"))
             .await?;
-        assert_eq!(2, history_proof.proofs.len());
-        let (root_hashes, previous_root_hashes) =
-            get_key_history_hashes(&akd, &history_proof).await?;
-        key_history_verify::<Blake3>(
-            &vrf_pk,
-            root_hashes,
-            previous_root_hashes,
-            AkdLabel::from_utf8_str("hello"),
-            history_proof,
-            false,
-        )?;
-
-        let history_proof = akd
-            .limited_key_history::<Blake3>(2, &AkdLabel::from_utf8_str("hello"))
-            .await?;
         assert_eq!(3, history_proof.proofs.len());
+        assert_eq!(5, history_proof.proofs[0].epoch);
+        assert_eq!(3, history_proof.proofs[1].epoch);
+        assert_eq!(2, history_proof.proofs[2].epoch);
+
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3>(
@@ -1473,19 +1462,6 @@ mod tests {
             history_proof,
             false,
         )?;
-
-        // The user didn't update their key between epoch's 6 and current, therefore we have NonExistentUser in that range
-        let history_proof = akd
-            .limited_key_history::<Blake3>(6, &AkdLabel::from_utf8_str("hello"))
-            .await;
-        assert!(matches!(
-            history_proof,
-            Err(AkdError::Directory(DirectoryError::NoUpdatesInPeriod(
-                _,
-                _,
-                _
-            )))
-        ));
 
         Ok(())
     }
@@ -1570,11 +1546,11 @@ mod tests {
             history_proof,
             true,
         )?;
-        assert_eq!(true, tombstones[0]);
-        assert_eq!(true, tombstones[1]);
+        assert_eq!(false, tombstones[0]);
+        assert_eq!(false, tombstones[1]);
         assert_eq!(false, tombstones[2]);
-        assert_eq!(false, tombstones[3]);
-        assert_eq!(false, tombstones[4]);
+        assert_eq!(true, tombstones[3]);
+        assert_eq!(true, tombstones[4]);
 
         Ok(())
     }

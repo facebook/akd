@@ -190,8 +190,6 @@ pub enum DirectoryError {
     InvalidEpoch(String),
     /// AZKS not found in read-only directory mode
     ReadOnlyDirectory(String),
-    /// The user has no history between the start and ending epochs
-    NoUpdatesInPeriod(Vec<u8>, u64, u64),
 }
 
 impl std::error::Error for DirectoryError {}
@@ -210,23 +208,6 @@ impl fmt::Display for DirectoryError {
             }
             Self::ReadOnlyDirectory(inner_message) => {
                 write!(f, "Directory in read-only mode: {}", inner_message)
-            }
-            Self::NoUpdatesInPeriod(uname, start, end) => {
-                if let Ok(str) = std::str::from_utf8(uname) {
-                    write!(
-                        f,
-                        "The user {} had no updates between epochs {} -> {}",
-                        str, start, end
-                    )
-                } else {
-                    write!(
-                        f,
-                        "The user 0x{} had no updates between epochs {} -> {}",
-                        hex::encode(uname),
-                        start,
-                        end
-                    )
-                }
             }
         }
     }

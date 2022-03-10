@@ -527,11 +527,11 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         history_proof.clone(),
         true,
     )?;
-    assert_eq!(true, tombstones[0]);
-    assert_eq!(true, tombstones[1]);
+    assert_eq!(false, tombstones[0]);
+    assert_eq!(false, tombstones[1]);
     assert_eq!(false, tombstones[2]);
-    assert_eq!(false, tombstones[3]);
-    assert_eq!(false, tombstones[4]);
+    assert_eq!(true, tombstones[3]);
+    assert_eq!(true, tombstones[4]);
 
     // check lean client output
     let internal_proof = convert_history_proof::<Hash>(&history_proof);
@@ -545,11 +545,11 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     )
     .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
 
-    assert_eq!(true, tombstones[0]);
-    assert_eq!(true, tombstones[1]);
+    assert_eq!(false, tombstones[0]);
+    assert_eq!(false, tombstones[1]);
     assert_eq!(false, tombstones[2]);
-    assert_eq!(false, tombstones[3]);
-    assert_eq!(false, tombstones[4]);
+    assert_eq!(true, tombstones[3]);
+    assert_eq!(true, tombstones[4]);
 
     Ok(())
 }
