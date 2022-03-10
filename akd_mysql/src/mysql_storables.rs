@@ -81,7 +81,7 @@ impl MySqlStorable for DbRecord {
                 if let Ok(bin_data) = bincode::serialize(&state.child_states) {
                     let id = state.get_id();
                     Some(
-                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value.clone(), "child_states" => bin_data },
+                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value, "child_states" => bin_data },
                     )
                 } else {
                     None
@@ -153,7 +153,7 @@ impl MySqlStorable for DbRecord {
                             (format!("label_len{}", idx), Value::from(id.0.len)),
                             (format!("label_val{}", idx), Value::from(id.0.val)),
                             (format!("epoch{}", idx), Value::from(id.1)),
-                            (format!("value{}", idx), Value::from(state.value.clone())),
+                            (format!("value{}", idx), Value::from(state.value)),
                             (format!("child_states{}", idx), Value::from(bin_data)),
                         ])
                     } else {
@@ -341,6 +341,47 @@ impl MySqlStorable for DbRecord {
         }
     }
 
+    fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params> {
+        match St::data_type() {
+            StorageType::Azks => None,
+            StorageType::HistoryNodeState => {
+                let bin = St::get_full_binary_key_id(key);
+
+                if let Ok(back) = akd::node_state::HistoryNodeState::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "label_len" => back.0.len,
+                        "label_val" => back.0.val,
+                        "epoch" => back.1
+                    })
+                } else {
+                    None
+                }
+            }
+            StorageType::HistoryTreeNode => {
+                let bin = St::get_full_binary_key_id(key);
+                if let Ok(back) = HistoryTreeNode::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "label_len" => back.0.len,
+                        "label_val" => back.0.val,
+                    })
+                } else {
+                    None
+                }
+            }
+            StorageType::ValueState => {
+                let bin = St::get_full_binary_key_id(key);
+                if let Ok(back) = akd::storage::types::ValueState::key_from_full_binary(&bin) {
+                    Some(params! {
+                        "username" => back.0,
+                        "epoch" => back.1
+                    })
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     fn get_multi_row_specific_params<St: Storable>(
         keys: &[St::Key],
     ) -> Option<mysql_async::Params> {
@@ -409,47 +450,6 @@ impl MySqlStorable for DbRecord {
         }
     }
 
-    fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params> {
-        match St::data_type() {
-            StorageType::Azks => None,
-            StorageType::HistoryNodeState => {
-                let bin = St::get_full_binary_key_id(key);
-
-                if let Ok(back) = HistoryNodeState::key_from_full_binary(&bin) {
-                    Some(params! {
-                        "label_len" => back.0.len,
-                        "label_val" => back.0.val,
-                        "epoch" => back.1
-                    })
-                } else {
-                    None
-                }
-            }
-            StorageType::HistoryTreeNode => {
-                let bin = St::get_full_binary_key_id(key);
-                if let Ok(back) = HistoryTreeNode::key_from_full_binary(&bin) {
-                    Some(params! {
-                        "label_len" => back.0.len,
-                        "label_val" => back.0.val,
-                    })
-                } else {
-                    None
-                }
-            }
-            StorageType::ValueState => {
-                let bin = St::get_full_binary_key_id(key);
-                if let Ok(back) = akd::storage::types::ValueState::key_from_full_binary(&bin) {
-                    Some(params! {
-                        "username" => back.0,
-                        "epoch" => back.1
-                    })
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
     fn from_row<St: Storable>(row: &mut mysql_async::Row) -> core::result::Result<Self, MySqlError>
     where
         Self: std::marker::Sized,
@@ -481,6 +481,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(3),
                     row.take_opt(4),
                 ) {
+                    let value_vec: Vec<u8> = value;
                     let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
                     let child_states_decoded: [Option<HistoryChildState>; ARITY] =
@@ -492,7 +493,7 @@ impl MySqlStorable for DbRecord {
                             },
                         )?;
                     let node_state = DbRecord::build_history_node_state(
-                        value,
+                        value_vec.try_into().map_err(|_| cast_err())?,
                         child_states_decoded,
                         label_len,
                         label_val_vec.try_into().map_err(|_| cast_err())?,

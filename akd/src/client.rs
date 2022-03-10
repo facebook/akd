@@ -275,7 +275,7 @@ fn verify_single_update_proof<H: Hasher>(
     // ***** PART 3 ***************************
     // Verify that the current version was only added in this epoch and didn't exist before.
     if epoch > 1 {
-        let root_hash = previous_root_hash.ok_or(AkdError::NoEpochGiven)?;
+        let root_hash = previous_root_hash.ok_or(AzksError::NoEpochGiven)?;
         verify_nonmembership(
             root_hash,
             non_existence_before_ep.as_ref().ok_or_else(|| AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(format!(

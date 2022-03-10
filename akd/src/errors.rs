@@ -11,6 +11,7 @@ use core::fmt;
 use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
+#[cfg_attr(test, derive(PartialEq))]
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
@@ -19,13 +20,13 @@ pub enum AkdError {
     Directory(DirectoryError),
     /// Error propagation
     AzksErr(AzksError),
-    /// Thrown when a place where an epoch is needed wasn't provided one.
-    NoEpochGiven,
-    /// Thrown when the underlying Azks is not found.
-    AzksNotFound(String),
-    /// VRF Storage Error: Only called by the client
-    VRFStorageErr(VRFStorageError),
+    /// Vrf related error
+    Vrf(VrfError),
+    /// Storage layer error thrown
+    Storage(StorageError),
 }
+
+impl std::error::Error for AkdError {}
 
 impl From<HistoryTreeNodeError> for AkdError {
     fn from(error: HistoryTreeNodeError) -> Self {
@@ -35,7 +36,7 @@ impl From<HistoryTreeNodeError> for AkdError {
 
 impl From<StorageError> for AkdError {
     fn from(error: StorageError) -> Self {
-        Self::HistoryTreeNode(HistoryTreeNodeError::Storage(error))
+        Self::Storage(error)
     }
 }
 
@@ -45,9 +46,9 @@ impl From<DirectoryError> for AkdError {
     }
 }
 
-impl From<VRFStorageError> for AkdError {
-    fn from(error: VRFStorageError) -> Self {
-        Self::VRFStorageErr(error)
+impl From<VrfError> for AkdError {
+    fn from(error: VrfError) -> Self {
+        Self::Vrf(error)
     }
 }
 
@@ -57,15 +58,25 @@ impl From<AzksError> for AkdError {
     }
 }
 
-impl From<StorageError> for HistoryTreeNodeError {
-    fn from(error: StorageError) -> Self {
-        Self::Storage(error)
-    }
-}
-
 impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        writeln!(f, "AkdError: {:?}", self)
+        match self {
+            AkdError::HistoryTreeNode(err) => {
+                writeln!(f, "AKD History Tree Node Error: {}", err)
+            }
+            AkdError::Directory(err) => {
+                writeln!(f, "AKD Directory Error: {}", err)
+            }
+            AkdError::AzksErr(err) => {
+                writeln!(f, "AKD AZKS Error: {}", err)
+            }
+            AkdError::Vrf(err) => {
+                writeln!(f, "AKD VRF Error: {}", err)
+            }
+            AkdError::Storage(err) => {
+                writeln!(f, "AKD Storage Error: {}", err)
+            }
+        }
     }
 }
 
@@ -86,11 +97,11 @@ pub enum HistoryTreeNodeError {
     NonexistentAtEpoch(NodeLabel, u64),
     /// The state of a node did not exist at a given epoch
     NoStateAtEpoch(NodeLabel, u64),
-    /// A data serialization error occured
-    SerializationError,
-    /// Error propagation
-    Storage(StorageError),
+    /// Failed to deserialize a digest
+    DigestDeserializationFailed(String),
 }
+
+impl std::error::Error for HistoryTreeNodeError {}
 
 impl fmt::Display for HistoryTreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -130,24 +141,26 @@ impl fmt::Display for HistoryTreeNodeError {
                     label, epoch
                 )
             }
-            Self::Storage(err) => {
-                write!(f, "Encountered a storage error: {:?}", err,)
-            }
-            Self::SerializationError => {
-                write!(f, "Encountered a serialization error")
+            Self::DigestDeserializationFailed(inner_error) => {
+                write!(f, "Encountered a serialization error {}", inner_error)
             }
         }
     }
 }
 
 /// An error thrown by the Azks data structure.
+#[cfg_attr(test, derive(PartialEq))]
 #[derive(Debug)]
 pub enum AzksError {
     /// Membership proof did not verify
     VerifyMembershipProof(String),
     /// Append-only proof did not verify
     VerifyAppendOnlyProof,
+    /// Thrown when a place where an epoch is needed wasn't provided one.
+    NoEpochGiven,
 }
+
+impl std::error::Error for AzksError {}
 
 impl fmt::Display for AzksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -158,80 +171,57 @@ impl fmt::Display for AzksError {
             Self::VerifyAppendOnlyProof => {
                 write!(f, "Append only proof did not verify!")
             }
+            Self::NoEpochGiven => {
+                write!(f, "An epoch was required but not supplied")
+            }
         }
     }
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
+#[cfg_attr(test, derive(PartialEq))]
 #[derive(Debug)]
 pub enum DirectoryError {
-    /// Looked up a user not in the directory
-    NonExistentUser(Vec<u8>, u64),
     /// Lookup proof did not verify
     VerifyLookupProof(String),
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
     /// Tried to audit an invalid epoch range
     InvalidEpoch(String),
-    /// Error propagation
-    Storage(StorageError),
-    /// Error propagation for errors from VRF storage
-    VRFStorageErr(VRFStorageError),
+    /// AZKS not found in read-only directory mode
+    ReadOnlyDirectory(String),
     /// The user has no history between the start and ending epochs
     NoUpdatesInPeriod(Vec<u8>, u64, u64),
 }
 
-impl From<VRFStorageError> for DirectoryError {
-    fn from(error: VRFStorageError) -> Self {
-        Self::VRFStorageErr(error)
-    }
-}
+impl std::error::Error for DirectoryError {}
 
 impl fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Storage(storage_error) => {
-                write!(
-                    f,
-                    "Error with retrieving value from storage: {:?}",
-                    storage_error
-                )
-            }
-            Self::NonExistentUser(uname, ep) => {
-                if let Ok(str) = std::str::from_utf8(uname) {
-                    write!(f, "The user {} did not exist at the epoch {}", str, ep)
-                } else {
-                    write!(
-                        f,
-                        "The user 0x{} did not exist at the epoch {}",
-                        hex::encode(uname),
-                        ep
-                    )
-                }
-            }
             Self::VerifyKeyHistoryProof(err_string) => {
-                write!(f, "{}", err_string)
+                write!(f, "Failed to verify key history {}", err_string)
             }
             Self::InvalidEpoch(err_string) => {
-                write!(f, "{}", err_string)
+                write!(f, "Invalid epoch {}", err_string)
             }
             Self::VerifyLookupProof(err_string) => {
-                write!(f, "{}", err_string)
+                write!(f, "Failed to verify lookup proof {}", err_string)
             }
-            Self::VRFStorageErr(err) => {
-                write!(f, "Encountered a VRF error: {:?}", err)
+            Self::ReadOnlyDirectory(inner_message) => {
+                write!(f, "Directory in read-only mode: {}", inner_message)
             }
             Self::NoUpdatesInPeriod(uname, start, end) => {
                 if let Ok(str) = std::str::from_utf8(uname) {
                     write!(
                         f,
-                        "The user {} had no updated between {} -> {}",
+                        "The user {} had no updates between epochs {} -> {}",
                         str, start, end
                     )
                 } else {
                     write!(
                         f,
-                        "The user 0x{} had no updated between {} -> {}",
+                        "The user 0x{} had no updates between epochs {} -> {}",
                         hex::encode(uname),
                         start,
                         end
@@ -243,38 +233,66 @@ impl fmt::Display for DirectoryError {
 }
 
 /// Represents a storage-layer error
-#[derive(PartialEq, Debug)]
+#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq))]
+#[derive(Debug)]
 pub enum StorageError {
-    /// An error occurred setting data in the storage layer
-    SetData(String),
-    /// An error occurred getting data from the storage layer
-    GetData(String),
+    /// Data wasn't found in the storage layer
+    NotFound(String),
+    /// A transaction error
+    Transaction(String),
     /// Some kind of storage connection error occurred
     Connection(String),
+    /// Some other storage-layer error occurred
+    Other(String),
 }
 
-/// Represents a VRF-storage-layer error
-#[derive(PartialEq, Debug)]
-pub enum VRFStorageError {
-    /// An error occurred when getting a key
-    GetPK(String),
-    /// An error occurred getting the secret key
-    GetSK(String),
-    /// An error in proving or verifying
-    VRFErr(String),
-}
+impl std::error::Error for StorageError {}
 
-impl fmt::Display for VRFStorageError {
+impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::GetSK(error_string) => {
-                write!(f, "{}", error_string)
+            StorageError::Connection(inner) => {
+                write!(f, "Storage connection: {}", inner)
             }
-            Self::GetPK(error_string) => {
-                write!(f, "{}", error_string)
+            StorageError::Transaction(inner) => {
+                write!(f, "Transaction: {}", inner)
             }
-            Self::VRFErr(error_string) => {
-                write!(f, "{}", error_string)
+            StorageError::NotFound(inner) => {
+                write!(f, "Data not found: {}", inner)
+            }
+            StorageError::Other(inner) => {
+                write!(f, "Other storage error: {}", inner)
+            }
+        }
+    }
+}
+
+/// Represents a VRF related error (key retrieval,
+/// parsing, verification of a VRF proof, etc)
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
+pub enum VrfError {
+    /// An error occurred when getting a key
+    PublicKey(String),
+    /// An error occurred getting the secret key
+    SigningKey(String),
+    /// An error in proving verifying
+    Verification(String),
+}
+
+impl std::error::Error for VrfError {}
+
+impl fmt::Display for VrfError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SigningKey(error_string) => {
+                write!(f, "VRF signing key: {}", error_string)
+            }
+            Self::PublicKey(error_string) => {
+                write!(f, "VRF public key: {}", error_string)
+            }
+            Self::Verification(error_string) => {
+                write!(f, "VRF proving or verifying: {}", error_string)
             }
         }
     }

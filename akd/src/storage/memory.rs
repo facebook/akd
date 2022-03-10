@@ -175,7 +175,7 @@ impl Storage for AsyncInMemoryDatabase {
                         return Ok(DbRecord::ValueState(found.clone()));
                     }
                 }
-                return Err(StorageError::GetData("Not found".to_string()));
+                return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
             }
         }
         // fallback to regular get/set db
@@ -183,7 +183,11 @@ impl Storage for AsyncInMemoryDatabase {
         if let Some(result) = (*guard).get(&bin_id).cloned() {
             Ok(result)
         } else {
-            Err(StorageError::GetData("Not found".to_string()))
+            Err(StorageError::NotFound(format!(
+                "{:?} {:?}",
+                St::data_type(),
+                id
+            )))
         }
     }
 
@@ -246,7 +250,7 @@ impl Storage for AsyncInMemoryDatabase {
 
             Ok(KeyData { states: results })
         } else {
-            Err(StorageError::GetData("Not found".to_string()))
+            Err(StorageError::NotFound(format!("ValueState {:?}", username)))
         }
     }
 
@@ -313,7 +317,7 @@ impl Storage for AsyncInMemoryDatabase {
                 }
             }
         }
-        Err(StorageError::GetData(String::from("Not found")))
+        Err(StorageError::NotFound(format!("ValueState {:?}", username)))
     }
 
     async fn get_user_state_versions(
@@ -362,7 +366,7 @@ impl Storage for AsyncInMemoryDatabase {
             }
         }
 
-        Err(StorageError::GetData(format!(
+        Err(StorageError::NotFound(format!(
             "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
@@ -601,7 +605,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                         return Ok(DbRecord::ValueState(found.clone()));
                     }
                 }
-                return Err(StorageError::GetData("Not found".to_string()));
+                return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
             }
         }
         let mut stats = self.stats.write().await;
@@ -620,7 +624,11 @@ impl Storage for AsyncInMemoryDbWithCache {
 
                     Ok(result)
                 } else {
-                    Err(StorageError::GetData("Not found".to_string()))
+                    Err(StorageError::NotFound(format!(
+                        "{:?} {:?}",
+                        St::data_type(),
+                        id
+                    )))
                 }
             }
         }
@@ -676,7 +684,7 @@ impl Storage for AsyncInMemoryDbWithCache {
 
             Ok(KeyData { states: results })
         } else {
-            Err(StorageError::GetData("Not found".to_string()))
+            Err(StorageError::NotFound(format!("ValueState {:?}", username)))
         }
     }
 
@@ -742,7 +750,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                 }
             }
         }
-        Err(StorageError::GetData(String::from("Not found")))
+        Err(StorageError::NotFound(format!("ValueState {:?}", username)))
     }
 
     async fn get_user_state_versions(
@@ -790,7 +798,7 @@ impl Storage for AsyncInMemoryDbWithCache {
                 return Ok(item);
             }
         }
-        Err(StorageError::GetData(format!(
+        Err(StorageError::NotFound(format!(
             "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))

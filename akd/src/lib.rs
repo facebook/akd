@@ -329,8 +329,6 @@ pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
 
-#[cfg(test)]
-mod tests;
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
@@ -340,6 +338,10 @@ pub use node_state::{Node, NodeLabel};
 pub use storage::types::{AkdLabel, AkdValue};
 
 // ========== Constants and type aliases ========== //
+#[cfg(any(test, feature = "public-tests"))]
+pub mod test_utils;
+#[cfg(test)]
+mod tests;
 
 /// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;

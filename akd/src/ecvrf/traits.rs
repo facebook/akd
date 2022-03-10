@@ -9,7 +9,7 @@
 //! of public and private keys
 use super::{Proof, VRFPrivateKey, VRFPublicKey};
 use crate::serialization::from_digest;
-use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
+use crate::{errors::VrfError, node_state::NodeLabel, storage::types::AkdLabel};
 
 use async_trait::async_trait;
 use std::convert::TryInto;
@@ -27,12 +27,12 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     /* ======= To be implemented ====== */
 
     /// Retrieve the VRF Private key as a vector of bytes
-    async fn retrieve(&self) -> Result<Vec<u8>, VRFStorageError>;
+    async fn retrieve(&self) -> Result<Vec<u8>, VrfError>;
 
     /* ======= Common trait functionality ====== */
 
     /// Retrieve the properly constructed VRF Private key
-    async fn get_vrf_private_key(&self) -> Result<VRFPrivateKey, VRFStorageError> {
+    async fn get_vrf_private_key(&self) -> Result<VRFPrivateKey, VrfError> {
         match self.retrieve().await {
             Ok(bytes) => {
                 let pk_ref: &[u8] = &bytes;
@@ -43,7 +43,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     }
 
     /// Retrieve the VRF public key
-    async fn get_vrf_public_key(&self) -> Result<VRFPublicKey, VRFStorageError> {
+    async fn get_vrf_public_key(&self) -> Result<VRFPublicKey, VrfError> {
         self.get_vrf_private_key().await.map(|key| (&key).into())
     }
 
@@ -55,7 +55,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         uname: &AkdLabel,
         stale: bool,
         version: u64,
-    ) -> Result<NodeLabel, VRFStorageError> {
+    ) -> Result<NodeLabel, VrfError> {
         let proof = self.get_label_proof::<H>(uname, stale, version).await?;
         let output: super::ecvrf_impl::Output = (&proof).into();
         Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
@@ -67,7 +67,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         uname: &AkdLabel,
         stale: bool,
         version: u64,
-    ) -> Result<Proof, VRFStorageError> {
+    ) -> Result<Proof, VrfError> {
         let key = self.get_vrf_private_key().await?;
         let name_hash_bytes = H::hash(uname);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
@@ -76,7 +76,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
             name_hash_bytes,
             H::merge_with_int(H::hash(stale_bytes), version),
         ]);
-        let message_vec = from_digest::<H>(hashed_label).unwrap();
+        let message_vec = from_digest::<H>(hashed_label);
         let message: &[u8] = message_vec.as_slice();
 
         // VRF proof and hash output

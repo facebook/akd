@@ -240,7 +240,7 @@ impl DbRecord {
 
     /// Build a history node state from the properties
     pub fn build_history_node_state(
-        value: Vec<u8>,
+        value: [u8; 32],
         child_states: [Option<HistoryChildState>; ARITY],
         label_len: u32,
         label_val: [u8; 32],
@@ -257,7 +257,7 @@ impl DbRecord {
     pub fn build_history_child_state(
         label_len: u32,
         label_val: [u8; 32],
-        hash_val: Vec<u8>,
+        hash_val: [u8; 32],
         epoch_version: u64,
     ) -> HistoryChildState {
         HistoryChildState {

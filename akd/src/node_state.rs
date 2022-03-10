@@ -7,7 +7,6 @@
 
 //! The representation for the label of a history tree node.
 
-use crate::errors::HistoryTreeNodeError;
 use crate::serialization::from_digest;
 #[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
@@ -244,7 +243,7 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 /// To be used in its parent, alongwith the label.
 pub struct HistoryNodeState {
     /// The hash at this node state
-    pub value: Vec<u8>,
+    pub value: [u8; 32],
     /// The states of the children at this time
     pub child_states: [Option<HistoryChildState>; ARITY],
     /// A unique key
@@ -321,13 +320,13 @@ unsafe impl Sync for HistoryNodeState {}
 
 impl HistoryNodeState {
     /// Creates a new [HistoryNodeState]
-    pub fn new<H: Hasher>(key: NodeStateKey) -> Result<Self, HistoryTreeNodeError> {
+    pub fn new<H: Hasher>(key: NodeStateKey) -> Self {
         const INIT: Option<HistoryChildState> = None;
-        Ok(HistoryNodeState {
-            value: from_digest::<H>(H::hash(&EMPTY_VALUE))?,
+        HistoryNodeState {
+            value: from_digest::<H>(H::hash(&EMPTY_VALUE)),
             child_states: [INIT; ARITY],
             key,
-        })
+        }
     }
 
     /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
@@ -339,7 +338,7 @@ impl HistoryNodeState {
 impl Clone for HistoryNodeState {
     fn clone(&self) -> Self {
         Self {
-            value: self.value.clone(),
+            value: self.value,
             child_states: self.child_states.clone(),
             key: self.key,
         }
@@ -369,7 +368,7 @@ pub struct HistoryChildState {
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
-    pub hash_val: Vec<u8>,
+    pub hash_val: [u8; 32],
     /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,
 }
@@ -378,16 +377,12 @@ unsafe impl Sync for HistoryChildState {}
 
 impl HistoryChildState {
     /// Instantiates a new [HistoryChildState] with given label and hash val.
-    pub fn new<H: Hasher>(
-        label: NodeLabel,
-        hash_val: H::Digest,
-        ep: u64,
-    ) -> Result<Self, HistoryTreeNodeError> {
-        Ok(HistoryChildState {
+    pub fn new<H: Hasher>(label: NodeLabel, hash_val: H::Digest, ep: u64) -> Self {
+        HistoryChildState {
             label,
-            hash_val: from_digest::<H>(hash_val)?,
+            hash_val: from_digest::<H>(hash_val),
             epoch_version: ep,
-        })
+        }
     }
 }
 
@@ -395,7 +390,7 @@ impl Clone for HistoryChildState {
     fn clone(&self) -> Self {
         Self {
             label: self.label,
-            hash_val: self.hash_val.clone(),
+            hash_val: self.hash_val,
             epoch_version: self.epoch_version,
         }
     }

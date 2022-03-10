@@ -17,7 +17,7 @@ use alloc::vec;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
 
-use akd::errors::AkdError;
+use akd::errors::{AkdError, StorageError};
 use akd::storage::Storage;
 use akd::{AkdLabel, AkdValue};
 
@@ -253,7 +253,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         target_label_bytes,
         internal_lookup_proof,
     )
-    .map_err(|i_err| AkdError::AzksNotFound(format!("Internal: {:?}", i_err)));
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
     // check the two results to make sure they both verify
     assert!(matches!(akd_result, Ok(())));
     assert!(matches!(lean_result, Ok(())));
@@ -543,7 +543,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         internal_proof,
         true,
     )
-    .map_err(|ver_err| AkdError::AzksNotFound(format!("INTERNAL: {}", ver_err)))?;
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
 
     assert_eq!(true, tombstones[0]);
     assert_eq!(true, tombstones[1]);
