@@ -460,7 +460,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .collect::<Vec<_>>();
 
         if limited_history.is_empty() {
-            let msg = if let Ok(username_str) = std::str::from_utf8(&uname.to_vec()) {
+            let msg = if let Ok(username_str) = std::str::from_utf8(uname) {
                 format!("User {}", username_str)
             } else {
                 format!("User {:?}", uname)
