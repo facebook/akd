@@ -81,7 +81,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let azks = Directory::<S, V>::get_azks_from_storage(storage, false).await;
 
         if read_only && azks.is_err() {
-            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(true)));
+            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory("Cannot start directory in read-only mode when AZKS is missing".to_string())));
         } else if azks.is_err() {
             // generate a new azks if one is not found
             let azks = Azks::new::<_, H>(storage).await?;
@@ -105,7 +105,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<EpochHash<H>, AkdError> {
         if self.read_only {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                false,
+                "Cannot publish while in read-only mode".to_string(),
             )));
         }
 

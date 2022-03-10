@@ -11,7 +11,8 @@ use core::fmt;
 use crate::node_state::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
-#[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
     HistoryTreeNode(HistoryTreeNodeError),
@@ -148,7 +149,8 @@ impl fmt::Display for HistoryTreeNodeError {
 }
 
 /// An error thrown by the Azks data structure.
-#[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
 pub enum AzksError {
     /// Membership proof did not verify
     VerifyMembershipProof(String),
@@ -177,7 +179,8 @@ impl fmt::Display for AzksError {
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
-#[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
 pub enum DirectoryError {
     /// Lookup proof did not verify
     VerifyLookupProof(String),
@@ -186,7 +189,7 @@ pub enum DirectoryError {
     /// Tried to audit an invalid epoch range
     InvalidEpoch(String),
     /// AZKS not found in read-only directory mode
-    ReadOnlyDirectory(bool),
+    ReadOnlyDirectory(String),
 }
 
 impl std::error::Error for DirectoryError {}
@@ -203,20 +206,16 @@ impl fmt::Display for DirectoryError {
             Self::VerifyLookupProof(err_string) => {
                 write!(f, "Failed to verify lookup proof {}", err_string)
             }
-            Self::ReadOnlyDirectory(missing_azks) => {
-                let specific = if *missing_azks {
-                    "AZKS not found"
-                } else {
-                    "Operation not permitted"
-                };
-                write!(f, "Directory in read-only mode: {}", specific)
+            Self::ReadOnlyDirectory(inner_message) => {
+                write!(f, "Directory in read-only mode: {}", inner_message)
             }
         }
     }
 }
 
 /// Represents a storage-layer error
-#[derive(PartialEq, Debug)]
+#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq))]
+#[derive(Debug)]
 pub enum StorageError {
     /// Data wasn't found in the storage layer
     NotFound(String),
@@ -249,8 +248,10 @@ impl fmt::Display for StorageError {
     }
 }
 
-/// Represents a VRF-storage-layer error
-#[derive(PartialEq, Debug)]
+/// Represents a VRF related error (key retrieval,
+/// parsing, verification of a VRF proof, etc)
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
 pub enum VrfError {
     /// An error occurred when getting a key
     PublicKey(String),
@@ -272,7 +273,7 @@ impl fmt::Display for VrfError {
                 write!(f, "VRF public key: {}", error_string)
             }
             Self::Verification(error_string) => {
-                write!(f, "VRF prooving or verifying: {}", error_string)
+                write!(f, "VRF proving or verifying: {}", error_string)
             }
         }
     }

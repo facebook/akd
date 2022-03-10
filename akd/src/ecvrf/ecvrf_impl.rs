@@ -120,7 +120,7 @@ impl TryFrom<&[u8]> for VRFPublicKey {
 
     fn try_from(bytes: &[u8]) -> std::result::Result<VRFPublicKey, Self::Error> {
         if bytes.len() != ed25519_dalek::PUBLIC_KEY_LENGTH {
-            return Err(VrfError::Verification("Wrong length".to_string()));
+            return Err(VrfError::PublicKey("Wrong length".to_string()));
         }
 
         let mut bits: [u8; 32] = [0u8; 32];
@@ -129,12 +129,12 @@ impl TryFrom<&[u8]> for VRFPublicKey {
         let compressed = curve25519_dalek::edwards::CompressedEdwardsY(bits);
         let point = compressed
             .decompress()
-            .ok_or_else(|| VrfError::Verification("Deserialization failed".to_string()))?;
+            .ok_or_else(|| VrfError::PublicKey("Deserialization failed".to_string()))?;
 
         // Check if the point lies on a small subgroup. This is required
         // when using curves with a small cofactor (in ed25519, cofactor = 8).
         if point.is_small_order() {
-            return Err(VrfError::Verification("Small subgroup".to_string()));
+            return Err(VrfError::PublicKey("Small subgroup".to_string()));
         }
 
         match ed25519_PublicKey::from_bytes(bytes) {
@@ -299,7 +299,7 @@ impl TryFrom<&[u8]> for Proof {
         let pk_point = match CompressedEdwardsY::from_slice(&bytes[..32]).decompress() {
             Some(pt) => pt,
             None => {
-                return Err(VrfError::Verification(
+                return Err(VrfError::PublicKey(
                     "Failed to decompress public key into Edwards Point".to_string(),
                 ))
             }
