@@ -26,7 +26,7 @@ Various implementations supported by the library are imported here and usable at
 */
 pub mod memory;
 
-#[cfg(feature = "public-tests")]
+#[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
 
 #[cfg(feature = "serde")]

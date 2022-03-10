@@ -11,7 +11,9 @@ readme = "../README.md"
 
 [features]
 bench = ["public-tests"]
-public-tests = ["rand", "bincode", "serde"]
+public-tests = ["rand", "bincode", "serde", "colored", "once_cell", "ed25519-dalek/serde"]
+# In the event that VRF's are enabled, AND builder has requested serde support
+# Add the serde flag to the dalek crate with --features "ed25519-dalek/serde"
 vrf = ["curve25519-dalek", "ed25519-dalek"]
 default = ["vrf"]
 
@@ -32,18 +34,20 @@ bincode = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 rand = { version = "0.7", optional = true }
 curve25519-dalek = { version = "3.2", optional = true }
-ed25519-dalek = { version = "1", optional = true}
-
-[target.'cfg(all(features = "serde", features = "vrf"))'.dependencies]
-# In the event that VRF's are enabled, AND builder has requested serde support
-# Add the serde flag to the dalek crate
-ed25519-dalek = { version = "1", features = ["serde"]}
+ed25519-dalek = { version = "1", optional = true }
+colored = { version = "2", optional = true }
+once_cell = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
 proptest = "1.0"
 proptest-derive = "0.3"
+colored = { version = "2" }
+once_cell = { version = "1" }
+ctor = "0.1"
+
+akd = { path =".", features = ["vrf", "public-tests"] }
 
 [[bench]]
 name = "azks"

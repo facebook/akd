@@ -325,8 +325,10 @@ pub mod client;
 pub mod ecvrf;
 pub mod errors;
 
+#[cfg(any(test, feature = "public-tests"))]
+pub mod test_utils;
 #[cfg(test)]
-pub mod tests;
+mod tests;
 
 /// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;

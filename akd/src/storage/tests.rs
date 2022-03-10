@@ -46,6 +46,7 @@ mod memory_storage_tests {
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
 pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
+    crate::test_utils::init_logger(log::Level::Info);
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -113,7 +114,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     // === HistoryNodeState storage === //
     let key = NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1);
     let node_state = HistoryNodeState {
-        value: vec![],
+        value: [0u8; 32],
         child_states: [None, None],
         key,
     };
@@ -511,7 +512,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
             ValueStateRetrievalFlag::SpecificVersion(100),
         )
         .await;
-    assert!(matches!(missing_result, Err(StorageError::GetData(_)),));
+    assert!(matches!(missing_result, Err(StorageError::NotFound(_)),));
 
     let specific_result = storage
         .get_user_state(

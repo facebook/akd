@@ -51,8 +51,8 @@ unsafe impl Send for HardCodedAkdVRF {}
 
 #[async_trait::async_trait]
 impl VRFKeyStorage for HardCodedAkdVRF {
-    async fn retrieve(&self) -> Result<Vec<u8>, crate::errors::VRFStorageError> {
+    async fn retrieve(&self) -> Result<Vec<u8>, crate::errors::VrfError> {
         hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
-            .map_err(|hex_err| crate::errors::VRFStorageError::GetPK(hex_err.to_string()))
+            .map_err(|hex_err| crate::errors::VrfError::PublicKey(hex_err.to_string()))
     }
 }

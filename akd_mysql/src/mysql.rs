@@ -307,6 +307,7 @@ impl<'a> AsyncMySqlDatabase {
                     attempts,
                     start.elapsed().as_secs()
                 );
+                error!("{}", message);
                 return Err(StorageError::Connection(message));
             }
 
@@ -350,7 +351,7 @@ impl<'a> AsyncMySqlDatabase {
         let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
             + TABLE_HISTORY_NODE_STATES
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, "
-            + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(2000), `child_states` VARBINARY(2000),"
+            + " `epoch` BIGINT UNSIGNED NOT NULL, `value` VARBINARY(32), `child_states` VARBINARY(2000),"
             + " PRIMARY KEY (`label_len`, `label_val`, `epoch`))";
         tx.query_drop(command).await?;
 
@@ -794,7 +795,10 @@ impl Storage for AsyncMySqlDatabase {
 
         match self.internal_set(record, None).await {
             Ok(_) => Ok(()),
-            Err(error) => Err(StorageError::SetData(error.to_string())),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -892,7 +896,10 @@ impl Storage for AsyncMySqlDatabase {
         };
         match result.await {
             Ok(_) => Ok(()),
-            Err(error) => Err(StorageError::SetData(error.to_string())),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -967,8 +974,15 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
-            Ok(None) => Err(StorageError::GetData("Not found".to_string())),
-            Err(error) => Err(StorageError::GetData(error.to_string())),
+            Ok(None) => Err(StorageError::NotFound(format!(
+                "{:?} {:?}",
+                St::data_type(),
+                id
+            ))),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -1141,7 +1155,10 @@ impl Storage for AsyncMySqlDatabase {
                         map.push(item);
                     }
                 }
-                Err(error) => return Err(StorageError::GetData(error.to_string())),
+                Err(error) => {
+                    error!("MySQL error {}", error);
+                    return Err(StorageError::Other(format!("MySQL Error {}", error)));
+                }
             }
         }
         Ok(map)
@@ -1240,7 +1257,10 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
-            Err(code) => Err(StorageError::GetData(code.to_string())),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -1352,8 +1372,11 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
-            Ok(None) => Err(StorageError::GetData(String::from("Not found"))),
-            Err(code) => Err(StorageError::GetData(code.to_string())),
+            Ok(None) => Err(StorageError::NotFound(format!("ValueState {:?}", username))),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -1548,7 +1571,10 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
-            Err(code) => Err(StorageError::GetData(code.to_string())),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 
@@ -1591,12 +1617,15 @@ impl Storage for AsyncMySqlDatabase {
 
         debug!("END MySQL get epoch LTE epoch");
         match result.await {
-            Ok(u64::MAX) => Err(StorageError::GetData(format!(
+            Ok(u64::MAX) => Err(StorageError::NotFound(format!(
                 "Node (val: {:?}, len: {}) did not exist <= epoch {}",
                 node_label.val, node_label.len, epoch_in_question
             ))),
             Ok(ep) => Ok(ep),
-            Err(code) => Err(StorageError::GetData(code.to_string())),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
         }
     }
 }

@@ -7,7 +7,7 @@
 
 //! The implementation of a node for a history patricia tree
 
-use crate::errors::{HistoryTreeNodeError, StorageError};
+use crate::errors::{AkdError, HistoryTreeNodeError, StorageError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
@@ -154,7 +154,7 @@ impl HistoryTreeNode {
                     Ok(node)
                 }
             }
-            _ => Err(StorageError::GetData(String::from("Not found"))),
+            _ => Err(StorageError::NotFound(format!("HistoryTreeNode {:?}", key))),
         }
     }
 
@@ -183,9 +183,9 @@ impl HistoryTreeNode {
                     nodes.push(node);
                 }
             } else {
-                return Err(StorageError::GetData(String::from(
-                    "Batch retrieve returned types <> HistoryTreeNode",
-                )));
+                return Err(StorageError::NotFound(
+                    "Batch retrieve returned types <> HistoryTreeNode".to_string(),
+                ));
             }
         }
         Ok(nodes)
@@ -198,7 +198,7 @@ impl HistoryTreeNode {
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         self.insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, true)
             .await
     }
@@ -210,7 +210,7 @@ impl HistoryTreeNode {
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         self.insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, false)
             .await
     }
@@ -225,7 +225,7 @@ impl HistoryTreeNode {
         epoch: u64,
         num_nodes: &mut u64,
         hashing: bool,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         let (lcs_label, dir_leaf, dir_self) = self
             .label
             .get_longest_common_prefix_and_dirs(new_leaf.label);
@@ -235,7 +235,7 @@ impl HistoryTreeNode {
             *num_nodes += 1;
             // the root should always be instantiated with dummy children in the beginning
             let child_state = self
-                .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch()?, dir_leaf)
+                .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch(), dir_leaf)
                 .await?;
             if child_state == None {
                 new_leaf.parent = self.label;
@@ -279,7 +279,7 @@ impl HistoryTreeNode {
                 new_node.write_to_storage(storage).await?;
                 set_state_map(
                     storage,
-                    HistoryNodeState::new::<H>(NodeStateKey(new_node.label, epoch))?,
+                    HistoryNodeState::new::<H>(NodeStateKey(new_node.label, epoch)),
                 )
                 .await?;
                 *num_nodes += 1;
@@ -328,12 +328,14 @@ impl HistoryTreeNode {
                 // case where the current node is equal to the lcs
                 debug!("BEGIN get child at epoch");
                 let child_st = self
-                    .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch()?, dir_leaf)
+                    .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch(), dir_leaf)
                     .await?
-                    .ok_or(HistoryTreeNodeError::NoChildAtEpoch(
-                        self.get_latest_epoch()?,
-                        dir_leaf.unwrap_or(0),
-                    ))?;
+                    .ok_or_else(|| {
+                        HistoryTreeNodeError::NoChildAtEpoch(
+                            self.get_latest_epoch(),
+                            dir_leaf.unwrap_or(0),
+                        )
+                    })?;
 
                 debug!("BEGIN get child node from storage");
                 let mut child_node =
@@ -368,7 +370,7 @@ impl HistoryTreeNode {
         &mut self,
         storage: &S,
         epoch: u64,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         match self.node_type {
             NodeType::Leaf => {
                 // the hash of this is just the value, simply place in parent
@@ -386,7 +388,7 @@ impl HistoryTreeNode {
                     hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
                 }
                 let mut updated_state = self.get_state_at_epoch(storage, epoch).await?;
-                updated_state.value = from_digest::<H>(hash_digest)?;
+                updated_state.value = from_digest::<H>(hash_digest);
                 updated_state.key = NodeStateKey(self.label, epoch);
                 set_state_map(storage, updated_state).await?;
 
@@ -403,7 +405,7 @@ impl HistoryTreeNode {
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
+    ) -> Result<H::Digest, AkdError> {
         let epoch_node_state = self.get_state_at_epoch(storage, epoch).await?;
         let mut new_hash = H::hash(&EMPTY_VALUE);
         for child_index in 0..ARITY {
@@ -411,7 +413,7 @@ impl HistoryTreeNode {
                 new_hash,
                 to_digest::<H>(&optional_history_child_state_to_hash::<H>(
                     &epoch_node_state.get_child_state_in_dir(child_index),
-                )?)?,
+                ))?,
             ]);
         }
         Ok(new_hash)
@@ -424,14 +426,14 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         new_hash_val: H::Digest,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         if self.is_root() {
             return Ok(());
         }
 
         let parent =
             &mut HistoryTreeNode::get_from_storage(storage, NodeKey(self.parent), epoch).await?;
-        if parent.get_latest_epoch()? < epoch {
+        if parent.get_latest_epoch() < epoch {
             let (_, dir_self, _) = parent.label.get_longest_common_prefix_and_dirs(self.label);
             parent
                 .set_node_child::<_, H>(storage, epoch, dir_self, self)
@@ -442,16 +444,20 @@ impl HistoryTreeNode {
         }
 
         match get_state_map(storage, parent, epoch).await {
-            Err(_) => Err(HistoryTreeNodeError::ParentNextEpochInvalid(epoch)),
+            Err(_) => Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::ParentNextEpochInvalid(epoch),
+            )),
             Ok(parent_state) => match parent.get_direction_at_ep(storage, self, epoch).await? {
-                None => Err(HistoryTreeNodeError::HashUpdateOrderInconsistent),
+                None => Err(AkdError::HistoryTreeNode(
+                    HistoryTreeNodeError::HashUpdateOrderInconsistent,
+                )),
                 Some(s_dir) => {
                     let mut parent_updated_state = parent_state;
                     let mut self_child_state =
                         parent_updated_state
                             .get_child_state_in_dir(s_dir)
                             .ok_or(HistoryTreeNodeError::NoChildAtEpoch(epoch, s_dir))?;
-                    self_child_state.hash_val = from_digest::<H>(new_hash_val)?;
+                    self_child_state.hash_val = from_digest::<H>(new_hash_val);
                     parent_updated_state.child_states[s_dir] = Some(self_child_state);
                     parent_updated_state.key = NodeStateKey(parent.label, epoch);
                     set_state_map(storage, parent_updated_state).await?;
@@ -471,7 +477,7 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         child: &HistoryInsertionNode,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         let (direction, child_node) = child.clone();
         // It's possible that this node's latest epoch is not the same as
         // epoch, in which case, you should set the state to include the latest epoch.
@@ -480,31 +486,24 @@ impl HistoryTreeNode {
         // If it doesn't, then you must not have called set_state_map when you created this node.
         // That is, make sure after every call to HistoryTreeNode::new, there is a call to
         // set_state_map.
-        if self.get_latest_epoch()? != epoch {
+        if self.get_latest_epoch() != epoch {
             set_state_map(
                 storage,
                 match self
-                    .get_state_at_epoch(storage, self.get_latest_epoch()?)
+                    .get_state_at_epoch(storage, self.get_latest_epoch())
                     .await
                 {
                     Ok(mut latest_st) => {
                         latest_st.key = NodeStateKey(self.label, epoch);
                         latest_st
                     }
-                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch))?,
+                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch)),
                 },
             )
             .await?;
 
-            match self.get_latest_epoch() {
-                Ok(latest) => {
-                    if latest != epoch {
-                        self.last_epoch = epoch;
-                    }
-                }
-                Err(_) => {
-                    self.last_epoch = epoch;
-                }
+            if self.get_latest_epoch() != epoch {
+                self.last_epoch = epoch;
             }
             self.write_to_storage(storage).await?;
             self.set_child::<_, H>(storage, epoch, child).await?;
@@ -512,9 +511,8 @@ impl HistoryTreeNode {
         }
 
         let dir = direction.map_or(
-            Err(HistoryTreeNodeError::NoDirection(
-                self.label,
-                Some(child_node.label),
+            Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::NoDirection(self.label, Some(child_node.label)),
             )),
             Ok,
         )?;
@@ -537,7 +535,7 @@ impl HistoryTreeNode {
                 .await?;
                 Ok(())
             }
-            Err(e) => Err(HistoryTreeNodeError::from(e)),
+            Err(e) => Err(AkdError::Storage(e)),
         }
     }
 
@@ -549,7 +547,7 @@ impl HistoryTreeNode {
         epoch: u64,
         dir: Direction,
         child: &Self,
-    ) -> Result<(), HistoryTreeNodeError> {
+    ) -> Result<(), AkdError> {
         let node_as_child_state = child.to_node_unhashed_child_state::<_, H>(storage).await?;
         let insertion_node = (dir, node_as_child_state);
         self.set_child::<_, H>(storage, epoch, &insertion_node)
@@ -562,22 +560,24 @@ impl HistoryTreeNode {
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
-        to_digest::<H>(&self.get_state_at_epoch(storage, epoch).await?.value)
+    ) -> Result<H::Digest, AkdError> {
+        Ok(to_digest::<H>(
+            &self.get_state_at_epoch(storage, epoch).await?.value,
+        )?)
     }
 
     pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
+    ) -> Result<H::Digest, AkdError> {
         if self.is_leaf() {
             return self.get_value_at_epoch::<_, H>(storage, epoch).await;
         }
         let children = self.get_state_at_epoch(storage, epoch).await?.child_states;
         let mut new_hash = H::hash(&EMPTY_VALUE);
         for child in children.iter().take(ARITY) {
-            let hash_val = optional_history_child_state_to_hash::<H>(child)?;
+            let hash_val = optional_history_child_state_to_hash::<H>(child);
             new_hash = H::merge(&[new_hash, to_digest::<H>(&hash_val)?]);
         }
         Ok(new_hash)
@@ -588,7 +588,7 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         dir: Direction,
-    ) -> Result<NodeLabel, HistoryTreeNodeError> {
+    ) -> Result<NodeLabel, AkdError> {
         Ok(self
             .get_child_at_epoch::<_, H>(storage, epoch, dir)
             .await?
@@ -600,8 +600,8 @@ impl HistoryTreeNode {
     pub(crate) async fn get_value<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-    ) -> Result<H::Digest, HistoryTreeNodeError> {
-        match get_state_map(storage, self, self.get_latest_epoch()?).await {
+    ) -> Result<H::Digest, AkdError> {
+        match get_state_map(storage, self, self.get_latest_epoch()).await {
             Ok(state_map) => Ok(to_digest::<H>(&state_map.value)?),
             Err(er) => Err(er.into()),
         }
@@ -618,7 +618,7 @@ impl HistoryTreeNode {
         storage: &S,
         node: &Self,
         ep: u64,
-    ) -> Result<Direction, HistoryTreeNodeError> {
+    ) -> Result<Direction, AkdError> {
         let state_at_ep = self.get_state_at_epoch(storage, ep).await?;
         for node_index in 0..ARITY {
             let node_val = state_at_ep.get_child_state_in_dir(node_index);
@@ -646,12 +646,16 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         direction: Direction,
-    ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
+    ) -> Result<Option<HistoryChildState>, AkdError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
+            Direction::None => Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::NoDirection(self.label, None),
+            )),
             Direction::Some(dir) => {
                 if self.get_birth_epoch() > epoch {
-                    Err(HistoryTreeNodeError::NoChildAtEpoch(epoch, dir))
+                    Err(AkdError::HistoryTreeNode(
+                        HistoryTreeNodeError::NoChildAtEpoch(epoch, dir),
+                    ))
                 } else {
                     let chosen_ep = {
                         if self.last_epoch <= epoch {
@@ -688,9 +692,11 @@ impl HistoryTreeNode {
         storage: &S,
         epoch: u64,
         direction: Direction,
-    ) -> Result<Option<HistoryChildState>, HistoryTreeNodeError> {
+    ) -> Result<Option<HistoryChildState>, AkdError> {
         match direction {
-            Direction::None => Err(HistoryTreeNodeError::NoDirection(self.label, None)),
+            Direction::None => Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::NoDirection(self.label, None),
+            )),
             Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
                 .await
                 .map(|curr| curr.get_child_state_in_dir(dir))?),
@@ -701,9 +707,11 @@ impl HistoryTreeNode {
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<HistoryNodeState, HistoryTreeNodeError> {
+    ) -> Result<HistoryNodeState, AkdError> {
         if self.get_birth_epoch() > epoch {
-            Err(HistoryTreeNodeError::NonexistentAtEpoch(self.label, epoch))
+            Err(AkdError::HistoryTreeNode(
+                HistoryTreeNodeError::NonexistentAtEpoch(self.label, epoch),
+            ))
         } else {
             let chosen_ep = {
                 if self.last_epoch <= epoch {
@@ -734,16 +742,16 @@ impl HistoryTreeNode {
         &self,
         storage: &S,
         epoch: u64,
-    ) -> Result<HistoryNodeState, HistoryTreeNodeError> {
-        get_state_map(storage, self, epoch)
+    ) -> Result<HistoryNodeState, AkdError> {
+        Ok(get_state_map(storage, self, epoch)
             .await
-            .map_err(|_| HistoryTreeNodeError::NoStateAtEpoch(self.label, epoch))
+            .map_err(|_| HistoryTreeNodeError::NoStateAtEpoch(self.label, epoch))?)
     }
 
     /* Functions for compression-related operations */
 
-    pub(crate) fn get_latest_epoch(&self) -> Result<u64, HistoryTreeNodeError> {
-        Ok(self.last_epoch)
+    pub(crate) fn get_latest_epoch(&self) -> u64 {
+        self.last_epoch
     }
 
     /////// Helpers /////////
@@ -751,14 +759,14 @@ impl HistoryTreeNode {
     async fn to_node_unhashed_child_state<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-    ) -> Result<HistoryChildState, HistoryTreeNodeError> {
+    ) -> Result<HistoryChildState, AkdError> {
         Ok(HistoryChildState {
             label: self.label,
             hash_val: from_digest::<H>(H::merge(&[
                 self.get_value::<_, H>(storage).await?,
                 hash_label::<H>(self.label),
-            ]))?,
-            epoch_version: self.get_latest_epoch()?,
+            ])),
+            epoch_version: self.get_latest_epoch(),
         })
     }
 
@@ -766,14 +774,14 @@ impl HistoryTreeNode {
     pub(crate) async fn to_node_child_state<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-    ) -> Result<HistoryChildState, HistoryTreeNodeError> {
+    ) -> Result<HistoryChildState, AkdError> {
         Ok(HistoryChildState {
             label: self.label,
             hash_val: from_digest::<H>(H::merge(&[
                 self.get_value::<_, H>(storage).await?,
                 hash_label::<H>(self.label),
-            ]))?,
-            epoch_version: self.get_latest_epoch()?,
+            ])),
+            epoch_version: self.get_latest_epoch(),
         })
     }
 }
@@ -782,10 +790,10 @@ impl HistoryTreeNode {
 
 pub(crate) fn optional_history_child_state_to_hash<H: Hasher>(
     input: &Option<HistoryChildState>,
-) -> Result<Vec<u8>, HistoryTreeNodeError> {
+) -> [u8; 32] {
     match input {
-        Some(child_state) => Ok(child_state.hash_val.clone()),
-        None => Ok(from_digest::<H>(crate::utils::empty_node_hash::<H>())?),
+        Some(child_state) => child_state.hash_val,
+        None => from_digest::<H>(crate::utils::empty_node_hash::<H>()),
     }
 }
 
@@ -802,13 +810,13 @@ pub(crate) fn optional_history_child_state_to_label(
 pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     storage: &S,
     ep: Option<u64>,
-) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
+) -> Result<HistoryTreeNode, AkdError> {
     let mut node = HistoryTreeNode::new(NodeLabel::root(), NodeLabel::root(), NodeType::Root, 0u64);
     if let Some(epoch) = ep {
         node.birth_epoch = epoch;
         node.last_epoch = epoch;
         let new_state: HistoryNodeState =
-            HistoryNodeState::new::<H>(NodeStateKey(node.label, epoch))?;
+            HistoryNodeState::new::<H>(NodeStateKey(node.label, epoch));
         set_state_map(storage, new_state).await?;
     }
 
@@ -822,7 +830,7 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     value: &[u8],
     parent: NodeLabel,
     birth_epoch: u64,
-) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
+) -> Result<HistoryTreeNode, AkdError> {
     let node = HistoryTreeNode {
         label,
         birth_epoch,
@@ -832,8 +840,8 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     };
 
     let mut new_state: HistoryNodeState =
-        HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch))?;
-    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), H::hash(value)]))?;
+        HistoryNodeState::new::<H>(NodeStateKey(node.label, birth_epoch));
+    new_state.value = from_digest::<H>(H::merge(&[H::hash(&EMPTY_VALUE), H::hash(value)]));
 
     set_state_map(storage, new_state).await?;
 
@@ -845,7 +853,7 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
     node: Node<H>,
     parent: NodeLabel,
     birth_epoch: u64,
-) -> Result<HistoryTreeNode, HistoryTreeNodeError> {
+) -> Result<HistoryTreeNode, AkdError> {
     let history_node = HistoryTreeNode {
         label: node.label,
         birth_epoch,
@@ -855,8 +863,8 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
     };
 
     let mut new_state: HistoryNodeState =
-        HistoryNodeState::new::<H>(NodeStateKey(history_node.label, birth_epoch))?;
-    new_state.value = from_digest::<H>(node.hash)?;
+        HistoryNodeState::new::<H>(NodeStateKey(history_node.label, birth_epoch));
+    new_state.value = from_digest::<H>(node.hash);
 
     set_state_map(storage, new_state).await?;
 
@@ -875,13 +883,15 @@ pub(crate) async fn get_state_map<S: Storage + Sync + Send>(
     node: &HistoryTreeNode,
     key: u64,
 ) -> Result<HistoryNodeState, StorageError> {
-    if let Ok(DbRecord::HistoryNodeState(state)) = storage
-        .get::<HistoryNodeState>(get_state_map_key(node, key))
-        .await
+    let state_key = get_state_map_key(node, key);
+    if let Ok(DbRecord::HistoryNodeState(state)) = storage.get::<HistoryNodeState>(state_key).await
     {
         Ok(state)
     } else {
-        Err(StorageError::GetData(String::from("Not found")))
+        Err(StorageError::NotFound(format!(
+            "HistoryNodeState {:?}",
+            state_key
+        )))
     }
 }
 

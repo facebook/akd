@@ -13,7 +13,7 @@ use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::node_state::Node;
 use crate::proof_structs::*;
 
-use crate::errors::{AkdError, DirectoryError, HistoryTreeNodeError, StorageError};
+use crate::errors::{AkdError, DirectoryError, StorageError};
 
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Storage;
@@ -81,10 +81,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let azks = Directory::<S, V>::get_azks_from_storage(storage, false).await;
 
         if read_only && azks.is_err() {
-            return Err(AkdError::Directory(DirectoryError::Storage(
-                StorageError::GetData(
-                    "AZKS record not found and Directory constructed in read-only mode".to_string(),
-                ),
+            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
+                "Cannot start directory in read-only mode when AZKS is missing".to_string(),
             )));
         } else if azks.is_err() {
             // generate a new azks if one is not found
@@ -108,10 +106,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
         if self.read_only {
-            return Err(AkdError::Directory(DirectoryError::Storage(
-                StorageError::SetData(
-                    "Directory cannot publish when created in read-only mode!".to_string(),
-                ),
+            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
+                "Cannot publish while in read-only mode".to_string(),
             )));
         }
 
@@ -196,8 +192,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         if use_transaction {
             if let false = self.storage.begin_transaction().await {
                 error!("Transaction is already active");
-                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
-                    StorageError::SetData("Transaction is already active".to_string()),
+                return Err(AkdError::Storage(StorageError::Transaction(
+                    "Transaction is already active".to_string(),
                 )));
             }
         }
@@ -218,9 +214,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             if let Err(err) = self.storage.commit_transaction().await {
                 // ignore any rollback error(s)
                 let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::Storage(
-                    err,
-                )));
+                return Err(AkdError::Storage(err));
             } else {
                 debug!("Transaction committed");
             }
@@ -362,13 +356,10 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_user_state(&uname, ValueStateRetrievalFlag::LeqEpoch(epoch))
             .await
         {
-            Err(_) => {
-                // Need to throw an error
-                Err(AkdError::Directory(DirectoryError::NonExistentUser(
-                    uname.clone().0,
-                    epoch,
-                )))
-            }
+            Err(_) => Err(AkdError::Storage(StorageError::NotFound(format!(
+                "User {} at epoch {}",
+                uname.0, epoch
+            )))),
             Ok(latest_st) => {
                 // Need to account for the case where the latest state is
                 // added but the database is in the middle of an update
@@ -419,10 +410,10 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::Directory(DirectoryError::NonExistentUser(
-                username,
-                current_epoch,
-            )))
+            Err(AkdError::Storage(StorageError::NotFound(format!(
+                "User {} at epoch {}",
+                username, current_epoch
+            ))))
         }
     }
 
@@ -459,7 +450,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
                     // notify change occurred
                     if let Some(channel) = &change_detected {
-                        channel.send(()).await.map_err(|send_err| AkdError::Directory(DirectoryError::Storage(StorageError::Connection(format!("Tokio MPSC sender failed to publish notification with error {:?}", send_err)))))?;
+                        channel.send(()).await.map_err(|send_err| {
+                            AkdError::Storage(StorageError::Connection(format!(
+                                "Tokio MPSC sender failed to publish notification with error {:?}",
+                                send_err
+                            )))
+                        })?;
                     }
                     // drop the guard
                 }
@@ -522,8 +518,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
                 error!("No AZKS can be found. You should re-initialize the directory to create a new one");
-                Err(crate::errors::AkdError::AzksNotFound(String::from(
-                    "AZKS not found in storage.",
+                Err(AkdError::Storage(StorageError::NotFound(
+                    "AZKS not found".to_string(),
                 )))
             }
         }
@@ -532,7 +528,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// HELPERS ///
 
     /// Use this function to retrieve the VRF public key for this AKD.
-    pub async fn get_public_key(&self) -> Result<VRFPublicKey, DirectoryError> {
+    pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         Ok(self.vrf.get_vrf_public_key().await?)
     }
 
