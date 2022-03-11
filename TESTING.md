@@ -105,3 +105,29 @@ SUBCOMMANDS:
     flush              Flush data from database tables
     help               Prints this message or the help of the given subcommand(s)
 ```
+
+# Running tests
+
+Tests are run a few ways for this repository.
+
+## CI Pipeline
+
+We have a [CI workflow](.github/ci.yml) which will run on any pull request. If you're adding special compilation flags to crates, you may need to add test coverage here for PRs for future devs.
+
+## Local testing
+
+Local testing is pretty straightforward with the standard Rust practice of
+
+```bash
+cargo test
+```
+
+If you're trying to test just a single crate you can run
+
+```bash
+cargo test --package akd
+```
+
+to isolate what runs (some of the integration tests take some time to run and require a live Docker instance for example).
+
+Otherwise the full Rust suite of testing options with [Cargo Test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) are available as well in this repo. Feel free to run the suite as you see fit.
