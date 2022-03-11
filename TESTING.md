@@ -1,0 +1,107 @@
+# Testing code changes within `akd`
+
+We are running a few types of tests within the AKD crate. They can be broken into the following categories
+
+1. Unit tests
+2. Integration Tests
+3. Manual testing through the proof-of-concept application
+
+## Unit tests
+
+Unit tests are pretty simple Rust tests utilizing [built-in testing best practices](https://doc.rust-lang.org/book/ch11-01-writing-tests.html). A few caveats worth noting however:
+
+1. If your test is going to require calling async code you'll need to use ```#[tokio::test]``` instead of ```#[test]``` as the function decorator. It'll look something like
+```rust
+#[test]
+fn my_test() {
+  panic!("boom");
+}
+
+#[tokio::test]
+async fn my_async_test() {
+  panic!("async boom!");
+}
+```
+2. Test organization is generally done by decorating a ```test``` or ```tests``` sub-module to the module under test with the ```#[cfg(test)]``` attribute which only makes the code included in the binary in test compilation.
+3. Test log output is managed centrally with a single global startup function in [test_utils.rs](akd/src/test_utils.rs). If you're adding a new crate, you may want to add this in your crate as well to make sure you benefit from log messages when tests fail
+```rust
+/// Global test startup constructor. Only runs in the TEST profile. Each
+/// crate which wants logging enabled in tests being run should make this call
+/// itself.
+///
+/// However we additionally call the init_logger(..) fn in the external storage
+/// based test suite in case an external entity doesn't want to deal with the
+/// ctor construction (or initializing the logger themselves)
+#[cfg(test)]
+#[ctor::ctor]
+fn test_start() {
+    init_logger(Level::Info);
+}
+```
+You'll need to add a dev-dependency on the `ctor` crate for this as well.
+
+### Storage Consistency Testing
+
+If you write a new storage layer for the AKD crate, you can run our standard suite of storage tests by adding a dev-dependency on the `akd` crate with the following configuration
+
+```toml
+[dev-dependencies]
+akd = { path = "../akd", version = "^0.5.0", features = ["public-tests", "serde"] }
+```
+
+which will expose a common-testing pattern with the `public-tests` feature. The [`akd_mysql`](akd_mysql/src/mysql_db_tests.rs) crate does exactly this. You can simply run ths same test-suite for your new storage implementation that we run against all of them (and you'll benefit from downstream storage testing changes as well). Once you've setup your storage layer in your test case you simply invoke the suite
+
+```rust
+#[tokio::test]
+async fn my_new_storage_tests() {
+    // setup
+    let storage = ...;
+
+    // Run the test cases (will panic if error occurs so you get a stack trace)
+    akd::storage::tests::run_test_cases_for_storage_impl(&storage).await;
+
+    // teardown / cleanup (if necessary)
+}
+```
+
+## Integration Tests
+
+If you want to add integration tests, they are organized in their own crate (`akd_integration_tests` in the [`integration_tests`](integration_tests/src) folder). We are still using the `#[cfg(test)]` build target and the test cases are still decorated with `#[tokio::test]`, however they run more full end-to-end test cases against real storage implementations.
+
+The test organization is pretty straightforward. We have a common test structure defined in [`test_util.rs`](integration_tests/src/test_util.rs) as `directory_test_suite` which takes a database, number of users for the test, and VRF signing function. You can add tests in this location, and it is assuming the storage layer has been initialized and is ready for use. This is a common test-flow for all storage implementations we provide to make sure we don't break compatability with new implementations.
+
+You can additionally add a new data-layer to the integration tests by adding a dev-dependency in the `akd_integration_tests` crate and adding a new `<storage>_tests.rs` file along with referencing it in [`lib.rs`](integration_tests/src/lib.rs).
+
+## Manual testing
+
+We additionally have a "proof-of-concept" (POC) application in the [`poc`](poc/src) folder. This application is a small command-line REPL (read-eval-print-loop) application to interact directly with an AKD hosted in a variety of configurations. You can see all the command line options and experiment with the app with
+
+```bash
+> cargo run -- --help
+...truncated...
+akd_app 0.0.0
+applicationModes
+
+USAGE:
+    akd_app [FLAGS] [OPTIONS] [SUBCOMMAND]
+
+FLAGS:
+    -d, --debug      Activate debuging mode
+        --memory     The database implementation to utilize
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -l, --log_level <Adjust the console log-level (default = INFO)>
+             [default: Info]  [possible values: Error, Warn, Info, Debug, Trace]
+
+    -m, --multirow_size <MySQL multi-row insert size>                   [default: 100]
+
+SUBCOMMANDS:
+    bench-db-insert    Benchmark database insertion
+    bench-lookup       Benchmark lookup API
+    bench-publish      Benchmark publish API
+    drop               Drop existing database tables (for schema migration etc.)
+    flush              Flush data from database tables
+    help               Prints this message or the help of the given subcommand(s)
+```
