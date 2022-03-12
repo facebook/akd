@@ -3,7 +3,7 @@
 We are running a few types of tests within the AKD crate. They can be broken into the following categories
 
 1. Unit tests
-2. Integration Tests
+2. Integration tests
 3. Manual testing through the proof-of-concept application
 
 ## Unit tests
@@ -40,7 +40,7 @@ fn test_start() {
 ```
 You'll need to add a dev-dependency on the `ctor` crate for this as well.
 
-### Storage Consistency Testing
+### `Storage` trait consistency testing
 
 If you write a new storage layer for the AKD crate, you can run our standard suite of storage tests by adding a dev-dependency on the `akd` crate with the following configuration
 
@@ -64,7 +64,7 @@ async fn my_new_storage_tests() {
 }
 ```
 
-## Integration Tests
+## Integration tests
 
 If you want to add integration tests, they are organized in their own crate (`akd_integration_tests` in the [`integration_tests`](integration_tests/src) folder). We are still using the `#[cfg(test)]` build target and the test cases are still decorated with `#[tokio::test]`, however they run more full end-to-end test cases against real storage implementations.
 
@@ -106,11 +106,13 @@ SUBCOMMANDS:
     help               Prints this message or the help of the given subcommand(s)
 ```
 
+Note: The actual output of the command may differ if its arguments have been updated since this document was written.
+
 # Running tests
 
 Tests are run a few ways for this repository.
 
-## CI Pipeline
+## CI pipeline
 
 We have a [CI workflow](.github/ci.yml) which will run on any pull request. If you're adding special compilation flags to crates, you may need to add test coverage here for PRs for future devs.
 
@@ -122,12 +124,29 @@ Local testing is pretty straightforward with the standard Rust practice of
 cargo test
 ```
 
-If you're trying to test just a single crate you can run
+run at the root of the repository. This will run all of the tests from all of the crates utilizing the default features for all crates. If you're trying to test just a single crate you can run
 
 ```bash
 cargo test --package akd
 ```
 
-to isolate what runs (some of the integration tests take some time to run and require a live Docker instance for example).
+to isolate what runs (some of the integration tests take some time to run and require a live Docker instance for example). You can optionally `cd` into a specific crate's root folder and run the tests for that crate there specifically. Example
 
-Otherwise the full Rust suite of testing options with [Cargo Test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) are available as well in this repo. Feel free to run the suite as you see fit.
+```bash
+cd akd
+cargo test
+```
+
+is equivalent. Otherwise the full Rust suite of testing options with [Cargo Test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) are available as well in this repo. Feel free to run the suite as you see fit. Another common adjustment done in this repository worth nothing is the used of specific features. For example, to test the `akd` crate with no verifiable random function (VRF) implementation, you can use the arguments
+
+```bash
+cargo test --package akd --no-default-features --features public-tests
+```
+
+which will disable the feature `vrf`, effectively running code paths tagged with
+
+```rust
+#[cfg(not(feature = "vrf"))]
+```
+
+See [no_vrf.rs](akd/src/ecvrf/no_vrf.rs) for an example of this in practice.
