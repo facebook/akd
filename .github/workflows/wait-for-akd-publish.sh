@@ -6,7 +6,8 @@ get_crate_expected_version_number()
     local crate_to_look_for_version=$2
 
     local cargo_toml_file="$crate_name/Cargo.toml"
-    local expected_version=$(grep "$crate_to_look_for_version = " $cargo_toml_file | tr -d '{^}' | awk -F '[,:=]' '{print $5}')
+    # Issue #174. The script is looking for multiple entries if the dependency is listed multiple times
+    local expected_version=$(grep "$crate_to_look_for_version = " $cargo_toml_file | tr -d '{^}' | awk -F '[,:=]' '{print $5}' | head -n 1 | tr -d '{ }')
     echo $expected_version
 }
 
