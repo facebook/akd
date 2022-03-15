@@ -105,13 +105,18 @@ pub fn lookup_verify<H: Hasher>(
     akd_key: AkdLabel,
     proof: LookupProof<H>,
 ) -> Result<(), AkdError> {
-    let _plaintext_value = proof.plaintext_value;
     let version = proof.version;
 
     let marker_version = 1 << get_marker_version(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
+
+    if hash_plaintext_value::<H>(&proof.plaintext_value) != existence_proof.hash_val {
+        return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
+            "Hash of plaintext value did not match expected hash in existence proof".to_string(),
+        )));
+    }
 
     let fresh_label = existence_proof.label;
     vrf_pk.verify_label::<H>(
@@ -148,25 +153,32 @@ pub fn lookup_verify<H: Hasher>(
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
+/// Returns a vector of whether the validity of a hash could be verified.
+/// When false, the value <=> hash validity at the position could not be
+/// verified because the value has been removed ("tombstoned") from the storage layer.
 pub fn key_history_verify<H: Hasher>(
     vrf_pk: &VRFPublicKey,
     root_hashes: Vec<H::Digest>,
     previous_root_hashes: Vec<Option<H::Digest>>,
     uname: AkdLabel,
     proof: HistoryProof<H>,
-) -> Result<(), AkdError> {
+    allow_tombstones: bool,
+) -> Result<Vec<bool>, AkdError> {
+    let mut tombstones = vec![];
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof::<H>(
+        let is_tombstone = verify_single_update_proof::<H>(
             root_hash,
             vrf_pk,
             previous_root_hash,
             update_proof,
             &uname,
+            allow_tombstones,
         )?;
+        tombstones.push(is_tombstone);
     }
-    Ok(())
+    Ok(tombstones)
 }
 
 /// Verifies a single update proof
@@ -176,9 +188,9 @@ fn verify_single_update_proof<H: Hasher>(
     previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
     uname: &AkdLabel,
-) -> Result<(), AkdError> {
+    allow_tombstones: bool,
+) -> Result<bool, AkdError> {
     let epoch = proof.epoch;
-    let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
 
     let existence_vrf_proof = proof.existence_vrf_proof;
@@ -189,6 +201,27 @@ fn verify_single_update_proof<H: Hasher>(
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
 
     let non_existence_before_ep = &proof.non_existence_before_ep;
+
+    let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
+        (true, bytes) if bytes.0 == crate::TOMBSTONE => {
+            // A tombstone was encountered, we need to just take the
+            // hash of the value at "face value" since we don't have
+            // the real value available
+            (true, true)
+        }
+        (_, bytes) => {
+            // No tombstone so hash the value found, and compare to the existence proof's value
+            (
+                false,
+                hash_plaintext_value::<H>(bytes) == existence_at_ep.hash_val,
+            )
+        }
+    };
+    if !value_hash_valid {
+        return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
+            format!("Hash of plaintext value (v: {}) did not match expected hash in existence proof at epoch {}", version, epoch),
+        )));
+    }
 
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
@@ -289,7 +322,9 @@ fn verify_single_update_proof<H: Hasher>(
         }
     }
 
-    Ok(())
+    // return indicator of if the value <=> hash mapping was verified
+    // or if the hash was simply taken at face-value. True = hash mapping verified
+    Ok(is_tombstone)
 }
 
 /// Hashes all the children of a node, as well as their labels
@@ -315,4 +350,9 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     }
     new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
     new_hash
+}
+
+fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
+    let single_hash = crate::utils::value_to_bytes::<H>(value);
+    H::merge(&[H::hash(&EMPTY_VALUE), single_hash])
 }

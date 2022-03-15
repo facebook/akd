@@ -52,3 +52,9 @@ pub(crate) fn empty_node_hash<H: Hasher>() -> H::Digest {
 pub(crate) fn empty_node_hash_no_label<H: Hasher>() -> H::Digest {
     H::hash(&EMPTY_VALUE)
 }
+
+// FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
+/// Gets the bytes for a value.
+pub(crate) fn value_to_bytes<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
+    H::hash(value)
+}

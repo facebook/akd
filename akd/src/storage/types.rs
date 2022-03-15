@@ -7,11 +7,10 @@
 
 //! Various storage and representation related types
 
-use crate::append_only_zks::Azks;
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeLabel, NodeStateKey};
+use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use crate::storage::Storable;
-use crate::ARITY;
+use crate::{Azks, NodeLabel, ARITY};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -30,18 +29,45 @@ pub enum StorageType {
 /// The keys for this key-value store
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct AkdLabel(pub String);
+pub struct AkdLabel(pub Vec<u8>);
 
+impl AkdLabel {
+    /// Build an [`AkdLabel`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+}
+
+impl core::ops::Deref for AkdLabel {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 /// The types of value used in the key-value pairs of a AKD
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(bound = ""))]
-pub struct AkdValue(pub String);
+pub struct AkdValue(pub Vec<u8>);
+
+impl AkdValue {
+    /// Build an [`AkdValue`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+}
+
+impl core::ops::Deref for AkdValue {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// State for a value at a given version for that key
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct ValueStateKey(pub String, pub u64);
+pub struct ValueStateKey(pub Vec<u8>, pub u64);
 
 /// The state of the value for a given key, starting at a particular epoch.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -68,13 +94,13 @@ impl crate::storage::Storable for ValueState {
     }
 
     fn get_id(&self) -> ValueStateKey {
-        ValueStateKey(self.username.0.clone(), self.epoch)
+        ValueStateKey(self.username.to_vec(), self.epoch)
     }
 
     fn get_full_binary_key_id(key: &ValueStateKey) -> Vec<u8> {
         let mut result = vec![StorageType::ValueState as u8];
         result.extend_from_slice(&key.1.to_le_bytes());
-        result.extend_from_slice(key.0.as_bytes());
+        result.extend_from_slice(&key.0);
 
         result
     }
@@ -85,11 +111,7 @@ impl crate::storage::Storable for ValueState {
         }
         let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
         let epoch = u64::from_le_bytes(epoch_bytes);
-        if let Ok(username) = std::str::from_utf8(&bin[9..]) {
-            Ok(ValueStateKey(username.to_string(), epoch))
-        } else {
-            Err("Invalid string format".to_string())
-        }
+        Ok(ValueStateKey(bin[9..].to_vec(), epoch))
     }
 }
 
@@ -247,8 +269,8 @@ impl DbRecord {
 
     /// Build a user state from the properties
     pub fn build_user_state(
-        username: String,
-        plaintext_val: String,
+        username: Vec<u8>,
+        plaintext_val: Vec<u8>,
         version: u64,
         label_len: u32,
         label_val: [u8; 32],

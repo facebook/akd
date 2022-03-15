@@ -10,11 +10,12 @@
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
 use akd::history_tree_node::HistoryTreeNode;
-use akd::node_state::NodeLabel;
+use akd::node_state::HistoryNodeState;
 use akd::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
+use akd::NodeLabel;
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
 use mysql_async::prelude::*;
@@ -487,9 +488,9 @@ impl<'a> AsyncMySqlDatabase {
         let head = &records[0];
         let statement = |i: usize| -> String {
             match &head {
-                DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::append_only_zks::Azks>(i),
+                DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::Azks>(i),
                 DbRecord::HistoryNodeState(_) => {
-                    DbRecord::set_batch_statement::<akd::node_state::HistoryNodeState>(i)
+                    DbRecord::set_batch_statement::<HistoryNodeState>(i)
                 }
                 DbRecord::HistoryTreeNode(_) => DbRecord::set_batch_statement::<HistoryTreeNode>(i),
                 DbRecord::ValueState(_) => {
@@ -904,18 +905,21 @@ impl Storage for AsyncMySqlDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<St: Storable>(&self, id: St::Key) -> core::result::Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(
+        &self,
+        id: &St::Key,
+    ) -> core::result::Result<DbRecord, StorageError> {
         // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
         // log instead of the raw storage layer
         if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(&id).await {
+            if let Some(result) = self.trans.get::<St>(id).await {
                 return Ok(result);
             }
         }
 
         // check for a cache hit
         if let Some(cache) = &self.cache {
-            if let Some(result) = cache.hit_test::<St>(&id).await {
+            if let Some(result) = cache.hit_test::<St>(id).await {
                 return Ok(result);
             }
         }
@@ -931,7 +935,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_direct<St: Storable>(
         &self,
-        id: St::Key,
+        id: &St::Key,
     ) -> core::result::Result<DbRecord, StorageError> {
         *(self.num_reads.write().await) += 1;
         self.record_call_stats(
@@ -947,7 +951,7 @@ impl Storage for AsyncMySqlDatabase {
 
             let mut conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
-            let params = DbRecord::get_specific_params::<St>(&id);
+            let params = DbRecord::get_specific_params::<St>(id);
             let out = match params {
                 Some(p) => match conn.exec_first(statement, p).await {
                     Err(err) => Err(err),
@@ -996,7 +1000,7 @@ impl Storage for AsyncMySqlDatabase {
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
-        ids: Vec<St::Key>,
+        ids: &[St::Key],
     ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
 
@@ -1162,6 +1166,47 @@ impl Storage for AsyncMySqlDatabase {
             }
         }
         Ok(map)
+    }
+
+    async fn tombstone_value_states(
+        &self,
+        keys: &[akd::storage::types::ValueStateKey],
+    ) -> core::result::Result<(), StorageError> {
+        // NOTE: This might be optimizable in the future where we could use a SQL statement such as
+        //
+        // UPDATE `users`
+        // SET `data` = TOMBSTONE
+        // WHERE key in (set)
+        //
+        // However, the problem comes from managing an active transaction and cache (if there is one)
+        // since we may need to batch load nodes anyways in order to get the other properties
+        // which might need to be set. We could write everything to SQL, and after-the-fact update
+        // the active transaction and caches with replacing nodes which were updated? Anyways it's a
+        // relatively minor improvement here, due to proper use of batch operations
+
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let data = self.batch_get::<ValueState>(keys).await?;
+        let mut new_data = vec![];
+        for record in data {
+            if let DbRecord::ValueState(value_state) = record {
+                new_data.push(DbRecord::ValueState(ValueState {
+                    epoch: value_state.epoch,
+                    label: value_state.label,
+                    plaintext_val: akd::AkdValue(akd::TOMBSTONE.to_vec()),
+                    username: value_state.username,
+                    version: value_state.version,
+                }));
+            }
+        }
+        if !new_data.is_empty() {
+            debug!("Tombstoning {} entries", new_data.len());
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
     }
 
     async fn get_user_data(
@@ -1580,7 +1625,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_epoch_lte_epoch(
         &self,
-        node_label: akd::node_state::NodeLabel,
+        node_label: NodeLabel,
         epoch_in_question: u64,
     ) -> core::result::Result<u64, StorageError> {
         *(self.num_reads.write().await) += 1;

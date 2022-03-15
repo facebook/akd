@@ -46,7 +46,7 @@ pub struct LookupInfo {
 impl AkdValue {
     /// Gets a random value for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(get_random_str(rng))
+        Self::from_utf8_str(&get_random_str(rng))
     }
 }
 
@@ -54,7 +54,7 @@ impl AkdValue {
 impl AkdLabel {
     /// Creates a random key for a AKD
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
-        Self(get_random_str(rng))
+        Self::from_utf8_str(&get_random_str(rng))
     }
 }
 
@@ -103,7 +103,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     pub async fn publish<H: Hasher>(
         &self,
         updates: Vec<(AkdLabel, AkdValue)>,
-        use_transaction: bool,
     ) -> Result<EpochHash<H>, AkdError> {
         if self.read_only {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
@@ -123,7 +122,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let mut keys: Vec<AkdLabel> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
-        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        keys.sort_by(|a, b| a.cmp(b));
 
         // we're only using the maximum "version" of the user's state at the last epoch
         // they were seen in the directory. Therefore we've minimized the call to only
@@ -151,7 +150,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .await?;
                     // Currently there's no blinding factor for the commitment.
                     // We'd want to change this later.
-                    let value_to_add = H::hash(&Self::value_to_bytes(&val));
+                    let value_to_add = crate::utils::value_to_bytes::<H>(&val);
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -172,7 +171,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = H::hash(&[0u8]);
-                    let fresh_value_to_add = H::hash(&Self::value_to_bytes(&val));
+                    let fresh_value_to_add = crate::utils::value_to_bytes::<H>(&val);
                     update_set.push(Node::<H> {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -189,13 +188,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
         let insertion_set: Vec<Node<H>> = update_set.to_vec();
 
-        if use_transaction {
-            if let false = self.storage.begin_transaction().await {
-                error!("Transaction is already active");
-                return Err(AkdError::Storage(StorageError::Transaction(
-                    "Transaction is already active".to_string(),
-                )));
-            }
+        if let false = self.storage.begin_transaction().await {
+            error!("Transaction is already active");
+            return Err(AkdError::Storage(StorageError::Transaction(
+                "Transaction is already active".to_string(),
+            )));
         }
         info!("Starting database insertion");
 
@@ -209,15 +206,15 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             updates.push(DbRecord::ValueState(update));
         }
         self.storage.batch_set(updates).await?;
-        if use_transaction {
-            debug!("Committing transaction");
-            if let Err(err) = self.storage.commit_transaction().await {
-                // ignore any rollback error(s)
-                let _ = self.storage.rollback_transaction().await;
-                return Err(AkdError::Storage(err));
-            } else {
-                debug!("Transaction committed");
-            }
+
+        // now commit the transaction
+        debug!("Committing transaction");
+        if let Err(err) = self.storage.commit_transaction().await {
+            // ignore any rollback error(s)
+            let _ = self.storage.rollback_transaction().await;
+            return Err(AkdError::Storage(err));
+        } else {
+            debug!("Transaction committed");
         }
 
         let root_hash = current_azks
@@ -356,10 +353,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_user_state(&uname, ValueStateRetrievalFlag::LeqEpoch(epoch))
             .await
         {
-            Err(_) => Err(AkdError::Storage(StorageError::NotFound(format!(
-                "User {} at epoch {}",
-                uname.0, epoch
-            )))),
+            Err(_) => {
+                // Need to throw an error
+                match std::str::from_utf8(&uname) {
+                    Ok(name) => Err(AkdError::Storage(StorageError::NotFound(format!(
+                        "User {} at epoch {}",
+                        name, epoch
+                    )))),
+                    _ => Err(AkdError::Storage(StorageError::NotFound(format!(
+                        "User {:?} at epoch {}",
+                        uname, epoch
+                    )))),
+                }
+            }
             Ok(latest_st) => {
                 // Need to account for the case where the latest state is
                 // added but the database is in the middle of an update
@@ -395,25 +401,81 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let username = uname.0.to_string();
+        let username = uname.to_vec();
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
         if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
+            let mut user_data = this_user_data.states;
+            // reverse sort from highest epoch to lowest
+            user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+
             let mut proofs = Vec::<UpdateProof<H>>::new();
-            for user_state in &this_user_data.states {
+            for user_state in user_data {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
-                    let proof = self.create_single_update_proof(uname, user_state).await?;
+                    let proof = self.create_single_update_proof(uname, &user_state).await?;
                     proofs.push(proof);
                 }
             }
             Ok(HistoryProof { proofs })
         } else {
-            Err(AkdError::Storage(StorageError::NotFound(format!(
-                "User {} at epoch {}",
-                username, current_epoch
-            ))))
+            match std::str::from_utf8(&username) {
+                Ok(name) => Err(AkdError::Storage(StorageError::NotFound(format!(
+                    "User {} at epoch {}",
+                    name, current_epoch
+                )))),
+                _ => Err(AkdError::Storage(StorageError::NotFound(format!(
+                    "User {:?} at epoch {}",
+                    username, current_epoch
+                )))),
+            }
+        }
+    }
+
+    /// Takes in the current state of the server and a label along with
+    /// a "top" number of key updates to generate a proof for.
+    ///
+    /// If the label is present in the current state,
+    /// this function returns all the values & proof of validity
+    /// up to `top_n_updates` results.
+    pub async fn limited_key_history<H: Hasher>(
+        &self,
+        top_n_updates: usize,
+        uname: &AkdLabel,
+    ) -> Result<HistoryProof<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
+        let mut user_data = self.storage.get_user_data(uname).await?.states;
+        // reverse sort from highest epoch to lowest
+        user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+
+        let limited_history = user_data
+            .into_iter()
+            .take(top_n_updates)
+            .collect::<Vec<_>>();
+
+        if limited_history.is_empty() {
+            let msg = if let Ok(username_str) = std::str::from_utf8(uname) {
+                format!("User {}", username_str)
+            } else {
+                format!("User {:?}", uname)
+            };
+            Err(AkdError::Storage(StorageError::NotFound(msg)))
+        } else {
+            let mut proofs = Vec::<UpdateProof<H>>::new();
+            for user_state in limited_history {
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof(uname, &user_state).await?;
+                    proofs.push(proof);
+                }
+            }
+            Ok(HistoryProof { proofs })
         }
     }
 
@@ -507,11 +569,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<Azks, crate::errors::AkdError> {
         let got = if ignore_cache {
             storage
-                .get_direct::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .get_direct::<Azks>(&crate::append_only_zks::DEFAULT_AZKS_KEY)
                 .await?
         } else {
             storage
-                .get::<Azks>(crate::append_only_zks::DEFAULT_AZKS_KEY)
+                .get::<Azks>(&crate::append_only_zks::DEFAULT_AZKS_KEY)
                 .await?
         };
         match got {
@@ -530,13 +592,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Use this function to retrieve the VRF public key for this AKD.
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         Ok(self.vrf.get_vrf_public_key().await?)
-    }
-
-    // FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
-    /// Gets the bytes for a value.
-    pub fn value_to_bytes(_value: &AkdValue) -> [u8; 64] {
-        [0u8; 64]
-        // unimplemented!()
     }
 
     async fn create_single_update_proof<H: Hasher>(
@@ -761,10 +816,10 @@ mod tests {
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-        akd.publish::<Blake3>(
-            vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string()))],
-            false,
-        )
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        )])
         .await?;
         Ok(())
     }
@@ -775,26 +830,26 @@ mod tests {
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        let lookup_proof = akd.lookup(AkdLabel("hello".to_string())).await?;
+        let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
         let current_azks = akd.retrieve_current_azks().await?;
         let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
         let vrf_pk = akd.get_public_key().await?;
         lookup_verify::<Blake3_256<BaseElement>>(
             &vrf_pk,
             root_hash,
-            AkdLabel("hello".to_string()),
+            AkdLabel::from_utf8_str("hello"),
             lookup_proof,
         )?;
         Ok(())
@@ -806,85 +861,73 @@ mod tests {
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world3".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world4".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world3"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world4"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![(
-                AkdLabel("hello".to_string()),
-                AkdValue("world_updated".to_string()),
-            )],
-            false,
-        )
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world_updated"),
+        )])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world6".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world12".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world6"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world12"),
+            ),
+        ])
         .await?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         let vrf_pk = akd.get_public_key().await?;
@@ -892,41 +935,45 @@ mod tests {
             &vrf_pk,
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello".to_string()),
+            AkdLabel::from_utf8_str("hello"),
             history_proof,
+            false,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello2".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello2")).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3>(
             &vrf_pk,
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello2".to_string()),
+            AkdLabel::from_utf8_str("hello2"),
             history_proof,
+            false,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello3".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello3")).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3>(
             &vrf_pk,
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello3".to_string()),
+            AkdLabel::from_utf8_str("hello3"),
             history_proof,
+            false,
         )?;
 
-        let history_proof = akd.key_history(&AkdLabel("hello4".to_string())).await?;
+        let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello4")).await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
         key_history_verify::<Blake3>(
             &vrf_pk,
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello4".to_string()),
+            AkdLabel::from_utf8_str("hello4"),
             history_proof,
+            false,
         )?;
 
         Ok(())
@@ -939,82 +986,70 @@ mod tests {
         let vrf = HardCodedAkdVRF {};
         let mut akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world3".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world4".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world3"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world4"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![(
-                AkdLabel("hello".to_string()),
-                AkdValue("world_updated".to_string()),
-            )],
-            false,
-        )
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world_updated"),
+        )])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world6".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world12".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world6"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world12"),
+            ),
+        ])
         .await?;
 
         let current_azks = akd.retrieve_current_azks().await?;
@@ -1098,50 +1133,44 @@ mod tests {
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         // Publish twice
-        akd.publish::<Blake3>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await?;
 
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world_2".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2_2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world_2"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2_2"),
+            ),
+        ])
         .await?;
 
         // Make the current azks a "checkpoint" to reset to later
         let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
 
         // Publish for the third time
-        akd.publish::<Blake3>(
-            vec![
-                (
-                    AkdLabel("hello".to_string()),
-                    AkdValue("world_3".to_string()),
-                ),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2_3".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world_3"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2_3"),
+            ),
+        ])
         .await?;
 
         // Reset the azks record back to previous epoch, to emulate an akd reader
@@ -1154,7 +1183,7 @@ mod tests {
 
         // History proof should not contain the third epoch's update but still verify
         let history_proof = akd
-            .key_history::<Blake3>(&AkdLabel("hello".to_string()))
+            .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
             .await?;
         let (root_hashes, previous_root_hashes) =
             get_key_history_hashes(&akd, &history_proof).await?;
@@ -1164,20 +1193,23 @@ mod tests {
             &vrf_pk,
             root_hashes,
             previous_root_hashes,
-            AkdLabel("hello".to_string()),
+            AkdLabel::from_utf8_str("hello"),
             history_proof,
+            false,
         )?;
 
         // Lookup proof should contain the checkpoint epoch's value and still verify
-        let lookup_proof = akd.lookup::<Blake3>(AkdLabel("hello".to_string())).await?;
+        let lookup_proof = akd
+            .lookup::<Blake3>(AkdLabel::from_utf8_str("hello"))
+            .await?;
         assert_eq!(
-            AkdValue("world_2".to_string()),
+            AkdValue::from_utf8_str("world_2"),
             lookup_proof.plaintext_value
         );
         lookup_verify::<Blake3>(
             &vrf_pk,
             root_hash,
-            AkdLabel("hello".to_string()),
+            AkdLabel::from_utf8_str("hello"),
             lookup_proof,
         )?;
 
@@ -1212,7 +1244,7 @@ mod tests {
 
         // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
         let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
-        assert!(matches!(akd.publish::<Blake3>(vec![], true).await, Err(_)));
+        assert!(matches!(akd.publish::<Blake3>(vec![]).await, Err(_)));
 
         Ok(())
     }
@@ -1225,16 +1257,16 @@ mod tests {
         let writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
         writer
-            .publish::<Blake3>(
-                vec![
-                    (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                    (
-                        AkdLabel("hello2".to_string()),
-                        AkdValue("world2".to_string()),
-                    ),
-                ],
-                false,
-            )
+            .publish::<Blake3>(vec![
+                (
+                    AkdLabel::from_utf8_str("hello"),
+                    AkdValue::from_utf8_str("world"),
+                ),
+                (
+                    AkdLabel::from_utf8_str("hello2"),
+                    AkdValue::from_utf8_str("world2"),
+                ),
+            ])
             .await?;
 
         // reader will not write the AZKS but will be "polling" for AZKS changes
@@ -1250,23 +1282,20 @@ mod tests {
         });
 
         // verify a lookup proof, which will populate the cache
-        async_poll_helper_proof(&reader, AkdValue("world".to_string())).await?;
+        async_poll_helper_proof(&reader, AkdValue::from_utf8_str("world")).await?;
 
         // publish epoch 2
         writer
-            .publish::<Blake3>(
-                vec![
-                    (
-                        AkdLabel("hello".to_string()),
-                        AkdValue("world_2".to_string()),
-                    ),
-                    (
-                        AkdLabel("hello2".to_string()),
-                        AkdValue("world2_2".to_string()),
-                    ),
-                ],
-                false,
-            )
+            .publish::<Blake3>(vec![
+                (
+                    AkdLabel::from_utf8_str("hello"),
+                    AkdValue::from_utf8_str("world_2"),
+                ),
+                (
+                    AkdLabel::from_utf8_str("hello2"),
+                    AkdValue::from_utf8_str("world2_2"),
+                ),
+            ])
             .await?;
 
         // assert that the change is picked up in a reasonable time-frame and the cache is flushed
@@ -1274,7 +1303,7 @@ mod tests {
             tokio::time::timeout(tokio::time::Duration::from_secs(10), rx.recv()).await;
         assert!(matches!(notification, Ok(Some(()))));
 
-        async_poll_helper_proof(&reader, AkdValue("world_2".to_string())).await?;
+        async_poll_helper_proof(&reader, AkdValue::from_utf8_str("world_2")).await?;
 
         Ok(())
     }
@@ -1288,12 +1317,283 @@ mod tests {
         value: AkdValue,
     ) -> Result<(), AkdError> {
         // reader should read "hello" and this will populate the "cache" a log
-        let lookup_proof = reader.lookup(AkdLabel("hello".to_string())).await?;
+        let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
         assert_eq!(value, lookup_proof.plaintext_value);
         let current_azks = reader.retrieve_current_azks().await?;
         let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
         let pk = reader.get_public_key().await?;
-        lookup_verify::<Blake3>(&pk, root_hash, AkdLabel("hello".to_string()), lookup_proof)?;
+        lookup_verify::<Blake3>(
+            &pk,
+            root_hash,
+            AkdLabel::from_utf8_str("hello"),
+            lookup_proof,
+        )?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_limited_key_history() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let vrf = HardCodedAkdVRF {};
+        // epoch 0
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+        // epoch 1
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
+        .await?;
+
+        // epoch 2
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
+        .await?;
+
+        // epoch 3
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world3"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world4"),
+            ),
+        ])
+        .await?;
+
+        // epoch 4
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
+        .await?;
+
+        // epoch 5
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world_updated"),
+        )])
+        .await?;
+
+        // epoch 6
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world6"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world12"),
+            ),
+        ])
+        .await?;
+
+        // epoch 7
+        akd.publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world7"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world13"),
+            ),
+        ])
+        .await?;
+
+        let vrf_pk = akd.get_public_key().await?;
+
+        // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
+        let history_proof = akd
+            .limited_key_history::<Blake3>(1, &AkdLabel::from_utf8_str("hello"))
+            .await?;
+        assert_eq!(1, history_proof.proofs.len());
+        assert_eq!(5, history_proof.proofs[0].epoch);
+
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel::from_utf8_str("hello"),
+            history_proof,
+            false,
+        )?;
+
+        // Take the top 3 results, and check that we're getting the right epoch updates
+        let history_proof = akd
+            .limited_key_history::<Blake3>(3, &AkdLabel::from_utf8_str("hello"))
+            .await?;
+        assert_eq!(3, history_proof.proofs.len());
+        assert_eq!(5, history_proof.proofs[0].epoch);
+        assert_eq!(3, history_proof.proofs[1].epoch);
+        assert_eq!(2, history_proof.proofs[2].epoch);
+
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+        key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel::from_utf8_str("hello"),
+            history_proof,
+            false,
+        )?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tombstoned_key_history() -> Result<(), AkdError> {
+        let db = AsyncInMemoryDatabase::new();
+        let vrf = HardCodedAkdVRF {};
+        // epoch 0
+        let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+        // epoch 1
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        )])
+        .await?;
+
+        // epoch 2
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world2"),
+        )])
+        .await?;
+
+        // epoch 3
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world3"),
+        )])
+        .await?;
+
+        // epoch 4
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world4"),
+        )])
+        .await?;
+
+        // epoch 5
+        akd.publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world5"),
+        )])
+        .await?;
+
+        // Epochs 1-5, we're going to tombstone 1 & 2
+        let vrf_pk = akd.get_public_key().await?;
+
+        // tombstone epochs 1 & 2
+        let tombstones = [
+            crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 1u64),
+            crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 2u64),
+        ];
+        db.tombstone_value_states(&tombstones).await?;
+
+        let history_proof = akd
+            .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
+            .await?;
+        assert_eq!(5, history_proof.proofs.len());
+        let (root_hashes, previous_root_hashes) =
+            get_key_history_hashes(&akd, &history_proof).await?;
+
+        // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
+        let tombstones = key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes.clone(),
+            previous_root_hashes.clone(),
+            AkdLabel::from_utf8_str("hello"),
+            history_proof.clone(),
+            false,
+        );
+        assert!(matches!(tombstones, Err(_)));
+
+        // We should be able to verify tombstones assuming the client is accepting
+        // of tombstoned states
+        let tombstones = key_history_verify::<Blake3>(
+            &vrf_pk,
+            root_hashes,
+            previous_root_hashes,
+            AkdLabel::from_utf8_str("hello"),
+            history_proof,
+            true,
+        )?;
+        assert_eq!(false, tombstones[0]);
+        assert_eq!(false, tombstones[1]);
+        assert_eq!(false, tombstones[2]);
+        assert_eq!(true, tombstones[3]);
+        assert_eq!(true, tombstones[4]);
+
+        Ok(())
+    }
+
+    // // Test coverage on issue #144, verification failures with small trees (<4 nodes)
+    // #[tokio::test]
+    // async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
+    //     let db = AsyncInMemoryDatabase::new();
+    //     let vrf = HardCodedAkdVRF {};
+    //     // epoch 0
+    //     let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    //     let mut updates = vec![];
+    //     for i in 0..1 {
+    //         updates.push((
+    //             AkdLabel(format!("hello{}", i).as_bytes().to_vec()),
+    //             AkdValue(format!("hello{}", i).as_bytes().to_vec()),
+    //         ));
+    //     }
+
+    //     akd.publish::<Blake3>(updates).await?;
+
+    //     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
+
+    //     // retrieve the lookup proof
+    //     let lookup_proof = akd.lookup(target_label.clone()).await?;
+    //     // retrieve the root hash
+    //     let current_azks = akd.retrieve_current_azks().await?;
+    //     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+    //     let vrf_pk = vrf.get_vrf_public_key().await?;
+
+    //     // perform the "traditional" AKD verification
+    //     let akd_result = crate::client::lookup_verify::<Blake3>(
+    //         &vrf_pk,
+    //         root_hash,
+    //         target_label.clone(),
+    //         lookup_proof,
+    //     );
+
+    //     // check the two results to make sure they both verify
+    //     assert!(matches!(akd_result, Ok(())));
+
+    //     Ok(())
+    // }
 }

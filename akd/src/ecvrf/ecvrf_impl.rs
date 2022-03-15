@@ -206,7 +206,7 @@ impl VRFPublicKey {
     ) -> Result<(), VrfError> {
         // Initialization of VRF context by providing a curve
 
-        let name_hash_bytes = H::hash(uname.0.as_bytes());
+        let name_hash_bytes = H::hash(&uname.0);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
         let hashed_label = H::merge(&[

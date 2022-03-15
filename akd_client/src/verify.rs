@@ -100,6 +100,11 @@ fn verify_nonmembership(
     Ok(verified)
 }
 
+fn hash_plaintext_value(value: &AkdValue) -> Digest {
+    let single_hash = crate::utils::value_to_bytes(value);
+    merge(&[hash(&EMPTY_VALUE), single_hash])
+}
+
 /// This function is called to verify that a given NodeLabel is indeed
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
@@ -125,7 +130,6 @@ pub fn lookup_verify(
 ) -> Result<(), VerificationError> {
     let _epoch = proof.epoch;
 
-    // let _plaintext_value = proof.plaintext_value;
     #[cfg(feature = "vrf")]
     let version = proof.version;
 
@@ -134,6 +138,14 @@ pub fn lookup_verify(
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
+
+    if hash_plaintext_value(&proof.plaintext_value) != existence_proof.hash_val {
+        return Err(verify_error!(
+            LookupProof,
+            bool,
+            "Hash of plaintext value did not match existence proof hash".to_string()
+        ));
+    }
 
     #[cfg(feature = "vrf")]
     {
@@ -183,25 +195,32 @@ pub fn lookup_verify(
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
+/// Returns a vector of whether the validity of a hash could be verified.
+/// When false, the value <=> hash validity at the position could not be
+/// verified because the value has been removed ("tombstoned") from the storage layer.
 pub fn key_history_verify(
     vrf_public_key: &[u8],
     root_hashes: Vec<Digest>,
     previous_root_hashes: Vec<Option<Digest>>,
     akd_key: AkdLabel,
     proof: HistoryProof,
-) -> Result<(), VerificationError> {
+    allow_tombstones: bool,
+) -> Result<Vec<bool>, VerificationError> {
+    let mut tombstones = vec![];
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
-        verify_single_update_proof(
+        let is_tombstone = verify_single_update_proof(
             root_hash,
             vrf_public_key,
             previous_root_hash,
             update_proof,
             &akd_key,
+            allow_tombstones,
         )?;
+        tombstones.push(is_tombstone);
     }
-    Ok(())
+    Ok(tombstones)
 }
 
 /// Verifies a single update proof
@@ -211,7 +230,8 @@ fn verify_single_update_proof(
     previous_root_hash: Option<Digest>,
     proof: UpdateProof,
     uname: &AkdLabel,
-) -> Result<(), VerificationError> {
+    allow_tombstone: bool,
+) -> Result<bool, VerificationError> {
     let epoch = proof.epoch;
     let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
@@ -221,6 +241,29 @@ fn verify_single_update_proof(
 
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
     let non_existence_before_ep = &proof.non_existence_before_ep;
+
+    let (is_tombstone, value_hash_valid) = match (allow_tombstone, &proof.plaintext_value) {
+        (true, bytes) if bytes == crate::TOMBSTONE => {
+            // A tombstone was encountered, we need to just take the
+            // hash of the value at "face value" since we don't have
+            // the real value available
+            (true, true)
+        }
+        (_, bytes) => {
+            // No tombstone so hash the value found, and compare to the existence proof's value
+            (
+                false,
+                hash_plaintext_value(bytes) == existence_at_ep.hash_val,
+            )
+        }
+    };
+    if !value_hash_valid {
+        return Err(verify_error!(
+            HistoryProof,
+            bool,
+            "Hash of plaintext value did not match existence proof hash".to_string()
+        ));
+    }
 
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
@@ -341,5 +384,8 @@ fn verify_single_update_proof(
                     uname, ver, epoch-1), error_type: VerificationErrorType::HistoryProof});
         }
     }
-    Ok(())
+
+    // return indicator of if the value <=> hash mapping was verified
+    // or if the hash was simply taken at face-value. True = hash mapping verified
+    Ok(is_tombstone)
 }

@@ -82,7 +82,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<NodeLabel, VRFStorageError> {
         // this function will need to read the VRF key using some function
-        let name_hash_bytes = H::hash(uname.0.as_bytes());
+        let name_hash_bytes = H::hash(uname);
         let mut stale_bytes = &[1u8];
         if stale {
             stale_bytes = &[0u8];

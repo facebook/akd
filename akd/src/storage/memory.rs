@@ -20,13 +20,17 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+type Epoch = u64;
+type UserValueMap = HashMap<Epoch, ValueState>;
+type UserStates = HashMap<Vec<u8>, UserValueMap>;
+
 // ===== Basic In-Memory database ==== //
 
 /// This struct represents a basic in-memory database.
 #[derive(Debug)]
 pub struct AsyncInMemoryDatabase {
     db: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
-    user_info: Arc<tokio::sync::RwLock<HashMap<String, Vec<ValueState>>>>,
+    user_info: Arc<tokio::sync::RwLock<UserStates>>,
     trans: Transaction,
 }
 
@@ -100,12 +104,20 @@ impl Storage for AsyncInMemoryDatabase {
         }
 
         if let DbRecord::ValueState(value_state) = &record {
-            let mut guard = self.user_info.write().await;
-            let username = value_state.username.0.clone();
-            guard
-                .entry(username)
-                .or_insert_with(Vec::new)
-                .push(value_state.clone());
+            let mut u_guard = self.user_info.write().await;
+            let username = value_state.username.to_vec();
+            match u_guard.get(&username) {
+                Some(old_states) => {
+                    let mut new_states = old_states.clone();
+                    new_states.insert(value_state.epoch, value_state.clone());
+                    u_guard.insert(username, new_states);
+                }
+                None => {
+                    let mut new_map = HashMap::new();
+                    new_map.insert(value_state.epoch, value_state.clone());
+                    u_guard.insert(username, new_map);
+                }
+            }
         } else {
             let mut guard = self.db.write().await;
             guard.insert(record.get_full_binary_id(), record);
@@ -120,11 +132,19 @@ impl Storage for AsyncInMemoryDatabase {
 
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = &record {
-                let username = value_state.username.0.clone();
-                u_guard
-                    .entry(username)
-                    .or_insert_with(Vec::new)
-                    .push(value_state.clone());
+                let username = value_state.username.to_vec();
+                match u_guard.get(&username) {
+                    Some(old_states) => {
+                        let mut new_states = old_states.clone();
+                        new_states.insert(value_state.epoch, value_state.clone());
+                        u_guard.insert(username, new_states);
+                    }
+                    None => {
+                        let mut new_map = HashMap::new();
+                        new_map.insert(value_state.epoch, value_state.clone());
+                        u_guard.insert(username, new_map);
+                    }
+                }
             } else {
                 guard.insert(record.get_full_binary_id(), record);
             }
@@ -133,9 +153,9 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(&id).await {
+            if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
                 return Ok(result);
             }
@@ -144,15 +164,15 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
-        let bin_id = St::get_full_binary_key_id(&id);
+    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+        let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
             if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
                 let u_guard = self.user_info.read().await;
                 if let Some(state) = (*u_guard).get(&username).cloned() {
-                    if let Some(item) = state.iter().find(|&x| x.epoch == epoch) {
-                        return Ok(DbRecord::ValueState(item.clone()));
+                    if let Some(found) = state.get(&epoch) {
+                        return Ok(DbRecord::ValueState(found.clone()));
                     }
                 }
                 return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
@@ -179,10 +199,10 @@ impl Storage for AsyncInMemoryDatabase {
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
-        ids: Vec<St::Key>,
+        ids: &[St::Key],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
-        for key in ids.into_iter() {
+        for key in ids.iter() {
             if let Ok(result) = self.get::<St>(key).await {
                 map.push(result);
             }
@@ -191,11 +211,40 @@ impl Storage for AsyncInMemoryDatabase {
         Ok(map)
     }
 
+    async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let data = self.batch_get::<ValueState>(keys).await?;
+        let mut new_data = vec![];
+        for record in data {
+            if let DbRecord::ValueState(value_state) = record {
+                debug!(
+                    "Tombstoning 0x{}",
+                    hex::encode(value_state.username.to_vec())
+                );
+
+                new_data.push(DbRecord::ValueState(ValueState {
+                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
+                    ..value_state
+                }));
+            }
+        }
+
+        if !new_data.is_empty() {
+            debug!("Tombstoning {} entries", new_data.len());
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
+    }
+
     /// Retrieve the user data for a given user
     async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
         let guard = self.user_info.read().await;
         if let Some(result) = guard.get(&username.0) {
-            let mut results: Vec<ValueState> = result.to_vec();
+            let mut results: Vec<ValueState> = result.values().cloned().collect::<Vec<_>>();
             // return ordered by epoch (from smallest -> largest)
             results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
 
@@ -279,7 +328,7 @@ impl Storage for AsyncInMemoryDatabase {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdLabel(result.username.0.clone()), result.version);
+                map.insert(AkdLabel(result.username.to_vec()), result.version);
             }
         }
         Ok(map)
@@ -294,7 +343,7 @@ impl Storage for AsyncInMemoryDatabase {
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(ids)
+            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
             .await?;
         let mut epochs = data
             .into_iter()
@@ -334,7 +383,7 @@ pub struct AsyncInMemoryDbWithCache {
     cache: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
     stats: Arc<tokio::sync::RwLock<HashMap<String, usize>>>,
 
-    user_info: Arc<tokio::sync::RwLock<HashMap<String, Vec<ValueState>>>>,
+    user_info: Arc<tokio::sync::RwLock<UserStates>>,
     trans: Transaction,
 }
 
@@ -479,12 +528,20 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
 
         if let DbRecord::ValueState(value_state) = &record {
-            let mut guard = self.user_info.write().await;
-            let username = value_state.username.0.clone();
-            guard
-                .entry(username)
-                .or_insert_with(Vec::new)
-                .push(value_state.clone());
+            let mut u_guard = self.user_info.write().await;
+            let username = value_state.username.to_vec();
+            match u_guard.get(&username) {
+                Some(old_states) => {
+                    let mut new_states = old_states.clone();
+                    new_states.insert(value_state.epoch, value_state.clone());
+                    u_guard.insert(username, new_states);
+                }
+                None => {
+                    let mut new_map = HashMap::new();
+                    new_map.insert(value_state.epoch, value_state.clone());
+                    u_guard.insert(username, new_map);
+                }
+            }
         } else {
             let mut stats = self.stats.write().await;
             let calls = stats.entry(String::from("calls_to_cache_set")).or_insert(0);
@@ -505,11 +562,19 @@ impl Storage for AsyncInMemoryDbWithCache {
 
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = &record {
-                let username = value_state.username.0.clone();
-                u_guard
-                    .entry(username)
-                    .or_insert_with(Vec::new)
-                    .push(value_state.clone());
+                let username = value_state.username.to_vec();
+                match u_guard.get(&username) {
+                    Some(old_states) => {
+                        let mut new_states = old_states.clone();
+                        new_states.insert(value_state.epoch, value_state.clone());
+                        u_guard.insert(username, new_states);
+                    }
+                    None => {
+                        let mut new_map = HashMap::new();
+                        new_map.insert(value_state.epoch, value_state.clone());
+                        u_guard.insert(username, new_map);
+                    }
+                }
             } else {
                 *calls += 1;
                 guard.insert(record.get_full_binary_id(), record);
@@ -518,9 +583,9 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(())
     }
 
-    async fn get<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(&id).await {
+            if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
                 return Ok(result);
             }
@@ -529,15 +594,15 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: St::Key) -> Result<DbRecord, StorageError> {
-        let bin_id = St::get_full_binary_key_id(&id);
+    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+        let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
             if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
                 let u_guard = self.user_info.read().await;
                 if let Some(state) = (*u_guard).get(&username).cloned() {
-                    if let Some(item) = state.iter().find(|&x| x.epoch == epoch) {
-                        return Ok(DbRecord::ValueState(item.clone()));
+                    if let Some(found) = state.get(&epoch) {
+                        return Ok(DbRecord::ValueState(found.clone()));
                     }
                 }
                 return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
@@ -569,17 +634,16 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
     }
 
-    /// Flush the caching of objects (if present)
     async fn flush_cache(&self) {
         // no-op
     }
 
     async fn batch_get<St: Storable>(
         &self,
-        ids: Vec<St::Key>,
+        ids: &[St::Key],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
-        for key in ids.into_iter() {
+        for key in ids.iter() {
             if let Ok(result) = self.get::<St>(key).await {
                 map.push(result);
             }
@@ -588,10 +652,33 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(map)
     }
 
+    async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let data = self.batch_get::<ValueState>(keys).await?;
+        let mut new_data = vec![];
+        for record in data {
+            if let DbRecord::ValueState(value_state) = record {
+                new_data.push(DbRecord::ValueState(ValueState {
+                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
+                    ..value_state
+                }));
+            }
+        }
+
+        if !new_data.is_empty() {
+            self.batch_set(new_data).await?;
+        }
+
+        Ok(())
+    }
+
     async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
         let guard = self.user_info.read().await;
         if let Some(result) = guard.get(&username.0) {
-            let mut results: Vec<ValueState> = result.to_vec();
+            let mut results: Vec<ValueState> = result.values().cloned().collect();
             // return ordered by epoch (from smallest -> largest)
             results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
 
@@ -674,7 +761,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdLabel(result.username.0.clone()), result.version);
+                map.insert(AkdLabel(result.username.to_vec()), result.version);
             }
         }
         Ok(map)
@@ -689,7 +776,7 @@ impl Storage for AsyncInMemoryDbWithCache {
             .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
             .collect::<Vec<_>>();
         let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(ids)
+            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
             .await?;
         let mut epochs = data
             .into_iter()

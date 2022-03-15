@@ -21,7 +21,7 @@ use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
 use tokio::time::Instant;
-use winter_crypto::{Digest, Hasher};
+use winter_crypto::Hasher;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use std::collections::HashSet;
@@ -99,7 +99,7 @@ impl Azks {
         let new_leaf = get_leaf_node::<H, S>(
             storage,
             node.label,
-            node.hash.as_bytes().as_ref(),
+            &node.hash,
             NodeLabel::root(),
             self.latest_epoch,
         )
@@ -107,7 +107,7 @@ impl Azks {
 
         let mut root_node = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(NodeLabel::root()),
+            &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
@@ -156,7 +156,7 @@ impl Azks {
         while !current_nodes.is_empty() {
             let nodes = HistoryTreeNode::batch_get_from_storage(
                 storage,
-                current_nodes,
+                &current_nodes,
                 self.get_latest_epoch(),
             )
             .await?;
@@ -169,7 +169,7 @@ impl Azks {
             for node in &nodes {
                 node_states.push(get_state_map_key(node, node.get_latest_epoch()));
             }
-            let states = storage.batch_get::<HistoryNodeState>(node_states).await?;
+            let states = storage.batch_get::<HistoryNodeState>(&node_states).await?;
             load_count += states.len() as u64;
 
             // Now that states are loaded in the cache, you can read and access them.
@@ -220,13 +220,12 @@ impl Azks {
         );
 
         self.increment_epoch();
-        self.preload_nodes_for_insertion::<S, H>(storage, &insertion_set)
-            .await?;
+
         let mut hash_q = KeyedPriorityQueue::<NodeLabel, i32>::new();
         let mut priorities: i32 = 0;
         let mut root_node = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(NodeLabel::root()),
+            &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
@@ -243,7 +242,7 @@ impl Azks {
                 get_leaf_node::<H, S>(
                     storage,
                     node.label,
-                    node.hash.as_bytes().as_ref(),
+                    &node.hash,
                     NodeLabel::root(),
                     self.latest_epoch,
                 )
@@ -264,7 +263,7 @@ impl Azks {
         while let Some((next_node_label, _)) = hash_q.pop() {
             let mut next_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
-                NodeKey(next_node_label),
+                &NodeKey(next_node_label),
                 self.get_latest_epoch(),
             )
             .await?;
@@ -317,7 +316,7 @@ impl Azks {
             .await?;
         let lcp_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(lcp_node_label),
+            &NodeKey(lcp_node_label),
             self.get_latest_epoch(),
         )
         .await?;
@@ -331,16 +330,17 @@ impl Azks {
         for (i, child) in state.child_states.iter().enumerate() {
             match child {
                 None => {
-                    println!("i = {}, empty", i);
+                    debug!("i = {}, empty", i);
                     continue;
                 }
                 Some(child) => {
                     let unwrapped_child: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                         storage,
-                        NodeKey(child.label),
+                        &NodeKey(child.label),
                         self.get_latest_epoch(),
                     )
                     .await?;
+                    debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
                         hash: unwrapped_child
@@ -350,6 +350,7 @@ impl Azks {
                 }
             }
         }
+        debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
             longest_prefix,
@@ -378,7 +379,7 @@ impl Azks {
         // between these epochs.
         let node = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(NodeLabel::root()),
+            &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
@@ -441,7 +442,7 @@ impl Azks {
                     Some(child_node_state) => {
                         let child_node = HistoryTreeNode::get_from_storage(
                             storage,
-                            NodeKey(child_node_state.label),
+                            &NodeKey(child_node_state.label),
                             self.get_latest_epoch(),
                         )
                         .await?;
@@ -488,7 +489,7 @@ impl Azks {
         }
         let root_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(NodeLabel::root()),
+            &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
@@ -518,7 +519,7 @@ impl Azks {
         let mut layer_proofs = Vec::new();
         let mut curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
             storage,
-            NodeKey(NodeLabel::root()),
+            &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
@@ -561,7 +562,7 @@ impl Azks {
             });
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
-                NodeKey(
+                &NodeKey(
                     curr_node
                         .get_child_label_at_epoch::<_, H>(storage, epoch, dir)
                         .await?,
@@ -576,7 +577,7 @@ impl Azks {
         if !equal {
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
-                NodeKey(prev_node),
+                &NodeKey(prev_node),
                 self.get_latest_epoch(),
             )
             .await?;

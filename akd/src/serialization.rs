@@ -93,21 +93,21 @@ mod tests {
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
-        akd.publish::<Blake3_256<BaseElement>>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3_256<BaseElement>>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await
         .unwrap();
         // Generate latest proof
         let lookup_proof = akd
-            .lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string()))
+            .lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello"))
             .await
             .unwrap();
 
@@ -126,21 +126,21 @@ mod tests {
         let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
             .await
             .unwrap();
-        akd.publish::<Blake3_256<BaseElement>>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3_256<BaseElement>>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await
         .unwrap();
         // Generate latest proof
         let history_proof = akd
-            .key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string()))
+            .key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello"))
             .await
             .unwrap();
 
@@ -160,32 +160,29 @@ mod tests {
             .await
             .unwrap();
         // Commit to the first epoch
-        akd.publish::<Blake3_256<BaseElement>>(
-            vec![
-                (AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-                (
-                    AkdLabel("hello2".to_string()),
-                    AkdValue("world2".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3_256<BaseElement>>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
         .await
         .unwrap();
         // Commit to the second epoch
-        akd.publish::<Blake3_256<BaseElement>>(
-            vec![
-                (
-                    AkdLabel("hello3".to_string()),
-                    AkdValue("world3".to_string()),
-                ),
-                (
-                    AkdLabel("hello4".to_string()),
-                    AkdValue("world4".to_string()),
-                ),
-            ],
-            false,
-        )
+        akd.publish::<Blake3_256<BaseElement>>(vec![
+            (
+                AkdLabel::from_utf8_str("hello3"),
+                AkdValue::from_utf8_str("world3"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello4"),
+                AkdValue::from_utf8_str("world4"),
+            ),
+        ])
         .await
         .unwrap();
         // Generate audit proof for the evolution from epoch 1 to epoch 2.

@@ -41,6 +41,13 @@ pub const EMPTY_LABEL: NodeLabel = NodeLabel {
     len: 0,
 };
 
+/// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
+/// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
+/// verify the raw value. We utilize an empty array to save space in the storage layer
+///
+/// See [GitHub issue #130](https://github.com/novifinancial/akd/issues/130) for more context
+pub const TOMBSTONE: &[u8] = &[];
+
 // ============================================
 // Structs
 // ============================================

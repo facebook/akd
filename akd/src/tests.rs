@@ -378,7 +378,7 @@ async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
     let new_leaf = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
-        &[0u8],
+        &Blake3::hash(&[0u8]),
         NodeLabel::root(),
         0,
     )
@@ -387,7 +387,7 @@ async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
-        &[1u8],
+        &Blake3::hash(&[1u8]),
         NodeLabel::root(),
         0,
     )
@@ -434,7 +434,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
     let new_leaf = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-        &[0u8],
+        &Blake3::hash(&[0u8]),
         NodeLabel::root(),
         1,
     )
@@ -443,7 +443,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
-        &[1u8],
+        &Blake3::hash(&[1u8]),
         NodeLabel::root(),
         2,
     )
@@ -452,7 +452,7 @@ async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
     let leaf_2 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
-        &[1u8, 1u8],
+        &Blake3::hash(&[1u8, 1u8]),
         NodeLabel::root(),
         3,
     )
@@ -519,7 +519,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
     let new_leaf = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
-        &[0u8],
+        &Blake3::hash(&[0u8]),
         NodeLabel::root(),
         0,
     )
@@ -528,7 +528,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
     let leaf_1 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
-        &[1u8],
+        &Blake3::hash(&[1u8]),
         NodeLabel::root(),
         0,
     )
@@ -537,7 +537,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
     let leaf_2 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
-        &[1u8, 1u8],
+        &Blake3::hash(&[1u8, 1u8]),
         NodeLabel::root(),
         0,
     )
@@ -546,7 +546,7 @@ async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError>
     let leaf_3 = get_leaf_node::<Blake3, _>(
         &db,
         NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
-        &[0u8, 1u8],
+        &Blake3::hash(&[0u8, 1u8]),
         NodeLabel::root(),
         0,
     )
@@ -631,7 +631,7 @@ async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
             NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
-            &leaf_u64.to_be_bytes(),
+            &Blake3::hash(&leaf_u64.to_be_bytes()),
             NodeLabel::root(),
             7 - i,
         )

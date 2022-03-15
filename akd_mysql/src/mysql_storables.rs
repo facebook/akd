@@ -10,6 +10,7 @@
 use std::convert::TryInto;
 
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
+use akd::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
 use akd::ARITY;
@@ -131,7 +132,7 @@ impl MySqlStorable for DbRecord {
             StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
             StorageType::HistoryNodeState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `value` = new.value, `child_states` = new.child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA, parts),
             StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `birth_epoch` = new.birth_epoch, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
-            StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {}", TABLE_USER, SELECT_USER_DATA, parts),
+            StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `data` = new.data, `node_label_val` = new.node_label_val, `node_label_len` = new.node_label_len, `version` = new.version", TABLE_USER, SELECT_USER_DATA, parts),
         }
     }
 
@@ -394,8 +395,8 @@ impl MySqlStorable for DbRecord {
                         // Since these are constructed from a safe key, they should never fail
                         // so we'll leave the unwrap to simplify
                         let bin = St::get_full_binary_key_id(key);
-                        let back: akd::node_state::NodeStateKey =
-                            akd::node_state::HistoryNodeState::key_from_full_binary(&bin).unwrap();
+                        let back: NodeStateKey =
+                            HistoryNodeState::key_from_full_binary(&bin).unwrap();
                         vec![
                             (format!("label_len{}", idx), Value::from(back.0.len)),
                             (format!("label_val{}", idx), Value::from(back.0.val)),
@@ -483,7 +484,7 @@ impl MySqlStorable for DbRecord {
                     let value_vec: Vec<u8> = value;
                     let label_val_vec: Vec<u8> = label_val;
                     let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: [Option<akd::node_state::HistoryChildState>; ARITY] =
+                    let child_states_decoded: [Option<HistoryChildState>; ARITY] =
                         bincode::deserialize(&child_states_bin_vec).map_err(
                             |serialization_err| {
                                 MySqlError::Other(

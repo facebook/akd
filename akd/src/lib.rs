@@ -51,7 +51,7 @@
 //! ## Adding key-value pairs to the akd
 //! To add key-value pairs to the akd, we assume that the types of keys and the corresponding values are String.
 //! After adding key-value pairs to the akd's data structure, it also needs to be committed. To do this, after running the setup, as in the previous step,
-//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel(String), AkdValue(String)). See below for example usage.
+//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel::from_utf8_str(String), AkdValue::from_utf8_str(String)). See below for example usage.
 //! ```
 //! use winter_crypto::Hasher;
 //! use winter_crypto::hashers::Blake3_256;
@@ -69,8 +69,8 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!          (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!          (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!       .await;
 //! };
 //! ```
@@ -95,11 +95,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await;
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await;
 //! };
 //! ```
 //! ## Verifying a lookup proof
@@ -121,11 +121,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel("hello".to_string())).await.unwrap();
+//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
@@ -134,7 +134,7 @@
 //!     client::lookup_verify::<Blake3_256<BaseElement>>(
 //!         &vrf_pk,
 //!         root_hash,
-//!         AkdLabel("hello".to_string()),
+//!         AkdLabel::from_utf8_str("hello"),
 //!         lookup_proof,
 //!     ).unwrap();
 //! };
@@ -161,11 +161,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await;
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await;
 //! };
 //! ```
 //! ## Verifying a key history proof
@@ -186,11 +186,11 @@
 //! async {
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel("hello".to_string())).await.unwrap();
+//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await.unwrap();
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
@@ -199,8 +199,9 @@
 //!         &vrf_pk,
 //!         root_hashes,
 //!         previous_root_hashes,
-//!         AkdLabel("hello".to_string()),
+//!         AkdLabel::from_utf8_str("hello"),
 //!         history_proof,
+//!         false,
 //!         ).unwrap();
 //!     };
 //! ```
@@ -225,12 +226,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
+//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -256,12 +257,12 @@
 //!     let vrf = HardCodedAkdVRF{};
 //!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
 //!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello".to_string()), AkdValue("world".to_string())),
-//!         (AkdLabel("hello2".to_string()), AkdValue("world2".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
+//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
 //!          .await.unwrap();
 //!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel("hello3".to_string()), AkdValue("world3".to_string())),
-//!         (AkdLabel("hello4".to_string()), AkdValue("world4".to_string())),], false)
+//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
+//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
 //!          .await.unwrap();
 //!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
@@ -311,20 +312,32 @@
 #[cfg(feature = "rand")]
 extern crate rand;
 
+// Due to the amount of types an implementing storage layer needs to access,
+// it's quite unreasonable to expose them all at the crate root, and a storage
+// implementer will simply need to import the necessary inner types which are
+// a dependency of ths [`Storage`] trait anyways
+
 pub mod append_only_zks;
+pub mod auditor;
+pub mod client;
 pub mod directory;
+pub mod ecvrf;
+pub mod errors;
 pub mod history_tree_node;
 pub mod node_state;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
+
 mod utils;
 
-pub mod auditor;
-pub mod client;
-pub mod ecvrf;
-pub mod errors;
+// ========== Type re-exports which are commonly used ========== //
+pub use append_only_zks::Azks;
+pub use directory::{Directory, EpochHash};
+pub use node_state::{Node, NodeLabel};
+pub use storage::types::{AkdLabel, AkdValue};
 
+// ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public-tests"))]
 pub mod test_utils;
 #[cfg(test)]
@@ -343,6 +356,12 @@ pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLab
     val: [1u8; 32],
     len: 0,
 };
+/// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
+/// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
+/// verify the raw value. We utilize an empty array to save space in the storage layer
+///
+/// See [GitHub issue #130](https://github.com/novifinancial/akd/issues/130) for more context
+pub const TOMBSTONE: &[u8] = &[];
 
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent.
