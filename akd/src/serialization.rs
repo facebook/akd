@@ -8,11 +8,11 @@
 //! This module contains serialization calls for helping serialize/deserialize digests
 
 use crate::errors::{AkdError, HistoryTreeNodeError};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-use winter_crypto::Digest;
-use winter_crypto::Hasher;
+
+use winter_crypto::{Digest, Hasher};
 use winter_utils::{Deserializable, SliceReader};
 
 /// Converts from &[u8] to H::Digest
