@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -11,11 +11,12 @@ readme = "../README.md"
 
 [features]
 bench = ["public-tests"]
-public-tests = ["rand", "bincode", "serde", "colored", "once_cell", "ed25519-dalek/serde"]
+public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization"]
 # In the event that VRF's are enabled, AND builder has requested serde support
 # Add the serde flag to the dalek crate with --features "ed25519-dalek/serde"
 vrf = ["curve25519-dalek", "ed25519-dalek"]
 default = ["vrf"]
+serde_serialization = ["serde", "ed25519-dalek/serde"]
 
 [dependencies]
 ## Required dependencies ##

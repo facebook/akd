@@ -1,6 +1,6 @@
 [package]
 name = "akd_client"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Client verification companion for the auditable key directory with limited dependencies."
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,7 @@ serde = { version = "1.0", optional = true, features = ["derive"]}
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "0.4.5", optional = true }
 
-curve25519-dalek = { version = "3.2", optional = true }
+curve25519-dalek = { version = "3", optional = true }
 ed25519-dalek = { version = "1", features = ["serde"], optional = true}
 
 [features]
