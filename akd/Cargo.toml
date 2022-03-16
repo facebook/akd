@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -34,7 +34,7 @@ keyed_priority_queue = "0.3"
 bincode = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 rand = { version = "0.7", optional = true }
-curve25519-dalek = { version = "3.2", optional = true }
+curve25519-dalek = { version = "3", optional = true }
 ed25519-dalek = { version = "1", optional = true }
 colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
