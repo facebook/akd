@@ -226,9 +226,8 @@ impl NodeLabel {
 /// Hashes a label of type NodeLabel using the hash function provided by
 /// the generic type H.
 pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
-    let byte_label_len = H::hash(&label.get_len().to_be_bytes());
-    let byte_label_val = H::hash(&label.get_val());
-    H::merge(&[byte_label_len, byte_label_val])
+    let hash_input = [&label.get_len().to_be_bytes()[..], &label.get_val()].concat();
+    H::hash(&hash_input)
 }
 
 #[derive(Debug, Eq, PartialEq)]
