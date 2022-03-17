@@ -64,9 +64,8 @@ pub struct NodeLabel {
 
 impl NodeLabel {
     pub(crate) fn hash(&self) -> Digest {
-        let byte_label_len = crate::hash::hash(&self.len.to_be_bytes());
-        let byte_label_val = crate::hash::hash(&self.val);
-        crate::hash::merge(&[byte_label_len, byte_label_val])
+        let hash_input = [&self.len.to_be_bytes()[..], &self.val].concat();
+        crate::hash::hash(&hash_input)
     }
 
     /// Takes as input a pointer to the caller and another NodeLabel,
