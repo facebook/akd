@@ -923,7 +923,7 @@ mod tests {
         let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
         let child_hist_node_1 = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(1), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         root.write_to_storage(&db).await?;
@@ -955,12 +955,12 @@ mod tests {
         let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
         let child_hist_node_1 = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(1), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         root.write_to_storage(&db).await?;
@@ -1014,12 +1014,12 @@ mod tests {
         let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
         let child_hist_node_1 = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(11), 2),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(00), 2),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         root.write_to_storage(&db).await?;
@@ -1040,12 +1040,12 @@ mod tests {
 
         let child_hist_node_3: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(1), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         root.write_to_storage(&db).await?;
@@ -1099,12 +1099,12 @@ mod tests {
         let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
         let child_hist_node_1 = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(11), 2),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(00), 2),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         root.write_to_storage(&db).await?;
@@ -1125,12 +1125,12 @@ mod tests {
 
         let child_hist_node_3: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(1), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0), 1),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             ep,
         );
         assert!(
@@ -1189,12 +1189,12 @@ mod tests {
                     byte_arr_from_u64(0b1u64 << ep.clone()),
                     ep.try_into().unwrap(),
                 ),
-                Blake3::hash(&[0u8]),
+                Blake3::hash(&EMPTY_VALUE),
                 2 * ep,
             );
             let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
                 NodeLabel::new(byte_arr_from_u64(0), ep.clone().try_into().unwrap()),
-                Blake3::hash(&[0u8]),
+                Blake3::hash(&EMPTY_VALUE),
                 2 * ep,
             );
             root.write_to_storage(&db).await?;
@@ -1211,7 +1211,7 @@ mod tests {
                 byte_arr_from_u64(0b1u64 << ep_existing.clone()),
                 ep_existing.try_into().unwrap(),
             ),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             2 * ep_existing,
         );
         let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
@@ -1219,7 +1219,7 @@ mod tests {
                 byte_arr_from_u64(0),
                 ep_existing.clone().try_into().unwrap(),
             ),
-            Blake3::hash(&[0u8]),
+            Blake3::hash(&EMPTY_VALUE),
             2 * ep_existing,
         );
 
@@ -1264,7 +1264,7 @@ mod tests {
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
-            &Blake3::hash(&[0u8]),
+            &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
         )
@@ -1320,7 +1320,7 @@ mod tests {
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-            &Blake3::hash(&[0u8]),
+            &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
         )
@@ -1405,7 +1405,7 @@ mod tests {
         let new_leaf = get_leaf_node::<Blake3, _>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
-            &Blake3::hash(&[0u8]),
+            &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
         )
