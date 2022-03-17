@@ -191,7 +191,7 @@ pub struct LookupProof {
     /// The version of the record
     pub version: u64,
     /// VRF proof for the label corresponding to this version
-    pub exisitence_vrf_proof: Vec<u8>,
+    pub existence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof,
     /// VRF proof for the marker preceding (less than or equal to) this version

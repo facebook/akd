@@ -158,7 +158,7 @@ where
         epoch: proof.epoch,
         version: proof.version,
         plaintext_value: proof.plaintext_value.to_vec(),
-        exisitence_vrf_proof: proof.exisitence_vrf_proof.clone(),
+        existence_vrf_proof: proof.existence_vrf_proof.clone(),
         existence_proof: convert_membership_proof(&proof.existence_proof),
         marker_vrf_proof: proof.marker_vrf_proof.clone(),
         marker_proof: convert_membership_proof(&proof.marker_proof),

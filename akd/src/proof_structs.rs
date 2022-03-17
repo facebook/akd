@@ -134,7 +134,7 @@ pub struct LookupProof<H: Hasher> {
     /// The version of the record
     pub version: u64,
     /// VRF proof for the label corresponding to this version
-    pub exisitence_vrf_proof: Vec<u8>,
+    pub existence_vrf_proof: Vec<u8>,
     /// Record existence proof
     pub existence_proof: MembershipProof<H>,
     /// VRF proof for the marker preceding (less than or equal to) this version
@@ -157,7 +157,7 @@ impl<H: Hasher> Clone for LookupProof<H> {
             existence_proof: self.existence_proof.clone(),
             marker_proof: self.marker_proof.clone(),
             freshness_proof: self.freshness_proof.clone(),
-            exisitence_vrf_proof: self.exisitence_vrf_proof.clone(),
+            existence_vrf_proof: self.existence_vrf_proof.clone(),
             marker_vrf_proof: self.marker_vrf_proof.clone(),
             freshness_vrf_proof: self.freshness_vrf_proof.clone(),
         }
