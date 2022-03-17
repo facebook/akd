@@ -155,7 +155,7 @@ pub fn lookup_verify(
             &_akd_key,
             false,
             version,
-            &proof.exisitence_vrf_proof,
+            &proof.existence_vrf_proof,
             fresh_label,
         )?;
     }

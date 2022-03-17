@@ -123,7 +123,7 @@ pub fn lookup_verify<H: Hasher>(
         &akd_key,
         false,
         version,
-        &proof.exisitence_vrf_proof,
+        &proof.existence_vrf_proof,
         fresh_label,
     )?;
 

@@ -255,7 +255,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             epoch: current_epoch,
             plaintext_value: lookup_info.value_state.plaintext_val,
             version: lookup_info.value_state.version,
-            exisitence_vrf_proof: self
+            existence_vrf_proof: self
                 .vrf
                 .get_label_proof::<H>(&uname, false, current_version)
                 .await?
