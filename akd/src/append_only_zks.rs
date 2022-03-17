@@ -748,7 +748,7 @@ mod tests {
         let mut proof = azks
             .get_membership_proof(&db, insertion_set[0].label, 1)
             .await?;
-        let hash_val = Blake3::hash(&[0u8]);
+        let hash_val = Blake3::hash(&EMPTY_VALUE);
         proof = MembershipProof::<Blake3> {
             label: proof.label,
             hash_val,
@@ -757,7 +757,7 @@ mod tests {
         assert!(
             !verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
                 .is_ok(),
-            "Membership proof does verifies, despite being wrong"
+            "Membership proof does verify, despite being wrong"
         );
 
         Ok(())

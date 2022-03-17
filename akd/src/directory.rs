@@ -170,7 +170,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .vrf
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
-                    let stale_value_to_add = H::hash(&[0u8]);
+                    let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add = crate::utils::value_to_bytes::<H>(&val);
                     update_set.push(Node::<H> {
                         label: stale_label,
