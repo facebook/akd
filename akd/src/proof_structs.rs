@@ -145,6 +145,8 @@ pub struct LookupProof<H: Hasher> {
     pub freshness_vrf_proof: Vec<u8>,
     /// Freshness proof (non membership of stale label)
     pub freshness_proof: NonMembershipProof<H>,
+    /// Proof for commitment value derived from raw AkdLabel and AkdValue
+    pub commitment_proof: Vec<u8>,
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
@@ -160,6 +162,7 @@ impl<H: Hasher> Clone for LookupProof<H> {
             existence_vrf_proof: self.existence_vrf_proof.clone(),
             marker_vrf_proof: self.marker_vrf_proof.clone(),
             freshness_vrf_proof: self.freshness_vrf_proof.clone(),
+            commitment_proof: self.commitment_proof.clone(),
         }
     }
 }
@@ -199,6 +202,8 @@ pub struct UpdateProof<H: Hasher> {
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
+    /// Proof for commitment value derived from raw AkdLabel and AkdValue
+    pub commitment_proof: Vec<u8>,
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
@@ -217,6 +222,7 @@ impl<H: Hasher> Clone for UpdateProof<H> {
             previous_val_vrf_proof: self.previous_val_vrf_proof.clone(),
             next_few_vrf_proofs: self.next_few_vrf_proofs.clone(),
             future_marker_vrf_proofs: self.future_marker_vrf_proofs.clone(),
+            commitment_proof: self.commitment_proof.clone(),
         }
     }
 }

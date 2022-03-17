@@ -112,7 +112,9 @@ pub fn lookup_verify<H: Hasher>(
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
-    if hash_plaintext_value::<H>(&proof.plaintext_value) != existence_proof.hash_val {
+    if hash_plaintext_value::<H>(&proof.plaintext_value, &proof.commitment_proof)
+        != existence_proof.hash_val
+    {
         return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
             "Hash of plaintext value did not match expected hash in existence proof".to_string(),
         )));
@@ -213,7 +215,8 @@ fn verify_single_update_proof<H: Hasher>(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_plaintext_value::<H>(bytes) == existence_at_ep.hash_val,
+                hash_plaintext_value::<H>(bytes, &proof.commitment_proof)
+                    == existence_at_ep.hash_val,
             )
         }
     };
@@ -352,7 +355,7 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     new_hash
 }
 
-fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
-    let single_hash = crate::utils::value_to_bytes::<H>(value);
+fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue, proof: &[u8]) -> H::Digest {
+    let single_hash = crate::utils::bind_commitment::<H>(value, proof);
     H::merge(&[H::hash(&EMPTY_VALUE), single_hash])
 }

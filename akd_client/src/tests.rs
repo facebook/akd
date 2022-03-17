@@ -164,6 +164,7 @@ where
         marker_proof: convert_membership_proof(&proof.marker_proof),
         freshness_vrf_proof: proof.freshness_vrf_proof.clone(),
         freshness_proof: convert_non_membership_proof(&proof.freshness_proof),
+        commitment_proof: proof.commitment_proof.clone(),
     }
 }
 
@@ -202,6 +203,7 @@ where
                 .iter()
                 .map(|non_exist_markers| convert_non_membership_proof(non_exist_markers))
                 .collect(),
+            commitment_proof: proof.commitment_proof.clone(),
         };
         res_update_proofs.push(update_proof);
     }

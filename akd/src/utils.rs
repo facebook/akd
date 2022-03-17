@@ -11,10 +11,11 @@
 
 use crate::{
     node_state::{hash_label, NodeLabel},
+    storage::types::{AkdLabel, AkdValue},
     EMPTY_LABEL, EMPTY_VALUE,
 };
 use std::collections::HashSet;
-use winter_crypto::Hasher;
+use winter_crypto::{Digest, Hasher};
 
 // Builds a set of all prefixes of the input labels
 pub(crate) fn build_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLabel> {
@@ -53,8 +54,50 @@ pub(crate) fn empty_node_hash_no_label<H: Hasher>() -> H::Digest {
     H::hash(&EMPTY_VALUE)
 }
 
-// FIXME: Make a real commitment here, alongwith a blinding factor. See issue #123
-/// Gets the bytes for a value.
-pub(crate) fn value_to_bytes<H: Hasher>(value: &crate::AkdValue) -> H::Digest {
-    H::hash(value)
+// Corresponds to the I2OSP() function from RFC8017, prepending the length of
+// a byte array to the byte array (so that it is ready for serialization and hashing)
+//
+// Input byte array cannot be > 2^64-1 in length
+pub(crate) fn i2osp_array(input: &[u8]) -> Vec<u8> {
+    [&(input.len() as u64).to_be_bytes(), input].concat()
+}
+
+// Commitment helper functions
+
+// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue
+pub(crate) fn get_commitment_proof<H: Hasher>(
+    commitment_key: &[u8],
+    label: &AkdLabel,
+    version: u64,
+    value: &AkdValue,
+) -> H::Digest {
+    H::hash(
+        &[
+            commitment_key,
+            &i2osp_array(label),
+            &version.to_be_bytes(),
+            &i2osp_array(value),
+        ]
+        .concat(),
+    )
+}
+
+// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
+//
+// proof = H(commitment_key, label, version, value)
+// commmitment = H(value, proof)
+// Note that this commitment needs to be a hash function (random oracle) output
+pub(crate) fn commit_value<H: Hasher>(
+    commitment_key: &[u8],
+    label: &AkdLabel,
+    version: u64,
+    value: &AkdValue,
+) -> H::Digest {
+    let proof = get_commitment_proof::<H>(commitment_key, label, version, value);
+    H::hash(&[i2osp_array(value), i2osp_array(&proof.as_bytes())].concat())
+}
+
+// Used by the client to supply a commitment proof and value to reconstruct the commitment
+pub(crate) fn bind_commitment<H: Hasher>(value: &AkdValue, proof: &[u8]) -> H::Digest {
+    H::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
 }

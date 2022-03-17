@@ -100,8 +100,8 @@ fn verify_nonmembership(
     Ok(verified)
 }
 
-fn hash_plaintext_value(value: &AkdValue) -> Digest {
-    let single_hash = crate::utils::value_to_bytes(value);
+fn hash_plaintext_value(value: &AkdValue, proof: &[u8]) -> Digest {
+    let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
     merge(&[hash(&EMPTY_VALUE), single_hash])
 }
 
@@ -139,7 +139,9 @@ pub fn lookup_verify(
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
-    if hash_plaintext_value(&proof.plaintext_value) != existence_proof.hash_val {
+    if hash_plaintext_value(&proof.plaintext_value, &proof.commitment_proof)
+        != existence_proof.hash_val
+    {
         return Err(verify_error!(
             LookupProof,
             bool,
@@ -253,7 +255,7 @@ fn verify_single_update_proof(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_plaintext_value(bytes) == existence_at_ep.hash_val,
+                hash_plaintext_value(bytes, &proof.commitment_proof) == existence_at_ep.hash_val,
             )
         }
     };
