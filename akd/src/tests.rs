@@ -6,703 +6,816 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::convert::TryInto;
+//! Contains the tests for the high-level API (directory, auditor, client)
 
-use winter_crypto::{hashers::Blake3_256, Hasher};
+use crate::{
+    auditor::audit_verify,
+    client::{key_history_verify, lookup_verify},
+    directory::{get_key_history_hashes, Directory},
+    ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
+    errors::AkdError,
+    storage::{
+        memory::AsyncInMemoryDatabase,
+        types::{AkdLabel, AkdValue, DbRecord},
+        Storage,
+    },
+};
+use winter_crypto::{hashers::Blake3_256, Digest};
 use winter_math::fields::f128::BaseElement;
-
 type Blake3 = Blake3_256<BaseElement>;
 
-use crate::node_state::byte_arr_from_u64;
-use crate::serialization::from_digest;
-use crate::{
-    errors::*,
-    history_tree_node::get_empty_root,
-    history_tree_node::get_leaf_node,
-    history_tree_node::HistoryTreeNode,
-    node_state::HistoryChildState,
-    node_state::{hash_label, NodeLabel},
-    *,
-};
-
-type InMemoryDb = storage::memory::AsyncInMemoryDatabase;
-
-////////// history_tree_node tests //////
-//  Test set_child_without_hash and get_child_at_existing_epoch
-
 #[tokio::test]
-async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
-    let ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
-    let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(1), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    root.write_to_storage(&db).await?;
-    root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()))
+async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await?;
+
+    let current_azks = akd.retrieve_current_azks().await?;
+    let hash = akd
+        .get_root_hash::<Blake3_256<BaseElement>>(&current_azks)
         .await?;
 
-    let set_child = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
+    // Ensuring that the root hash of an empty tree is equal to the following constant
+    assert_eq!(
+        "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213",
+        hex::encode(hash.as_bytes())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simple_publish() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world"),
+    )])
+    .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simple_lookup() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
+    let current_azks = akd.retrieve_current_azks().await?;
+    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let vrf_pk = akd.get_public_key().await?;
+    lookup_verify::<Blake3_256<BaseElement>>(
+        &vrf_pk,
+        root_hash,
+        AkdLabel::from_utf8_str("hello"),
+        lookup_proof,
+    )?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simple_key_history() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world3"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world4"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world_updated"),
+    )])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world6"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world12"),
+        ),
+    ])
+    .await?;
+
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    let vrf_pk = akd.get_public_key().await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        false,
+    )?;
+
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello2")).await?;
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello2"),
+        history_proof,
+        false,
+    )?;
+
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello3")).await?;
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello3"),
+        history_proof,
+        false,
+    )?;
+
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello4")).await?;
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello4"),
+        history_proof,
+        false,
+    )?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_simple_audit() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world3"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world4"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world_updated"),
+    )])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world6"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world12"),
+        ),
+    ])
+    .await?;
+
+    let current_azks = akd.retrieve_current_azks().await?;
+
+    let audit_proof_1 = akd.audit(1, 2).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+            .await?,
+        audit_proof_1,
+    )
+    .await?;
+
+    let audit_proof_2 = akd.audit(1, 3).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
+            .await?,
+        audit_proof_2,
+    )
+    .await?;
+
+    let audit_proof_3 = akd.audit(1, 4).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+            .await?,
+        audit_proof_3,
+    )
+    .await?;
+
+    let audit_proof_4 = akd.audit(1, 5).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 5)
+            .await?,
+        audit_proof_4,
+    )
+    .await?;
+
+    let audit_proof_5 = akd.audit(2, 3).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
+            .await?,
+        audit_proof_5,
+    )
+    .await?;
+
+    let audit_proof_6 = akd.audit(2, 4).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
+            .await?,
+        audit_proof_6,
+    )
+    .await?;
+
+    let invalid_audit = akd.audit::<Blake3>(3, 3).await;
+    assert!(matches!(invalid_audit, Err(_)));
+
+    let invalid_audit = akd.audit::<Blake3>(3, 2).await;
+    assert!(matches!(invalid_audit, Err(_)));
+
+    let invalid_audit = akd.audit::<Blake3>(6, 7).await;
+    assert!(matches!(invalid_audit, Err(_)));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_read_during_publish() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    // Publish twice
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world_2"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2_2"),
+        ),
+    ])
+    .await?;
+
+    // Make the current azks a "checkpoint" to reset to later
+    let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
+
+    // Publish for the third time
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world_3"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2_3"),
+        ),
+    ])
+    .await?;
+
+    // Reset the azks record back to previous epoch, to emulate an akd reader
+    // communicating with storage that is in the middle of a publish operation
+    db.set(DbRecord::Azks(checkpoint_azks))
         .await
-        .map_err(|_| panic!("Child not set in test_set_child_without_hash_at_root"))
-        .unwrap();
-    assert!(
-        set_child == Some(child_hist_node_1),
-        "Child in direction is not equal to the set value"
+        .expect("Error resetting directory to previous epoch");
+    let current_azks = akd.retrieve_current_azks().await?;
+    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+
+    // History proof should not contain the third epoch's update but still verify
+    let history_proof = akd
+        .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
+        .await?;
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    assert_eq!(2, root_hashes.len());
+    let vrf_pk = akd.get_public_key().await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        false,
+    )?;
+
+    // Lookup proof should contain the checkpoint epoch's value and still verify
+    let lookup_proof = akd
+        .lookup::<Blake3>(AkdLabel::from_utf8_str("hello"))
+        .await?;
+    assert_eq!(
+        AkdValue::from_utf8_str("world_2"),
+        lookup_proof.plaintext_value
     );
-    assert!(root.get_latest_epoch() == 1, "Latest epochs don't match!");
-    assert!(
-        root.birth_epoch == root.last_epoch,
-        "How would the last epoch be different from the birth epoch without an update?"
-    );
+    lookup_verify::<Blake3>(
+        &vrf_pk,
+        root_hash,
+        AkdLabel::from_utf8_str("hello"),
+        lookup_proof,
+    )?;
+
+    // Audit proof should only work up until checkpoint's epoch
+    let audit_proof = akd.audit(1, 2).await?;
+    audit_verify::<Blake3>(
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
+            .await?,
+        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
+            .await?,
+        audit_proof,
+    )
+    .await?;
+
+    let invalid_audit = akd.audit::<Blake3>(2, 3).await;
+    assert!(matches!(invalid_audit, Err(_)));
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_set_children_without_hash_at_root() -> Result<(), AkdError> {
-    let ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
-    let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(1), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(0), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    root.write_to_storage(&db).await?;
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    let set_child_1 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
-        .await;
-    match set_child_1 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_1),
-            "Child in 1 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
+async fn test_directory_read_only_mode() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    // There is no AZKS object in the storage layer, directory construction should fail
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await;
+    assert!(matches!(akd, Err(_)));
 
-    let set_child_2 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(0))
-        .await;
-    match set_child_2 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_2),
-            "Child in 0 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-    let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep == 1, "Latest epochs don't match!");
-    assert!(
-        root.birth_epoch == root.last_epoch,
-        "How would the last epoch be different from the birth epoch without an update?"
-    );
+    // now create the AZKS
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await;
+    assert!(matches!(akd, Ok(_)));
+
+    // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
+    assert!(matches!(akd.publish::<Blake3>(vec![]).await, Err(_)));
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_set_children_without_hash_multiple_at_root() -> Result<(), AkdError> {
-    let mut ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
-    let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(11), 2),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(00), 2),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    root.write_to_storage(&db).await?;
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1))
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(0), child_hist_node_2))
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
+async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    // writer will write the AZKS record
+    let writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-    ep = 2;
-
-    let child_hist_node_3: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(1), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(0), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    root.write_to_storage(&db).await?;
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    let set_child_1 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
-        .await;
-    match set_child_1 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_3),
-            "Child in 1 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-
-    let set_child_2 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(0))
-        .await;
-    match set_child_2 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_4),
-            "Child in 0 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-    let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep == 2, "Latest epochs don't match!");
-    assert!(
-        root.birth_epoch < root.last_epoch,
-        "How is the last epoch not higher than the birth epoch after an udpate?"
-    );
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdError> {
-    let mut ep = 1;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
-    let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(11), 2),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(00), 2),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    root.write_to_storage(&db).await?;
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_1.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(0), child_hist_node_2.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-
-    ep = 2;
-
-    let child_hist_node_3: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(1), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    let child_hist_node_4: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(byte_arr_from_u64(0), 1),
-        Blake3::hash(&[0u8]),
-        ep,
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(1), child_hist_node_3.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    assert!(
-        root.set_child::<_, Blake3>(&db, ep, &(Direction::Some(0), child_hist_node_4.clone()),)
-            .await
-            .is_ok(),
-        "Setting the child without hash threw an error"
-    );
-    let set_child_1 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, 1, Direction::Some(1))
-        .await;
-    match set_child_1 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_1),
-            "Child in 1 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-
-    let set_child_2 = root
-        .get_child_at_existing_epoch::<_, Blake3>(&db, 1, Direction::Some(0))
-        .await;
-    match set_child_2 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_2),
-            "Child in 0 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-    let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep == 2, "Latest epochs don't match!");
-    assert!(
-        root.birth_epoch < root.last_epoch,
-        "How is the last epoch not higher than the birth epoch after an udpate?"
-    );
-
-    Ok(())
-}
-
-//  Test get_child_at_epoch
-#[tokio::test]
-pub async fn test_get_child_at_epoch_at_root() -> Result<(), AkdError> {
-    let init_ep = 0;
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(init_ep)).await?;
-
-    for ep in 0..3 {
-        let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-            NodeLabel::new(
-                byte_arr_from_u64(0b1u64 << ep.clone()),
-                ep.try_into().unwrap(),
+    writer
+        .publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world"),
             ),
-            Blake3::hash(&[0u8]),
-            2 * ep,
-        );
-        let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-            NodeLabel::new(byte_arr_from_u64(0), ep.clone().try_into().unwrap()),
-            Blake3::hash(&[0u8]),
-            2 * ep,
-        );
-        root.write_to_storage(&db).await?;
-        root.set_child::<_, Blake3>(&db, 2 * ep, &(Direction::Some(1), child_hist_node_1))
-            .await?;
-        root.set_child::<_, Blake3>(&db, 2 * ep, &(Direction::Some(0), child_hist_node_2))
-            .await?;
-    }
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
+        .await?;
 
-    let ep_existing = 0u64;
+    // reader will not write the AZKS but will be "polling" for AZKS changes
+    let reader = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
 
-    let child_hist_node_1 = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(
-            byte_arr_from_u64(0b1u64 << ep_existing.clone()),
-            ep_existing.try_into().unwrap(),
+    // start the poller
+    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+    let reader_clone = reader.clone();
+    let _join_handle = tokio::task::spawn(async move {
+        reader_clone
+            .poll_for_azks_changes(tokio::time::Duration::from_millis(100), Some(tx))
+            .await
+    });
+
+    // verify a lookup proof, which will populate the cache
+    async_poll_helper_proof(&reader, AkdValue::from_utf8_str("world")).await?;
+
+    // publish epoch 2
+    writer
+        .publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("hello"),
+                AkdValue::from_utf8_str("world_2"),
+            ),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2_2"),
+            ),
+        ])
+        .await?;
+
+    // assert that the change is picked up in a reasonable time-frame and the cache is flushed
+    let notification = tokio::time::timeout(tokio::time::Duration::from_secs(10), rx.recv()).await;
+    assert!(matches!(notification, Ok(Some(()))));
+
+    async_poll_helper_proof(&reader, AkdValue::from_utf8_str("world_2")).await?;
+
+    Ok(())
+}
+
+/*
+=========== Test Helpers ===========
+*/
+
+async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage>(
+    reader: &Directory<T, V>,
+    value: AkdValue,
+) -> Result<(), AkdError> {
+    // reader should read "hello" and this will populate the "cache" a log
+    let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
+    assert_eq!(value, lookup_proof.plaintext_value);
+    let current_azks = reader.retrieve_current_azks().await?;
+    let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
+    let pk = reader.get_public_key().await?;
+    lookup_verify::<Blake3>(
+        &pk,
+        root_hash,
+        AkdLabel::from_utf8_str("hello"),
+        lookup_proof,
+    )?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_limited_key_history() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    // epoch 0
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    // epoch 1
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
         ),
-        Blake3::hash(&[0u8]),
-        2 * ep_existing,
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    // epoch 2
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    // epoch 3
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world3"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world4"),
+        ),
+    ])
+    .await?;
+
+    // epoch 4
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world2"),
+        ),
+    ])
+    .await?;
+
+    // epoch 5
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world_updated"),
+    )])
+    .await?;
+
+    // epoch 6
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world6"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world12"),
+        ),
+    ])
+    .await?;
+
+    // epoch 7
+    akd.publish::<Blake3>(vec![
+        (
+            AkdLabel::from_utf8_str("hello3"),
+            AkdValue::from_utf8_str("world7"),
+        ),
+        (
+            AkdLabel::from_utf8_str("hello4"),
+            AkdValue::from_utf8_str("world13"),
+        ),
+    ])
+    .await?;
+
+    let vrf_pk = akd.get_public_key().await?;
+
+    // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
+    let history_proof = akd
+        .limited_key_history::<Blake3>(1, &AkdLabel::from_utf8_str("hello"))
+        .await?;
+    assert_eq!(1, history_proof.proofs.len());
+    assert_eq!(5, history_proof.proofs[0].epoch);
+
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        false,
+    )?;
+
+    // Take the top 3 results, and check that we're getting the right epoch updates
+    let history_proof = akd
+        .limited_key_history::<Blake3>(3, &AkdLabel::from_utf8_str("hello"))
+        .await?;
+    assert_eq!(3, history_proof.proofs.len());
+    assert_eq!(5, history_proof.proofs[0].epoch);
+    assert_eq!(3, history_proof.proofs[1].epoch);
+    assert_eq!(2, history_proof.proofs[2].epoch);
+
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        false,
+    )?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_tombstoned_key_history() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    // epoch 0
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    // epoch 1
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world"),
+    )])
+    .await?;
+
+    // epoch 2
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world2"),
+    )])
+    .await?;
+
+    // epoch 3
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world3"),
+    )])
+    .await?;
+
+    // epoch 4
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world4"),
+    )])
+    .await?;
+
+    // epoch 5
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world5"),
+    )])
+    .await?;
+
+    // Epochs 1-5, we're going to tombstone 1 & 2
+    let vrf_pk = akd.get_public_key().await?;
+
+    // tombstone epochs 1 & 2
+    let tombstones = [
+        crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 1u64),
+        crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 2u64),
+    ];
+    db.tombstone_value_states(&tombstones).await?;
+
+    let history_proof = akd
+        .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
+        .await?;
+    assert_eq!(5, history_proof.proofs.len());
+    let (root_hashes, previous_root_hashes) = get_key_history_hashes(&akd, &history_proof).await?;
+
+    // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
+    let tombstones = key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes.clone(),
+        previous_root_hashes.clone(),
+        AkdLabel::from_utf8_str("hello"),
+        history_proof.clone(),
+        false,
     );
-    let child_hist_node_2: HistoryChildState = HistoryChildState::new::<Blake3>(
-        NodeLabel::new(
-            byte_arr_from_u64(0),
-            ep_existing.clone().try_into().unwrap(),
-        ),
-        Blake3::hash(&[0u8]),
-        2 * ep_existing,
-    );
+    assert!(matches!(tombstones, Err(_)));
 
-    let set_child_1 = root
-        .get_child_at_epoch::<_, Blake3>(&db, 1, Direction::Some(1))
-        .await;
-    match set_child_1 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_1),
-            "Child in 1 is not equal to the set value = {:?}",
-            child_st
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-
-    let set_child_2 = root
-        .get_child_at_epoch::<_, Blake3>(&db, 1, Direction::Some(0))
-        .await;
-    match set_child_2 {
-        Ok(child_st) => assert!(
-            child_st == Some(child_hist_node_2),
-            "Child in 0 is not equal to the set value"
-        ),
-        Err(_) => panic!("Child not set in test_set_children_without_hash_at_root"),
-    }
-    let latest_ep = root.get_latest_epoch();
-    assert!(latest_ep == 4, "Latest epochs don't match!");
-    assert!(
-        root.birth_epoch < root.last_epoch,
-        "How is the last epoch not higher than the birth epoch after an udpate?"
-    );
+    // We should be able to verify tombstones assuming the client is accepting
+    // of tombstoned states
+    let tombstones = key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hashes,
+        previous_root_hashes,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        true,
+    )?;
+    assert_eq!(false, tombstones[0]);
+    assert_eq!(false, tombstones[1]);
+    assert_eq!(false, tombstones[2]);
+    assert_eq!(true, tombstones[3]);
+    assert_eq!(true, tombstones[4]);
 
     Ok(())
 }
 
-// insert_single_leaf tests
+// // Test coverage on issue #144, verification failures with small trees (<4 nodes)
+// #[tokio::test]
+// async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
+//     let db = AsyncInMemoryDatabase::new();
+//     let vrf = HardCodedAkdVRF {};
+//     // epoch 0
+//     let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
 
-#[tokio::test]
-async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
-        &Blake3::hash(&[0u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
+//     let mut updates = vec![];
+//     for i in 0..1 {
+//         updates.push((
+//             AkdLabel(format!("hello{}", i).as_bytes().to_vec()),
+//             AkdValue(format!("hello{}", i).as_bytes().to_vec()),
+//         ));
+//     }
 
-    let leaf_1 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
-        &Blake3::hash(&[1u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
-    root.write_to_storage(&db).await?;
+//     akd.publish::<Blake3>(updates).await?;
 
-    let mut num_nodes = 1;
-    root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 0, &mut num_nodes)
-        .await?;
+//     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
 
-    println!("X1.5");
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
-        .await?;
-    println!("X2");
+//     // retrieve the lookup proof
+//     let lookup_proof = akd.lookup(target_label.clone()).await?;
+//     // retrieve the root hash
+//     let current_azks = akd.retrieve_current_azks().await?;
+//     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
 
-    let root_val = root.get_value::<_, Blake3>(&db).await?;
+//     let vrf_pk = vrf.get_vrf_public_key().await?;
 
-    let leaf_0_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b0u8])]),
-        hash_label::<Blake3>(new_leaf.label),
-    ]);
+//     // perform the "traditional" AKD verification
+//     let akd_result = crate::client::lookup_verify::<Blake3>(
+//         &vrf_pk,
+//         root_hash,
+//         target_label.clone(),
+//         lookup_proof,
+//     );
 
-    let leaf_1_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b1u8])]),
-        hash_label::<Blake3>(leaf_1.label),
-    ]);
+//     // check the two results to make sure they both verify
+//     assert!(matches!(akd_result, Ok(())));
 
-    let expected = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), leaf_0_hash]),
-            leaf_1_hash,
-        ]),
-        hash_label::<Blake3>(root.label),
-    ]);
-    assert_eq!(root_val, expected, "Root hash not equal to expected");
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-        &Blake3::hash(&[0u8]),
-        NodeLabel::root(),
-        1,
-    )
-    .await?;
-
-    let leaf_1 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
-        &Blake3::hash(&[1u8]),
-        NodeLabel::root(),
-        2,
-    )
-    .await?;
-
-    let leaf_2 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
-        &Blake3::hash(&[1u8, 1u8]),
-        NodeLabel::root(),
-        3,
-    )
-    .await?;
-
-    let leaf_0_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b0u8])]),
-        hash_label::<Blake3>(new_leaf.label),
-    ]);
-
-    let leaf_1_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b1u8])]),
-        hash_label::<Blake3>(leaf_1.label),
-    ]);
-
-    let leaf_2_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[1u8, 1u8])]),
-        hash_label::<Blake3>(leaf_2.label),
-    ]);
-
-    let right_child_expected_hash = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), leaf_2_hash]),
-            leaf_1_hash,
-        ]),
-        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
-    ]);
-
-    // let mut leaf_1_as_child = leaf_1.to_node_child_state()?;
-    // leaf_1_as_child.hash_val = from_digest::<Blake3>(leaf_1_hash)?;
-
-    // let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
-    // leaf_2_as_child.hash_val = from_digest::<Blake3>(leaf_2_hash)?;
-
-    root.write_to_storage(&db).await?;
-    let mut num_nodes = 1;
-
-    root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
-        .await?;
-
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
-        .await?;
-
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
-        .await?;
-
-    let root_val = root.get_value::<_, Blake3>(&db).await?;
-
-    let expected = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), leaf_0_hash]),
-            right_child_expected_hash,
-        ]),
-        hash_label::<Blake3>(root.label),
-    ]);
-    assert!(root_val == expected, "Root hash not equal to expected");
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    let new_leaf = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
-        &Blake3::hash(&[0u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
-
-    let leaf_1 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
-        &Blake3::hash(&[1u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
-
-    let leaf_2 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
-        &Blake3::hash(&[1u8, 1u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
-
-    let leaf_3 = get_leaf_node::<Blake3, _>(
-        &db,
-        NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
-        &Blake3::hash(&[0u8, 1u8]),
-        NodeLabel::root(),
-        0,
-    )
-    .await?;
-
-    let leaf_0_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b0u8])]),
-        hash_label::<Blake3>(new_leaf.label),
-    ]);
-
-    let leaf_1_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b1u8])]),
-        hash_label::<Blake3>(leaf_1.label),
-    ]);
-    let leaf_2_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b1u8, 0b1u8])]),
-        hash_label::<Blake3>(leaf_2.label),
-    ]);
-
-    let leaf_3_hash = Blake3::merge(&[
-        Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), Blake3::hash(&[0b0u8, 0b1u8])]),
-        hash_label::<Blake3>(leaf_3.label),
-    ]);
-
-    let _right_child_expected_hash = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), leaf_2_hash]),
-            leaf_1_hash,
-        ]),
-        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
-    ]);
-
-    let _left_child_expected_hash = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), leaf_0_hash]),
-            leaf_3_hash,
-        ]),
-        hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
-    ]);
-
-    let mut leaf_0_as_child = new_leaf.to_node_child_state::<_, Blake3>(&db).await?;
-    leaf_0_as_child.hash_val = from_digest::<Blake3>(leaf_0_hash);
-
-    let mut leaf_3_as_child = leaf_3.to_node_child_state::<_, Blake3>(&db).await?;
-    leaf_3_as_child.hash_val = from_digest::<Blake3>(leaf_3_hash);
-
-    root.write_to_storage(&db).await?;
-    let mut num_nodes = 1;
-
-    root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
-        .await?;
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
-        .await?;
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
-        .await?;
-    root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes)
-        .await?;
-
-    // let root_val = root.get_value()?;
-
-    // let expected = Blake3::merge(&[
-    //     Blake3::merge(&[
-    //         Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), left_child_expected_hash]),
-    //         right_child_expected_hash,
-    //     ]),
-    //     hash_label::<Blake3>(root.label),
-    // ]);
-    // assert!(root_val == expected, "Root hash not equal to expected");
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
-    let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-    root.write_to_storage(&db).await?;
-    let mut num_nodes = 1;
-    let mut leaves = Vec::<HistoryTreeNode>::new();
-    let mut leaf_hashes = Vec::new();
-    for i in 0u64..8u64 {
-        let leaf_u64 = i.clone() << 61;
-        let new_leaf = get_leaf_node::<Blake3, _>(
-            &db,
-            NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
-            &Blake3::hash(&leaf_u64.to_be_bytes()),
-            NodeLabel::root(),
-            7 - i,
-        )
-        .await?;
-        leaf_hashes.push(Blake3::merge(&[
-            Blake3::merge(&[
-                Blake3::hash(&EMPTY_VALUE),
-                Blake3::hash(&leaf_u64.to_be_bytes()),
-            ]),
-            hash_label::<Blake3>(new_leaf.label),
-        ]));
-        leaves.push(new_leaf);
-    }
-
-    let mut layer_1_hashes = Vec::new();
-    let mut j = 0u64;
-    for i in 0..4 {
-        let left_child_hash = leaf_hashes[2 * i];
-        let right_child_hash = leaf_hashes[2 * i + 1];
-        layer_1_hashes.push(Blake3::merge(&[
-            Blake3::merge(&[
-                Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), left_child_hash]),
-                right_child_hash,
-            ]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
-        ]));
-        j += 1;
-    }
-
-    let mut layer_2_hashes = Vec::new();
-    let mut j = 0u64;
-    for i in 0..2 {
-        let left_child_hash = layer_1_hashes[2 * i];
-        let right_child_hash = layer_1_hashes[2 * i + 1];
-        layer_2_hashes.push(Blake3::merge(&[
-            Blake3::merge(&[
-                Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), left_child_hash]),
-                right_child_hash,
-            ]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
-        ]));
-        j += 1;
-    }
-
-    let expected = Blake3::merge(&[
-        Blake3::merge(&[
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE), layer_2_hashes[0]]),
-            layer_2_hashes[1],
-        ]),
-        hash_label::<Blake3>(root.label),
-    ]);
-
-    for i in 0..8 {
-        let ep: u64 = i.try_into().unwrap();
-        root.insert_single_leaf::<_, Blake3>(&db, leaves[7 - i].clone(), ep + 1, &mut num_nodes)
-            .await?;
-    }
-
-    let root_val = root.get_value::<_, Blake3>(&db).await?;
-
-    assert!(root_val == expected, "Root hash not equal to expected");
-    Ok(())
-}
-
-#[test]
-// Comment the following line to see log messages being written in failed testing scenarios
-#[should_panic(expected = "boom.")]
-fn boom() {
-    log::error!("Uh oh!");
-    log::debug!("I'm not going to print");
-    log::warn!("Hmmm a warning? Do I care?");
-
-    panic!("boom.");
-}
+//     Ok(())
+// }
