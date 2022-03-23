@@ -86,6 +86,11 @@ pub(crate) fn get_commitment_proof<H: Hasher>(
 //
 // proof = H(commitment_key, label, version, value)
 // commmitment = H(value, proof)
+//
+// The proof value is a nonce used to create a hiding and binding commitment using a
+// cryptographic hash function. Note that it is derived from the label, version, and
+// value (even though the binding to value is somewhat optional).
+//
 // Note that this commitment needs to be a hash function (random oracle) output
 pub(crate) fn commit_value<H: Hasher>(
     commitment_key: &[u8],
