@@ -201,6 +201,8 @@ pub struct LookupProof {
     pub freshness_vrf_proof: Vec<u8>,
     /// Freshness proof (non member at previous epoch)
     pub freshness_proof: NonMembershipProof,
+    /// Proof for commitment value derived from raw AkdLabel and AkdValue
+    pub commitment_proof: Vec<u8>,
 }
 
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
@@ -237,6 +239,8 @@ pub struct UpdateProof {
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof>,
+    /// Proof for commitment value derived from raw AkdLabel and AkdValue
+    pub commitment_proof: Vec<u8>,
 }
 
 /// This proof is just an array of [`UpdateProof`]s.

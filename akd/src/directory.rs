@@ -26,7 +26,7 @@ use crate::node_state::NodeLabel;
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::sync::Arc;
-use winter_crypto::Hasher;
+use winter_crypto::{Digest, Hasher};
 
 /// Root hash of the tree and its associated epoch
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -139,6 +139,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             keys.len()
         );
 
+        let commitment_key = self.derive_commitment_key::<H>().await?;
+
         for (uname, val) in updates {
             match all_user_versions_retrieved.get(&uname) {
                 None => {
@@ -148,9 +150,13 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .vrf
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
-                    // Currently there's no blinding factor for the commitment.
-                    // We'd want to change this later.
-                    let value_to_add = crate::utils::value_to_bytes::<H>(&val);
+
+                    let value_to_add = crate::utils::commit_value::<H>(
+                        &commitment_key.as_bytes(),
+                        &uname,
+                        latest_version,
+                        &val,
+                    );
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -171,7 +177,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add = crate::utils::value_to_bytes::<H>(&val);
+                    let fresh_value_to_add = crate::utils::commit_value::<H>(
+                        &commitment_key.as_bytes(),
+                        &uname,
+                        latest_version,
+                        &val,
+                    );
                     update_set.push(Node::<H> {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -250,10 +261,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         lookup_info: LookupInfo,
     ) -> Result<LookupProof<H>, AkdError> {
         let current_version = lookup_info.value_state.version;
+        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let plaintext_value = lookup_info.value_state.plaintext_val;
 
         let lookup_proof = LookupProof {
             epoch: current_epoch,
-            plaintext_value: lookup_info.value_state.plaintext_val,
+            plaintext_value: plaintext_value.clone(),
             version: lookup_info.value_state.version,
             existence_vrf_proof: self
                 .vrf
@@ -286,6 +299,14 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     current_epoch,
                 )
                 .await?,
+            commitment_proof: crate::utils::get_commitment_proof::<H>(
+                &commitment_key.as_bytes(),
+                &uname,
+                current_version,
+                &plaintext_value,
+            )
+            .as_bytes()
+            .to_vec(),
         };
 
         Ok(lookup_proof)
@@ -601,14 +622,14 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<UpdateProof<H>, AkdError> {
         let epoch = user_state.epoch;
         let plaintext_value = &user_state.plaintext_val;
-        let version = &user_state.version;
+        let version = user_state.version;
 
-        let label_at_ep = self.vrf.get_node_label::<H>(uname, false, *version).await?;
+        let label_at_ep = self.vrf.get_node_label::<H>(uname, false, version).await?;
 
         let current_azks = self.retrieve_current_azks().await?;
         let existence_vrf_proof = self
             .vrf
-            .get_label_proof::<H>(uname, false, *version)
+            .get_label_proof::<H>(uname, false, version)
             .await?
             .to_bytes()
             .to_vec();
@@ -617,10 +638,10 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .await?;
         let mut previous_val_stale_at_ep = Option::None;
         let mut previous_val_vrf_proof = Option::None;
-        if *version > 1 {
+        if version > 1 {
             let prev_label_at_ep = self
                 .vrf
-                .get_node_label::<H>(uname, true, *version - 1)
+                .get_node_label::<H>(uname, true, version - 1)
                 .await?;
             previous_val_stale_at_ep = Option::Some(
                 current_azks
@@ -629,7 +650,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
             previous_val_vrf_proof = Option::Some(
                 self.vrf
-                    .get_label_proof::<H>(uname, true, *version - 1)
+                    .get_label_proof::<H>(uname, true, version - 1)
                     .await?
                     .to_bytes()
                     .to_vec(),
@@ -644,7 +665,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
         }
 
-        let next_marker = get_marker_version(*version) + 1;
+        let next_marker = get_marker_version(version) + 1;
         let final_marker = get_marker_version(epoch);
 
         let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
@@ -684,10 +705,20 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
         }
 
+        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_proof = crate::utils::get_commitment_proof::<H>(
+            &commitment_key.as_bytes(),
+            uname,
+            version,
+            plaintext_value,
+        )
+        .as_bytes()
+        .to_vec();
+
         Ok(UpdateProof {
             epoch,
             plaintext_value: plaintext_value.clone(),
-            version: *version,
+            version,
             existence_vrf_proof,
             existence_at_ep,
             previous_val_vrf_proof,
@@ -697,6 +728,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             non_existence_of_next_few,
             future_marker_vrf_proofs,
             non_existence_of_future_markers,
+            commitment_proof,
         })
     }
 
@@ -722,6 +754,14 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<H::Digest, AkdError> {
         self.get_root_hash_at_epoch::<H>(current_azks, current_azks.get_latest_epoch())
             .await
+    }
+
+    // FIXME (Issue #184): This should be derived properly. Instead of hashing the VRF private
+    // key, we should derive this properly from a server secret.
+    async fn derive_commitment_key<H: Hasher>(&self) -> Result<H::Digest, AkdError> {
+        let raw_key = self.vrf.retrieve().await?;
+        let commitment_key = H::hash(&raw_key);
+        Ok(commitment_key)
     }
 }
 
