@@ -56,7 +56,10 @@ impl Storable for Azks {
         vec![StorageType::Azks as u8, *key]
     }
 
-    fn key_from_full_binary(_bin: &[u8]) -> Result<u8, String> {
+    fn key_from_full_binary(bin: &[u8]) -> Result<u8, String> {
+        if bin[0] != StorageType::Azks as u8 {
+            return Err("Not an AZKS key".to_string());
+        }
         Ok(DEFAULT_AZKS_KEY)
     }
 }
