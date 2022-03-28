@@ -94,6 +94,10 @@ impl Storable for HistoryTreeNode {
             return Err("Not enough bytes to form a proper key".to_string());
         }
 
+        if bin[0] != StorageType::HistoryTreeNode as u8 {
+            return Err("Not a history tree node key".to_string());
+        }
+
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
         let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
         let len = u32::from_le_bytes(len_bytes);

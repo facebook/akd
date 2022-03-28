@@ -109,6 +109,11 @@ impl crate::storage::Storable for ValueState {
         if bin.len() < 10 {
             return Err("Not enough bytes to form a proper key".to_string());
         }
+
+        if bin[0] != StorageType::ValueState as u8 {
+            return Err("Not a value state key".to_string());
+        }
+
         let epoch_bytes: [u8; 8] = bin[1..=8].try_into().expect("Slice with incorrect length");
         let epoch = u64::from_le_bytes(epoch_bytes);
         Ok(ValueStateKey(bin[9..].to_vec(), epoch))
