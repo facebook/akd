@@ -57,7 +57,7 @@ impl Storable for Azks {
     }
 
     fn key_from_full_binary(bin: &[u8]) -> Result<u8, String> {
-        if bin[0] != StorageType::Azks as u8 {
+        if bin.is_empty() || bin[0] != StorageType::Azks as u8 {
             return Err("Not an AZKS key".to_string());
         }
         Ok(DEFAULT_AZKS_KEY)
