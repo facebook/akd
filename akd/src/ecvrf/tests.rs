@@ -267,6 +267,29 @@ fn test_output_from_proof() {
     }
 }
 
+#[test]
+fn test_publickey_clone() {
+    // PublicKey has its own implementation of Clone
+    for tv in TESTVECTORS.iter() {
+        let orig = from_string!(VRFPublicKey, tv.PK);
+        let clone = orig.clone();
+        // the same bytes comprise both keys
+        assert_eq!(orig.as_bytes(), clone.as_bytes());
+    }
+}
+
+#[test]
+fn test_privatekey_clone() {
+    // PrivateKey (aka SecretKey) uses a custom implementation of clone wherein
+    // the cloned key is created from the bytes of the original
+    for tv in TESTVECTORS.iter() {
+        let orig = from_string!(VRFPrivateKey, tv.SK);
+        let clone = orig.clone();
+        // the same bytes comprise both keys
+        assert_eq!(orig.as_bytes(), clone.as_bytes());
+    }
+}
+
 proptest! {
     #[test]
     fn test_prove_and_verify(

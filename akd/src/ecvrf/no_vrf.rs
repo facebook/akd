@@ -15,6 +15,7 @@ use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
 /// A mock VRF public key
+#[derive(Clone)]
 pub struct VRFPublicKey;
 
 impl VRFPublicKey {
@@ -34,6 +35,7 @@ impl VRFPublicKey {
 }
 
 /// A mock VRF private key
+#[derive(Clone)]
 pub struct VRFPrivateKey;
 
 /// A mock VRF proof

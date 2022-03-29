@@ -54,8 +54,17 @@ impl core::ops::Deref for VRFPrivateKey {
         &self.0
     }
 }
+
+impl std::clone::Clone for VRFPrivateKey {
+    fn clone(&self) -> Self {
+        // In theory, creating a key from bytes could be a DecodingError, except
+        // we just copied these bytes out of the source key, so ...
+        Self(ed25519_PrivateKey::from_bytes(self.0.as_bytes()).unwrap())
+    }
+}
+
 /// An ECVRF public key
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct VRFPublicKey(ed25519_PublicKey);
 
