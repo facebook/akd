@@ -233,6 +233,10 @@ impl DbRecord {
         parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
+        left_child_val: [u8; 32],
+        left_child_len: u32,
+        right_child_val: [u8; 32],
+        right_child_len: u32,
     ) -> HistoryTreeNode {
         HistoryTreeNode {
             label: NodeLabel::new(label_val, label_len),
@@ -240,6 +244,8 @@ impl DbRecord {
             last_epoch,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),
+            left_child: Some(NodeLabel::new(left_child_val, left_child_len)),
+            right_child: Some(NodeLabel::new(right_child_val, right_child_len)),
         }
     }
 

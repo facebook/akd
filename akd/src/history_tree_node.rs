@@ -64,6 +64,9 @@ pub struct HistoryTreeNode {
     pub parent: NodeLabel, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
     pub node_type: NodeType, // Leaf, Root or Interior
+
+    pub left_child: Option<NodeLabel>,
+    pub right_child: Option<NodeLabel>,
 }
 
 /// Wraps the label with which to find a node in storage.
@@ -116,18 +119,22 @@ impl Clone for HistoryTreeNode {
             birth_epoch: self.birth_epoch,
             parent: self.parent,
             node_type: self.node_type,
+            left_child: self.left_child,
+            right_child: self.right_child,
         }
     }
 }
 
 impl HistoryTreeNode {
-    fn new(label: NodeLabel, parent: NodeLabel, node_type: NodeType, birth_epoch: u64) -> Self {
+    fn new(label: NodeLabel, parent: NodeLabel, node_type: NodeType, birth_epoch: u64, left_child: Option<NodeLabel>, right_child: Option<NodeLabel>) -> Self {
         HistoryTreeNode {
             label,
             birth_epoch,
             last_epoch: birth_epoch,
             parent, // Root node is its own parent
             node_type,
+            left_child,
+            right_child,
         }
     }
 
@@ -238,7 +245,7 @@ impl HistoryTreeNode {
             *num_nodes += 1;
             // the root should always be instantiated with dummy children in the beginning
             let child_state = self
-                .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch(), dir_leaf)
+                .get_child_state(storage, dir_leaf)
                 .await?;
             if child_state == None {
                 new_leaf.parent = self.label;
@@ -279,7 +286,7 @@ impl HistoryTreeNode {
 
                 debug!("BEGIN create new node");
                 let mut new_node =
-                    HistoryTreeNode::new(lcs_label, parent.label, NodeType::Interior, epoch);
+                    HistoryTreeNode::new(lcs_label, parent.label, NodeType::Interior, epoch, None, None);
                 new_node.write_to_storage(storage).await?;
                 set_state_map(
                     storage,
@@ -332,7 +339,7 @@ impl HistoryTreeNode {
                 // case where the current node is equal to the lcs
                 debug!("BEGIN get child at epoch");
                 let child_st = self
-                    .get_child_at_epoch::<_, H>(storage, self.get_latest_epoch(), dir_leaf)
+                    .get_child_state(storage, dir_leaf)
                     .await?
                     .ok_or_else(|| {
                         HistoryTreeNodeError::NoChildAtEpoch(
@@ -587,17 +594,20 @@ impl HistoryTreeNode {
         Ok(new_hash)
     }
 
-    pub(crate) async fn get_child_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
+    pub(crate) fn get_child_label(
         &self,
-        storage: &S,
-        epoch: u64,
         dir: Direction,
-    ) -> Result<NodeLabel, AkdError> {
-        Ok(self
-            .get_child_at_epoch::<_, H>(storage, epoch, dir)
-            .await?
-            .ok_or_else(|| HistoryTreeNodeError::NoChildAtEpoch(epoch, dir.unwrap_or(0)))?
-            .label)
+    ) -> Option<NodeLabel> {
+        let mut child_label_to_ret = None;
+        // TODO(eoz): Replace usize dirs with a Direction enum.
+        if dir == Some(0) {
+            child_label_to_ret = self.left_child;
+        } else if dir == Some(1) {
+            child_label_to_ret = self.right_child;
+        } else {
+            panic!("AKD is based on a binary tree. Child index out of bounds.");
+        }
+        child_label_to_ret
     }
 
     // gets value at current epoch
@@ -645,65 +655,51 @@ impl HistoryTreeNode {
 
     ///// getrs for child nodes ////
 
-    pub(crate) async fn get_child_at_epoch<S: Storage + Sync + Send, H: Hasher>(
+    pub(crate) async fn get_child_state<S: Storage + Sync + Send>(
         &self,
         storage: &S,
-        epoch: u64,
         direction: Direction,
-    ) -> Result<Option<HistoryChildState>, AkdError> {
+    ) -> Result<Option<HistoryTreeNode>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::HistoryTreeNode(
                 HistoryTreeNodeError::NoDirection(self.label, None),
             )),
             Direction::Some(dir) => {
-                if self.get_birth_epoch() > epoch {
-                    Err(AkdError::HistoryTreeNode(
-                        HistoryTreeNodeError::NoChildAtEpoch(epoch, dir),
-                    ))
-                } else {
-                    let chosen_ep = {
-                        if self.last_epoch <= epoch {
-                            // the "last" updated epoch is <= epoch, so it is
-                            // the last valid state at this epoch
-                            Some(self.last_epoch)
-                        } else if self.birth_epoch == epoch {
-                            // we're looking at the state at the birth epoch
-                            Some(self.birth_epoch)
-                        } else {
-                            // Indeterminate, we are somewhere above the
-                            // birth epoch but we're less than the "last" epoch.
-                            // db query is necessary
-                            None
-                        }
-                    };
-
-                    if let Some(ep) = chosen_ep {
-                        self.get_child_at_existing_epoch::<_, H>(storage, ep, direction)
-                            .await
-                    } else {
-                        let target_ep = storage.get_epoch_lte_epoch(self.label, epoch).await?;
-                        // DB query for the state <= this epoch value
-                        self.get_child_at_existing_epoch::<_, H>(storage, target_ep, direction)
-                            .await
+                if let Some(child_label) = self.get_child_label(direction) {
+                    let child_key = NodeKey(child_label);
+                    let get_result = storage.get::<HistoryTreeNode>(&child_key).await?;
+                    match get_result {
+                        DbRecord::HistoryTreeNode(ht_node) => {
+                            Ok(Some(ht_node))
+                        },
+                        _ => Err(AkdError::Storage(StorageError::NotFound(format!("HistoryTreeNode {:?}", child_key))))
                     }
+                } else {
+                    return Ok(None);
                 }
             }
         }
     }
 
-    pub(crate) async fn get_child_at_existing_epoch<S: Storage + Sync + Send, H: Hasher>(
+    pub(crate) fn get_child<S: Storage + Sync + Send> (
         &self,
         storage: &S,
-        epoch: u64,
         direction: Direction,
-    ) -> Result<Option<HistoryChildState>, AkdError> {
+    ) -> Result<Option<NodeLabel>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::HistoryTreeNode(
                 HistoryTreeNodeError::NoDirection(self.label, None),
             )),
-            Direction::Some(dir) => Ok(get_state_map(storage, self, epoch)
-                .await
-                .map(|curr| curr.get_child_state_in_dir(dir))?),
+            Direction::Some(dir) => {
+                // TODO(eoz): Use Direction:Left and Direction:Right instead
+                if dir == 0 {
+                    Ok(self.left_child)
+                } else if dir == 1 {
+                    Ok(self.right_child)
+                } else {
+                    panic!("AKD is based on a binary tree. No child with a given index: {}", dir);
+                }
+            }
         }
     }
 
@@ -815,7 +811,7 @@ pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
     storage: &S,
     ep: Option<u64>,
 ) -> Result<HistoryTreeNode, AkdError> {
-    let mut node = HistoryTreeNode::new(NodeLabel::root(), NodeLabel::root(), NodeType::Root, 0u64);
+    let mut node = HistoryTreeNode::new(NodeLabel::root(), NodeLabel::root(), NodeType::Root, 0u64, None, None);
     if let Some(epoch) = ep {
         node.birth_epoch = epoch;
         node.last_epoch = epoch;
@@ -841,6 +837,8 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
         last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
+        left_child: None,
+        right_child: None,
     };
 
     let mut new_state: HistoryNodeState =
@@ -864,6 +862,8 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
         last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
+        left_child: None,
+        right_child: None,
     };
 
     let mut new_state: HistoryNodeState =
@@ -918,7 +918,7 @@ mod tests {
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
 
     ////////// history_tree_node tests //////
-    //  Test set_child_without_hash and get_child_at_existing_epoch
+    //  Test set_child_without_hash and get_child_state
 
     #[tokio::test]
     async fn test_set_child_without_hash_at_root() -> Result<(), AkdError> {
@@ -935,7 +935,7 @@ mod tests {
             .await?;
 
         let set_child = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
+            .get_child_state::<_, Blake3>(&db, ep, Direction::Some(1))
             .await
             .map_err(|_| panic!("Child not set in test_set_child_without_hash_at_root"))
             .unwrap();
@@ -981,7 +981,7 @@ mod tests {
             "Setting the child without hash threw an error"
         );
         let set_child_1 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
+            .get_child_state::<_, Blake3>(&db, ep, Direction::Some(1))
             .await;
         match set_child_1 {
             Ok(child_st) => assert!(
@@ -992,7 +992,7 @@ mod tests {
         }
 
         let set_child_2 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(0))
+            .get_child_state::<_, Blake3>(&db, ep, Direction::Some(0))
             .await;
         match set_child_2 {
             Ok(child_st) => assert!(
@@ -1066,7 +1066,7 @@ mod tests {
             "Setting the child without hash threw an error"
         );
         let set_child_1 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(1))
+            .get_child_state::<_, Blake3>(&db, ep, Direction::Some(1))
             .await;
         match set_child_1 {
             Ok(child_st) => assert!(
@@ -1077,7 +1077,7 @@ mod tests {
         }
 
         let set_child_2 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, ep, Direction::Some(0))
+            .get_child_state::<_, Blake3>(&db, ep, Direction::Some(0))
             .await;
         match set_child_2 {
             Ok(child_st) => assert!(
@@ -1097,7 +1097,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_child_at_existing_epoch_multiple_at_root() -> Result<(), AkdError> {
+    async fn test_get_child_state_multiple_at_root() -> Result<(), AkdError> {
         let mut ep = 1;
         let db = InMemoryDb::new();
         let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(ep)).await?;
@@ -1150,7 +1150,7 @@ mod tests {
             "Setting the child without hash threw an error"
         );
         let set_child_1 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, 1, Direction::Some(1))
+            .get_child_state::<_, Blake3>(&db, 1, Direction::Some(1))
             .await;
         match set_child_1 {
             Ok(child_st) => assert!(
@@ -1161,7 +1161,7 @@ mod tests {
         }
 
         let set_child_2 = root
-            .get_child_at_existing_epoch::<_, Blake3>(&db, 1, Direction::Some(0))
+            .get_child_state::<_, Blake3>(&db, 1, Direction::Some(0))
             .await;
         match set_child_2 {
             Ok(child_st) => assert!(
@@ -1228,8 +1228,7 @@ mod tests {
         );
 
         let set_child_1 = root
-            .get_child_at_epoch::<_, Blake3>(&db, 1, Direction::Some(1))
-            .await;
+            .get_child_state(&db, Direction::Some(1));
         match set_child_1 {
             Ok(child_st) => assert!(
                 child_st == Some(child_hist_node_1),
@@ -1240,8 +1239,7 @@ mod tests {
         }
 
         let set_child_2 = root
-            .get_child_at_epoch::<_, Blake3>(&db, 1, Direction::Some(0))
-            .await;
+            .get_child_state(&db, Direction::Some(0));
         match set_child_2 {
             Ok(child_st) => assert!(
                 child_st == Some(child_hist_node_2),

@@ -83,6 +83,8 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         last_epoch: 234,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
+        left_child: None,
+        right_child: None,
     };
     let mut node2 = node.clone();
     node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);

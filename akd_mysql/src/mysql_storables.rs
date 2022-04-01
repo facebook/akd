@@ -503,7 +503,8 @@ impl MySqlStorable for DbRecord {
                 }
             }
             StorageType::HistoryTreeNode => {
-                // `label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`
+                // `label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`,
+                // `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`
                 if let (
                     Some(Ok(label_len)),
                     Some(Ok(label_val)),
@@ -512,6 +513,10 @@ impl MySqlStorable for DbRecord {
                     Some(Ok(parent_label_len)),
                     Some(Ok(parent_label_val)),
                     Some(Ok(node_type)),
+                    Some(Ok(left_child_len)),
+                    Some(Ok(left_child_val)),
+                    Some(Ok(right_child_len)),
+                    Some(Ok(right_child_val)),
                 ) = (
                     row.take_opt(0),
                     row.take_opt(1),
@@ -520,9 +525,15 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                     row.take_opt(6),
+                    row.take_opt(7),
+                    row.take_opt(8),
+                    row.take_opt(9),
+                    row.take_opt(10),
                 ) {
                     let label_val_vec: Vec<u8> = label_val;
                     let parent_label_val_vec: Vec<u8> = parent_label_val;
+                    let left_child_val_vec: Vec<u8> = left_child_val;
+                    let right_child_val_vec: Vec<u8> = right_child_val;
 
                     let node = DbRecord::build_history_tree_node(
                         label_val_vec.try_into().map_err(|_| cast_err())?,
@@ -532,6 +543,10 @@ impl MySqlStorable for DbRecord {
                         parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
+                        left_child_val_vec.try_into().map_err(|_| cast_err())?,
+                        left_child_len,
+                        right_child_val_vec.try_into().map_err(|_| cast_err())?,
+                        right_child_len,
                     );
                     return Ok(DbRecord::HistoryTreeNode(node));
                 }

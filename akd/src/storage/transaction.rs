@@ -195,6 +195,8 @@ mod tests {
             last_epoch: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Root,
+            left_child: None,
+            right_child: None,
         });
         let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
@@ -202,6 +204,8 @@ mod tests {
             last_epoch: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Leaf,
+            left_child: None,
+            right_child: None,
         });
         let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
             value: [0u8; 32],

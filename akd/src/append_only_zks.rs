@@ -186,9 +186,8 @@ impl Azks {
 
                 for dir in 0..ARITY {
                     let child = node
-                        .get_child_at_epoch::<S, H>(
+                        .get_child_state::<S>(
                             storage,
-                            self.latest_epoch,
                             Direction::Some(dir),
                         )
                         .await?;
@@ -566,9 +565,7 @@ impl Azks {
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
                 &NodeKey(
-                    curr_node
-                        .get_child_label_at_epoch::<_, H>(storage, epoch, dir)
-                        .await?,
+                    curr_node.get_child::<_>(storage, dir).unwrap().unwrap()
                 ),
                 self.get_latest_epoch(),
             )
