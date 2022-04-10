@@ -237,6 +237,7 @@ impl DbRecord {
         left_child_len: u32,
         right_child_val: [u8; 32],
         right_child_len: u32,
+        hash: [u8; 32],
     ) -> HistoryTreeNode {
         HistoryTreeNode {
             label: NodeLabel::new(label_val, label_len),
@@ -246,6 +247,7 @@ impl DbRecord {
             node_type: NodeType::from_u8(node_type),
             left_child: Some(NodeLabel::new(left_child_val, left_child_len)),
             right_child: Some(NodeLabel::new(right_child_val, right_child_len)),
+            hash,
         }
     }
 
