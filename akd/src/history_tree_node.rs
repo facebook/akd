@@ -41,7 +41,7 @@ impl NodeType {
     }
 }
 
-pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
+pub(crate) type HistoryInsertionNode = (Direction, HistoryTreeNode);
 
 /// A HistoryNode represents a generic interior node of a compressed history tree.
 /// The main idea here is that the tree is changing at every epoch and that we do not need
@@ -65,6 +65,7 @@ pub struct HistoryTreeNode {
     /// The type of node: leaf root or interior.
     pub node_type: NodeType, // Leaf, Root or Interior
 
+    // TODO(eoz): Use EMPTY_LABEL instead?
     pub left_child: Option<NodeLabel>,
     pub right_child: Option<NodeLabel>,
 
@@ -259,7 +260,7 @@ impl HistoryTreeNode {
             let child_state = self.get_child_state(storage, dir_leaf).await?;
             if child_state == None {
                 new_leaf.parent = self.label;
-                self.set_node_child::<_, H>(storage, epoch, dir_leaf, &new_leaf)
+                self.set_node_child::<_, H>(storage, dir_leaf, &new_leaf)
                     .await?;
                 self.write_to_storage(storage).await?;
                 new_leaf.write_to_storage(storage).await?;
@@ -322,16 +323,16 @@ impl HistoryTreeNode {
 
                 debug!("BEGIN set node child new_node(new_leaf)");
                 new_node
-                    .set_node_child::<_, H>(storage, epoch, dir_leaf, &new_leaf)
+                    .set_node_child::<_, H>(storage, dir_leaf, &new_leaf)
                     .await?;
                 debug!("BEGIN set node child new_node(self)");
                 new_node
-                    .set_node_child::<_, H>(storage, epoch, dir_self, self)
+                    .set_node_child::<_, H>(storage, dir_self, self)
                     .await?;
 
                 debug!("BEGIN set node child parent(new_node)");
                 parent
-                    .set_node_child::<_, H>(storage, epoch, self_dir_in_parent, &new_node)
+                    .set_node_child::<_, H>(storage, self_dir_in_parent, &new_node)
                     .await?;
                 if hashing {
                     debug!("BEGIN update hashes");
@@ -465,7 +466,7 @@ impl HistoryTreeNode {
         if parent.get_latest_epoch() < epoch {
             let (_, dir_self, _) = parent.label.get_longest_common_prefix_and_dirs(self.label);
             parent
-                .set_node_child::<_, H>(storage, epoch, dir_self, self)
+                .set_node_child::<_, H>(storage, dir_self, self)
                 .await?;
             parent.write_to_storage(storage).await?;
             *parent =
@@ -504,68 +505,20 @@ impl HistoryTreeNode {
     pub(crate) async fn set_child<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
-        epoch: u64,
         child: &HistoryInsertionNode,
     ) -> Result<(), AkdError> {
         let (direction, child_node) = child.clone();
-        // It's possible that this node's latest epoch is not the same as
-        // epoch, in which case, you should set the state to include the latest epoch.
-        // We also make sure here, to update the list of epochs.
-        // If you're here, you can be sure that get_state_at_epoch should return a value.
-        // If it doesn't, then you must not have called set_state_map when you created this node.
-        // That is, make sure after every call to HistoryTreeNode::new, there is a call to
-        // set_state_map.
-        if self.get_latest_epoch() != epoch {
-            set_state_map(
-                storage,
-                match self
-                    .get_state_at_epoch(storage, self.get_latest_epoch())
-                    .await
-                {
-                    Ok(mut latest_st) => {
-                        latest_st.key = NodeStateKey(self.label, epoch);
-                        latest_st
-                    }
-                    Err(_) => HistoryNodeState::new::<H>(NodeStateKey(self.label, epoch)),
-                },
-            )
-            .await?;
-
-            if self.get_latest_epoch() != epoch {
-                self.last_epoch = epoch;
-            }
-            self.write_to_storage(storage).await?;
-            self.set_child::<_, H>(storage, epoch, child).await?;
-            return Ok(());
+        if direction == Some(0) {
+            self.left_child = Some(child_node.label);
+        } else if direction == Some(1) {
+            self.right_child = Some(child_node.label);
+        } else {
+            panic!("Unknown child index or None.");
         }
-
-        let dir = direction.map_or(
-            Err(AkdError::HistoryTreeNode(
-                HistoryTreeNodeError::NoDirection(self.label, Some(child_node.label)),
-            )),
-            Ok,
-        )?;
-
-        match get_state_map(storage, self, epoch).await {
-            Ok(HistoryNodeState {
-                value,
-                mut child_states,
-                key: _,
-            }) => {
-                child_states[dir] = Some(child_node.clone());
-                set_state_map(
-                    storage,
-                    HistoryNodeState {
-                        value,
-                        child_states,
-                        key: NodeStateKey(self.label, epoch),
-                    },
-                )
-                .await?;
-                Ok(())
-            }
-            Err(e) => Err(AkdError::Storage(e)),
-        }
+        self.write_to_storage(storage).await?;
+        // TOOD(eoz): Do we need this recursive call?
+        // self.set_child::<_, H>(storage, child).await?;
+        return Ok(());
     }
 
     /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
@@ -573,14 +526,15 @@ impl HistoryTreeNode {
     pub(crate) async fn set_node_child<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
-        epoch: u64,
         dir: Direction,
         child: &Self,
     ) -> Result<(), AkdError> {
-        let node_as_child_state = child.to_node_unhashed_child_state::<_, H>(storage).await?;
-        let insertion_node = (dir, node_as_child_state);
-        self.set_child::<_, H>(storage, epoch, &insertion_node)
-            .await
+        // TODO(eoz): Do we need to convert?
+        // let node_as_child_state = child.to_node_unhashed_child_state::<_, H>(storage).await?;
+        // let insertion_node = (dir, node_as_child_state);
+        // TODO(eoz): Does clone work here?
+        let insertion_node = (dir, child.clone());
+        self.set_child::<_, H>(storage, &insertion_node).await
     }
 
     ////// getrs for this node ////
@@ -620,7 +574,7 @@ impl HistoryTreeNode {
         } else if dir == Some(1) {
             child_label_to_ret = self.right_child;
         } else {
-            panic!("AKD is based on a binary tree. Child index out of bounds.");
+            panic!("No child with that index!");
         }
         child_label_to_ret
     }
