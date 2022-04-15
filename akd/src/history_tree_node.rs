@@ -16,7 +16,7 @@ use async_recursion::async_recursion;
 use log::debug;
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
-use winter_crypto::Hasher;
+use winter_crypto::{Hasher, Digest};
 
 /// There are three types of nodes: root, leaf and interior.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -293,7 +293,7 @@ impl HistoryTreeNode {
                     HistoryTreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch)
                         .await?;
                 debug!("BEGIN get direction at epoch {}", epoch);
-                let self_dir_in_parent = parent.get_direction(self).await?;
+                let self_dir_in_parent = parent.get_direction(self);
 
                 debug!("BEGIN create new node");
                 let mut new_node = HistoryTreeNode::new(
@@ -468,35 +468,16 @@ impl HistoryTreeNode {
             parent
                 .set_node_child::<_, H>(storage, dir_self, self)
                 .await?;
-            parent.write_to_storage(storage).await?;
-            *parent =
-                HistoryTreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch).await?;
+
+            // Mark the node as updated in this epoch.
+            parent.last_epoch = epoch;
+
         }
 
-        match get_state_map(storage, parent, epoch).await {
-            Err(_) => Err(AkdError::HistoryTreeNode(
-                HistoryTreeNodeError::ParentNextEpochInvalid(epoch),
-            )),
-            Ok(parent_state) => match parent.get_direction(self).await? {
-                None => Err(AkdError::HistoryTreeNode(
-                    HistoryTreeNodeError::HashUpdateOrderInconsistent,
-                )),
-                Some(s_dir) => {
-                    let mut parent_updated_state = parent_state;
-                    let mut self_child_state =
-                        parent_updated_state
-                            .get_child_state_in_dir(s_dir)
-                            .ok_or(HistoryTreeNodeError::NoChildAtEpoch(epoch, s_dir))?;
-                    self_child_state.hash_val = from_digest::<H>(new_hash_val);
-                    parent_updated_state.child_states[s_dir] = Some(self_child_state);
-                    parent_updated_state.key = NodeStateKey(parent.label, epoch);
-                    set_state_map(storage, parent_updated_state).await?;
-                    parent.write_to_storage(storage).await?;
-
-                    Ok(())
-                }
-            },
-        }
+        // Update the parent's hash and save it.
+        parent.hash = parent.hash_node::<_, H>(storage, epoch).await?.as_bytes();
+        parent.write_to_storage(storage).await?;
+        Ok(())
     }
 
     /// Inserts a child into this node, adding the state to the state at this epoch,
@@ -596,20 +577,20 @@ impl HistoryTreeNode {
 
     // gets the direction of node, i.e. if it's a left
     // child or right. If not found, return None
-    async fn get_direction(&self, node: &Self) -> Result<Direction, AkdError> {
+    fn get_direction(&self, node: &Self) -> Direction {
         // TODO(eoz): Return direction instead of int.
         if let Some(label) = self.left_child {
             if label == node.label {
-                return Ok(Some(0));
+                return Some(0);
             }
         }
 
         if let Some(label) = self.right_child {
             if label == node.label {
-                return Ok(Some(1));
+                return Some(1);
             }
         }
-        Ok(None)
+        None
     }
 
     pub(crate) fn is_root(&self) -> bool {
