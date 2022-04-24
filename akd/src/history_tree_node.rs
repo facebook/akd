@@ -259,8 +259,7 @@ impl HistoryTreeNode {
             // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
                 // Set up parent-child connection
-                new_leaf.parent = self.label;
-                self.set_child::<_, H>(storage, &(dir_leaf, new_leaf))
+                self.set_child::<_, H>(storage, &(dir_leaf, new_leaf), epoch)
                     .await?;
 
                 // Update last updated for root (the leaf should already have this set)
@@ -311,25 +310,19 @@ impl HistoryTreeNode {
                 // 1. Replace the self with the new node.
                 debug!("BEGIN set node child parent(new_node)");
                 parent
-                    .set_child::<_, H>(storage, &(self_dir_in_parent, new_node))
+                    .set_child::<_, H>(storage, &(self_dir_in_parent, new_node), epoch)
                     .await?;
 
                 // 2. Set children of the new node (new leaf and self)
                 debug!("BEGIN set node child new_node(new_leaf)");
                 new_node
-                    .set_child::<_, H>(storage, &(dir_leaf, new_leaf))
+                    .set_child::<_, H>(storage, &(dir_leaf, new_leaf), epoch)
                     .await?;
                 debug!("BEGIN set node child new_node(self)");
                 new_node
-                    .set_child::<_, H>(storage, &(dir_self, *self))
+                    .set_child::<_, H>(storage, &(dir_self, *self), epoch)
                     .await?;
 
-                // 3. Set children of self (no children)
-                // TODO(eoz): Internal node became leaf when pushed down?
-                self.left_child = None;
-                self.right_child = None;
-                self.node_type == NodeType::Leaf;
-                self.last_epoch = epoch;
 
                 if hashing {
                     // Update hashes from bottom to top.
@@ -485,6 +478,7 @@ impl HistoryTreeNode {
         &mut self,
         storage: &S,
         child: &HistoryInsertionNode,
+        epoch: u64,
     ) -> Result<(), AkdError> {
         let (direction, mut child_node) = child.clone();
         // Set child according to given direction.
@@ -497,8 +491,11 @@ impl HistoryTreeNode {
         }
         // Update parent of the child.
         child_node.parent = self.label;
-        // TOOD(eoz): Do we need this recursive call?
-        // self.set_child::<_, H>(storage, child).await?;
+
+        // Update last updated epoch.
+        self.last_epoch = epoch;
+        child_node.last_epoch = epoch;
+
         return Ok(());
     }
 
@@ -521,15 +518,15 @@ impl HistoryTreeNode {
 
     ////// getrs for this node ////
 
-    // pub(crate) async fn get_value_at_epoch<S: Storage + Sync + Send, H: Hasher>(
-    //     &self,
-    //     storage: &S,
-    //     epoch: u64,
-    // ) -> Result<H::Digest, AkdError> {
-    //     Ok(to_digest::<H>(
-    //         &self.get_state_at_epoch(storage, epoch).await?.value,
-    //     )?)
-    // }
+    pub(crate) async fn get_value_at_epoch<S: Storage + Sync + Send, H: Hasher>(
+        &self,
+        storage: &S,
+        epoch: u64,
+    ) -> Result<H::Digest, AkdError> {
+        Ok(to_digest::<H>(
+            &self.hash,
+        )?)
+    }
 
     // pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
     //     &self,
@@ -604,6 +601,7 @@ impl HistoryTreeNode {
 
     ///// getrs for child nodes ////
 
+    /// Loads (from storage) the left or right child of a node using given direction
     pub(crate) async fn get_child_state<S: Storage + Sync + Send>(
         &self,
         storage: &S,
