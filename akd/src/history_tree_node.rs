@@ -262,9 +262,6 @@ impl HistoryTreeNode {
                 self.set_child::<_, H>(storage, &(dir_leaf, new_leaf), epoch)
                     .await?;
 
-                // Update last updated for root (the leaf should already have this set)
-                self.last_epoch = epoch;
-
                 if hashing {
                     // Update the hash of the leaf first since the parent hash will rely on the fact.
                     new_leaf.update_node_hash::<_, H>(storage, epoch).await?;
