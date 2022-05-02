@@ -271,7 +271,7 @@ impl Azks {
             .await?;
 
             next_node
-                .update_hash::<_, H>(storage, self.latest_epoch)
+                .update_node_hash::<_, H>(storage, self.latest_epoch)
                 .await?;
 
             if !next_node.is_root() {
@@ -328,8 +328,8 @@ impl Azks {
             label: EMPTY_LABEL,
             hash: crate::utils::empty_node_hash_no_label::<H>(),
         }; ARITY];
-        let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
-        for (i, child) in state.child_states.iter().enumerate() {
+        for i in 0..ARITY {
+            let child = lcp_node.get_child_state(storage, Some(i)).await?;
             match child {
                 None => {
                     debug!("i = {}, empty", i);
@@ -345,9 +345,7 @@ impl Azks {
                     debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
-                        hash: unwrapped_child
-                            .get_value_without_label_at_epoch::<_, H>(storage, epoch)
-                            .await?,
+                        hash: to_digest::<H>(&unwrapped_child.hash)?,
                     };
                 }
             }
@@ -412,9 +410,7 @@ impl Azks {
 
             unchanged.push(Node::<H> {
                 label: node.label,
-                hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
-                    .await?,
+                hash: to_digest::<H>(&node.hash)?,
             });
             return Ok((unchanged, leaves));
         }
@@ -425,26 +421,19 @@ impl Azks {
         if node.is_leaf() {
             leaves.push(Node::<H> {
                 label: node.label,
-                hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
-                    .await?,
+                hash: to_digest::<H>(&node.hash)?,
             });
         } else {
-            for child_node_state in node
-                .get_state_at_epoch(storage, end_epoch)
-                .await?
-                .child_states
-                .iter()
-                .cloned()
+            for child_label in [node.left_child, node.right_child]
             {
-                match child_node_state {
+                match child_label {
                     None => {
                         continue;
                     }
-                    Some(child_node_state) => {
+                    Some(label) => {
                         let child_node = HistoryTreeNode::get_from_storage(
                             storage,
-                            &NodeKey(child_node_state.label),
+                            &NodeKey(label),
                             self.get_latest_epoch(),
                         )
                         .await?;
@@ -530,7 +519,6 @@ impl Azks {
         let mut prev_node = NodeLabel::root();
         while !equal && dir.is_some() {
             prev_node = curr_node.label;
-            let curr_state = curr_node.get_state_at_epoch(storage, epoch).await?;
             let mut nodes = [Node::<H> {
                 label: EMPTY_LABEL,
                 hash: H::hash(&EMPTY_VALUE),
@@ -539,23 +527,25 @@ impl Azks {
             let direction = dir.ok_or({
                 AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(curr_node.label, None))
             })?;
-            let next_state = curr_state.get_child_state_in_dir(direction);
+            let next_state = curr_node.get_child_state(storage, Some(direction)).await?;
             if next_state == None {
                 break;
             }
+            if let Some(next_state) = next_state {
             for i in 0..ARITY {
                 let no_direction_error = AkdError::HistoryTreeNode(
                     HistoryTreeNodeError::NoDirection(curr_node.label, None),
                 );
                 if i != dir.ok_or(no_direction_error)? {
                     nodes[count] = Node::<H> {
-                        label: optional_history_child_state_to_label(&curr_state.child_states[i]),
-                        hash: to_digest::<H>(&optional_history_child_state_to_hash::<H>(
-                            &curr_state.child_states[i],
-                        ))?,
+                        label: next_state.label,
+                        hash: to_digest::<H>(&next_state.hash)?,
                     };
                     count += 1;
                 }
+            }
+            } else {
+                break;
             }
             layer_proofs.push(proof_structs::LayerProof {
                 label: curr_node.label,
@@ -586,9 +576,7 @@ impl Azks {
             layer_proofs.pop();
         }
 
-        let hash_val = curr_node
-            .get_value_without_label_at_epoch::<_, H>(storage, epoch)
-            .await?;
+        let hash_val = to_digest::<H>(&curr_node.hash)?;
 
         Ok((
             MembershipProof::<H> {
