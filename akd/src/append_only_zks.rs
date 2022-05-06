@@ -496,7 +496,7 @@ impl Azks {
             self.get_latest_epoch(),
         )
         .await?;
-        Ok(root_node.get_value_at_epoch::<_, H>(storage, epoch).await?)
+        root_node.get_value_at_epoch::<_, H>(storage, epoch).await
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
