@@ -12,7 +12,7 @@ use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::Storage;
 use akd::Directory;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
-use clap::arg_enum;
+use clap::{ArgEnum, Parser};
 use commands::Command;
 use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
@@ -23,7 +23,6 @@ use std::io::*;
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
-use structopt::StructOpt;
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
 use winter_crypto::hashers::Blake3_256;
@@ -37,15 +36,13 @@ use logs::ConsoleLogger;
 
 type Blake3 = Blake3_256<BaseElement>;
 
-arg_enum! {
-    #[derive(Debug)]
-    enum PublicLogLevels {
-        Error,
-        Warn,
-        Info,
-        Debug,
-        Trace
-    }
+#[derive(ArgEnum, Clone, Debug)]
+enum PublicLogLevels {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 impl PublicLogLevels {
@@ -61,52 +58,52 @@ impl PublicLogLevels {
 }
 
 /// applicationModes
-#[derive(StructOpt)]
+#[derive(Parser)]
 enum OtherMode {
-    #[structopt(about = "Benchmark publish API")]
+    #[clap(about = "Benchmark publish API")]
     BenchPublish {
         num_users: u64,
         num_updates_per_user: u64,
     },
-    #[structopt(about = "Benchmark lookup API")]
+    #[clap(about = "Benchmark lookup API")]
     BenchLookup {
         num_users: u64,
         num_lookups_per_user: u64,
     },
-    #[structopt(about = "Benchmark database insertion")]
+    #[clap(about = "Benchmark database insertion")]
     BenchDbInsert { num_users: u64 },
-    #[structopt(about = "Flush data from database tables")]
+    #[clap(about = "Flush data from database tables")]
     Flush,
-    #[structopt(about = "Drop existing database tables (for schema migration etc.)")]
+    #[clap(about = "Drop existing database tables (for schema migration etc.)")]
     Drop,
 }
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Cli {
     /// The database implementation to utilize
-    #[structopt(long = "memory", name = "Use in-memory database")]
+    #[clap(long = "memory", name = "Use in-memory database")]
     memory_db: bool,
 
     /// Activate debuging mode
-    #[structopt(long = "debug", short = "d", name = "Enable debugging mode")]
+    #[clap(long = "debug", short = 'd', name = "Enable debugging mode")]
     debug: bool,
 
-    #[structopt(
+    #[clap(
+        arg_enum,
         long = "log_level",
-        short = "l",
+        short = 'l',
         name = "Adjust the console log-level (default = INFO)",
-        possible_values = &PublicLogLevels::variants(),
-        case_insensitive = true,
+        ignore_case = true,
         default_value = "Info"
     )]
     console_debug: PublicLogLevels,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     other_mode: Option<OtherMode>,
 
-    #[structopt(
+    #[clap(
         long = "multirow_size",
-        short = "m",
+        short = 'm',
         name = "MySQL multi-row insert size",
         default_value = "100"
     )]
@@ -118,7 +115,7 @@ struct Cli {
 async fn main() {
     ConsoleLogger::touch();
 
-    let cli = Cli::from_args();
+    let cli = Cli::parse();
 
     // Initialize logging facades
     let mut loggers: Vec<Box<dyn log::Log>> = vec![Box::new(ConsoleLogger {
