@@ -209,9 +209,23 @@ pub fn key_history_verify(
     allow_tombstones: bool,
 ) -> Result<Vec<bool>, VerificationError> {
     let mut tombstones = vec![];
+    let some_max_version = proof.proofs.get(0).map(|item| item.version);
     for (count, update_proof) in proof.proofs.into_iter().enumerate() {
         let root_hash = root_hashes[count];
         let previous_root_hash = previous_root_hashes[count];
+        if let Some(max_version) = some_max_version {
+            if update_proof.version != max_version - (count as u64) {
+                // there is a version mismatch, therefore we should return an error as there appears to be
+                // missing history in the key history
+                return Err(VerificationError {
+                    error_message: format!(
+                        "Expected version {} is missing from the key history",
+                        count + 1
+                    ),
+                    error_type: VerificationErrorType::HistoryProof,
+                });
+            }
+        }
         let is_tombstone = verify_single_update_proof(
             root_hash,
             vrf_public_key,
