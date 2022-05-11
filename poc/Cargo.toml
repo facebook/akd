@@ -12,13 +12,12 @@ winter-math = "0.2"
 tokio = { version = "1.10", features = ["full"] }
 colored = "2.0.0"
 hex = "0.4.3"
-structopt = "0.3.13"
 rand = "0.8"
 log = { version = "0.4.8", features = ["kv_unstable"] }
 once_cell = "1"
 thread-id = "3"
 multi_log = "0.1"
-clap = "2"
+clap = { version="3", features = ["derive"] }
 
 akd = { path = "../akd", features = ["public-tests"] }
 akd_mysql = { path = "../akd_mysql" }

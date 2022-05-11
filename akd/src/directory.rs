@@ -19,8 +19,9 @@ use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueState
 use crate::storage::Storage;
 
 use log::{debug, error, info};
+
 #[cfg(feature = "rand")]
-use rand::{CryptoRng, RngCore};
+use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
 use crate::node_state::NodeLabel;
 use std::collections::HashMap;
@@ -45,7 +46,7 @@ pub struct LookupInfo {
 #[cfg(feature = "rand")]
 impl AkdValue {
     /// Gets a random value for a AKD
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
         Self::from_utf8_str(&get_random_str(rng))
     }
 }
@@ -53,7 +54,7 @@ impl AkdValue {
 #[cfg(feature = "rand")]
 impl AkdLabel {
     /// Creates a random key for a AKD
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
         Self::from_utf8_str(&get_random_str(rng))
     }
 }
@@ -772,10 +773,11 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 #[cfg(feature = "rand")]
-fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
-    let mut byte_str = [0u8; 32];
-    rng.fill_bytes(&mut byte_str);
-    format!("{:?}", &byte_str)
+fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
+    rng.sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect()
 }
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);

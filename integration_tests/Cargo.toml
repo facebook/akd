@@ -18,7 +18,6 @@ rand = "0.8"
 once_cell = "1"
 thread-id = "3"
 multi_log = "0.1"
-clap = "2"
 hex = "0.4.3"
 
 akd = { path = "../akd", features = ["public-tests"] }
