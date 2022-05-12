@@ -20,7 +20,10 @@ use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub enum NodeType {
     /// Nodes with this type only have dummy children.
     Leaf = 1,
@@ -51,8 +54,11 @@ pub(crate) type HistoryInsertionNode = (Direction, HistoryChildState);
 /// While the states themselves can be stored elsewhere,
 /// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
 #[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(bound = ""))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct HistoryTreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
@@ -68,7 +74,10 @@ pub struct HistoryTreeNode {
 
 /// Wraps the label with which to find a node in storage.
 #[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeKey(pub NodeLabel);
 
 impl Storable for HistoryTreeNode {

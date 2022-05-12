@@ -11,7 +11,7 @@ use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -29,8 +29,8 @@ pub mod memory;
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
 
-#[cfg(feature = "serde")]
 /// Storable represents an _item_ which can be stored in the storage layer
+#[cfg(feature = "serde_serialization")]
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
@@ -54,8 +54,8 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
 }
 
-#[cfg(not(feature = "serde"))]
 /// Storable represents an _item_ which can be stored in the storage layer
+#[cfg(not(feature = "serde_serialization"))]
 pub trait Storable: Clone + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;

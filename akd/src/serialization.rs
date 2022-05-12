@@ -9,7 +9,7 @@
 
 use crate::errors::{AkdError, HistoryTreeNodeError};
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 use serde::{Deserialize, Serialize};
 
 use winter_crypto::{Digest, Hasher};
@@ -27,7 +27,7 @@ pub fn from_digest<H: Hasher>(input: H::Digest) -> [u8; 32] {
 }
 
 /// A serde serializer for the type `winter_crypto::Digest`
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 pub fn digest_serialize<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
@@ -37,7 +37,7 @@ where
 }
 
 /// A serde deserializer for the type `winter_crypto::Digest`
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 pub fn digest_deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
