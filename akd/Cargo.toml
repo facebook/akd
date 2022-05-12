@@ -16,7 +16,7 @@ public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization"
 # Add the serde flag to the dalek crate with --features "ed25519-dalek/serde"
 vrf = ["curve25519-dalek", "ed25519-dalek"]
 default = ["vrf"]
-serde_serialization = ["serde", "ed25519-dalek/serde"]
+serde_serialization = ["serde", "serde_with", "ed25519-dalek/serde"]
 
 [dependencies]
 ## Required dependencies ##
@@ -33,6 +33,7 @@ keyed_priority_queue = "0.3"
 ## Optional Dependencies ##
 bincode = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
+serde_with = { version = "1", features = ["hex"], optional = true }
 rand = { version = "0.7", optional = true }
 curve25519-dalek = { version = "3", optional = true }
 ed25519-dalek = { version = "1", optional = true }
