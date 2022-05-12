@@ -14,7 +14,7 @@ use crate::storage::transaction::Transaction;
 use crate::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
 };
-use crate::storage::{Storable, Storage};
+use crate::storage::{Storable, Storage, StorageUtil};
 use async_trait::async_trait;
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
@@ -370,6 +370,41 @@ impl Storage for AsyncInMemoryDatabase {
             "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
+    }
+}
+
+#[async_trait]
+impl StorageUtil for AsyncInMemoryDatabase {
+    async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError> {
+        let records = self
+            .batch_get_all_direct()
+            .await?
+            .into_iter()
+            .filter(|record| match record {
+                DbRecord::Azks(_) => St::data_type() == StorageType::Azks,
+                DbRecord::HistoryTreeNode(_) => St::data_type() == StorageType::HistoryTreeNode,
+                DbRecord::HistoryNodeState(_) => St::data_type() == StorageType::HistoryNodeState,
+                DbRecord::ValueState(_) => St::data_type() == StorageType::ValueState,
+            })
+            .collect();
+
+        Ok(records)
+    }
+
+    async fn batch_get_all_direct(&self) -> Result<Vec<DbRecord>, StorageError> {
+        // get value states
+        let u_guard = self.user_info.read().await;
+        let u_records = u_guard
+            .values()
+            .cloned()
+            .flat_map(|v| v.into_values())
+            .map(DbRecord::ValueState);
+
+        // get other records and collect
+        let guard = self.db.read().await;
+        let records = guard.values().cloned().chain(u_records).collect();
+
+        Ok(records)
     }
 }
 
@@ -802,5 +837,40 @@ impl Storage for AsyncInMemoryDbWithCache {
             "Node (val: {:?}, len: {}) did not exist <= epoch {}",
             node_label.val, node_label.len, epoch_in_question
         )))
+    }
+}
+
+#[async_trait]
+impl StorageUtil for AsyncInMemoryDbWithCache {
+    async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError> {
+        let records = self
+            .batch_get_all_direct()
+            .await?
+            .into_iter()
+            .filter(|record| match record {
+                DbRecord::Azks(_) => St::data_type() == StorageType::Azks,
+                DbRecord::HistoryTreeNode(_) => St::data_type() == StorageType::HistoryTreeNode,
+                DbRecord::HistoryNodeState(_) => St::data_type() == StorageType::HistoryNodeState,
+                DbRecord::ValueState(_) => St::data_type() == StorageType::ValueState,
+            })
+            .collect();
+
+        Ok(records)
+    }
+
+    async fn batch_get_all_direct(&self) -> Result<Vec<DbRecord>, StorageError> {
+        // get value states
+        let u_guard = self.user_info.read().await;
+        let u_records = u_guard
+            .values()
+            .cloned()
+            .flat_map(|v| v.into_values())
+            .map(DbRecord::ValueState);
+
+        // get other records and collect
+        let guard = self.db.read().await;
+        let records = guard.values().cloned().chain(u_records).collect();
+
+        Ok(records)
     }
 }

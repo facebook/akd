@@ -79,7 +79,7 @@ pub trait Storable: Clone + Sync {
     fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
 }
 
-/// Updated storage layer with better support of asynchronous work and batched operations
+/// Storage layer with support for asynchronous work and batched operations
 #[async_trait]
 pub trait Storage: Clone {
     /// Log some information about the cache (hit rate, etc)
@@ -152,4 +152,14 @@ pub trait Storage: Clone {
         keys: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
+}
+
+/// Optional storage layer utility functions for debug and test purposes
+#[async_trait]
+pub trait StorageUtil: Storage {
+    /// Retrieves all stored records of a given type from the data layer, ignoring any caching or transaction pending
+    async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError>;
+
+    /// Retrieves all stored records from the data layer, ignoring any caching or transaction pending
+    async fn batch_get_all_direct(&self) -> Result<Vec<DbRecord>, StorageError>;
 }
