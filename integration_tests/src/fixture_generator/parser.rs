@@ -52,7 +52,7 @@ pub struct Args {
         long = "user",
         short = 'u',
         multiple_occurrences = true,
-        parse(try_from_str = parse_user_history),
+        parse(try_from_str = parse_user_events),
     )]
     pub users: Vec<User>,
 
@@ -112,7 +112,7 @@ pub struct Args {
     pub no_generated_updates: bool,
 }
 
-fn parse_user_history(s: &str) -> Result<User, String> {
+fn parse_user_events(s: &str) -> Result<User, String> {
     let mut split = s.split(':');
     let username_text = split.next().unwrap();
     let maybe_events_text = split.next();
