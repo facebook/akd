@@ -11,7 +11,6 @@
 //!   cargo run -- \
 //!     --user "User1: 1, (9, 'abc'), (10, 'def')" \
 //!     --user "User2: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10" \
-//!     --user "User2" \
 //!     --epochs 10 \
 //!     --max_updates 5 \
 //!     --capture_states 9,10 \

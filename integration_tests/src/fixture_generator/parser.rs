@@ -12,8 +12,8 @@ use clap::{AppSettings, Parser};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-/// Any alphanumeric string e.g. "User123"
-const USER_PATTERN: &str = r"\w+";
+/// Any alphanumeric string - spaces are allowed e.g. "User123" or "User 123"
+const USER_PATTERN: &str = r"[\w\s]+";
 
 /// A solo string of digits e.g. "10" or a tuple of digits and a string
 /// e.g."(10, 'abc')"
