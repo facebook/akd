@@ -45,7 +45,10 @@ pub const PROOF_LENGTH: usize = 80;
 
 /// An ECVRF private key
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct VRFPrivateKey(pub(crate) ed25519_PrivateKey);
 
 impl core::ops::Deref for VRFPrivateKey {
@@ -65,7 +68,10 @@ impl std::clone::Clone for VRFPrivateKey {
 
 /// An ECVRF public key
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct VRFPublicKey(ed25519_PublicKey);
 
 impl core::ops::Deref for VRFPublicKey {

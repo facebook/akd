@@ -13,3 +13,5 @@ mod mysql_tests;
 
 #[cfg(test)]
 mod memory_tests;
+
+pub mod fixture_generator;

@@ -8,14 +8,17 @@
 //! The representation for the label of a history tree node.
 
 use crate::serialization::from_digest;
-#[cfg(feature = "serde")]
-use crate::serialization::{digest_deserialize, digest_serialize};
+#[cfg(feature = "serde_serialization")]
+use crate::serialization::{
+    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
+};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY, EMPTY_VALUE};
+
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
-
+#[cfg(feature = "serde_serialization")]
 use std::{
     convert::TryInto,
     fmt::{self, Debug},
@@ -24,13 +27,22 @@ use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
     /// the hash associated to this label
-    #[cfg_attr(feature = "serde", serde(serialize_with = "digest_serialize"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "digest_deserialize"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "digest_serialize")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "digest_deserialize")
+    )]
     pub hash: H::Digest,
 }
 
@@ -52,9 +64,20 @@ impl<H: Hasher> Clone for Node<H> {
 /// just using a native type, unless it is a bit-vector, wouldn't work.
 /// Hence, we need a custom representation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub val: [u8; 32],
     /// len keeps track of how long the binary string is
     pub len: u32,
@@ -230,9 +253,6 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
     H::hash(&hash_input)
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(bound = ""))]
 /// A HistoryNodeState represents the state of a [crate::history_tree_node::HistoryTreeNode] at a given epoch.
 /// As you may see, when looking at [HistoryChildState], the node needs to include
 /// its hashed value, the hashed values of its children and the labels of its children.
@@ -240,8 +260,22 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 /// any given epoch, without having to do a traversal of the history tree to find siblings.
 /// The hash value of this node at this state.
 /// To be used in its parent, alongwith the label.
+#[derive(Debug, Eq, PartialEq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct HistoryNodeState {
     /// The hash at this node state
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub value: [u8; 32],
     /// The states of the children at this time
     pub child_states: [Option<HistoryChildState>; ARITY],
@@ -252,7 +286,10 @@ pub struct HistoryNodeState {
 /// This struct is just used for storage access purposes.
 /// parameters are node label and epoch
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeStateKey(pub NodeLabel, pub u64);
 
 impl PartialOrd for NodeStateKey {
@@ -366,11 +403,22 @@ impl fmt::Display for HistoryNodeState {
 /// The dummy_marker represents whether this child was real or a dummy.
 /// In particular, the children of a leaf node are dummies.
 #[derive(Debug, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct HistoryChildState {
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub hash_val: [u8; 32],
     /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,
