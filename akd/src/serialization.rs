@@ -47,7 +47,7 @@ where
     T::read_from(&mut SliceReader::new(&buf)).map_err(serde::de::Error::custom)
 }
 
-/// A serde serializer for
+/// A serde hex serializer for bytes
 #[cfg(feature = "serde_serialization")]
 pub fn bytes_serialize_hex<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
 where
@@ -58,7 +58,7 @@ where
     s.serialize_str(hex_str)
 }
 
-/// A serde deserializer for the type `winter_crypto::Digest`
+/// A serde hex deserializer for bytes
 #[cfg(feature = "serde_serialization")]
 pub fn bytes_deserialize_hex<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
