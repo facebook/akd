@@ -75,28 +75,16 @@ pub struct Args {
 
     /// Epochs where the state of the directory should be captured in the output
     /// e.g. the value 3 will output all db records after epoch 3 is performed.
-    /// Multiple values should be separated with ","
-    #[clap(
-        long = "capture_states",
-        short = 's',
-        multiple_values = true,
-        use_value_delimiter = true,
-        require_value_delimiter = true
-    )]
+    /// Multiple values are accepted e.g. --capture_states 9 10
+    #[clap(long = "capture_states", short = 's', multiple_values = true)]
     pub capture_states: Option<Vec<u32>>,
 
     /// Epochs where the updates required to bring the directory to the epoch
     /// should be captured in the output.
     /// e.g. the value 3 will output all updates that were performed to advance
     /// the directory from epoch 2 to 3.
-    /// Multiple values should be separated with ","
-    #[clap(
-        long = "capture_deltas",
-        short = 'd',
-        multiple_values = true,
-        use_value_delimiter = true,
-        require_value_delimiter = true
-    )]
+    /// Multiple values are accepted e.g. --capture_deltas 9 10
+    #[clap(long = "capture_deltas", short = 'd', multiple_values = true)]
     pub capture_deltas: Option<Vec<u32>>,
 
     /// Name of output file.

@@ -13,7 +13,7 @@
 //!     --user "User2: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10" \
 //!     --epochs 10 \
 //!     --max_updates 5 \
-//!     --capture_states 9,10 \
+//!     --capture_states 9 10 \
 //!     --capture_deltas 10
 //!
 
