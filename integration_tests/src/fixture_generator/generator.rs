@@ -35,7 +35,7 @@ pub struct State {
     pub records: Vec<DbRecord>,
 }
 
-/// Delta comprises all updates published to the directory to advance to an
+/// Delta comprises all key updates published to the directory to advance to an
 /// epoch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Delta {
@@ -125,7 +125,7 @@ pub async fn run() {
         .unwrap();
 
     for epoch in 1..=args.epochs {
-        // gather specified updates
+        // gather specified key updates
         let mut updates = vec![];
         for (label, events) in user_map.iter() {
             if let Some(maybe_value) = events.get(&epoch) {
@@ -136,7 +136,7 @@ pub async fn run() {
             }
         }
 
-        // generate random updates if allowed
+        // generate random key updates if allowed
         if !args.no_generated_updates {
             let num_updates = rng.gen_range(args.min_updates, args.max_updates);
             for _ in updates.len()..num_updates as usize {

@@ -19,7 +19,7 @@ const USER_PATTERN: &str = r"[\w\s]+";
 /// e.g."(10, 'abc')"
 const EVENT_PATTERN: &str = r"\d+|(\(\s*(\d+)\s*,\s*'(\w*)'\s*\))";
 
-/// An update the tool should include in the tree at the given epoch.
+/// A key update the tool should include in the tree at the given epoch.
 /// If "value" is None, the tool will randomly generate a value for the epoch.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserEvent {
@@ -27,7 +27,7 @@ pub struct UserEvent {
     pub value: Option<AkdValue>,
 }
 
-/// A user whose update events should be included in the tree.
+/// A user whose key update events should be included in the tree.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct User {
     pub label: AkdLabel,
@@ -40,7 +40,7 @@ pub struct User {
 #[derive(Parser, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[clap(setting = AppSettings::DeriveDisplayOrder)]
 pub struct Args {
-    /// Users and their associated update events.
+    /// Users and their associated key update events.
     /// A username is expected, followed by a colon and a list of epochs OR
     /// (epoch, value). Usernames are expected to be utf-8 strings, which will
     /// be internally interpreted as bytes.
@@ -61,13 +61,13 @@ pub struct Args {
     #[clap(long = "epochs", short = 'e')]
     pub epochs: u32,
 
-    /// Maximum number of updates **per epoch** the tool should perform.
+    /// Maximum number of key updates **per epoch** the tool should perform.
     /// Note that all user events explicitly passed for an epoch will be
     /// included even if the number exceeds this value.
     #[clap(long = "max_updates", default_value = "10")]
     pub max_updates: u32,
 
-    /// Minimum number of updates **per epoch** the tool should perform.
+    /// Minimum number of key updates **per epoch** the tool should perform.
     /// The tool will generate random labels and values to include in an epoch
     /// if the user events explicitly passed for an epoch are not sufficients.
     #[clap(long = "min_updates", default_value = "0")]
@@ -79,10 +79,10 @@ pub struct Args {
     #[clap(long = "capture_states", short = 's', multiple_values = true)]
     pub capture_states: Option<Vec<u32>>,
 
-    /// Epochs where the updates required to bring the directory to the epoch
-    /// should be captured in the output.
-    /// e.g. the value 3 will output all updates that were performed to advance
-    /// the directory from epoch 2 to 3.
+    /// Epochs where the key updates required to bring the directory to the
+    /// epoch should be captured in the output.
+    /// e.g. the value 3 will output all key updates that were performed to
+    /// advance the directory from epoch 2 to 3.
     /// Multiple values are accepted e.g. --capture_deltas 9 10
     #[clap(long = "capture_deltas", short = 'd', multiple_values = true)]
     pub capture_deltas: Option<Vec<u32>>,
@@ -92,9 +92,9 @@ pub struct Args {
     #[clap(long = "out", short = 'o')]
     pub out: Option<String>,
 
-    /// Stops tool from generating random updates in publishes.
-    /// Use this if you want the tool to only use explicitly passed updates.
-    /// Explicilty passed updates without values would still use randomly
+    /// Stops tool from generating random key updates in publishes.
+    /// Use this if you want the tool to only use explicitly passed key updates.
+    /// Explicilty passed key updates without values would still use randomly
     /// generated values.
     #[clap(long = "no_generated_updates", short = 'n')]
     pub no_generated_updates: bool,
