@@ -9,9 +9,9 @@
 
 use crate::errors::{AkdError, HistoryTreeNodeError};
 
+use hex::{FromHex, ToHex};
 #[cfg(feature = "serde_serialization")]
 use serde::{Deserialize, Serialize};
-
 use winter_crypto::{Digest, Hasher};
 use winter_utils::{Deserializable, SliceReader};
 
@@ -45,6 +45,29 @@ where
 {
     let buf = <[u8; 32]>::deserialize(deserializer)?;
     T::read_from(&mut SliceReader::new(&buf)).map_err(serde::de::Error::custom)
+}
+
+/// A serde serializer for
+#[cfg(feature = "serde_serialization")]
+pub fn bytes_serialize_hex<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: AsRef<[u8]>,
+{
+    let hex_str = &x.as_ref().encode_hex_upper::<String>();
+    s.serialize_str(hex_str)
+}
+
+/// A serde deserializer for the type `winter_crypto::Digest`
+#[cfg(feature = "serde_serialization")]
+pub fn bytes_deserialize_hex<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: AsRef<[u8]> + FromHex,
+    <T as FromHex>::Error: std::fmt::Display,
+{
+    let hex_str = String::deserialize(deserializer)?;
+    T::from_hex(&hex_str).map_err(serde::de::Error::custom)
 }
 
 #[cfg(test)]

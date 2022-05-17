@@ -9,7 +9,9 @@
 
 use crate::serialization::from_digest;
 #[cfg(feature = "serde_serialization")]
-use crate::serialization::{digest_deserialize, digest_serialize};
+use crate::serialization::{
+    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
+};
 use crate::storage::types::StorageType;
 use crate::storage::Storable;
 use crate::{Direction, ARITY, EMPTY_VALUE};
@@ -17,7 +19,6 @@ use crate::{Direction, ARITY, EMPTY_VALUE};
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 #[cfg(feature = "serde_serialization")]
-use serde_with::{formats::Uppercase, hex::Hex, As};
 use std::{
     convert::TryInto,
     fmt::{self, Debug},
@@ -69,8 +70,14 @@ impl<H: Hasher> Clone for Node<H> {
 )]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
-    // #[cfg_attr(feature = "serde_with", serde_as(as = "Base64"))]
-    #[cfg_attr(feature = "serde_serialization", serde(with = "As::<Hex<Uppercase>>"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub val: [u8; 32],
     /// len keeps track of how long the binary string is
     pub len: u32,
@@ -261,7 +268,14 @@ pub fn hash_label<H: Hasher>(label: NodeLabel) -> H::Digest {
 #[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct HistoryNodeState {
     /// The hash at this node state
-    #[cfg_attr(feature = "serde_serialization", serde(with = "As::<Hex<Uppercase>>"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub value: [u8; 32],
     /// The states of the children at this time
     pub child_states: [Option<HistoryChildState>; ARITY],
@@ -397,7 +411,14 @@ pub struct HistoryChildState {
     /// Child node's label
     pub label: NodeLabel,
     /// Child node's hash value
-    #[cfg_attr(feature = "serde_serialization", serde(with = "As::<Hex<Uppercase>>"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub hash_val: [u8; 32],
     /// Child node's state this epoch being pointed to here
     pub epoch_version: u64,

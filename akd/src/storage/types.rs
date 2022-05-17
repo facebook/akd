@@ -9,10 +9,10 @@
 
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
 use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
+#[cfg(feature = "serde_serialization")]
+use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::storage::Storable;
 use crate::{Azks, NodeLabel, ARITY};
-#[cfg(feature = "serde_serialization")]
-use serde_with::{formats::Uppercase, hex::Hex, As};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -35,7 +35,15 @@ pub enum StorageType {
     derive(serde::Deserialize, serde::Serialize)
 )]
 pub struct AkdLabel(
-    #[cfg_attr(feature = "serde_serialization", serde(with = "As::<Hex<Uppercase>>"))] pub Vec<u8>,
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
+    pub Vec<u8>,
 );
 
 impl AkdLabel {
@@ -59,7 +67,15 @@ impl core::ops::Deref for AkdLabel {
 )]
 #[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct AkdValue(
-    #[cfg_attr(feature = "serde_serialization", serde(with = "As::<Hex<Uppercase>>"))] pub Vec<u8>,
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
+    pub Vec<u8>,
 );
 
 impl AkdValue {
