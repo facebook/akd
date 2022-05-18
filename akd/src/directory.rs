@@ -208,7 +208,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks
-                .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+                .get_root_hash_at_epoch::<_, H>(&self.storage, current_epoch)
                 .await?;
             return Ok(EpochHash(current_azks.get_latest_epoch(), root_hash));
         }
@@ -246,7 +246,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
             .await?;
 
-        Ok(EpochHash(current_epoch, root_hash))
+        Ok(EpochHash(next_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
