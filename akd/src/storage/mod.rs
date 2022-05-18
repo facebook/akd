@@ -151,7 +151,7 @@ pub trait Storage: Clone {
         &self,
         keys: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
+    ) -> Result<HashMap<types::AkdLabel, (u64, types::AkdValue)>, StorageError>;
 }
 
 /// Optional storage layer utility functions for debug and test purposes
