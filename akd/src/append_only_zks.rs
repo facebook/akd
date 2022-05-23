@@ -625,12 +625,16 @@ mod tests {
             azks1.insert_leaf::<_, Blake3>(&db, node).await?;
         }
 
+        println!("Individual leaf insertion is done.");
+
         let db2 = AsyncInMemoryDatabase::new();
         let mut azks2 = Azks::new::<_, Blake3>(&db2).await?;
 
         azks2
             .batch_insert_leaves::<_, Blake3>(&db2, insertion_set)
             .await?;
+
+        println!("Batch insertion is done.");
 
         assert_eq!(
             azks1.get_root_hash::<_, Blake3>(&db).await?,

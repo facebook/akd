@@ -18,9 +18,9 @@ use crate::{
         memory::AsyncInMemoryDatabase,
         types::{AkdLabel, AkdValue, DbRecord},
         Storage,
-    },
+    }, EMPTY_VALUE, EMPTY_LABEL, node_state::hash_label,
 };
-use winter_crypto::{hashers::Blake3_256, Digest};
+use winter_crypto::{hashers::Blake3_256, Digest, Hasher};
 use winter_math::fields::f128::BaseElement;
 type Blake3 = Blake3_256<BaseElement>;
 
@@ -37,7 +37,7 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
 
     // Ensuring that the root hash of an empty tree is equal to the following constant
     assert_eq!(
-        "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213",
+        "8d0447ac34e4607db4d20d403824e7dd4d384dab5ee5c11bbdebf0df9be57e6d",
         hex::encode(hash.as_bytes())
     );
     Ok(())

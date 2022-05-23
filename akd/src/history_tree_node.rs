@@ -260,14 +260,18 @@ impl HistoryTreeNode {
             // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
                 println!("Child state is none.");
-                // Set up parent-child connection
-                self.set_child(&mut(dir_leaf, &mut new_leaf), epoch);
+                // Set up parent-child connection.
+                self.set_child(storage, &mut(dir_leaf, &mut new_leaf), epoch).await?;
 
                 if hashing {
                     // Update the hash of the leaf first since the parent hash will rely on the fact.
                     new_leaf.update_node_hash::<_, H>(storage, epoch).await?;
 
                     self.update_node_hash::<_, H>(storage, epoch).await?;
+                } else {
+                   // If no hashing, we need to manually save the nodes.
+                   new_leaf.write_to_storage(storage).await?;
+                   self.write_to_storage(storage).await?;
                 }
 
                 return Ok(());
@@ -286,7 +290,8 @@ impl HistoryTreeNode {
                 let mut parent =
                     HistoryTreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch)
                         .await?;
-                println!("BEGIN get parent, parent: {:?}", parent.label);
+                println!("BEGIN get parent, self label: {:?}parent: {:?}", self.label, parent.label);
+                println!("parent: {:?}", parent);
                 let self_dir_in_parent = parent.get_direction(self);
                 println!("Direction in parent: {:?}", self_dir_in_parent);
 
@@ -305,17 +310,18 @@ impl HistoryTreeNode {
                 // (set child sets both child for the parent and parent for the child)
                 // 1. Replace the self with the new node.
                 debug!("BEGIN set node child parent(new_node)");
+                println!("self_dir_in_parent: {:?}, dir_leaf: {:?}, dir_self: {:?}", self_dir_in_parent, dir_leaf, dir_self);
                 parent
-                    .set_child(&mut (self_dir_in_parent, &mut new_node), epoch);
+                    .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch).await?;
 
                 // 2. Set children of the new node (new leaf and self)
                 debug!("BEGIN set node child new_node(new_leaf)");
                 new_node
-                    .set_child(&mut (dir_leaf, &mut new_leaf), epoch);
+                    .set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch).await?;
 
                 debug!("BEGIN set node child new_node(self)");
                 new_node
-                    .set_child(&mut (dir_self, self), epoch);
+                    .set_child(storage, &mut (dir_self, self), epoch).await?;
 
 
                 if hashing {
@@ -327,8 +333,12 @@ impl HistoryTreeNode {
                     // self.update_node_hash::<_, H>(storage, epoch).await?;
                     new_node.update_node_hash::<_, H>(storage, epoch).await?;
                     parent.update_node_hash::<_, H>(storage, epoch).await?;
+                } else {
+                   // If no hashing, we need to manually save the nodes.
+                   new_leaf.write_to_storage(storage).await?;
+                   new_node.write_to_storage(storage).await?;
+                   parent.write_to_storage(storage).await?;
                 }
-
                 debug!("END insert single leaf (dir_self = Some)");
                 Ok(())
             }
@@ -342,6 +352,7 @@ impl HistoryTreeNode {
                 let result = match child_node {
                     Some(mut child_node) => {
                         println!("Recursing on child node label: {:?}", child_node.label);
+                        println!("Child node: {:?}", child_node);
                         child_node
                             .insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, hashing)
                             .await?;
@@ -474,11 +485,12 @@ impl HistoryTreeNode {
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
     // #[async_recursion]
-    pub(crate) fn set_child(
+    pub(crate) async fn set_child<S: Storage + Sync + Send>(
         &mut self,
+        storage: &S,
         child: &mut HistoryInsertionNode<'_>,
         epoch: u64,
-    ) {
+    ) -> Result<(), StorageError> {
         let (direction, child_node) = child;
         // Set child according to given direction.
         if let Some(direction) = direction {
@@ -489,7 +501,7 @@ impl HistoryTreeNode {
                 self.right_child = Some(child_node.label);
             }
         } else {
-            panic!("Unknown child index or None.");
+            panic!("Unexpected child index: {:?}", direction);
         }
         // Update parent of the child.
         child_node.parent = self.label;
@@ -497,6 +509,11 @@ impl HistoryTreeNode {
         // Update last updated epoch.
         self.last_epoch = epoch;
         child_node.last_epoch = epoch;
+
+        self.write_to_storage(storage).await?;
+        child_node.write_to_storage(storage).await?;
+
+        Ok(())
     }
 
     /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
