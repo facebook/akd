@@ -290,7 +290,7 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
+        _epoch: u64,
     ) -> Result<MembershipProof<H>, AkdError> {
         let (pf, _) = self
             .get_membership_proof_and_node(storage, label)
@@ -305,7 +305,7 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
+        _epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
         let (longest_prefix_membership_proof, lcp_node_label) = self
             .get_membership_proof_and_node(storage, label)
@@ -478,7 +478,7 @@ impl Azks {
             self.get_latest_epoch(),
         )
         .await?;
-        Ok(root_node.get_value_at_epoch::<_, H>(storage, epoch).await?)
+        to_digest::<H>(&root_node.hash)
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -548,7 +548,7 @@ impl Azks {
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
                 &NodeKey(
-                    curr_node.get_child::<_>(storage, dir).unwrap().unwrap()
+                    curr_node.get_child(dir).unwrap().unwrap()
                 ),
                 self.get_latest_epoch(),
             )

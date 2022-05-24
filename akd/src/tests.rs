@@ -18,9 +18,9 @@ use crate::{
         memory::AsyncInMemoryDatabase,
         types::{AkdLabel, AkdValue, DbRecord},
         Storage,
-    }, EMPTY_VALUE, EMPTY_LABEL, node_state::hash_label,
+    },
 };
-use winter_crypto::{hashers::Blake3_256, Digest, Hasher};
+use winter_crypto::{hashers::Blake3_256, Digest};
 use winter_math::fields::f128::BaseElement;
 type Blake3 = Blake3_256<BaseElement>;
 

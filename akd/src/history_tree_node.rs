@@ -11,7 +11,7 @@ use crate::errors::{AkdError, HistoryTreeNodeError, StorageError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction, EMPTY_LABEL};
+use crate::{node_state::*, Direction};
 use async_recursion::async_recursion;
 use log::debug;
 use std::convert::TryInto;
@@ -64,11 +64,11 @@ pub struct HistoryTreeNode {
     pub parent: NodeLabel, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
     pub node_type: NodeType, // Leaf, Root or Interior
-
-    // TODO(eoz): Use EMPTY_LABEL instead?
+    /// Label of the left child, None if there is none.
     pub left_child: Option<NodeLabel>,
+    /// Label of the right child, None if there is none.
     pub right_child: Option<NodeLabel>,
-
+    /// Hash (aka state) of the node.
     pub hash: [u8; 32],
 }
 
@@ -446,40 +446,15 @@ impl HistoryTreeNode {
         Ok(())
     }
 
-    ////// getrs for this node ////
-
-    pub(crate) async fn get_value_at_epoch<S: Storage + Sync + Send, H: Hasher>(
-        &self,
-        storage: &S,
-        epoch: u64,
-    ) -> Result<H::Digest, AkdError> {
-        Ok(to_digest::<H>(
-            &self.hash,
-        )?)
-    }
-
     pub(crate) fn get_child_label(&self, dir: Direction) -> Option<NodeLabel> {
-        let mut child_label_to_ret = None;
-        // TODO(eoz): Replace usize dirs with a Direction enum.
-        if dir == Some(0) {
-            child_label_to_ret = self.left_child;
+        let child_label_to_ret = if dir == Some(0) {
+            self.left_child
         } else if dir == Some(1) {
-            child_label_to_ret = self.right_child;
+            self.right_child
         } else {
             panic!("No child with that index!");
-        }
+        };
         child_label_to_ret
-    }
-
-    // gets value at current epoch
-    pub(crate) async fn get_value<S: Storage + Sync + Send, H: Hasher>(
-        &self,
-        storage: &S,
-    ) -> Result<H::Digest, AkdError> {
-        match get_state_map(storage, self, self.get_latest_epoch()).await {
-            Ok(state_map) => Ok(to_digest::<H>(&state_map.value)?),
-            Err(er) => Err(er.into()),
-        }
     }
 
     pub(crate) fn get_birth_epoch(&self) -> u64 {
@@ -543,9 +518,8 @@ impl HistoryTreeNode {
         }
     }
 
-    pub(crate) fn get_child<S: Storage + Sync + Send>(
+    pub(crate) fn get_child(
         &self,
-        storage: &S,
         direction: Direction,
     ) -> Result<Option<NodeLabel>, AkdError> {
         match direction {
@@ -573,37 +547,6 @@ impl HistoryTreeNode {
     pub(crate) fn get_latest_epoch(&self) -> u64 {
         self.last_epoch
     }
-
-    /////// Helpers /////////
-
-    async fn to_node_unhashed_child_state<S: Storage + Sync + Send, H: Hasher>(
-        &self,
-        storage: &S,
-    ) -> Result<HistoryChildState, AkdError> {
-        Ok(HistoryChildState {
-            label: self.label,
-            hash_val: from_digest::<H>(H::merge(&[
-                self.get_value::<_, H>(storage).await?,
-                hash_label::<H>(self.label),
-            ])),
-            epoch_version: self.get_latest_epoch(),
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn to_node_child_state<S: Storage + Sync + Send, H: Hasher>(
-        &self,
-        storage: &S,
-    ) -> Result<HistoryChildState, AkdError> {
-        Ok(HistoryChildState {
-            label: self.label,
-            hash_val: from_digest::<H>(H::merge(&[
-                self.get_value::<_, H>(storage).await?,
-                hash_label::<H>(self.label),
-            ])),
-            epoch_version: self.get_latest_epoch(),
-        })
-    }
 }
 
 /////// Helpers //////
@@ -614,15 +557,6 @@ pub(crate) fn optional_child_state_to_hash<H: Hasher>(
     match input {
         Some(child_state) => child_state.hash,
         None => from_digest::<H>(crate::utils::empty_node_hash::<H>()),
-    }
-}
-
-pub(crate) fn optional_child_state_to_label(
-    input: &Option<NodeLabel>,
-) -> NodeLabel {
-    match input {
-        Some(label) => *label,
-        None => EMPTY_LABEL,
     }
 }
 
@@ -692,30 +626,6 @@ pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
     history_node
 }
 
-pub(crate) async fn set_state_map<S: Storage + Sync + Send>(
-    storage: &S,
-    val: HistoryNodeState,
-) -> Result<(), StorageError> {
-    storage.set(DbRecord::HistoryNodeState(val)).await
-}
-
-pub(crate) async fn get_state_map<S: Storage + Sync + Send>(
-    storage: &S,
-    node: &HistoryTreeNode,
-    key: u64,
-) -> Result<HistoryNodeState, StorageError> {
-    let state_key = get_state_map_key(node, key);
-    if let Ok(DbRecord::HistoryNodeState(state)) = storage.get::<HistoryNodeState>(&state_key).await
-    {
-        Ok(state)
-    } else {
-        Err(StorageError::NotFound(format!(
-            "HistoryNodeState {:?}",
-            state_key
-        )))
-    }
-}
-
 pub(crate) fn get_state_map_key(node: &HistoryTreeNode, key: u64) -> NodeStateKey {
     NodeStateKey(node.label, key)
 }
@@ -724,8 +634,8 @@ pub(crate) fn get_state_map_key(node: &HistoryTreeNode, key: u64) -> NodeStateKe
 mod tests {
     use super::*;
     use crate::{
-        node_state::{byte_arr_from_u64, hash_label, HistoryChildState, NodeLabel},
-        serialization::from_digest, EMPTY_VALUE,
+        node_state::{byte_arr_from_u64, hash_label, NodeLabel},
+        EMPTY_VALUE,
     };
     use std::convert::TryInto;
     use winter_crypto::{hashers::Blake3_256, Hasher};
@@ -852,12 +762,6 @@ mod tests {
             ]),
             hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
         ]);
-
-        // let mut leaf_1_as_child = leaf_1.to_node_child_state()?;
-        // leaf_1_as_child.hash_val = from_digest::<Blake3>(leaf_1_hash)?;
-
-        // let mut leaf_2_as_child = leaf_2.to_node_child_state()?;
-        // leaf_2_as_child.hash_val = from_digest::<Blake3>(leaf_2_hash)?;
 
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;

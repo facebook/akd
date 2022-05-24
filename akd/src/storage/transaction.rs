@@ -181,7 +181,6 @@ mod tests {
     use crate::history_tree_node::*;
     use crate::node_state::*;
     use crate::storage::types::*;
-    use crate::utils::empty_node_hash;
     use rand::{rngs::OsRng, seq::SliceRandom};
 
     #[tokio::test]

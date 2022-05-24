@@ -331,11 +331,6 @@ impl HistoryNodeState {
             key,
         }
     }
-
-    /// Returns a copy of the child state, in the calling HistoryNodeState in the given direction.
-    pub(crate) fn get_child_state_in_dir(&self, dir: usize) -> Option<HistoryChildState> {
-        self.child_states[dir].clone()
-    }
 }
 
 impl Clone for HistoryNodeState {
