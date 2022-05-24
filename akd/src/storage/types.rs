@@ -9,7 +9,7 @@
 
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
 use crate::storage::Storable;
-use crate::{Azks, NodeLabel, ARITY};
+use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -19,8 +19,8 @@ pub enum StorageType {
     Azks = 1,
     /// HistoryTreeNode
     HistoryTreeNode = 2,
-    /// HistoryNodeState
-    HistoryNodeState = 3,
+    /// EOZ: HistoryNodeState = 3 was removed from here.
+    /// Better to keep ValueState = 4 as is?
     /// ValueState
     ValueState = 4,
 }

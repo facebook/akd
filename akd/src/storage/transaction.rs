@@ -209,16 +209,6 @@ mod tests {
             right_child: None,
             hash: [0u8; 32],
         });
-        let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: [0u8; 32],
-            child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1),
-        });
-        let node_state2 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: [0u8; 32],
-            child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
-        });
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),
             epoch: 1,
@@ -234,7 +224,7 @@ mod tests {
             plaintext_val: AkdValue::from_utf8_str("abc1234"),
         });
 
-        let records = vec![azks, node1, node2, node_state1, node_state2, value1, value2];
+        let records = vec![azks, node1, node2, value1, value2];
         let mut rng = OsRng;
 
         for _ in 1..10 {
