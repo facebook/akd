@@ -8,7 +8,6 @@
 //! Various storage and representation related types
 
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use crate::storage::Storable;
 use crate::{Azks, NodeLabel, ARITY};
 use std::convert::TryInto;
@@ -173,8 +172,6 @@ pub enum DbRecord {
     Azks(Azks),
     /// A HistoryTreeNode
     HistoryTreeNode(HistoryTreeNode),
-    /// A HistoryNodeState
-    HistoryNodeState(HistoryNodeState),
     /// The state of the value for a particular key.
     ValueState(ValueState),
 }
@@ -183,7 +180,6 @@ impl Clone for DbRecord {
     fn clone(&self) -> Self {
         match &self {
             DbRecord::Azks(azks) => DbRecord::Azks(azks.clone()),
-            DbRecord::HistoryNodeState(state) => DbRecord::HistoryNodeState(state.clone()),
             DbRecord::HistoryTreeNode(node) => DbRecord::HistoryTreeNode(node.clone()),
             DbRecord::ValueState(state) => DbRecord::ValueState(state.clone()),
         }
@@ -196,7 +192,6 @@ impl DbRecord {
     pub fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),
-            DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
             DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
             DbRecord::ValueState(state) => state.get_full_binary_id(),
         }
@@ -248,35 +243,6 @@ impl DbRecord {
             left_child: Some(NodeLabel::new(left_child_val, left_child_len)),
             right_child: Some(NodeLabel::new(right_child_val, right_child_len)),
             hash,
-        }
-    }
-
-    /// Build a history node state from the properties
-    pub fn build_history_node_state(
-        value: [u8; 32],
-        child_states: [Option<HistoryChildState>; ARITY],
-        label_len: u32,
-        label_val: [u8; 32],
-        epoch: u64,
-    ) -> HistoryNodeState {
-        HistoryNodeState {
-            value,
-            child_states,
-            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
-        }
-    }
-
-    /// Build a history child state from the properties
-    pub fn build_history_child_state(
-        label_len: u32,
-        label_val: [u8; 32],
-        hash_val: [u8; 32],
-        epoch_version: u64,
-    ) -> HistoryChildState {
-        HistoryChildState {
-            label: NodeLabel::new(label_val, label_len),
-            hash_val,
-            epoch_version,
         }
     }
 

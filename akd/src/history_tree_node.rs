@@ -626,10 +626,6 @@ pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
     history_node
 }
 
-pub(crate) fn get_state_map_key(node: &HistoryTreeNode, key: u64) -> NodeStateKey {
-    NodeStateKey(node.label, key)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

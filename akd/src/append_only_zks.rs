@@ -164,14 +164,6 @@ impl Azks {
             load_count += nodes.len() as u64;
 
             current_nodes = Vec::<NodeKey>::new();
-            let mut node_states = Vec::<NodeStateKey>::new();
-
-            // This for loop is just getting the keys for states that need to be loaded.
-            for node in &nodes {
-                node_states.push(get_state_map_key(node, node.get_latest_epoch()));
-            }
-            let states = storage.batch_get::<HistoryNodeState>(&node_states).await?;
-            load_count += states.len() as u64;
 
             // Now that states are loaded in the cache, you can read and access them.
             // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
