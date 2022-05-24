@@ -410,10 +410,10 @@ impl HistoryTreeNode {
         let (direction, child_node) = child;
         // Set child according to given direction.
         if let Some(direction) = direction {
-            if *direction == 0 as usize {
+            if *direction == 0_usize {
                 self.left_child = Some(child_node.label);
             }
-            if *direction == 1 as usize {
+            if *direction == 1_usize {
                 self.right_child = Some(child_node.label);
             }
         } else {
@@ -433,14 +433,13 @@ impl HistoryTreeNode {
     }
 
     pub(crate) fn get_child_label(&self, dir: Direction) -> Option<NodeLabel> {
-        let child_label_to_ret = if dir == Some(0) {
+        if dir == Some(0) {
             self.left_child
         } else if dir == Some(1) {
             self.right_child
         } else {
             panic!("No child with that index!");
-        };
-        child_label_to_ret
+        }
     }
 
     pub(crate) fn get_birth_epoch(&self) -> u64 {
@@ -498,7 +497,7 @@ impl HistoryTreeNode {
                         )))),
                     }
                 } else {
-                    return Ok(None);
+                    Ok(None)
                 }
             }
         }
@@ -570,7 +569,7 @@ pub fn get_leaf_node<H: Hasher>(
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> HistoryTreeNode {
-    let node = HistoryTreeNode {
+    HistoryTreeNode {
         label,
         birth_epoch,
         last_epoch: birth_epoch,
@@ -580,9 +579,7 @@ pub fn get_leaf_node<H: Hasher>(
         left_child: None,
         right_child: None,
         hash: from_digest::<H>(*value),
-    };
-
-    node
+    }
 }
 
 pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
@@ -591,7 +588,7 @@ pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
     birth_epoch: u64,
 ) -> HistoryTreeNode {
     let leaf_hash = from_digest::<H>(node.hash);
-    let history_node = HistoryTreeNode {
+    HistoryTreeNode {
         label: node.label,
         birth_epoch,
         last_epoch: birth_epoch,
@@ -600,9 +597,7 @@ pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
         left_child: None,
         right_child: None,
         hash: leaf_hash,
-    };
-
-    history_node
+    }
 }
 
 #[cfg(test)]

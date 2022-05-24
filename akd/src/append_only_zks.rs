@@ -272,6 +272,10 @@ impl Azks {
         Ok(pf)
     }
 
+    // EOZ: There is a needless_range_loop warning by Clippy for `for i in 0..ARITY`
+    // and the suggestion is to use `for (i, <item>) in longest_prefix_children.iter_mut().enumerate().take(ARITY)`
+    // but I think this is inaccurate
+    #[allow(clippy::needless_range_loop)]
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.

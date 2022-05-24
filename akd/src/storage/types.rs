@@ -219,6 +219,7 @@ impl DbRecord {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Build a history tree node from the properties
     pub fn build_history_tree_node(
         label_val: [u8; 32],
