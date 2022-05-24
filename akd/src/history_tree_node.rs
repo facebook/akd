@@ -381,39 +381,6 @@ impl HistoryTreeNode {
         }
     }
 
-    /// Updates the hash of this node as stored in its parent,
-    /// provided the children of this node have already updated their own versions
-    /// in this node and epoch is contained in the state_map
-    /// Also assumes that `set_child_without_hash` has already been called
-    // pub(crate) async fn update_hash<S: Storage + Sync + Send, H: Hasher>(
-    //     &mut self,
-    //     storage: &S,
-    //     epoch: u64,
-    // ) -> Result<(), AkdError> {
-    //     match self.node_type {
-    //         NodeType::Leaf => {
-    //             // the hash of this is just the value, simply place in parent
-    //             let leaf_hash_val = H::merge(&[
-    //                 self.get_value::<_, H>(storage).await?,
-    //                 hash_label::<H>(self.label),
-    //             ]);
-    //         }
-    //         _ => {
-    //             let mut hash_digest = self.hash_node::<_, H>(storage, epoch).await?;
-    //             // The root has no parent, so the hash must only be stored within the value.
-    //             if self.is_root() {
-    //                 hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
-    //             }
-    //             self.hash = from_digest::<H>(hash_digest);
-
-    //             self.write_to_storage(storage).await?;
-    //             let hash_digest = H::merge(&[hash_digest, hash_label::<H>(self.label)]);
-    //             self.update_hash_at_parent::<_, H>(storage, epoch, hash_digest)
-    //                 .await
-    //         }
-    //     }
-    // }
-
 
     /// Updates the node hash and saves it in storage.
     pub(crate) async fn update_node_hash<S: Storage + Sync + Send, H: Hasher>(
@@ -461,27 +428,6 @@ impl HistoryTreeNode {
         Ok(())
     }
 
-    /// Writes the new_hash_val into the parent's state for this epoch.
-    /// Accounts for the case when considering a root node, which has no parent.
-    // async fn update_hash_at_parent<S: Storage + Sync + Send, H: Hasher>(
-    //     &mut self,
-    //     storage: &S,
-    //     epoch: u64,
-    //     new_hash_val: H::Digest,
-    // ) -> Result<(), AkdError> {
-    //     if self.is_root() {
-    //         return Ok(());
-    //     }
-
-    //     let parent =
-    //         &mut HistoryTreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch).await?;
-
-    //     // Update the parent's hash and save it.
-    //     parent.hash = parent.hash_node::<_, H>(storage, epoch).await?.as_bytes();
-    //     parent.write_to_storage(storage).await?;
-    //     Ok(())
-    // }
-
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
     // #[async_recursion]
@@ -516,23 +462,6 @@ impl HistoryTreeNode {
         Ok(())
     }
 
-    /// This function is just a wrapper: given a [`HistoryTreeNode`], sets this node's latest value using
-    /// set_child_without_hash. Just used for type conversion.
-    // pub(crate) async fn set_node_child<S: Storage + Sync + Send, H: Hasher>(
-    //     &mut self,
-    //     storage: &S,
-    //     dir: Direction,
-    //     child: &Self,
-    // ) -> Result<(), AkdError> {
-    //     // TODO(eoz): Do we need to convert?
-    //     // let node_as_child_state = child.to_node_unhashed_child_state::<_, H>(storage).await?;
-    //     // let insertion_node = (dir, node_as_child_state);
-    //     // TODO(eoz): Does clone work here?
-    //     let insertion_node = (dir, child.clone());
-    //     self.set_child::<_, H>(storage, &insertion_node).await
-    //     child.parent = self.label
-    // }
-
     ////// getrs for this node ////
 
     pub(crate) async fn get_value_at_epoch<S: Storage + Sync + Send, H: Hasher>(
@@ -544,23 +473,6 @@ impl HistoryTreeNode {
             &self.hash,
         )?)
     }
-
-    // pub(crate) async fn get_value_without_label_at_epoch<S: Storage + Sync + Send, H: Hasher>(
-    //     &self,
-    //     storage: &S,
-    //     epoch: u64,
-    // ) -> Result<H::Digest, AkdError> {
-    //     if self.is_leaf() {
-    //         return self.get_value_at_epoch::<_, H>(storage, epoch).await;
-    //     }
-    //     let children = self.get_state_at_epoch(storage, epoch).await?.child_states;
-    //     let mut new_hash = H::hash(&EMPTY_VALUE);
-    //     for child in children.iter().take(ARITY) {
-    //         let hash_val = optional_history_child_state_to_hash::<H>(child);
-    //         new_hash = H::merge(&[new_hash, to_digest::<H>(&hash_val)?]);
-    //     }
-    //     Ok(new_hash)
-    // }
 
     pub(crate) fn get_child_label(&self, dir: Direction) -> Option<NodeLabel> {
         let mut child_label_to_ret = None;
@@ -671,51 +583,6 @@ impl HistoryTreeNode {
             }
         }
     }
-
-    // pub(crate) async fn get_state_at_epoch<S: Storage + Sync + Send>(
-    //     &self,
-    //     storage: &S,
-    //     epoch: u64,
-    // ) -> Result<HistoryNodeState, AkdError> {
-    //     if self.get_birth_epoch() > epoch {
-    //         Err(AkdError::HistoryTreeNode(
-    //             HistoryTreeNodeError::NonexistentAtEpoch(self.label, epoch),
-    //         ))
-    //     } else {
-    //         let chosen_ep = {
-    //             if self.last_epoch <= epoch {
-    //                 // the "last" updated epoch is <= epoch, so it is
-    //                 // the last valid state at this epoch
-    //                 Some(self.last_epoch)
-    //             } else if self.birth_epoch == epoch {
-    //                 // we're looking at the state at the birth epoch
-    //                 Some(self.birth_epoch)
-    //             } else {
-    //                 // Indeterminate, we are somewhere above the
-    //                 // birth epoch but we're less than the "last" epoch.
-    //                 // db query is necessary
-    //                 None
-    //             }
-    //         };
-    //         if let Some(ep) = chosen_ep {
-    //             self.get_state_at_existing_epoch(storage, ep).await
-    //         } else {
-    //             let target_ep = storage.get_epoch_lte_epoch(self.label, epoch).await?;
-    //             // DB query for the state <= this epoch value
-    //             self.get_state_at_existing_epoch(storage, target_ep).await
-    //         }
-    //     }
-    // }
-
-    // async fn get_state_at_existing_epoch<S: Storage + Sync + Send>(
-    //     &self,
-    //     storage: &S,
-    //     epoch: u64,
-    // ) -> Result<HistoryNodeState, AkdError> {
-    //     Ok(get_state_map(storage, self, epoch)
-    //         .await
-    //         .map_err(|_| HistoryTreeNodeError::NoStateAtEpoch(self.label, epoch))?)
-    // }
 
     /* Functions for compression-related operations */
 
