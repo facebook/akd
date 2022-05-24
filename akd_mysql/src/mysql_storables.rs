@@ -73,7 +73,7 @@ impl MySqlStorable for DbRecord {
                 params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
             ),
             DbRecord::HistoryTreeNode(node) => Some(
-                params! { "label_len" => node.label.len, "label_val" => node.label.val, "birth_epoch" => node.birth_epoch, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
+                params! { "label_len" => node.label.len, "label_val" => node.label.val, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
             ),
             DbRecord::ValueState(state) => Some(
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() },
@@ -109,7 +109,7 @@ impl MySqlStorable for DbRecord {
 
         match St::data_type() {
             StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `birth_epoch` = new.birth_epoch, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
+            StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
             StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `data` = new.data, `node_label_val` = new.node_label_val, `node_label_len` = new.node_label_len, `version` = new.version", TABLE_USER, SELECT_USER_DATA, parts),
         }
     }
@@ -127,7 +127,6 @@ impl MySqlStorable for DbRecord {
                 DbRecord::HistoryTreeNode(node) => Ok(vec![
                     (format!("label_len{}", idx), Value::from(node.label.len)),
                     (format!("label_val{}", idx), Value::from(node.label.val)),
-                    (format!("birth_epoch{}", idx), Value::from(node.birth_epoch)),
                     (format!("last_epoch{}", idx), Value::from(node.last_epoch)),
                     (
                         format!("parent_label_len{}", idx),
@@ -380,7 +379,6 @@ impl MySqlStorable for DbRecord {
                 if let (
                     Some(Ok(label_len)),
                     Some(Ok(label_val)),
-                    Some(Ok(birth_epoch)),
                     Some(Ok(last_epoch)),
                     Some(Ok(parent_label_len)),
                     Some(Ok(parent_label_val)),
@@ -402,7 +400,6 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(8),
                     row.take_opt(9),
                     row.take_opt(10),
-                    row.take_opt(11),
                 ) {
                     let label_val_vec: Vec<u8> = label_val;
                     let parent_label_val_vec: Vec<u8> = parent_label_val;
@@ -413,7 +410,6 @@ impl MySqlStorable for DbRecord {
                     let node = DbRecord::build_history_tree_node(
                         label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
-                        birth_epoch,
                         last_epoch,
                         parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,

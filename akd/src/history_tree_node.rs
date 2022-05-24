@@ -58,8 +58,6 @@ pub struct HistoryTreeNode {
     pub label: NodeLabel,
     /// The last epoch this node was updated in
     pub last_epoch: u64,
-    /// The epoch that this node was birthed in
-    pub birth_epoch: u64,
     /// The label of this node's parent
     pub parent: NodeLabel, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
@@ -119,7 +117,6 @@ impl Clone for HistoryTreeNode {
         Self {
             label: self.label,
             last_epoch: self.last_epoch,
-            birth_epoch: self.birth_epoch,
             parent: self.parent,
             node_type: self.node_type,
             left_child: self.left_child,
@@ -141,7 +138,6 @@ impl HistoryTreeNode {
     ) -> Self {
         HistoryTreeNode {
             label,
-            birth_epoch,
             last_epoch: birth_epoch,
             parent, // Root node is its own parent
             node_type,
@@ -442,14 +438,9 @@ impl HistoryTreeNode {
         }
     }
 
-    pub(crate) fn get_birth_epoch(&self) -> u64 {
-        self.birth_epoch
-    }
-
     // gets the direction of node, i.e. if it's a left
     // child or right. If not found, return None
     fn get_direction(&self, node: &Self) -> Direction {
-        // TODO(eoz): Return direction instead of int.
         if let Some(label) = self.left_child {
             if label == node.label {
                 return Some(0);
@@ -555,7 +546,6 @@ pub fn get_empty_root<H: Hasher>(ep: Option<u64>) -> HistoryTreeNode {
         empty_root_hash,
     );
     if let Some(epoch) = ep {
-        node.birth_epoch = epoch;
         node.last_epoch = epoch;
     }
 
@@ -571,7 +561,6 @@ pub fn get_leaf_node<H: Hasher>(
 ) -> HistoryTreeNode {
     HistoryTreeNode {
         label,
-        birth_epoch,
         last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
@@ -590,7 +579,6 @@ pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
     let leaf_hash = from_digest::<H>(node.hash);
     HistoryTreeNode {
         label: node.label,
-        birth_epoch,
         last_epoch: birth_epoch,
         parent,
         node_type: NodeType::Leaf,

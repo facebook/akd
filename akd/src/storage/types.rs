@@ -224,7 +224,6 @@ impl DbRecord {
     pub fn build_history_tree_node(
         label_val: [u8; 32],
         label_len: u32,
-        birth_epoch: u64,
         last_epoch: u64,
         parent_label_val: [u8; 32],
         parent_label_len: u32,
@@ -237,7 +236,6 @@ impl DbRecord {
     ) -> HistoryTreeNode {
         HistoryTreeNode {
             label: NodeLabel::new(label_val, label_len),
-            birth_epoch,
             last_epoch,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),

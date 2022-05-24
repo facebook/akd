@@ -385,10 +385,10 @@ impl Azks {
             });
             return Ok((unchanged, leaves));
         }
-        if node.get_birth_epoch() > end_epoch {
-            // really you shouldn't even be here. Later do error checking
-            return Ok((unchanged, leaves));
-        }
+        // if node.get_birth_epoch() > end_epoch {
+        //     // really you shouldn't even be here. Later do error checking
+        //     return Ok((unchanged, leaves));
+        // }
         if node.is_leaf() {
             leaves.push(Node::<H> {
                 label: node.label,
