@@ -7,12 +7,9 @@
 
 //! The representation for the label of a history tree node.
 
-use crate::serialization::from_digest;
 #[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
-use crate::storage::types::StorageType;
-use crate::storage::Storable;
-use crate::{Direction, ARITY, EMPTY_VALUE};
+use crate::Direction;
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 

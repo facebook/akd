@@ -161,22 +161,11 @@ impl HistoryTreeNode {
     pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         key: &NodeKey,
-        current_epoch: u64,
+        _current_epoch: u64
     ) -> Result<HistoryTreeNode, StorageError> {
         match storage.get::<HistoryTreeNode>(key).await? {
             DbRecord::HistoryTreeNode(node) => {
-                // Resets a node's last_epoch value if the node in storage is ahead of the current
-                // directory epoch. This could happen when a separate AKD process is in the middle
-                // of performing a publish
-                if node.last_epoch > current_epoch {
-                    let prev_last_epoch = storage.get_epoch_lte_epoch(key.0, current_epoch).await?;
-                    Ok(Self {
-                        last_epoch: prev_last_epoch,
-                        ..node
-                    })
-                } else {
-                    Ok(node)
-                }
+                Ok(node)
             }
             _ => Err(StorageError::NotFound(format!("HistoryTreeNode {:?}", key))),
         }
@@ -185,26 +174,13 @@ impl HistoryTreeNode {
     pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         keys: &[NodeKey],
-        current_epoch: u64,
+        _current_epoch: u64,
     ) -> Result<Vec<HistoryTreeNode>, StorageError> {
         let node_records: Vec<DbRecord> = storage.batch_get::<HistoryTreeNode>(keys).await?;
         let mut nodes = Vec::<HistoryTreeNode>::new();
-        for (i, node) in node_records.into_iter().enumerate() {
+        for (_i, node) in node_records.into_iter().enumerate() {
             if let DbRecord::HistoryTreeNode(node) = node {
-                // Resets a node's last_epoch value if the node in storage is ahead of the current
-                // directory epoch. This could happen when a separate AKD process is in the middle
-                // of performing a publish
-                if node.last_epoch > current_epoch {
-                    let prev_last_epoch = storage
-                        .get_epoch_lte_epoch(keys[i].0, current_epoch)
-                        .await?;
-                    nodes.push(Self {
-                        last_epoch: prev_last_epoch,
-                        ..node
-                    });
-                } else {
-                    nodes.push(node);
-                }
+                nodes.push(node);
             } else {
                 return Err(StorageError::NotFound(
                     "Batch retrieve returned types <> HistoryTreeNode".to_string(),
