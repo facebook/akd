@@ -115,27 +115,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         panic!("Failed to retrieve history tree node (2) {:?}", err)
     }
 
-    // === HistoryNodeState storage === //
-    let key = NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1);
-    let node_state = HistoryNodeState {
-        value: [0u8; 32],
-        child_states: [None, None],
-        key,
-    };
-    let set_result = storage
-        .set(DbRecord::HistoryNodeState(node_state.clone()))
-        .await;
-    assert_eq!(Ok(()), set_result);
-
-    let get_result = storage.get::<HistoryNodeState>(&key).await;
-    if let Ok(DbRecord::HistoryNodeState(got_state)) = get_result {
-        assert_eq!(got_state.value, node_state.value);
-        assert_eq!(got_state.child_states, node_state.child_states);
-        assert_eq!(got_state.key, node_state.key);
-    } else {
-        panic!("Failed to retrieve history node state");
-    }
-
     // === ValueState storage === //
     let key = ValueStateKey("test".as_bytes().to_vec(), 1);
     let value = ValueState {
