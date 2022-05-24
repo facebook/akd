@@ -254,12 +254,10 @@ impl HistoryTreeNode {
             .get_longest_common_prefix_and_dirs(new_leaf.label);
 
         if self.is_root() {
-            println!("Adding a child to the root node. Direction: {:?}", dir_leaf);
             *num_nodes += 1;
             let child_state = self.get_child_state(storage, dir_leaf).await?;
             // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
-                println!("Child state is none.");
                 // Set up parent-child connection.
                 self.set_child(storage, &mut(dir_leaf, &mut new_leaf), epoch).await?;
 
@@ -282,7 +280,6 @@ impl HistoryTreeNode {
         match dir_self {
             Some(_) => {
                 *num_nodes += 1;
-                println!("Pushing current node down. Current node label: {:?}", self.label);
                 // This is the case where the calling node and the leaf have a longest common prefix
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
@@ -290,13 +287,9 @@ impl HistoryTreeNode {
                 let mut parent =
                     HistoryTreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch)
                         .await?;
-                println!("BEGIN get parent, self label: {:?}parent: {:?}", self.label, parent.label);
-                println!("parent: {:?}", parent);
                 let self_dir_in_parent = parent.get_direction(self);
-                println!("Direction in parent: {:?}", self_dir_in_parent);
 
                 debug!("BEGIN create new node");
-                println!("Creating new node for label: {:?}", lcs_label);
                 let mut new_node = HistoryTreeNode::new(
                     lcs_label,
                     parent.label,
@@ -310,7 +303,6 @@ impl HistoryTreeNode {
                 // (set child sets both child for the parent and parent for the child)
                 // 1. Replace the self with the new node.
                 debug!("BEGIN set node child parent(new_node)");
-                println!("self_dir_in_parent: {:?}, dir_leaf: {:?}, dir_self: {:?}", self_dir_in_parent, dir_leaf, dir_self);
                 parent
                     .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch).await?;
 
@@ -345,14 +337,11 @@ impl HistoryTreeNode {
             // Case where the current node is equal to the lcs
             // Recurse!
             None => {
-                println!("Recursing.");
                 debug!("BEGIN get child node from storage");
                 let child_node = self.get_child_state(storage, dir_leaf).await?;
                 debug!("BEGIN insert single leaf helper");
                 let result = match child_node {
                     Some(mut child_node) => {
-                        println!("Recursing on child node label: {:?}", child_node.label);
-                        println!("Child node: {:?}", child_node);
                         child_node
                             .insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, hashing)
                             .await?;
@@ -393,13 +382,11 @@ impl HistoryTreeNode {
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
             NodeType::Leaf => {
-                println!("Updating leaf node hash for node with label: {:?}.", self.label);
                 let leaf_hash = H::merge(&[
                     to_digest::<H>(&self.hash)?,
                     hash_label::<H>(self.label),
                 ]);
 
-                println!("Leaf hash: {:?}", leaf_hash);
 
                 // Update the node hash.
                 self.hash = from_digest::<H>(leaf_hash);
@@ -407,12 +394,9 @@ impl HistoryTreeNode {
             // For non-leaf nodes, the hash is updated by merging the hashes of the node's children, and the label.
             // It is assumed that the children already updated their hashes.
             _ => {
-                println!("Updating non-leaf node hash with label: {:?}", self.label);
                 // Get children states.
                 let left_child_state = self.get_child_state(storage, Some(0)).await?;
-                println!("Left child state: {:?}", left_child_state);
                 let right_child_state = self.get_child_state(storage, Some(1)).await?;
-                println!("Right child state: {:?}", right_child_state);
 
                 // Get merged hashes for the children.
                 let child_hashes = H::merge(&[to_digest::<H>(&optional_child_state_to_hash::<H>(&left_child_state,))?,  to_digest::<H>(&optional_child_state_to_hash::<H>(&right_child_state))?]);
@@ -789,11 +773,9 @@ mod tests {
         )
         .await?;
 
-        println!("X1.5");
         // Insert leaf 1.
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
             .await?;
-        println!("X2");
 
 
         // Calculate expected root hash.
@@ -803,14 +785,12 @@ mod tests {
         ]);
 
 
-        println!("leaf_0_hash: {:?}", leaf_0_hash);
 
         let leaf_1_hash = Blake3::merge(&[
             Blake3::hash(&[1u8]),
             hash_label::<Blake3>(leaf_1.label),
         ]);
 
-        println!("leaf_1_hash: {:?}", leaf_1_hash);
 
         // Merge leaves hash along with the root label.
         let leaves_hash = Blake3::merge(&[
@@ -898,17 +878,12 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
             .await?;
 
-        println!("Done.");
 
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
             .await?;
 
-        println!("Done.");
-
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
             .await?;
-
-        println!("Done.");
 
         let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
@@ -1009,22 +984,14 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        println!("Inserting 000.");
         root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
             .await?;
-        println!("000 Done!");
-        println!("Inserting 111");
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
             .await?;
-        println!("111 Done!");
-        println!("Inserting 100");
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
             .await?;
-        println!("100 Done!");
-        println!("Insertin 010");
         root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes)
             .await?;
-        println!("010 Done!");
 
         let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
