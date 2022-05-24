@@ -16,7 +16,7 @@ use async_recursion::async_recursion;
 use log::debug;
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
-use winter_crypto::{Hasher};
+use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -161,12 +161,10 @@ impl HistoryTreeNode {
     pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         key: &NodeKey,
-        _current_epoch: u64
+        _current_epoch: u64,
     ) -> Result<HistoryTreeNode, StorageError> {
         match storage.get::<HistoryTreeNode>(key).await? {
-            DbRecord::HistoryTreeNode(node) => {
-                Ok(node)
-            }
+            DbRecord::HistoryTreeNode(node) => Ok(node),
             _ => Err(StorageError::NotFound(format!("HistoryTreeNode {:?}", key))),
         }
     }
@@ -235,7 +233,8 @@ impl HistoryTreeNode {
             // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
                 // Set up parent-child connection.
-                self.set_child(storage, &mut(dir_leaf, &mut new_leaf), epoch).await?;
+                self.set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
+                    .await?;
 
                 if hashing {
                     // Update the hash of the leaf first since the parent hash will rely on the fact.
@@ -243,9 +242,9 @@ impl HistoryTreeNode {
 
                     self.update_node_hash::<_, H>(storage, epoch).await?;
                 } else {
-                   // If no hashing, we need to manually save the nodes.
-                   new_leaf.write_to_storage(storage).await?;
-                   self.write_to_storage(storage).await?;
+                    // If no hashing, we need to manually save the nodes.
+                    new_leaf.write_to_storage(storage).await?;
+                    self.write_to_storage(storage).await?;
                 }
 
                 return Ok(());
@@ -280,17 +279,19 @@ impl HistoryTreeNode {
                 // 1. Replace the self with the new node.
                 debug!("BEGIN set node child parent(new_node)");
                 parent
-                    .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch).await?;
+                    .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch)
+                    .await?;
 
                 // 2. Set children of the new node (new leaf and self)
                 debug!("BEGIN set node child new_node(new_leaf)");
                 new_node
-                    .set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch).await?;
+                    .set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
+                    .await?;
 
                 debug!("BEGIN set node child new_node(self)");
                 new_node
-                    .set_child(storage, &mut (dir_self, self), epoch).await?;
-
+                    .set_child(storage, &mut (dir_self, self), epoch)
+                    .await?;
 
                 if hashing {
                     // Update hashes from bottom to top.
@@ -302,10 +303,10 @@ impl HistoryTreeNode {
                     new_node.update_node_hash::<_, H>(storage, epoch).await?;
                     parent.update_node_hash::<_, H>(storage, epoch).await?;
                 } else {
-                   // If no hashing, we need to manually save the nodes.
-                   new_leaf.write_to_storage(storage).await?;
-                   new_node.write_to_storage(storage).await?;
-                   parent.write_to_storage(storage).await?;
+                    // If no hashing, we need to manually save the nodes.
+                    new_leaf.write_to_storage(storage).await?;
+                    new_node.write_to_storage(storage).await?;
+                    parent.write_to_storage(storage).await?;
                 }
                 debug!("END insert single leaf (dir_self = Some)");
                 Ok(())
@@ -319,33 +320,41 @@ impl HistoryTreeNode {
                 let result = match child_node {
                     Some(mut child_node) => {
                         child_node
-                            .insert_single_leaf_helper::<_, H>(storage, new_leaf, epoch, num_nodes, hashing)
+                            .insert_single_leaf_helper::<_, H>(
+                                storage, new_leaf, epoch, num_nodes, hashing,
+                            )
                             .await?;
                         if hashing {
                             debug!("BEGIN update hashes");
-                            *self = HistoryTreeNode::get_from_storage(storage, &NodeKey(self.label), epoch)
-                                .await?;
+                            *self = HistoryTreeNode::get_from_storage(
+                                storage,
+                                &NodeKey(self.label),
+                                epoch,
+                            )
+                            .await?;
                             if self.node_type != NodeType::Leaf {
                                 self.update_node_hash::<_, H>(storage, epoch).await?;
                             }
                         } else {
                             debug!("BEGIN retrieve self");
-                            *self = HistoryTreeNode::get_from_storage(storage, &NodeKey(self.label), epoch)
-                                .await?;
+                            *self = HistoryTreeNode::get_from_storage(
+                                storage,
+                                &NodeKey(self.label),
+                                epoch,
+                            )
+                            .await?;
                         }
                         debug!("END insert single leaf (dir_self = None)");
                         Ok(())
-
-                    },
-                    None => {
-                        Err(AkdError::HistoryTreeNode(HistoryTreeNodeError::NoChildAtEpoch(epoch, dir_leaf.unwrap())))
                     }
+                    None => Err(AkdError::HistoryTreeNode(
+                        HistoryTreeNodeError::NoChildAtEpoch(epoch, dir_leaf.unwrap()),
+                    )),
                 };
                 result
-           }
+            }
         }
     }
-
 
     /// Updates the node hash and saves it in storage.
     pub(crate) async fn update_node_hash<S: Storage + Sync + Send, H: Hasher>(
@@ -358,11 +367,8 @@ impl HistoryTreeNode {
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
             NodeType::Leaf => {
-                let leaf_hash = H::merge(&[
-                    to_digest::<H>(&self.hash)?,
-                    hash_label::<H>(self.label),
-                ]);
-
+                let leaf_hash =
+                    H::merge(&[to_digest::<H>(&self.hash)?, hash_label::<H>(self.label)]);
 
                 // Update the node hash.
                 self.hash = from_digest::<H>(leaf_hash);
@@ -375,10 +381,14 @@ impl HistoryTreeNode {
                 let right_child_state = self.get_child_state(storage, Some(1)).await?;
 
                 // Get merged hashes for the children.
-                let child_hashes = H::merge(&[to_digest::<H>(&optional_child_state_to_hash::<H>(&left_child_state,))?,  to_digest::<H>(&optional_child_state_to_hash::<H>(&right_child_state))?]);
+                let child_hashes = H::merge(&[
+                    to_digest::<H>(&optional_child_state_to_hash::<H>(&left_child_state))?,
+                    to_digest::<H>(&optional_child_state_to_hash::<H>(&right_child_state))?,
+                ]);
 
                 // Calculate a hash over the children and node label
-                self.hash = from_digest::<H>(H::merge(&[child_hashes, hash_label::<H>(self.label)]));
+                self.hash =
+                    from_digest::<H>(H::merge(&[child_hashes, hash_label::<H>(self.label)]));
             }
         }
 
@@ -494,10 +504,7 @@ impl HistoryTreeNode {
         }
     }
 
-    pub(crate) fn get_child(
-        &self,
-        direction: Direction,
-    ) -> Result<Option<NodeLabel>, AkdError> {
+    pub(crate) fn get_child(&self, direction: Direction) -> Result<Option<NodeLabel>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::HistoryTreeNode(
                 HistoryTreeNodeError::NoDirection(self.label, None),
@@ -527,9 +534,7 @@ impl HistoryTreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn optional_child_state_to_hash<H: Hasher>(
-    input: &Option<HistoryTreeNode>,
-) -> [u8; 32] {
+pub(crate) fn optional_child_state_to_hash<H: Hasher>(input: &Option<HistoryTreeNode>) -> [u8; 32] {
     match input {
         Some(child_state) => child_state.hash,
         None => from_digest::<H>(crate::utils::empty_node_hash::<H>()),
@@ -537,9 +542,7 @@ pub(crate) fn optional_child_state_to_hash<H: Hasher>(
 }
 
 /// Retrieve an empty root node
-pub fn get_empty_root<H: Hasher>(
-    ep: Option<u64>,
-) -> HistoryTreeNode {
+pub fn get_empty_root<H: Hasher>(ep: Option<u64>) -> HistoryTreeNode {
     // Empty root hash is the same as empty node hash
     let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash::<H>());
     let mut node = HistoryTreeNode::new(
@@ -652,38 +655,29 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
             .await?;
 
-
         // Calculate expected root hash.
         let leaf_0_hash = Blake3::merge(&[
             Blake3::hash(&EMPTY_VALUE),
             hash_label::<Blake3>(leaf_0.label),
         ]);
 
-
-
-        let leaf_1_hash = Blake3::merge(&[
-            Blake3::hash(&[1u8]),
-            hash_label::<Blake3>(leaf_1.label),
-        ]);
-
+        let leaf_1_hash =
+            Blake3::merge(&[Blake3::hash(&[1u8]), hash_label::<Blake3>(leaf_1.label)]);
 
         // Merge leaves hash along with the root label.
-        let leaves_hash = Blake3::merge(&[
-                leaf_0_hash,
-                leaf_1_hash,
-            ]);
+        let leaves_hash = Blake3::merge(&[leaf_0_hash, leaf_1_hash]);
         let expected = Blake3::merge(&[leaves_hash, hash_label::<Blake3>(root.label)]);
 
-
         // Get root hash
-        let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<HistoryTreeNode>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
             DbRecord::HistoryTreeNode(node) => to_digest::<Blake3>(&node.hash)?,
             _ => panic!("Root not found in storage."),
         };
 
         assert_eq!(root_digest, expected, "Root hash not equal to expected");
-
 
         Ok(())
     }
@@ -713,25 +707,21 @@ mod tests {
             3,
         );
 
-        let leaf_0_hash =
-            Blake3::merge(&[Blake3::hash(&EMPTY_VALUE),
-            hash_label::<Blake3>(new_leaf.label)]
-        );
+        let leaf_0_hash = Blake3::merge(&[
+            Blake3::hash(&EMPTY_VALUE),
+            hash_label::<Blake3>(new_leaf.label),
+        ]);
 
         let leaf_1_hash =
-            Blake3::merge(&[Blake3::hash(&[0b1u8]),
-            hash_label::<Blake3>(leaf_1.label)]);
+            Blake3::merge(&[Blake3::hash(&[0b1u8]), hash_label::<Blake3>(leaf_1.label)]);
 
-        let leaf_2_hash =
-            Blake3::merge(&[Blake3::hash(&[1u8, 1u8]),
-            hash_label::<Blake3>(leaf_2.label)
+        let leaf_2_hash = Blake3::merge(&[
+            Blake3::hash(&[1u8, 1u8]),
+            hash_label::<Blake3>(leaf_2.label),
         ]);
 
         let right_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[
-                leaf_2_hash,
-                leaf_1_hash,
-            ]),
+            Blake3::merge(&[leaf_2_hash, leaf_1_hash]),
             hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
         ]);
 
@@ -741,24 +731,22 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes)
             .await?;
 
-
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes)
             .await?;
 
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes)
             .await?;
 
-        let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<HistoryTreeNode>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
             DbRecord::HistoryTreeNode(node) => to_digest::<Blake3>(&node.hash)?,
             _ => panic!("Root not found in storage."),
         };
 
         let expected = Blake3::merge(&[
-            Blake3::merge(&[
-                leaf_0_hash,
-                right_child_expected_hash,
-            ]),
+            Blake3::merge(&[leaf_0_hash, right_child_expected_hash]),
             hash_label::<Blake3>(root.label),
         ]);
         assert!(root_digest == expected, "Root hash not equal to expected");
@@ -803,10 +791,8 @@ mod tests {
             hash_label::<Blake3>(new_leaf.label),
         ]);
 
-        let leaf_1_hash = Blake3::merge(&[
-            Blake3::hash(&[1u8]),
-            hash_label::<Blake3>(leaf_1.label),
-        ]);
+        let leaf_1_hash =
+            Blake3::merge(&[Blake3::hash(&[1u8]), hash_label::<Blake3>(leaf_1.label)]);
         let leaf_2_hash = Blake3::merge(&[
             Blake3::hash(&[1u8, 1u8]),
             hash_label::<Blake3>(leaf_2.label),
@@ -819,19 +805,13 @@ mod tests {
 
         // Children: left: leaf2, right: leaf1, label: 1
         let right_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[
-                leaf_2_hash,
-                leaf_1_hash,
-            ]),
+            Blake3::merge(&[leaf_2_hash, leaf_1_hash]),
             hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
         ]);
 
         // Children: left: new_leaf, right: leaf3, label: 0
         let left_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[
-                leaf_0_hash,
-                leaf_3_hash,
-            ]),
+            Blake3::merge(&[leaf_0_hash, leaf_3_hash]),
             hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
         ]);
 
@@ -848,22 +828,19 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes)
             .await?;
 
-        let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<HistoryTreeNode>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
             DbRecord::HistoryTreeNode(node) => to_digest::<Blake3>(&node.hash)?,
             _ => panic!("Root not found in storage."),
         };
 
         let expected = Blake3::merge(&[
-            Blake3::merge(&[
-                left_child_expected_hash,
-                right_child_expected_hash,
-            ]),
+            Blake3::merge(&[left_child_expected_hash, right_child_expected_hash]),
             hash_label::<Blake3>(root.label),
         ]);
         assert!(root_digest == expected, "Root hash not equal to expected");
-
-
 
         Ok(())
     }
@@ -897,10 +874,7 @@ mod tests {
             let left_child_hash = leaf_hashes[2 * i];
             let right_child_hash = leaf_hashes[2 * i + 1];
             layer_1_hashes.push(Blake3::merge(&[
-                Blake3::merge(&[
-                    left_child_hash,
-                    right_child_hash,
-                ]),
+                Blake3::merge(&[left_child_hash, right_child_hash]),
                 hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
             ]));
             j += 1;
@@ -912,20 +886,14 @@ mod tests {
             let left_child_hash = layer_1_hashes[2 * i];
             let right_child_hash = layer_1_hashes[2 * i + 1];
             layer_2_hashes.push(Blake3::merge(&[
-                Blake3::merge(&[
-                    left_child_hash,
-                    right_child_hash,
-                ]),
+                Blake3::merge(&[left_child_hash, right_child_hash]),
                 hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
             ]));
             j += 1;
         }
 
         let expected = Blake3::merge(&[
-            Blake3::merge(&[
-                layer_2_hashes[0],
-                layer_2_hashes[1],
-            ]),
+            Blake3::merge(&[layer_2_hashes[0], layer_2_hashes[1]]),
             hash_label::<Blake3>(root.label),
         ]);
 
@@ -940,7 +908,9 @@ mod tests {
             .await?;
         }
 
-        let stored_root = db.get::<HistoryTreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<HistoryTreeNode>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
             DbRecord::HistoryTreeNode(node) => to_digest::<Blake3>(&node.hash)?,
             _ => panic!("Root not found in storage."),

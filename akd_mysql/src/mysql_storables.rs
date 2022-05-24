@@ -269,9 +269,17 @@ impl MySqlStorable for DbRecord {
 
     fn get_specific_statement<St: Storable>() -> String {
         match St::data_type() {
-            StorageType::Azks => format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS),
-            StorageType::HistoryTreeNode => format!("SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val", SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES),
-            StorageType::ValueState => format!("SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch", SELECT_USER_DATA, TABLE_USER),
+            StorageType::Azks => {
+                format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
+            }
+            StorageType::HistoryTreeNode => format!(
+                "SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val",
+                SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
+            ),
+            StorageType::ValueState => format!(
+                "SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch",
+                SELECT_USER_DATA, TABLE_USER
+            ),
         }
     }
 

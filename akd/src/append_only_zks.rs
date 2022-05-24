@@ -99,12 +99,8 @@ impl Azks {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
-        let new_leaf = get_leaf_node::<H>(
-            node.label,
-            &node.hash,
-            NodeLabel::root(),
-            self.latest_epoch,
-        );
+        let new_leaf =
+            get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
 
         let mut root_node = HistoryTreeNode::get_from_storage(
             storage,
@@ -176,10 +172,7 @@ impl Azks {
 
                 for dir in 0..ARITY {
                     let child = node
-                        .get_child_state::<S>(
-                            storage,
-                            Direction::Some(dir),
-                        )
+                        .get_child_state::<S>(storage, Direction::Some(dir))
                         .await?;
 
                     if let Some(child) = child {
@@ -223,18 +216,9 @@ impl Azks {
         .await?;
         for node in insertion_set {
             let new_leaf = if append_only_usage {
-                get_leaf_node_without_hashing::<H>(
-                    node,
-                    NodeLabel::root(),
-                    self.latest_epoch,
-                )
+                get_leaf_node_without_hashing::<H>(node, NodeLabel::root(), self.latest_epoch)
             } else {
-                get_leaf_node::<H>(
-                    node.label,
-                    &node.hash,
-                    NodeLabel::root(),
-                    self.latest_epoch,
-                )
+                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch)
             };
 
             debug!("BEGIN insert leaf");
@@ -284,9 +268,7 @@ impl Azks {
         label: NodeLabel,
         _epoch: u64,
     ) -> Result<MembershipProof<H>, AkdError> {
-        let (pf, _) = self
-            .get_membership_proof_and_node(storage, label)
-            .await?;
+        let (pf, _) = self.get_membership_proof_and_node(storage, label).await?;
         Ok(pf)
     }
 
@@ -299,9 +281,8 @@ impl Azks {
         label: NodeLabel,
         _epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
-        let (longest_prefix_membership_proof, lcp_node_label) = self
-            .get_membership_proof_and_node(storage, label)
-            .await?;
+        let (longest_prefix_membership_proof, lcp_node_label) =
+            self.get_membership_proof_and_node(storage, label).await?;
         let lcp_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
             storage,
             &NodeKey(lcp_node_label),
@@ -410,8 +391,7 @@ impl Azks {
                 hash: to_digest::<H>(&node.hash)?,
             });
         } else {
-            for child_label in [node.left_child, node.right_child]
-            {
+            for child_label in [node.left_child, node.right_child] {
                 match child_label {
                     None => {
                         continue;
@@ -517,18 +497,18 @@ impl Azks {
                 break;
             }
             if let Some(next_state) = next_state {
-            for i in 0..ARITY {
-                let no_direction_error = AkdError::HistoryTreeNode(
-                    HistoryTreeNodeError::NoDirection(curr_node.label, None),
-                );
-                if i != dir.ok_or(no_direction_error)? {
-                    nodes[count] = Node::<H> {
-                        label: next_state.label,
-                        hash: to_digest::<H>(&next_state.hash)?,
-                    };
-                    count += 1;
+                for i in 0..ARITY {
+                    let no_direction_error = AkdError::HistoryTreeNode(
+                        HistoryTreeNodeError::NoDirection(curr_node.label, None),
+                    );
+                    if i != dir.ok_or(no_direction_error)? {
+                        nodes[count] = Node::<H> {
+                            label: next_state.label,
+                            hash: to_digest::<H>(&next_state.hash)?,
+                        };
+                        count += 1;
+                    }
                 }
-            }
             } else {
                 break;
             }
@@ -539,9 +519,7 @@ impl Azks {
             });
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
-                &NodeKey(
-                    curr_node.get_child(dir).unwrap().unwrap()
-                ),
+                &NodeKey(curr_node.get_child(dir).unwrap().unwrap()),
                 self.get_latest_epoch(),
             )
             .await?;
