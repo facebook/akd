@@ -11,7 +11,7 @@ use crate::errors::{AkdError, HistoryTreeNodeError, StorageError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction, EMPTY_LABEL, EMPTY_VALUE};
+use crate::{node_state::*, Direction, EMPTY_LABEL};
 use async_recursion::async_recursion;
 use log::debug;
 use std::convert::TryInto;
@@ -627,10 +627,9 @@ pub(crate) fn optional_child_state_to_label(
 }
 
 /// Retrieve an empty root node
-pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
-    storage: &S,
+pub fn get_empty_root<H: Hasher>(
     ep: Option<u64>,
-) -> Result<HistoryTreeNode, AkdError> {
+) -> HistoryTreeNode {
     // Empty root hash is the same as empty node hash
     let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash::<H>());
     let mut node = HistoryTreeNode::new(
@@ -648,17 +647,16 @@ pub async fn get_empty_root<H: Hasher, S: Storage + Send + Sync>(
         node.last_epoch = epoch;
     }
 
-    Ok(node)
+    node
 }
 
 /// Get a specific leaf node
-pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
-    storage: &S,
+pub fn get_leaf_node<H: Hasher>(
     label: NodeLabel,
     value: &H::Digest,
     parent: NodeLabel,
     birth_epoch: u64,
-) -> Result<HistoryTreeNode, AkdError> {
+) -> HistoryTreeNode {
     let node = HistoryTreeNode {
         label,
         birth_epoch,
@@ -671,15 +669,14 @@ pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
         hash: from_digest::<H>(*value),
     };
 
-    Ok(node)
+    node
 }
 
-pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync + Send>(
-    storage: &S,
+pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
     node: Node<H>,
     parent: NodeLabel,
     birth_epoch: u64,
-) -> Result<HistoryTreeNode, AkdError> {
+) -> HistoryTreeNode {
     let leaf_hash = from_digest::<H>(node.hash);
     let history_node = HistoryTreeNode {
         label: node.label,
@@ -692,7 +689,7 @@ pub(crate) async fn get_leaf_node_without_hashing<H: Hasher, S: Storage + Sync +
         hash: leaf_hash,
     };
 
-    Ok(history_node)
+    history_node
 }
 
 pub(crate) async fn set_state_map<S: Storage + Sync + Send>(
@@ -728,7 +725,7 @@ mod tests {
     use super::*;
     use crate::{
         node_state::{byte_arr_from_u64, hash_label, HistoryChildState, NodeLabel},
-        serialization::from_digest,
+        serialization::from_digest, EMPTY_VALUE,
     };
     use std::convert::TryInto;
     use winter_crypto::{hashers::Blake3_256, Hasher};
@@ -743,35 +740,31 @@ mod tests {
     async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
 
-        let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
+        let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
         root.write_to_storage(&db).await?;
 
         // Num nodes in total (currently only the root).
         let mut num_nodes = 1;
 
         // Prepare the leaf to be inserted with label 0.
-        let leaf_0 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_0 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
         root.insert_single_leaf::<_, Blake3>(&db, leaf_0.clone(), 0, &mut num_nodes)
             .await?;
         assert_eq!(num_nodes, 2);
 
         // Prepare another leaf to insert with label 1.
-        let leaf_1 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_1 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
         // Insert leaf 1.
         root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes)
@@ -816,33 +809,27 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
-        let new_leaf = get_leaf_node::<Blake3, _>(
-            &db,
+        let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
+        let new_leaf = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
-        )
-        .await?;
+        );
 
-        let leaf_1 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_1 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             2,
-        )
-        .await?;
+        );
 
-        let leaf_2 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_2 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &Blake3::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             3,
-        )
-        .await?;
+        );
 
         let leaf_0_hash =
             Blake3::merge(&[Blake3::hash(&EMPTY_VALUE),
@@ -905,43 +892,35 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
+        let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
 
-        let new_leaf = get_leaf_node::<Blake3, _>(
-            &db,
+        let new_leaf = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
-        let leaf_1 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_1 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
-        let leaf_2 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_2 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
             &Blake3::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
-        let leaf_3 = get_leaf_node::<Blake3, _>(
-            &db,
+        let leaf_3 = get_leaf_node::<Blake3>(
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
             &Blake3::hash(&[0u8, 1u8]),
             NodeLabel::root(),
             0,
-        )
-        .await?;
+        );
 
         let leaf_0_hash = Blake3::merge(&[
             Blake3::hash(&EMPTY_VALUE),
@@ -1016,21 +995,19 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3, _>(&db, Option::Some(0u64)).await?;
+        let mut root = get_empty_root::<Blake3>(Option::Some(0u64));
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
         let mut leaves = Vec::<HistoryTreeNode>::new();
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i.clone() << 61;
-            let new_leaf = get_leaf_node::<Blake3, _>(
-                &db,
+            let new_leaf = get_leaf_node::<Blake3>(
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
                 &Blake3::hash(&leaf_u64.to_be_bytes()),
                 NodeLabel::root(),
                 7 - i,
-            )
-            .await?;
+            );
             leaf_hashes.push(Blake3::merge(&[
                 Blake3::hash(&leaf_u64.to_be_bytes()),
                 hash_label::<Blake3>(new_leaf.label),

@@ -78,7 +78,7 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H, S>(storage, Option::Some(0)).await?;
+        let root = get_empty_root::<H>(Option::Some(0));
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
@@ -99,14 +99,12 @@ impl Azks {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         self.increment_epoch();
 
-        let new_leaf = get_leaf_node::<H, S>(
-            storage,
+        let new_leaf = get_leaf_node::<H>(
             node.label,
             &node.hash,
             NodeLabel::root(),
             self.latest_epoch,
-        )
-        .await?;
+        );
 
         let mut root_node = HistoryTreeNode::get_from_storage(
             storage,
@@ -233,22 +231,18 @@ impl Azks {
         .await?;
         for node in insertion_set {
             let new_leaf = if append_only_usage {
-                get_leaf_node_without_hashing::<H, S>(
-                    storage,
+                get_leaf_node_without_hashing::<H>(
                     node,
                     NodeLabel::root(),
                     self.latest_epoch,
                 )
-                .await?
             } else {
-                get_leaf_node::<H, S>(
-                    storage,
+                get_leaf_node::<H>(
                     node.label,
                     &node.hash,
                     NodeLabel::root(),
                     self.latest_epoch,
                 )
-                .await?
             };
 
             debug!("BEGIN insert leaf");
@@ -299,7 +293,7 @@ impl Azks {
         epoch: u64,
     ) -> Result<MembershipProof<H>, AkdError> {
         let (pf, _) = self
-            .get_membership_proof_and_node(storage, label, epoch)
+            .get_membership_proof_and_node(storage, label)
             .await?;
         Ok(pf)
     }
@@ -314,7 +308,7 @@ impl Azks {
         epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
         let (longest_prefix_membership_proof, lcp_node_label) = self
-            .get_membership_proof_and_node(storage, label, epoch)
+            .get_membership_proof_and_node(storage, label)
             .await?;
         let lcp_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
             storage,
@@ -505,7 +499,6 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
     ) -> Result<(MembershipProof<H>, NodeLabel), AkdError> {
         let mut layer_proofs = Vec::new();
         let mut curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
