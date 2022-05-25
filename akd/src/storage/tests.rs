@@ -260,7 +260,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1;
+                                && value_state.version == result.1 .0;
                         }
                         false
                     })
@@ -274,7 +274,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     });
 
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1), initial_record);
+                assert_eq!(Some(result.1 .0), initial_record);
             }
         }
     }
@@ -301,7 +301,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1;
+                                && value_state.version == result.1 .0;
                         }
                         false
                     })
@@ -314,7 +314,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                         }
                     });
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1), initial_record);
+                assert_eq!(Some(result.1 .0), initial_record);
             }
         }
     }

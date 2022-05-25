@@ -109,11 +109,11 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;
@@ -229,11 +229,11 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;
@@ -581,11 +581,11 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;
@@ -774,6 +774,53 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(false, tombstones[2]);
     assert_eq!(true, tombstones[3]);
     assert_eq!(true, tombstones[4]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_publish_skip_same_value() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    // epoch 0
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    // epoch 1
+    let epoch1_hash = akd
+        .publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("user"),
+            AkdValue::from_utf8_str("value"),
+        )])
+        .await?;
+
+    assert_eq!(1u64, epoch1_hash.0);
+
+    // still epoch 1 because the value is the same
+    let epoch1_hash_again = akd
+        .publish::<Blake3>(vec![(
+            AkdLabel::from_utf8_str("user"),
+            AkdValue::from_utf8_str("value"),
+        )])
+        .await?;
+
+    assert_eq!(1u64, epoch1_hash_again.0);
+    assert_eq!(epoch1_hash.1, epoch1_hash_again.1);
+
+    // epoch 2 because even though 1 value is the same, the other value is unique so we
+    // should continue with a publish
+    let epoch2_hash = akd
+        .publish::<Blake3>(vec![
+            (
+                AkdLabel::from_utf8_str("user"),
+                AkdValue::from_utf8_str("value"),
+            ),
+            (
+                AkdLabel::from_utf8_str("user2"),
+                AkdValue::from_utf8_str("value"),
+            ),
+        ])
+        .await?;
+    assert_eq!(2u64, epoch2_hash.0);
 
     Ok(())
 }

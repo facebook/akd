@@ -149,9 +149,9 @@ pub trait Storage: Clone {
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
         &self,
-        keys: &[types::AkdLabel],
+        usernames: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
+    ) -> Result<HashMap<types::AkdLabel, (u64, types::AkdValue)>, StorageError>;
 }
 
 /// Optional storage layer utility functions for debug and test purposes

@@ -12,7 +12,8 @@
 use crate::errors::StorageError;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::{
-    AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
+    AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateKey,
+    ValueStateRetrievalFlag,
 };
 use crate::storage::{Storable, Storage, StorageUtil};
 use async_trait::async_trait;
@@ -324,11 +325,14 @@ impl Storage for AsyncInMemoryDatabase {
         &self,
         keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdLabel, u64>, StorageError> {
+    ) -> Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError> {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdLabel(result.username.to_vec()), result.version);
+                map.insert(
+                    AkdLabel(result.username.to_vec()),
+                    (result.version, AkdValue(result.plaintext_val.to_vec())),
+                );
             }
         }
         Ok(map)
@@ -792,11 +796,14 @@ impl Storage for AsyncInMemoryDbWithCache {
         &self,
         keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> Result<HashMap<AkdLabel, u64>, StorageError> {
+    ) -> Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError> {
         let mut map = HashMap::new();
         for username in keys.iter() {
             if let Ok(result) = self.get_user_state(username, flag).await {
-                map.insert(AkdLabel(result.username.to_vec()), result.version);
+                map.insert(
+                    AkdLabel(result.username.to_vec()),
+                    (result.version, AkdValue(result.plaintext_val.to_vec())),
+                );
             }
         }
         Ok(map)

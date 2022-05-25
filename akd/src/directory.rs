@@ -166,7 +166,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
                 }
-                Some(previous_version) => {
+                Some((_, previous_value)) if val == *previous_value => {
+                    // skip this version because the user is trying to re-publish the already most recent value
+                    // Issue #197: https://github.com/novifinancial/akd/issues/197
+                }
+                Some((previous_version, _)) => {
                     // Data found for the given user
                     let latest_version = *previous_version + 1;
                     let stale_label = self
@@ -199,6 +203,13 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             }
         }
         let insertion_set: Vec<Node<H>> = update_set.to_vec();
+
+        if insertion_set.is_empty() {
+            info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
+            // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
+            let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
+            return Ok(EpochHash(current_epoch, root_hash));
+        }
 
         if let false = self.storage.begin_transaction().await {
             error!("Transaction is already active");
@@ -233,7 +244,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
             .await?;
 
-        Ok(EpochHash(current_epoch, root_hash))
+        Ok(EpochHash(next_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }

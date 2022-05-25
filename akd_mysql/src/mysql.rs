@@ -12,7 +12,7 @@ use akd::errors::StorageError;
 use akd::history_tree_node::HistoryTreeNode;
 use akd::node_state::HistoryNodeState;
 use akd::storage::types::{
-    AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
+    AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
 use akd::NodeLabel;
@@ -1429,7 +1429,7 @@ impl Storage for AsyncMySqlDatabase {
         &self,
         keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
-    ) -> core::result::Result<HashMap<AkdLabel, u64>, StorageError> {
+    ) -> core::result::Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError> {
         *(self.num_reads.write().await) += 1;
         self.record_call_stats('r', "get_user_state_versions".to_string(), "".to_string())
             .await;
@@ -1551,7 +1551,7 @@ impl Storage for AsyncMySqlDatabase {
                 }
             };
             let select_statement = format!(
-                r"SELECT full.`username`, full.`version`
+                r"SELECT full.`username`, full.`version`, full.`data`
                 FROM {} full
                 INNER JOIN (
                     SELECT tmp.`username`, {} AS `epoch`
@@ -1571,10 +1571,10 @@ impl Storage for AsyncMySqlDatabase {
                 let _t = conn.query_iter(select_statement).await;
                 self.check_for_infra_error(_t)?
                     .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
-                        if let (Some(Ok(username)), Some(Ok(version))) =
-                            (row.take_opt(0), row.take_opt(1))
+                        if let (Some(Ok(username)), Some(Ok(version)), Some(Ok(data))) =
+                            (row.take_opt(0), row.take_opt(1), row.take_opt(2))
                         {
-                            acc.push((AkdLabel(username), version))
+                            acc.push((AkdLabel(username), (version, AkdValue(data))))
                         }
                         acc
                     })
@@ -1585,10 +1585,10 @@ impl Storage for AsyncMySqlDatabase {
                     .await;
                 self.check_for_infra_error(_t)?
                     .reduce_and_drop(vec![], |mut acc, mut row: mysql_async::Row| {
-                        if let (Some(Ok(username)), Some(Ok(version))) =
-                            (row.take_opt(0), row.take_opt(1))
+                        if let (Some(Ok(username)), Some(Ok(version)), Some(Ok(data))) =
+                            (row.take_opt(0), row.take_opt(1), row.take_opt(2))
                         {
-                            acc.push((AkdLabel(username), version))
+                            acc.push((AkdLabel(username), (version, AkdValue(data))))
                         }
                         acc
                     })
