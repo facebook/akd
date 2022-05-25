@@ -54,7 +54,7 @@ async fn test_read() {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "EOF encountered while looking for start of YAML doc")]
 async fn test_read_invalid_file() {
     // create an invalid file with no YAML separators
     let file = NamedTempFile::new("invalid.yaml").unwrap();
