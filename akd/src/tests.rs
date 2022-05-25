@@ -804,6 +804,7 @@ async fn test_publish_skip_same_value() -> Result<(), AkdError> {
         .await?;
 
     assert_eq!(1u64, epoch1_hash_again.0);
+    assert_eq!(epoch1_hash.1, epoch1_hash_again.1);
 
     // epoch 2 because even though 1 value is the same, the other value is unique so we
     // should continue with a publish
