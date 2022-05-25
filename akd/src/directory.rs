@@ -207,9 +207,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         if insertion_set.is_empty() {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
-            let root_hash = current_azks
-                .get_root_hash::<_, H>(&self.storage)
-                .await?;
+            let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
