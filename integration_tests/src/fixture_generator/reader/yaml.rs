@@ -57,10 +57,8 @@ impl YamlFileReader {
                 Some(Ok(_)) => {
                     self.buffer.next();
                 }
-                None => {
-                    self.buffer = Self::buffer(&self.file);
-                }
-                _ => panic!("Error parsing YAML file"),
+                None => panic!("EOF encountered while looking for start of YAML doc"),
+                Some(Err(err)) => panic!("Error parsing YAML file: {}", err),
             }
         }
 
@@ -81,7 +79,7 @@ impl YamlFileReader {
                     self.buffer = Self::buffer(&self.file);
                     return doc;
                 }
-                _ => panic!("Error parsing YAML file"),
+                Some(Err(err)) => panic!("Error parsing YAML file: {}", err),
             }
         }
     }
