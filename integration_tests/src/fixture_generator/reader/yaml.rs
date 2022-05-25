@@ -75,6 +75,7 @@ impl YamlFileReader {
                     self.buffer.next();
                 }
                 None => {
+                    // EOF encountered, reset buffer before returning
                     self.index = 0;
                     self.buffer = Self::buffer(&self.file);
                     return doc;
