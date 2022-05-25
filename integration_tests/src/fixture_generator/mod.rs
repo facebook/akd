@@ -17,6 +17,7 @@
 //!     --capture_deltas 10
 //!
 
+mod examples;
 mod generator;
 mod parser;
 mod writer;
