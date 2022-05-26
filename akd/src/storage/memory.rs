@@ -847,6 +847,7 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 }
 
+#[cfg(feature = "public-tests")]
 #[async_trait]
 impl StorageUtil for AsyncInMemoryDbWithCache {
     async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError> {

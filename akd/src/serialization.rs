@@ -9,6 +9,7 @@
 
 use crate::errors::{AkdError, HistoryTreeNodeError};
 
+#[cfg(feature = "serde_serialization")]
 use hex::{FromHex, ToHex};
 #[cfg(feature = "serde_serialization")]
 use serde::{Deserialize, Serialize};
