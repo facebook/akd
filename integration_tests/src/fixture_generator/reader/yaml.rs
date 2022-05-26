@@ -58,7 +58,7 @@ impl YamlFileReader {
         // find start of doc
         loop {
             match self.buffer.peek() {
-                Some(Ok(sep)) if sep == YAML_SEPARATOR => {
+                Some(Ok(sep)) if sep.trim_end() == YAML_SEPARATOR => {
                     self.buffer.next();
                     break;
                 }
@@ -78,7 +78,7 @@ impl YamlFileReader {
         let mut doc = String::new();
         loop {
             match self.buffer.peek() {
-                Some(Ok(sep)) if sep == YAML_SEPARATOR => {
+                Some(Ok(sep)) if sep.trim_end() == YAML_SEPARATOR => {
                     self.index += 1;
                     return Ok(doc);
                 }
