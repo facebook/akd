@@ -17,9 +17,12 @@
 //!     --capture_deltas 10
 //!
 
+mod examples;
 mod generator;
 mod parser;
 mod writer;
 
-/// Re-export generator run function
+pub mod reader;
+
+/// Re-export generator run function.
 pub use generator::run;

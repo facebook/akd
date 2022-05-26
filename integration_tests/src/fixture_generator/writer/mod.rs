@@ -5,8 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module contains the Writer trait for an implementor to write the tool's
-//! serde-compatible output to a format, as well as implementations of the trait.
+//! This module contains the Writer trait to serialize the tool's serde-compatible
+//! objects to a format, as well as implementations of the trait.
 
 use serde::Serialize;
 

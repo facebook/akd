@@ -26,5 +26,6 @@ once_cell = "1"
 thread-id = "3"
 multi_log = "0.1"
 hex = "0.4.3"
+assert_fs="1"
 
 akd_mysql = { path = "../akd_mysql" }

@@ -64,6 +64,10 @@ const DELTA_COMMENT: &str = "Delta - Epoch";
 
 pub async fn run() {
     let args = Args::parse();
+    generate(args).await;
+}
+
+pub(crate) async fn generate(args: Args) {
     let mut rng = OsRng;
 
     // args assertions
