@@ -28,7 +28,7 @@ const TEST_FILE: &str = "src/fixture_generator/examples/test.yaml";
 #[tokio::test]
 async fn test_use_fixture() {
     // load fixture
-    let mut reader = YamlFileReader::new(File::open(TEST_FILE).unwrap());
+    let mut reader = YamlFileReader::new(File::open(TEST_FILE).unwrap()).unwrap();
     let metadata = reader.read_metadata().unwrap();
     let epochs = metadata.args.capture_states.unwrap();
 

@@ -16,7 +16,7 @@ use clap::Parser;
 use crate::fixture_generator::generator;
 use crate::fixture_generator::parser::Args;
 use crate::fixture_generator::reader::yaml::YamlFileReader;
-use crate::fixture_generator::reader::Reader;
+use crate::fixture_generator::reader::{Reader, ReaderError};
 
 #[tokio::test]
 async fn test_read() {
@@ -37,32 +37,35 @@ async fn test_read() {
     generator::generate(args).await;
 
     // initialize reader
-    let mut reader = YamlFileReader::new(File::open(file).unwrap());
+    let mut reader = YamlFileReader::new(File::open(file).unwrap()).unwrap();
 
     // objects can be read in any order
-    assert!(reader.read_state(10).is_some());
-    assert!(reader.read_delta(10).is_some());
-    assert!(reader.read_state(9).is_some());
-    assert!(reader.read_metadata().is_some());
+    assert!(reader.read_state(10).is_ok());
+    assert!(reader.read_delta(10).is_ok());
+    assert!(reader.read_state(9).is_ok());
+    assert!(reader.read_metadata().is_ok());
 
-    // reading a non-existent object will return a None
-    assert!(reader.read_delta(9).is_none());
-    assert!(reader.read_state(11).is_none());
+    // reading a non-existent object will return a NotFound error
+    assert_eq!(Err(ReaderError::NotFound), reader.read_delta(9));
+    assert_eq!(Err(ReaderError::NotFound), reader.read_state(11));
 
     // reading an already read object is OK
-    assert!(reader.read_metadata().is_some());
+    assert!(reader.read_metadata().is_ok());
 }
 
 #[tokio::test]
-#[should_panic(expected = "EOF encountered while looking for start of YAML doc")]
-async fn test_read_invalid_file() {
+async fn test_read_invalid_format() {
     // create an invalid file with no YAML separators
     let file = NamedTempFile::new("invalid.yaml").unwrap();
     file.write_str("a\nb\nc\n").unwrap();
 
     // initialize reader
-    let mut reader = YamlFileReader::new(File::open(file).unwrap());
+    let mut reader = YamlFileReader::new(File::open(file).unwrap()).unwrap();
 
-    // reading any object will cause a panic
-    reader.read_metadata();
+    // reading any object will return a Format error
+    assert!(matches!(
+        reader.read_metadata(),
+        Err(ReaderError::Format(_))
+    ));
+    assert!(matches!(reader.read_state(0), Err(ReaderError::Format(_))));
 }
