@@ -18,7 +18,7 @@ use crate::{Direction, ARITY, EMPTY_VALUE};
 
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
-#[cfg(feature = "serde_serialization")]
+
 use std::{
     convert::TryInto,
     fmt::{self, Debug},
