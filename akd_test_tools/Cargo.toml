@@ -19,6 +19,7 @@ rand = "0.7"
 serde_yaml = "0.8"
 serde = "1.0"
 async-trait = "0.1"
+thread-id = "3"
 
 akd = { path = "../akd", features = ["serde_serialization"], version = "^0.6.1" }
 

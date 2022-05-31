@@ -6,3 +6,5 @@
 // of this source tree.
 
 pub mod fixture_generator;
+
+pub mod test_suites;
