@@ -2,7 +2,7 @@
 name = "akd_test_tools"
 version = "0.6.1"
 authors = ["Evan Au <evanau@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
-description = "Test generation and loading tooling"
+description = "Test utilities and tooling"
 license = "MIT OR Apache-2.0"
 edition = "2018"
 keywords = ["key-transparency", "akd"]
