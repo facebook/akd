@@ -5,9 +5,4 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd_integration_tests::fixture_generator;
-
-#[tokio::main]
-async fn main() {
-    fixture_generator::run().await;
-}
+pub mod fixture_generator;
