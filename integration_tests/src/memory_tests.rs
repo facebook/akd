@@ -10,8 +10,9 @@ use log::info;
 
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
 
-#[tokio::test]
-#[serial_test::serial]
+// #[tokio::test]
+// #[serial_test::serial]
+#[allow(dead_code)]
 async fn test_directory_operations() {
     crate::test_util::log_init(log::Level::Info);
 
