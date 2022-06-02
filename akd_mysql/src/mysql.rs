@@ -10,7 +10,6 @@
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
 use akd::history_tree_node::HistoryTreeNode;
-use akd::node_state::HistoryNodeState;
 use akd::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
@@ -345,6 +344,8 @@ impl<'a> AsyncMySqlDatabase {
             + "  `birth_epoch` BIGINT UNSIGNED NOT NULL,"
             + " `last_epoch` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
+            + " `left_child_len` INT UNSIGNED NOT NULL, `left_child_label_val` VARBINARY(32) NOT NULL,"
+            + " `right_child_len` INT UNSIGNED NOT NULL, `right_child_label_val` VARBINARY(32) NOT NULL,"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 
@@ -489,9 +490,6 @@ impl<'a> AsyncMySqlDatabase {
         let statement = |i: usize| -> String {
             match &head {
                 DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::Azks>(i),
-                DbRecord::HistoryNodeState(_) => {
-                    DbRecord::set_batch_statement::<HistoryNodeState>(i)
-                }
                 DbRecord::HistoryTreeNode(_) => DbRecord::set_batch_statement::<HistoryTreeNode>(i),
                 DbRecord::ValueState(_) => {
                     DbRecord::set_batch_statement::<akd::storage::types::ValueState>(i)
@@ -829,10 +827,6 @@ impl Storage for AsyncMySqlDatabase {
                     .entry(StorageType::Azks)
                     .or_insert_with(Vec::new)
                     .push(record),
-                DbRecord::HistoryNodeState(_) => groups
-                    .entry(StorageType::HistoryNodeState)
-                    .or_insert_with(Vec::new)
-                    .push(record),
                 DbRecord::HistoryTreeNode(_) => groups
                     .entry(StorageType::HistoryTreeNode)
                     .or_insert_with(Vec::new)
@@ -857,13 +851,6 @@ impl Storage for AsyncMySqlDatabase {
                 if !value.is_empty() {
                     // Sort the records to match db-layer sorting which will help with insert performance
                     value.sort_by(|a, b| match &a {
-                        DbRecord::HistoryNodeState(state) => {
-                            if let DbRecord::HistoryNodeState(state2) = &b {
-                                state.key.cmp(&state2.key)
-                            } else {
-                                Ordering::Equal
-                            }
-                        }
                         DbRecord::HistoryTreeNode(node) => {
                             if let DbRecord::HistoryTreeNode(node2) = &b {
                                 node.label.cmp(&node2.label)
@@ -1616,57 +1603,6 @@ impl Storage for AsyncMySqlDatabase {
         debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
-            Err(error) => {
-                error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
-            }
-        }
-    }
-
-    async fn get_epoch_lte_epoch(
-        &self,
-        node_label: NodeLabel,
-        epoch_in_question: u64,
-    ) -> core::result::Result<u64, StorageError> {
-        *(self.num_reads.write().await) += 1;
-        self.record_call_stats('r', "get_epoch_lte_epoch".to_string(), "".to_string())
-            .await;
-
-        let result = async {
-            let tic = Instant::now();
-
-            let mut conn = self.get_connection().await?;
-
-            let statement = format!("SELECT `epoch` FROM {} WHERE `label_len` = :len AND `label_val` = :val AND `epoch` <= :epoch ORDER BY `epoch` DESC LIMIT 1", TABLE_HISTORY_NODE_STATES);
-            let out = conn
-                .exec_first(
-                    statement,
-                    params! {
-                        "len" => node_label.len,
-                        "val" => node_label.val,
-                        "epoch" => epoch_in_question,
-                    },
-                )
-                .await;
-
-            let toc = Instant::now() - tic;
-            *(self.time_read.write().await) += toc;
-
-            let result = self.check_for_infra_error(out)?;
-
-            match result {
-                Some(r) => Ok::<_, MySqlError>(r),
-                None => Ok::<_, MySqlError>(u64::MAX),
-            }
-        };
-
-        debug!("END MySQL get epoch LTE epoch");
-        match result.await {
-            Ok(u64::MAX) => Err(StorageError::NotFound(format!(
-                "Node (val: {:?}, len: {}) did not exist <= epoch {}",
-                node_label.val, node_label.len, epoch_in_question
-            ))),
-            Ok(ep) => Ok(ep),
             Err(error) => {
                 error!("MySQL error {}", error);
                 Err(StorageError::Other(format!("MySQL Error {}", error)))

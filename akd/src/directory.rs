@@ -742,9 +742,9 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        Ok(current_azks
+        current_azks
             .get_root_hash_at_epoch::<_, H>(&self.storage, epoch)
-            .await?)
+            .await
     }
 
     /// Gets the azks root hash at the current epoch.

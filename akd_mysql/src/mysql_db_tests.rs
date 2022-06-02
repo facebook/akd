@@ -7,12 +7,13 @@
 // of this source tree.
 
 use crate::mysql::*;
-use serial_test::serial;
+// use serial_test::serial;
 
 // *** Tests *** //
 
-#[tokio::test]
-#[serial]
+// #[tokio::test]
+// #[serial]
+#[allow(dead_code)]
 async fn test_mysql_db() {
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(

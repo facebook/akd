@@ -79,10 +79,12 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
 
     let node = HistoryTreeNode {
         label: NodeLabel::new(byte_arr_from_u64(13), 4),
-        birth_epoch: 123,
         last_epoch: 234,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
+        left_child: None,
+        right_child: None,
+        hash: [0; 32],
     };
     let mut node2 = node.clone();
     node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);
@@ -101,7 +103,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         assert_eq!(got_node.label, node.label);
         assert_eq!(got_node.parent, node.parent);
         assert_eq!(got_node.node_type, node.node_type);
-        assert_eq!(got_node.birth_epoch, node.birth_epoch);
         assert_eq!(got_node.last_epoch, node.last_epoch);
     } else {
         panic!("Failed to retrieve History Tree Node");
@@ -110,27 +111,6 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let get_result = storage.get::<HistoryTreeNode>(&key2).await;
     if let Err(err) = get_result {
         panic!("Failed to retrieve history tree node (2) {:?}", err)
-    }
-
-    // === HistoryNodeState storage === //
-    let key = NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1);
-    let node_state = HistoryNodeState {
-        value: [0u8; 32],
-        child_states: [None, None],
-        key,
-    };
-    let set_result = storage
-        .set(DbRecord::HistoryNodeState(node_state.clone()))
-        .await;
-    assert_eq!(Ok(()), set_result);
-
-    let get_result = storage.get::<HistoryNodeState>(&key).await;
-    if let Ok(DbRecord::HistoryNodeState(got_state)) = get_result {
-        assert_eq!(got_state.value, node_state.value);
-        assert_eq!(got_state.child_states, node_state.child_states);
-        assert_eq!(got_state.key, node_state.key);
-    } else {
-        panic!("Failed to retrieve history node state");
     }
 
     // === ValueState storage === //

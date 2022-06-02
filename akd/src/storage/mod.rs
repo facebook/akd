@@ -119,14 +119,6 @@ pub trait Storage: Clone {
         keys: &[types::ValueStateKey],
     ) -> Result<(), StorageError>;
 
-    /// Retrieve the last epoch <= ```epoch_in_question``` where the node with ```node_key```
-    /// was edited
-    async fn get_epoch_lte_epoch(
-        &self,
-        node_label: crate::node_state::NodeLabel,
-        epoch_in_question: u64,
-    ) -> Result<u64, StorageError>;
-
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(&self, ids: &[St::Key])
         -> Result<Vec<DbRecord>, StorageError>;

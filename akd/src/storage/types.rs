@@ -8,9 +8,8 @@
 //! Various storage and representation related types
 
 use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use crate::storage::Storable;
-use crate::{Azks, NodeLabel, ARITY};
+use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -20,8 +19,8 @@ pub enum StorageType {
     Azks = 1,
     /// HistoryTreeNode
     HistoryTreeNode = 2,
-    /// HistoryNodeState
-    HistoryNodeState = 3,
+    /// EOZ: HistoryNodeState = 3 was removed from here.
+    /// Better to keep ValueState = 4 as is?
     /// ValueState
     ValueState = 4,
 }
@@ -173,8 +172,6 @@ pub enum DbRecord {
     Azks(Azks),
     /// A HistoryTreeNode
     HistoryTreeNode(HistoryTreeNode),
-    /// A HistoryNodeState
-    HistoryNodeState(HistoryNodeState),
     /// The state of the value for a particular key.
     ValueState(ValueState),
 }
@@ -183,7 +180,6 @@ impl Clone for DbRecord {
     fn clone(&self) -> Self {
         match &self {
             DbRecord::Azks(azks) => DbRecord::Azks(azks.clone()),
-            DbRecord::HistoryNodeState(state) => DbRecord::HistoryNodeState(state.clone()),
             DbRecord::HistoryTreeNode(node) => DbRecord::HistoryTreeNode(node.clone()),
             DbRecord::ValueState(state) => DbRecord::ValueState(state.clone()),
         }
@@ -196,7 +192,6 @@ impl DbRecord {
     pub fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),
-            DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
             DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
             DbRecord::ValueState(state) => state.get_full_binary_id(),
         }
@@ -224,51 +219,29 @@ impl DbRecord {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Build a history tree node from the properties
     pub fn build_history_tree_node(
         label_val: [u8; 32],
         label_len: u32,
-        birth_epoch: u64,
         last_epoch: u64,
         parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
+        left_child_val: [u8; 32],
+        left_child_len: u32,
+        right_child_val: [u8; 32],
+        right_child_len: u32,
+        hash: [u8; 32],
     ) -> HistoryTreeNode {
         HistoryTreeNode {
             label: NodeLabel::new(label_val, label_len),
-            birth_epoch,
             last_epoch,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),
-        }
-    }
-
-    /// Build a history node state from the properties
-    pub fn build_history_node_state(
-        value: [u8; 32],
-        child_states: [Option<HistoryChildState>; ARITY],
-        label_len: u32,
-        label_val: [u8; 32],
-        epoch: u64,
-    ) -> HistoryNodeState {
-        HistoryNodeState {
-            value,
-            child_states,
-            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
-        }
-    }
-
-    /// Build a history child state from the properties
-    pub fn build_history_child_state(
-        label_len: u32,
-        label_val: [u8; 32],
-        hash_val: [u8; 32],
-        epoch_version: u64,
-    ) -> HistoryChildState {
-        HistoryChildState {
-            label: NodeLabel::new(label_val, label_len),
-            hash_val,
-            epoch_version,
+            left_child: Some(NodeLabel::new(left_child_val, left_child_len)),
+            right_child: Some(NodeLabel::new(right_child_val, right_child_len)),
+            hash,
         }
     }
 

@@ -10,10 +10,8 @@
 use std::convert::TryInto;
 
 use akd::history_tree_node::{HistoryTreeNode, NodeKey};
-use akd::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
-use akd::ARITY;
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -28,8 +26,6 @@ pub(crate) const TEMP_IDS_TABLE: &str = "temp_ids_table";
 const SELECT_AZKS_DATA: &str = "`epoch`, `num_nodes`";
 const SELECT_HISTORY_TREE_NODE_DATA: &str =
     "`label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`";
-const SELECT_HISTORY_NODE_STATE_DATA: &str =
-    "`label_len`, `label_val`, `epoch`, `value`, `child_states`";
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
 
@@ -66,7 +62,6 @@ impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            DbRecord::HistoryNodeState(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :epoch, :value, :child_states) ON DUPLICATE KEY UPDATE `value` = :value, `child_states` = :child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA),
             DbRecord::HistoryTreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :birth_epoch, :last_epoch, :parent_label_len, :parent_label_val, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `birth_epoch` = :birth_epoch, `last_epoch` = :last_epoch, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
             DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
         }
@@ -77,18 +72,8 @@ impl MySqlStorable for DbRecord {
             DbRecord::Azks(azks) => Some(
                 params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
             ),
-            DbRecord::HistoryNodeState(state) => {
-                if let Ok(bin_data) = bincode::serialize(&state.child_states) {
-                    let id = state.get_id();
-                    Some(
-                        params! { "label_len" => id.0.len, "label_val" => id.0.val, "epoch" => id.1, "value" => state.value, "child_states" => bin_data },
-                    )
-                } else {
-                    None
-                }
-            }
             DbRecord::HistoryTreeNode(node) => Some(
-                params! { "label_len" => node.label.len, "label_val" => node.label.val, "birth_epoch" => node.birth_epoch, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
+                params! { "label_len" => node.label.len, "label_val" => node.label.val, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
             ),
             DbRecord::ValueState(state) => Some(
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() },
@@ -100,12 +85,6 @@ impl MySqlStorable for DbRecord {
         let mut parts = "".to_string();
         for i in 0..items {
             match St::data_type() {
-                StorageType::HistoryNodeState => {
-                    parts = format!(
-                        "{}(:label_len{}, :label_val{}, :epoch{}, :value{}, :child_states{})",
-                        parts, i, i, i, i, i
-                    );
-                }
                 StorageType::HistoryTreeNode => {
                     parts = format!(
                         "{}(:label_len{}, :label_val{}, :birth_epoch{}, :last_epoch{}, :parent_label_len{}, :parent_label_val{}, :node_type{})",
@@ -130,8 +109,7 @@ impl MySqlStorable for DbRecord {
 
         match St::data_type() {
             StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            StorageType::HistoryNodeState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `value` = new.value, `child_states` = new.child_states", TABLE_HISTORY_NODE_STATES, SELECT_HISTORY_NODE_STATE_DATA, parts),
-            StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `birth_epoch` = new.birth_epoch, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
+            StorageType::HistoryTreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
             StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `data` = new.data, `node_label_val` = new.node_label_val, `node_label_len` = new.node_label_len, `version` = new.version", TABLE_USER, SELECT_USER_DATA, parts),
         }
     }
@@ -146,24 +124,9 @@ impl MySqlStorable for DbRecord {
                     ("epoch".to_string(), Value::from(azks.latest_epoch)),
                     ("num_nodes".to_string(), Value::from(azks.num_nodes)),
                 ]),
-                DbRecord::HistoryNodeState(state) => {
-                    if let Ok(bin_data) = bincode::serialize(&state.child_states) {
-                        let id = state.get_id();
-                        Ok(vec![
-                            (format!("label_len{}", idx), Value::from(id.0.len)),
-                            (format!("label_val{}", idx), Value::from(id.0.val)),
-                            (format!("epoch{}", idx), Value::from(id.1)),
-                            (format!("value{}", idx), Value::from(state.value)),
-                            (format!("child_states{}", idx), Value::from(bin_data)),
-                        ])
-                    } else {
-                        Err(MySqlError::Other("Failed to serialize child states".into()))
-                    }
-                }
                 DbRecord::HistoryTreeNode(node) => Ok(vec![
                     (format!("label_len{}", idx), Value::from(node.label.len)),
                     (format!("label_val{}", idx), Value::from(node.label.val)),
-                    (format!("birth_epoch{}", idx), Value::from(node.birth_epoch)),
                     (format!("last_epoch{}", idx), Value::from(node.last_epoch)),
                     (
                         format!("parent_label_len{}", idx),
@@ -207,10 +170,6 @@ impl MySqlStorable for DbRecord {
     fn get_statement<St: Storable>() -> String {
         match St::data_type() {
             StorageType::Azks => format!("SELECT {} FROM `{}`", SELECT_AZKS_DATA, TABLE_AZKS),
-            StorageType::HistoryNodeState => format!(
-                "SELECT {} FROM `{}`",
-                SELECT_HISTORY_NODE_STATE_DATA, TABLE_HISTORY_NODE_STATES
-            ),
             StorageType::HistoryTreeNode => format!(
                 "SELECT {} FROM `{}`",
                 SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
@@ -222,14 +181,6 @@ impl MySqlStorable for DbRecord {
     fn get_batch_create_temp_table<St: Storable>() -> Option<String> {
         match St::data_type() {
             StorageType::Azks => None,
-            StorageType::HistoryNodeState => {
-                Some(
-                    format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`label_len`, `label_val`, `epoch`))",
-                        TEMP_IDS_TABLE
-                    )
-                )
-            },
             StorageType::HistoryTreeNode => {
                 Some(
                     format!(
@@ -252,12 +203,6 @@ impl MySqlStorable for DbRecord {
     fn get_batch_fill_temp_table<St: Storable>(num_items: Option<usize>) -> String {
         let mut statement = match St::data_type() {
             StorageType::Azks => "".to_string(),
-            StorageType::HistoryNodeState => {
-                format!(
-                    "INSERT INTO `{}` (`label_len`, `label_val`, `epoch`) VALUES ",
-                    TEMP_IDS_TABLE
-                )
-            }
             StorageType::HistoryTreeNode => {
                 format!(
                     "INSERT INTO `{}` (`label_len`, `label_val`) VALUES ",
@@ -275,9 +220,6 @@ impl MySqlStorable for DbRecord {
             for i in 0..item_count {
                 let append = match St::data_type() {
                     StorageType::Azks => String::from(""),
-                    StorageType::HistoryNodeState => {
-                        format!("(:label_len{}, :label_val{}, :epoch{})", i, i, i)
-                    }
                     StorageType::HistoryTreeNode => {
                         format!("(:label_len{}, :label_val{})", i, i)
                     }
@@ -295,7 +237,6 @@ impl MySqlStorable for DbRecord {
         } else {
             statement += match St::data_type() {
                 StorageType::Azks => "",
-                StorageType::HistoryNodeState => "(:label_len, :label_val, :epoch)",
                 StorageType::HistoryTreeNode => "(:label_len, :label_val)",
                 StorageType::ValueState => "(:username, :epoch)",
             };
@@ -307,13 +248,6 @@ impl MySqlStorable for DbRecord {
         match St::data_type() {
             StorageType::Azks => {
                 format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
-            }
-            StorageType::HistoryNodeState => {
-                format!(
-                    "SELECT a.`label_len`, a.`label_val`, a.`epoch`, a.`value`, a.`child_states` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val` AND ids.`epoch` = a.`epoch`",
-                    TABLE_HISTORY_NODE_STATES,
-                    TEMP_IDS_TABLE
-                )
             }
             StorageType::HistoryTreeNode => {
                 format!(
@@ -334,29 +268,23 @@ impl MySqlStorable for DbRecord {
 
     fn get_specific_statement<St: Storable>() -> String {
         match St::data_type() {
-            StorageType::Azks => format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS),
-            StorageType::HistoryNodeState => format!("SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val AND `epoch` = :epoch", SELECT_HISTORY_NODE_STATE_DATA, TABLE_HISTORY_NODE_STATES),
-            StorageType::HistoryTreeNode => format!("SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val", SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES),
-            StorageType::ValueState => format!("SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch", SELECT_USER_DATA, TABLE_USER),
+            StorageType::Azks => {
+                format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
+            }
+            StorageType::HistoryTreeNode => format!(
+                "SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val",
+                SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
+            ),
+            StorageType::ValueState => format!(
+                "SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch",
+                SELECT_USER_DATA, TABLE_USER
+            ),
         }
     }
 
     fn get_specific_params<St: Storable>(key: &St::Key) -> Option<mysql_async::Params> {
         match St::data_type() {
             StorageType::Azks => None,
-            StorageType::HistoryNodeState => {
-                let bin = St::get_full_binary_key_id(key);
-
-                if let Ok(back) = akd::node_state::HistoryNodeState::key_from_full_binary(&bin) {
-                    Some(params! {
-                        "label_len" => back.0.len,
-                        "label_val" => back.0.val,
-                        "epoch" => back.1
-                    })
-                } else {
-                    None
-                }
-            }
             StorageType::HistoryTreeNode => {
                 let bin = St::get_full_binary_key_id(key);
                 if let Ok(back) = HistoryTreeNode::key_from_full_binary(&bin) {
@@ -387,27 +315,6 @@ impl MySqlStorable for DbRecord {
     ) -> Option<mysql_async::Params> {
         match St::data_type() {
             StorageType::Azks => None,
-            StorageType::HistoryNodeState => {
-                let pvec = keys
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, key)| {
-                        // Since these are constructed from a safe key, they should never fail
-                        // so we'll leave the unwrap to simplify
-                        let bin = St::get_full_binary_key_id(key);
-                        let back: NodeStateKey =
-                            HistoryNodeState::key_from_full_binary(&bin).unwrap();
-                        vec![
-                            (format!("label_len{}", idx), Value::from(back.0.len)),
-                            (format!("label_val{}", idx), Value::from(back.0.val)),
-                            (format!("epoch{}", idx), Value::from(back.1)),
-                        ]
-                    })
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                Some(mysql_async::Params::from(pvec))
-            }
             StorageType::HistoryTreeNode => {
                 let pvec = keys
                     .iter()
@@ -466,52 +373,21 @@ impl MySqlStorable for DbRecord {
                     return Ok(DbRecord::Azks(azks));
                 }
             }
-            StorageType::HistoryNodeState => {
-                // label_len, label_val, epoch, value, child_states
-                if let (
-                    Some(Ok(label_len)),
-                    Some(Ok(label_val)),
-                    Some(Ok(epoch)),
-                    Some(Ok(value)),
-                    Some(Ok(child_states)),
-                ) = (
-                    row.take_opt(0),
-                    row.take_opt(1),
-                    row.take_opt(2),
-                    row.take_opt(3),
-                    row.take_opt(4),
-                ) {
-                    let value_vec: Vec<u8> = value;
-                    let label_val_vec: Vec<u8> = label_val;
-                    let child_states_bin_vec: Vec<u8> = child_states;
-                    let child_states_decoded: [Option<HistoryChildState>; ARITY] =
-                        bincode::deserialize(&child_states_bin_vec).map_err(
-                            |serialization_err| {
-                                MySqlError::Other(
-                                    format!("Serialization error {}", serialization_err).into(),
-                                )
-                            },
-                        )?;
-                    let node_state = DbRecord::build_history_node_state(
-                        value_vec.try_into().map_err(|_| cast_err())?,
-                        child_states_decoded,
-                        label_len,
-                        label_val_vec.try_into().map_err(|_| cast_err())?,
-                        epoch,
-                    );
-                    return Ok(DbRecord::HistoryNodeState(node_state));
-                }
-            }
             StorageType::HistoryTreeNode => {
-                // `label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`
+                // `label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`,
+                // `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`
                 if let (
                     Some(Ok(label_len)),
                     Some(Ok(label_val)),
-                    Some(Ok(birth_epoch)),
                     Some(Ok(last_epoch)),
                     Some(Ok(parent_label_len)),
                     Some(Ok(parent_label_val)),
                     Some(Ok(node_type)),
+                    Some(Ok(left_child_len)),
+                    Some(Ok(left_child_val)),
+                    Some(Ok(right_child_len)),
+                    Some(Ok(right_child_val)),
+                    Some(Ok(hash)),
                 ) = (
                     row.take_opt(0),
                     row.take_opt(1),
@@ -520,18 +396,29 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                     row.take_opt(6),
+                    row.take_opt(7),
+                    row.take_opt(8),
+                    row.take_opt(9),
+                    row.take_opt(10),
                 ) {
                     let label_val_vec: Vec<u8> = label_val;
                     let parent_label_val_vec: Vec<u8> = parent_label_val;
+                    let left_child_val_vec: Vec<u8> = left_child_val;
+                    let right_child_val_vec: Vec<u8> = right_child_val;
+                    let hash_vec: Vec<u8> = hash;
 
                     let node = DbRecord::build_history_tree_node(
                         label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
-                        birth_epoch,
                         last_epoch,
                         parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
+                        left_child_val_vec.try_into().map_err(|_| cast_err())?,
+                        left_child_len,
+                        right_child_val_vec.try_into().map_err(|_| cast_err())?,
+                        right_child_len,
+                        hash_vec.try_into().map_err(|_| cast_err())?,
                     );
                     return Ok(DbRecord::HistoryTreeNode(node));
                 }
