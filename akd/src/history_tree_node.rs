@@ -11,7 +11,7 @@ use crate::errors::{AkdError, HistoryTreeNodeError, StorageError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction};
+use crate::{node_state::*, Direction, EMPTY_LABEL};
 use async_recursion::async_recursion;
 use log::debug;
 use std::convert::TryInto;
@@ -523,6 +523,13 @@ impl HistoryTreeNode {
 }
 
 /////// Helpers //////
+
+pub(crate) fn optional_history_child_state_to_label(input: &Option<HistoryTreeNode>) -> NodeLabel {
+    match input {
+        Some(child_state) => child_state.label,
+        None => EMPTY_LABEL,
+    }
+}
 
 pub(crate) fn optional_child_state_to_hash<H: Hasher>(input: &Option<HistoryTreeNode>) -> [u8; 32] {
     match input {

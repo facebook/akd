@@ -36,7 +36,7 @@ pub fn verify_membership<H: Hasher>(
         }
     }
 
-    let mut final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
+    let mut final_hash = proof.hash_val;
     for parent in proof.layer_proofs.iter().rev() {
         let hashes = parent.siblings.iter().map(|n| n.hash).collect();
         final_hash = build_and_hash_layer::<H>(hashes, parent.direction, final_hash, parent.label)?;
@@ -60,14 +60,17 @@ pub fn verify_nonmembership<H: Hasher>(
     proof: &NonMembershipProof<H>,
 ) -> Result<bool, AkdError> {
     let mut verified = true;
-    let mut lcp_hash = H::hash(&EMPTY_VALUE);
+    // let mut lcp_hash = H::hash(&EMPTY_VALUE);
     let mut lcp_real = proof.longest_prefix_children[0].label;
+    let child_hash_left = proof.longest_prefix_children[0].hash;
+    let child_hash_right = proof.longest_prefix_children[1].hash;
+
     for i in 0..ARITY {
-        let child_hash = H::merge(&[
-            proof.longest_prefix_children[i].hash,
-            hash_label::<H>(proof.longest_prefix_children[i].label),
-        ]);
-        lcp_hash = H::merge(&[lcp_hash, child_hash]);
+        // let child_hash = H::merge(&[
+        //     proof.longest_prefix_children[i].hash,
+        //     hash_label::<H>(proof.longest_prefix_children[i].label),
+        // ]);
+        // lcp_hash = H::merge(&[lcp_hash, child_hash]);
         let curr_label = proof.longest_prefix_children[i].label;
         lcp_real = lcp_real.get_longest_common_prefix(curr_label);
     }
@@ -77,6 +80,10 @@ pub fn verify_nonmembership<H: Hasher>(
             len: 0,
         };
     }
+    let lcp_hash = H::merge(&[
+        H::merge(&[child_hash_left, child_hash_right]),
+        hash_label::<H>(proof.longest_prefix),
+    ]);
     // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
     if !verified {
@@ -92,7 +99,7 @@ pub fn verify_nonmembership<H: Hasher>(
     verified = verified && (proof.longest_prefix == lcp_real);
     if !verified {
         return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
-            "longest_prefix != lcp".to_string(),
+            "Intermediate membership proof failed to verify.".to_string(),
         )));
     }
     Ok(verified)
@@ -347,10 +354,7 @@ fn build_and_hash_layer<H: Hasher>(
 
 /// Helper for build_and_hash_layer
 fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::Digest {
-    let mut new_hash = H::hash(&EMPTY_VALUE); //hash_label::<H>(parent_label);
-    for child_hash in hashes.iter().take(ARITY) {
-        new_hash = H::merge(&[new_hash, *child_hash]);
-    }
+    let mut new_hash = H::merge(&[hashes[0], hashes[1]]);
     new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
     new_hash
 }

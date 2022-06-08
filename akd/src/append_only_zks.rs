@@ -488,6 +488,7 @@ impl Azks {
         let mut prev_node = NodeLabel::root();
         while !equal && dir.is_some() {
             prev_node = curr_node.label;
+
             let mut nodes = [Node::<H> {
                 label: EMPTY_LABEL,
                 hash: H::hash(&EMPTY_VALUE),
@@ -497,18 +498,19 @@ impl Azks {
                 AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(curr_node.label, None))
             })?;
             let next_state = curr_node.get_child_state(storage, Some(direction)).await?;
-            if next_state == None {
-                break;
-            }
-            if let Some(next_state) = next_state {
+            if next_state.is_some() {
                 for i in 0..ARITY {
                     let no_direction_error = AkdError::HistoryTreeNode(
                         HistoryTreeNodeError::NoDirection(curr_node.label, None),
                     );
+
                     if i != dir.ok_or(no_direction_error)? {
+                        let sibling = curr_node
+                            .get_child_state(storage, Direction::Some(i))
+                            .await?;
                         nodes[count] = Node::<H> {
-                            label: next_state.label,
-                            hash: to_digest::<H>(&next_state.hash)?,
+                            label: optional_history_child_state_to_label(&sibling),
+                            hash: to_digest::<H>(&optional_child_state_to_hash::<H>(&sibling))?,
                         };
                         count += 1;
                     }
@@ -645,7 +647,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_membership_proof_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
@@ -664,6 +666,37 @@ mod tests {
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
+            .await?;
+
+        let proof = azks
+            .get_membership_proof(&db, insertion_set[0].label, 1)
+            .await?;
+
+        verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[allow(dead_code)]
+    async fn test_membership_proof_small() -> Result<(), AkdError> {
+        let num_nodes = 2;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for i in 0..num_nodes {
+            let mut label_arr = [0u8; 32];
+            label_arr[0] = u8::from(i);
+            let label = NodeLabel::new(label_arr, 256u32);
+            let input = [0u8; 32];
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
@@ -719,7 +752,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
@@ -757,7 +790,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
