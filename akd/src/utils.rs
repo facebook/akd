@@ -11,7 +11,7 @@
 
 use crate::{
     node_state::{hash_label, NodeLabel},
-    storage::types::{AkdLabel, AkdValue},
+    storage::types::AkdValue,
     EMPTY_LABEL, EMPTY_VALUE,
 };
 use std::collections::HashSet;
@@ -50,6 +50,7 @@ pub(crate) fn empty_node_hash<H: Hasher>() -> H::Digest {
     H::merge(&[H::hash(&EMPTY_VALUE), hash_label::<H>(EMPTY_LABEL)])
 }
 
+#[allow(unused)]
 pub(crate) fn empty_node_hash_no_label<H: Hasher>() -> H::Digest {
     H::hash(&EMPTY_VALUE)
 }
@@ -67,19 +68,19 @@ pub(crate) fn i2osp_array(input: &[u8]) -> Vec<u8> {
 // Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue
 pub(crate) fn get_commitment_proof<H: Hasher>(
     commitment_key: &[u8],
-    label: &AkdLabel,
-    version: u64,
+    label: &NodeLabel,
     value: &AkdValue,
 ) -> H::Digest {
-    H::hash(
-        &[
-            commitment_key,
-            &i2osp_array(label),
-            &version.to_be_bytes(),
-            &i2osp_array(value),
-        ]
-        .concat(),
-    )
+    // H::hash(
+    //     &[
+    //         commitment_key,
+    //         &i2osp_array(label),
+    //         &version.to_be_bytes(),
+    //         &i2osp_array(value),
+    //     ]
+    //     .concat(),
+    // )
+    H::hash(&[commitment_key, &label.val, &i2osp_array(value)].concat())
 }
 
 // Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
@@ -94,11 +95,10 @@ pub(crate) fn get_commitment_proof<H: Hasher>(
 // Note that this commitment needs to be a hash function (random oracle) output
 pub(crate) fn commit_value<H: Hasher>(
     commitment_key: &[u8],
-    label: &AkdLabel,
-    version: u64,
+    label: &NodeLabel,
     value: &AkdValue,
 ) -> H::Digest {
-    let proof = get_commitment_proof::<H>(commitment_key, label, version, value);
+    let proof = get_commitment_proof::<H>(commitment_key, label, value);
     H::hash(&[i2osp_array(value), i2osp_array(&proof.as_bytes())].concat())
 }
 

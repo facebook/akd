@@ -42,11 +42,13 @@ pub async fn verify_append_only<H: Hasher + Send + Sync>(
         .await?;
     let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     let mut verified = computed_start_root_hash == start_hash;
+    println!("Verified start = {:?}", verified);
     azks.batch_insert_leaves_helper::<_, H>(&db, inserted, true)
         .await?;
     let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
+        println!("Verified end = {:?}", verified);
         return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
     }
     Ok(())

@@ -151,12 +151,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add = crate::utils::commit_value::<H>(
-                        &commitment_key.as_bytes(),
-                        &uname,
-                        latest_version,
-                        &val,
-                    );
+                    let value_to_add =
+                        crate::utils::commit_value::<H>(&commitment_key.as_bytes(), &label, &val);
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -179,8 +175,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add = crate::utils::commit_value::<H>(
                         &commitment_key.as_bytes(),
-                        &uname,
-                        latest_version,
+                        &fresh_label,
                         &val,
                     );
                     update_set.push(Node::<H> {
@@ -263,17 +258,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key::<H>().await?;
         let plaintext_value = lookup_info.value_state.plaintext_val;
-
+        let existence_vrf = self
+            .vrf
+            .get_label_proof::<H>(&uname, false, current_version)
+            .await?;
+        let commitment_label = self
+            .vrf
+            .get_node_label_from_vrf_pf::<H>(existence_vrf)
+            .await?;
         let lookup_proof = LookupProof {
             epoch: current_epoch,
             plaintext_value: plaintext_value.clone(),
             version: lookup_info.value_state.version,
-            existence_vrf_proof: self
-                .vrf
-                .get_label_proof::<H>(&uname, false, current_version)
-                .await?
-                .to_bytes()
-                .to_vec(),
+            existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
             existence_proof: current_azks
                 .get_membership_proof(&self.storage, lookup_info.existent_label, current_epoch)
                 .await?,
@@ -301,8 +298,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .await?,
             commitment_proof: crate::utils::get_commitment_proof::<H>(
                 &commitment_key.as_bytes(),
-                &uname,
-                current_version,
+                &commitment_label,
                 &plaintext_value,
             )
             .as_bytes()
@@ -627,12 +623,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let label_at_ep = self.vrf.get_node_label::<H>(uname, false, version).await?;
 
         let current_azks = self.retrieve_current_azks().await?;
-        let existence_vrf_proof = self
+        let existence_vrf = self.vrf.get_label_proof::<H>(uname, false, version).await?;
+        let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
+        let existence_label = self
             .vrf
-            .get_label_proof::<H>(uname, false, version)
-            .await?
-            .to_bytes()
-            .to_vec();
+            .get_node_label_from_vrf_pf::<H>(existence_vrf)
+            .await?;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -708,8 +704,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let commitment_key = self.derive_commitment_key::<H>().await?;
         let commitment_proof = crate::utils::get_commitment_proof::<H>(
             &commitment_key.as_bytes(),
-            uname,
-            version,
+            &existence_label,
             plaintext_value,
         )
         .as_bytes()

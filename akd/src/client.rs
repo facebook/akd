@@ -17,7 +17,7 @@ use crate::{
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::AkdLabel,
-    Direction, ARITY, EMPTY_LABEL, EMPTY_VALUE,
+    Direction, ARITY, EMPTY_LABEL,
 };
 
 /// Verifies membership, with respect to the root_hash
@@ -26,7 +26,7 @@ pub fn verify_membership<H: Hasher>(
     proof: &MembershipProof<H>,
 ) -> Result<(), AkdError> {
     if proof.label.len == 0 {
-        let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
+        let final_hash = proof.hash_val;
         if final_hash == root_hash {
             return Ok(());
         } else {
@@ -66,20 +66,17 @@ pub fn verify_nonmembership<H: Hasher>(
     let child_hash_right = proof.longest_prefix_children[1].hash;
 
     for i in 0..ARITY {
-        // let child_hash = H::merge(&[
-        //     proof.longest_prefix_children[i].hash,
-        //     hash_label::<H>(proof.longest_prefix_children[i].label),
-        // ]);
-        // lcp_hash = H::merge(&[lcp_hash, child_hash]);
         let curr_label = proof.longest_prefix_children[i].label;
         lcp_real = lcp_real.get_longest_common_prefix(curr_label);
     }
+
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
             val: [0u8; 32],
             len: 0,
         };
     }
+
     let lcp_hash = H::merge(&[
         H::merge(&[child_hash_left, child_hash_right]),
         hash_label::<H>(proof.longest_prefix),
@@ -119,7 +116,9 @@ pub fn lookup_verify<H: Hasher>(
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
-    if hash_plaintext_value::<H>(&proof.plaintext_value, &proof.commitment_proof)
+    let fresh_label = existence_proof.label;
+
+    if hash_leaf_with_value::<H>(&proof.plaintext_value, &proof.commitment_proof, fresh_label)
         != existence_proof.hash_val
     {
         return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
@@ -127,7 +126,6 @@ pub fn lookup_verify<H: Hasher>(
         )));
     }
 
-    let fresh_label = existence_proof.label;
     vrf_pk.verify_label::<H>(
         &akd_key,
         false,
@@ -222,7 +220,7 @@ fn verify_single_update_proof<H: Hasher>(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_plaintext_value::<H>(bytes, &proof.commitment_proof)
+                hash_leaf_with_value::<H>(bytes, &proof.commitment_proof, existence_at_ep_label)
                     == existence_at_ep.hash_val,
             )
         }
@@ -359,7 +357,16 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     new_hash
 }
 
-fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue, proof: &[u8]) -> H::Digest {
+fn hash_leaf_with_value<H: Hasher>(
+    value: &crate::AkdValue,
+    proof: &[u8],
+    label: NodeLabel,
+) -> H::Digest {
     let single_hash = crate::utils::bind_commitment::<H>(value, proof);
-    H::merge(&[H::hash(&EMPTY_VALUE), single_hash])
+    H::merge(&[single_hash, hash_label::<H>(label)])
+}
+
+#[allow(unused)]
+fn hash_plaintext_value<H: Hasher>(value: &crate::AkdValue, proof: &[u8]) -> H::Digest {
+    crate::utils::bind_commitment::<H>(value, proof)
 }

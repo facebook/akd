@@ -9,7 +9,7 @@
 
 #[cfg(feature = "serde")]
 use crate::serialization::{digest_deserialize, digest_serialize};
-use crate::Direction;
+use crate::{Direction, EMPTY_LABEL};
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 
@@ -20,7 +20,7 @@ use std::{
 use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
@@ -190,6 +190,9 @@ impl NodeLabel {
             && self.get_bit_at(prefix_len) == other.get_bit_at(prefix_len)
         {
             prefix_len += 1;
+        }
+        if *self == EMPTY_LABEL || other == EMPTY_LABEL {
+            return EMPTY_LABEL;
         }
         self.get_prefix(prefix_len)
     }

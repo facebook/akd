@@ -81,7 +81,7 @@ impl std::fmt::Display for AkdError {
 }
 
 /// Errors thrown by HistoryTreeNodes
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum HistoryTreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
@@ -214,7 +214,7 @@ impl fmt::Display for DirectoryError {
 }
 
 /// Represents a storage-layer error
-#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq))]
+#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum StorageError {
     /// Data wasn't found in the storage layer

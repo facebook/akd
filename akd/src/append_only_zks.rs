@@ -220,7 +220,6 @@ impl Azks {
             } else {
                 get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch)
             };
-
             debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
@@ -230,7 +229,6 @@ impl Azks {
             hash_q.push(node.label, priorities);
             priorities -= 1;
         }
-
         // Now hash up the tree, the highest priority items will be closer to the leaves.
         while let Some((next_node_label, _)) = hash_q.pop() {
             let mut next_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
@@ -239,11 +237,9 @@ impl Azks {
                 self.get_latest_epoch(),
             )
             .await?;
-
             next_node
                 .update_node_hash::<_, H>(storage, self.latest_epoch)
                 .await?;
-
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => {
@@ -297,7 +293,7 @@ impl Azks {
         // load with placeholder nodes, to be replaced in the loop below
         let mut longest_prefix_children = [Node {
             label: EMPTY_LABEL,
-            hash: crate::utils::empty_node_hash_no_label::<H>(),
+            hash: crate::utils::empty_node_hash::<H>(),
         }; ARITY];
         for i in 0..ARITY {
             let child = lcp_node.get_child_state(storage, Some(i)).await?;
@@ -483,6 +479,7 @@ impl Azks {
             self.get_latest_epoch(),
         )
         .await?;
+
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = NodeLabel::root();
@@ -491,7 +488,7 @@ impl Azks {
 
             let mut nodes = [Node::<H> {
                 label: EMPTY_LABEL,
-                hash: H::hash(&EMPTY_VALUE),
+                hash: crate::utils::empty_node_hash::<H>(),
             }; ARITY - 1];
             let mut count = 0;
             let direction = dir.ok_or({
@@ -533,6 +530,7 @@ impl Azks {
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
+
         if !equal {
             let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
                 storage,
@@ -541,7 +539,6 @@ impl Azks {
             )
             .await?;
             curr_node = new_curr_node;
-
             layer_proofs.pop();
         }
 
@@ -792,6 +789,66 @@ mod tests {
 
     #[tokio::test]
     #[allow(dead_code)]
+    async fn test_nonmembership_proof_v_small() -> Result<(), AkdError> {
+        let num_nodes = 2;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for i in 0..num_nodes {
+            let mut label_arr = [0u8; 32];
+            label_arr[31] = u8::from(i);
+            let label = NodeLabel::new(label_arr, 256u32);
+            let mut input = [0u8; 32];
+            input[31] = u8::from(i);
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        let search_label = insertion_set[0].label;
+        azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone()[1..2].to_vec())
+            .await?;
+        let proof = azks.get_non_membership_proof(&db, search_label, 2).await?;
+
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[allow(dead_code)]
+    async fn test_nonmembership_proof_small() -> Result<(), AkdError> {
+        let num_nodes = 3;
+        let mut rng = OsRng;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for _ in 0..num_nodes {
+            let label = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        let search_label = insertion_set[num_nodes - 1].label;
+        azks.batch_insert_leaves::<_, Blake3>(
+            &db,
+            insertion_set.clone()[0..num_nodes - 1].to_vec(),
+        )
+        .await?;
+        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[allow(dead_code)]
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -816,10 +873,7 @@ mod tests {
         .await?;
         let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
 
-        assert!(
-            verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?,
-            "Nonmembership proof does not verify"
-        );
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
 
         Ok(())
     }

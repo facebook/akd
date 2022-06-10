@@ -57,7 +57,7 @@ async fn test_simple_publish() -> Result<(), AkdError> {
     Ok(())
 }
 
-// #[tokio::test]
+#[tokio::test]
 #[allow(dead_code)]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
@@ -89,7 +89,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     Ok(())
 }
 
-// #[tokio::test]
+#[tokio::test]
 #[allow(dead_code)]
 async fn test_simple_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();

@@ -274,6 +274,7 @@ impl<'a> From<&'a VRFPrivateKey> for VRFExpandedPrivateKey {
 }
 
 /// A VRF proof that can be used to validate an input with a public key
+#[derive(Copy, Clone)]
 pub struct Proof {
     gamma: EdwardsPoint,
     c: ed25519_Scalar,
