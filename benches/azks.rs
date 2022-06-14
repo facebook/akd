@@ -34,7 +34,7 @@ fn single_insertion(c: &mut Criterion) {
         rng.fill_bytes(&mut input);
         let hash = Blake3::hash(&input);
         runtime
-            .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }))
+            .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }, 1))
             .unwrap();
     }
 
@@ -47,7 +47,7 @@ fn single_insertion(c: &mut Criterion) {
 
             let _start = Instant::now();
             runtime
-                .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }))
+                .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }, 2))
                 .unwrap();
         })
     });

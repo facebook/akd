@@ -9,7 +9,7 @@
 use crate::{
     errors::HistoryTreeNodeError,
     history_tree_node::*,
-    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof},
+    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof},
     storage::{Storable, Storage},
 };
 
@@ -78,7 +78,7 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H>(Option::Some(0));
+        let root = get_empty_root::<H>(Option::Some(0), Option::Some(0));
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
@@ -95,12 +95,12 @@ impl Azks {
         &mut self,
         storage: &S,
         node: Node<H>,
+        epoch: u64,
     ) -> Result<(), AkdError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
-        self.increment_epoch();
+        // self.increment_epoch();
 
-        let new_leaf =
-            get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
+        let new_leaf = get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), epoch);
 
         let mut root_node = HistoryTreeNode::get_from_storage(
             storage,
@@ -109,7 +109,7 @@ impl Azks {
         )
         .await?;
         root_node
-            .insert_single_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
+            .insert_single_leaf::<_, H>(storage, new_leaf, epoch, &mut self.num_nodes, None)
             .await?;
 
         Ok(())
@@ -191,7 +191,7 @@ impl Azks {
         &mut self,
         storage: &S,
         insertion_set: Vec<Node<H>>,
-        append_only_usage: bool,
+        append_only_exclude_usage: bool,
     ) -> Result<(), AkdError> {
         let tic = Instant::now();
         let load_count = self
@@ -215,14 +215,17 @@ impl Azks {
         )
         .await?;
         for node in insertion_set {
-            let new_leaf = if append_only_usage {
-                get_leaf_node_without_hashing::<H>(node, NodeLabel::root(), self.latest_epoch)
-            } else {
-                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch)
-            };
+            let new_leaf =
+                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
             debug!("BEGIN insert leaf");
             root_node
-                .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
+                .insert_leaf::<_, H>(
+                    storage,
+                    new_leaf,
+                    self.latest_epoch,
+                    &mut self.num_nodes,
+                    Some(append_only_exclude_usage),
+                )
                 .await?;
             debug!("END insert leaf");
 
@@ -238,7 +241,11 @@ impl Azks {
             )
             .await?;
             next_node
-                .update_node_hash::<_, H>(storage, self.latest_epoch)
+                .update_node_hash::<_, H>(
+                    storage,
+                    self.latest_epoch,
+                    Some(append_only_exclude_usage),
+                )
                 .await?;
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
@@ -317,6 +324,9 @@ impl Azks {
                 }
             }
         }
+        // if longest_prefix != ROOT_LABEL {
+        //     longest_prefix_membership_proof.hash_val = H::merge(&[longest_prefix_membership_proof.hash_val, hash_label::<H>(longest_prefix)]);
+        // }
         debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
@@ -326,6 +336,7 @@ impl Azks {
         })
     }
 
+    // FIXME add an error if the epochs don't exist or end is less than start ep.
     /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
     /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
     /// tree after `start_epoch` and  up until `end_epoch`.
@@ -341,26 +352,35 @@ impl Azks {
         start_epoch: u64,
         end_epoch: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
+        let mut proofs = Vec::<SingleAppendOnlyProof<H>>::new();
+        let mut epochs = Vec::<u64>::new();
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = HistoryTreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
-        let (unchanged, leaves) = self
-            .get_append_only_proof_helper::<_, H>(storage, node, start_epoch, end_epoch)
+        for ep in start_epoch..end_epoch {
+            let node = HistoryTreeNode::get_from_storage(
+                storage,
+                &NodeKey(NodeLabel::root()),
+                self.get_latest_epoch(),
+            )
             .await?;
-        Ok(AppendOnlyProof {
-            inserted: leaves,
-            unchanged_nodes: unchanged,
-        })
+            let (unchanged, leaves) = self
+                .get_append_only_proof_helper::<_, H>(storage, node, ep, ep + 1)
+                .await?;
+            proofs.push(SingleAppendOnlyProof {
+                inserted: leaves,
+                unchanged_nodes: unchanged,
+            });
+            epochs.push(ep);
+        }
+
+        Ok(AppendOnlyProof { proofs, epochs })
     }
 
+    // FIXME: Remove if not needed
+    #[allow(unused)]
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Storage + Sync + Send, H: Hasher>(
+    async fn get_append_only_proof_helper_old<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
         node: HistoryTreeNode,
@@ -381,6 +401,73 @@ impl Azks {
             });
             return Ok((unchanged, leaves));
         }
+        // if node.get_birth_epoch() > end_epoch {
+        //     // really you shouldn't even be here. Later do error checking
+        //     return Ok((unchanged, leaves));
+        // }
+        if node.is_leaf() {
+            leaves.push(Node::<H> {
+                label: node.label,
+                hash: to_digest::<H>(&node.hash)?,
+            });
+        } else {
+            for child_label in [node.left_child, node.right_child] {
+                match child_label {
+                    None => {
+                        continue;
+                    }
+                    Some(label) => {
+                        let child_node = HistoryTreeNode::get_from_storage(
+                            storage,
+                            &NodeKey(label),
+                            self.get_latest_epoch(),
+                        )
+                        .await?;
+                        let mut rec_output = self
+                            .get_append_only_proof_helper::<_, H>(
+                                storage,
+                                child_node,
+                                start_epoch,
+                                end_epoch,
+                            )
+                            .await?;
+                        unchanged.append(&mut rec_output.0);
+                        leaves.append(&mut rec_output.1);
+                    }
+                }
+            }
+        }
+        Ok((unchanged, leaves))
+    }
+
+    #[async_recursion]
+    async fn get_append_only_proof_helper<S: Storage + Sync + Send, H: Hasher>(
+        &self,
+        storage: &S,
+        node: HistoryTreeNode,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<AppendOnlyHelper<H>, AkdError> {
+        let mut unchanged = Vec::<Node<H>>::new();
+        let mut leaves = Vec::<Node<H>>::new();
+
+        if node.get_latest_epoch() <= start_epoch {
+            if node.is_root() {
+                // this is the case where the root is unchanged since the last epoch
+                return Ok((unchanged, leaves));
+            }
+            unchanged.push(Node::<H> {
+                label: node.label,
+                hash: to_digest::<H>(&node.hash)?,
+            });
+
+            return Ok((unchanged, leaves));
+        }
+
+        if node.least_decendent_ep > end_epoch {
+            return Ok((unchanged, leaves));
+        }
+
         // if node.get_birth_epoch() > end_epoch {
         //     // really you shouldn't even be here. Later do error checking
         //     return Ok((unchanged, leaves));
@@ -450,7 +537,7 @@ impl Azks {
             self.get_latest_epoch(),
         )
         .await?;
-        to_digest::<H>(&root_node.hash)
+        hash_u8_with_label::<H>(&root_node.hash, root_node.label)
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -507,7 +594,7 @@ impl Azks {
                             .await?;
                         nodes[count] = Node::<H> {
                             label: optional_history_child_state_to_label(&sibling),
-                            hash: to_digest::<H>(&optional_child_state_to_hash::<H>(&sibling))?,
+                            hash: optional_child_state_hash::<H>(&sibling)?,
                         };
                         count += 1;
                     }
@@ -539,9 +626,9 @@ impl Azks {
             )
             .await?;
             curr_node = new_curr_node;
+
             layer_proofs.pop();
         }
-
         let hash_val = to_digest::<H>(&curr_node.hash)?;
 
         Ok((
@@ -561,7 +648,7 @@ type AppendOnlyHelper<H> = (Vec<Node<H>>, Vec<Node<H>>);
 mod tests {
     use super::*;
     use crate::{
-        auditor::verify_append_only,
+        auditor::audit_verify,
         client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
     };
@@ -588,7 +675,7 @@ mod tests {
             let hash = Blake3::hash(&input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_, Blake3>(&db, node).await?;
+            azks1.insert_leaf::<_, Blake3>(&db, node, 1).await?;
         }
 
         let db2 = AsyncInMemoryDatabase::new();
@@ -622,7 +709,7 @@ mod tests {
             let hash = Blake3Digest::new(input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_, Blake3>(&db, node).await?;
+            azks1.insert_leaf::<_, Blake3>(&db, node, 1).await?;
         }
 
         // Try randomly permuting
@@ -904,8 +991,8 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
+        audit_verify::<Blake3>(vec![start_hash, end_hash], proof).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 
@@ -944,8 +1031,7 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
-
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
+        audit_verify::<Blake3>(vec![start_hash, end_hash], proof).await?;
         Ok(())
     }
 
@@ -987,6 +1073,8 @@ mod tests {
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_2.clone())
             .await?;
 
+        let middle_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
+
         let mut insertion_set_3: Vec<Node<Blake3>> = vec![];
 
         for _ in 0..num_nodes {
@@ -1004,8 +1092,9 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 3).await?;
+        let hashes = vec![start_hash, middle_hash, end_hash];
+        audit_verify::<Blake3>(hashes, proof).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 

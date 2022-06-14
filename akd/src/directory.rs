@@ -267,7 +267,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_node_label_from_vrf_pf::<H>(existence_vrf)
             .await?;
         let lookup_proof = LookupProof {
-            epoch: current_epoch,
+            epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
             version: lookup_info.value_state.version,
             existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
@@ -466,7 +466,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
-
         let mut user_data = self.storage.get_user_data(uname).await?.states;
         // reverse sort from highest epoch to lowest
         user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
@@ -493,6 +492,197 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 }
             }
             Ok(HistoryProof { proofs })
+        }
+    }
+
+    /// Takes in the current state of the server and a label.
+    /// If the label is present in the current state,
+    /// this function returns all the values ever associated with it,
+    /// and the epoch at which each value was first committed to the server state.
+    /// It also returns the proof of the latest version being served at all times.
+    pub async fn key_history2<H: Hasher>(
+        &self,
+        uname: &AkdLabel,
+    ) -> Result<HistoryProof2<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
+        let username = uname.to_vec();
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+
+        if let Ok(this_user_data) = self.storage.get_user_data(uname).await {
+            let mut user_data = this_user_data.states;
+            // reverse sort from highest epoch to lowest
+            user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+
+            let mut update_proofs = Vec::<UpdateProof2<H>>::new();
+            let mut last_version = 0;
+            let mut epochs = Vec::<u64>::new();
+            for user_state in user_data {
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof2(uname, &user_state).await?;
+                    update_proofs.push(proof);
+                    last_version = user_state.version;
+                    epochs.push(user_state.epoch);
+                }
+            }
+            let next_marker = get_marker_version(last_version) + 1;
+            let final_marker = get_marker_version(current_epoch);
+
+            let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
+
+            for ver in last_version + 1..(1 << next_marker) {
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .await?;
+                non_existence_of_next_few.push(non_existence_of_ver);
+                next_few_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
+
+            for marker_power in next_marker..final_marker + 1 {
+                let ver = 1 << marker_power;
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .await?;
+                non_existence_of_future_markers.push(non_existence_of_ver);
+                future_marker_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            Ok(HistoryProof2 {
+                update_proofs,
+                epochs,
+                next_few_vrf_proofs,
+                non_existence_of_next_few,
+                future_marker_vrf_proofs,
+                non_existence_of_future_markers,
+            })
+        } else {
+            match std::str::from_utf8(&username) {
+                Ok(name) => Err(AkdError::Storage(StorageError::NotFound(format!(
+                    "User {} at epoch {}",
+                    name, current_epoch
+                )))),
+                _ => Err(AkdError::Storage(StorageError::NotFound(format!(
+                    "User {:?} at epoch {}",
+                    username, current_epoch
+                )))),
+            }
+        }
+    }
+
+    /// Takes in the current state of the server and a label along with
+    /// a "top" number of key updates to generate a proof for.
+    ///
+    /// If the label is present in the current state,
+    /// this function returns all the values & proof of validity
+    /// up to `top_n_updates` results.
+    pub async fn limited_key_history2<H: Hasher>(
+        &self,
+        top_n_updates: usize,
+        uname: &AkdLabel,
+    ) -> Result<HistoryProof2<H>, AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
+        let current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+        let mut user_data = self.storage.get_user_data(uname).await?.states;
+        // reverse sort from highest epoch to lowest
+        user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
+
+        let limited_history = user_data
+            .into_iter()
+            .take(top_n_updates)
+            .collect::<Vec<_>>();
+
+        if limited_history.is_empty() {
+            let msg = if let Ok(username_str) = std::str::from_utf8(uname) {
+                format!("User {}", username_str)
+            } else {
+                format!("User {:?}", uname)
+            };
+            Err(AkdError::Storage(StorageError::NotFound(msg)))
+        } else {
+            let mut update_proofs = Vec::<UpdateProof2<H>>::new();
+            let mut last_version = 0;
+            let mut epochs = Vec::<u64>::new();
+            for user_state in limited_history {
+                // Ignore states in storage that are ahead of current directory epoch
+                if user_state.epoch <= current_epoch {
+                    let proof = self.create_single_update_proof2(uname, &user_state).await?;
+                    update_proofs.push(proof);
+                    last_version = user_state.version;
+                    epochs.push(user_state.epoch);
+                }
+            }
+            let next_marker = get_marker_version(last_version) + 1;
+            let final_marker = get_marker_version(current_epoch);
+
+            let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
+
+            for ver in last_version + 1..(1 << next_marker) {
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .await?;
+                non_existence_of_next_few.push(non_existence_of_ver);
+                next_few_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
+
+            for marker_power in next_marker..final_marker + 1 {
+                let ver = 1 << marker_power;
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .await?;
+                non_existence_of_future_markers.push(non_existence_of_ver);
+                future_marker_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            Ok(HistoryProof2 {
+                update_proofs,
+                epochs,
+                next_few_vrf_proofs,
+                non_existence_of_next_few,
+                future_marker_vrf_proofs,
+                non_existence_of_future_markers,
+            })
         }
     }
 
@@ -723,6 +913,69 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             non_existence_of_next_few,
             future_marker_vrf_proofs,
             non_existence_of_future_markers,
+            commitment_proof,
+        })
+    }
+
+    async fn create_single_update_proof2<H: Hasher>(
+        &self,
+        uname: &AkdLabel,
+        user_state: &ValueState,
+    ) -> Result<UpdateProof2<H>, AkdError> {
+        let epoch = user_state.epoch;
+        let plaintext_value = &user_state.plaintext_val;
+        let version = user_state.version;
+
+        let label_at_ep = self.vrf.get_node_label::<H>(uname, false, version).await?;
+
+        let current_azks = self.retrieve_current_azks().await?;
+        let existence_vrf = self.vrf.get_label_proof::<H>(uname, false, version).await?;
+        let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
+        let existence_label = self
+            .vrf
+            .get_node_label_from_vrf_pf::<H>(existence_vrf)
+            .await?;
+        let existence_at_ep = current_azks
+            .get_membership_proof(&self.storage, label_at_ep, epoch)
+            .await?;
+        let mut previous_val_stale_at_ep = Option::None;
+        let mut previous_val_vrf_proof = Option::None;
+        if version > 1 {
+            let prev_label_at_ep = self
+                .vrf
+                .get_node_label::<H>(uname, true, version - 1)
+                .await?;
+            previous_val_stale_at_ep = Option::Some(
+                current_azks
+                    .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
+                    .await?,
+            );
+            previous_val_vrf_proof = Option::Some(
+                self.vrf
+                    .get_label_proof::<H>(uname, true, version - 1)
+                    .await?
+                    .to_bytes()
+                    .to_vec(),
+            );
+        }
+
+        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_proof = crate::utils::get_commitment_proof::<H>(
+            &commitment_key.as_bytes(),
+            &existence_label,
+            plaintext_value,
+        )
+        .as_bytes()
+        .to_vec();
+
+        Ok(UpdateProof2 {
+            epoch,
+            version,
+            plaintext_value: plaintext_value.clone(),
+            existence_vrf_proof,
+            existence_at_ep,
+            previous_val_vrf_proof,
+            previous_val_stale_at_ep,
             commitment_proof,
         })
     }

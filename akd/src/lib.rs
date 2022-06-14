@@ -270,9 +270,9 @@
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let start_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 1u64).await.unwrap();
 //!     let end_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 2u64).await.unwrap();
+//!     let hashes = vec![start_root_hash, end_root_hash];
 //!     auditor::audit_verify::<Blake3_256<BaseElement>>(
-//!         start_root_hash,
-//!         end_root_hash,
+//!         hashes,
 //!         audit_proof,
 //!     ).await.unwrap();
 //! };
@@ -354,6 +354,12 @@ pub const EMPTY_VALUE: [u8; 1] = [0u8];
 /// The label used for an empty node
 pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
     val: [1u8; 32],
+    len: 0,
+};
+
+/// The label used for a root node
+pub const ROOT_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
+    val: [0u8; 32],
     len: 0,
 };
 /// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).

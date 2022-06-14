@@ -11,7 +11,7 @@ use log::{error, info, warn};
 
 // #[tokio::test]
 // #[serial_test::serial]
-// #[allow(dead_code)]
+#[allow(dead_code)]
 async fn test_directory_operations() {
     crate::test_util::log_init(log::Level::Info);
 
@@ -66,7 +66,7 @@ async fn test_directory_operations() {
 
 // #[tokio::test]
 // #[serial_test::serial]
-// #[allow(dead_code)]
+#[allow(dead_code)]
 async fn test_lookups() {
     crate::test_util::log_init(log::Level::Info);
 

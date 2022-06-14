@@ -192,6 +192,7 @@ mod tests {
         let node1 = DbRecord::HistoryTreeNode(HistoryTreeNode {
             label: NodeLabel::new(byte_arr_from_u64(0), 0),
             last_epoch: 1,
+            least_decendent_ep: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Root,
             left_child: None,
@@ -201,6 +202,7 @@ mod tests {
         let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             last_epoch: 1,
+            least_decendent_ep: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Leaf,
             left_child: None,

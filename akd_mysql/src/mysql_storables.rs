@@ -380,6 +380,7 @@ impl MySqlStorable for DbRecord {
                     Some(Ok(label_len)),
                     Some(Ok(label_val)),
                     Some(Ok(last_epoch)),
+                    Some(Ok(least_decendent_ep)),
                     Some(Ok(parent_label_len)),
                     Some(Ok(parent_label_val)),
                     Some(Ok(node_type)),
@@ -400,6 +401,7 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(8),
                     row.take_opt(9),
                     row.take_opt(10),
+                    row.take_opt(11),
                 ) {
                     let label_val_vec: Vec<u8> = label_val;
                     let parent_label_val_vec: Vec<u8> = parent_label_val;
@@ -411,6 +413,7 @@ impl MySqlStorable for DbRecord {
                         label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
                         last_epoch,
+                        least_decendent_ep,
                         parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
