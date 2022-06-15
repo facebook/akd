@@ -12,7 +12,7 @@ use winter_crypto::Hasher;
 use crate::{
     directory::get_marker_version,
     ecvrf::VRFPublicKey,
-    errors::HistoryTreeNodeError,
+    errors::TreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
@@ -391,9 +391,10 @@ fn build_and_hash_layer<H: Hasher>(
     ancestor_hash: H::Digest,
     parent_label: NodeLabel,
 ) -> Result<H::Digest, AkdError> {
-    let direction = dir.ok_or({
-        AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(parent_label, None))
-    })?;
+    let direction = dir.ok_or(AkdError::TreeNode(TreeNodeError::NoDirection(
+        parent_label,
+        None,
+    )))?;
     let mut hashes_mut = hashes.to_vec();
     hashes_mut.insert(direction, ancestor_hash);
     Ok(hash_layer::<H>(hashes_mut, parent_label))

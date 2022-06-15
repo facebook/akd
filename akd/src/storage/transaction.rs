@@ -178,9 +178,9 @@ impl Transaction {
 mod tests {
     use super::*;
     use crate::append_only_zks::*;
-    use crate::history_tree_node::*;
     use crate::node_state::*;
     use crate::storage::types::*;
+    use crate::tree_node::*;
     use rand::{rngs::OsRng, seq::SliceRandom};
 
     #[tokio::test]
@@ -189,7 +189,7 @@ mod tests {
             num_nodes: 0,
             latest_epoch: 0,
         });
-        let node1 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+        let node1 = DbRecord::TreeNode(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(0), 0),
             last_epoch: 1,
             least_decendent_ep: 1,
@@ -199,7 +199,7 @@ mod tests {
             right_child: None,
             hash: [0u8; 32],
         });
-        let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+        let node2 = DbRecord::TreeNode(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             last_epoch: 1,
             least_decendent_ep: 1,

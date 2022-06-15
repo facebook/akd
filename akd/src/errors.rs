@@ -15,7 +15,7 @@ use crate::node_state::NodeLabel;
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
-    HistoryTreeNode(HistoryTreeNodeError),
+    TreeNode(TreeNodeError),
     /// Error propagation
     Directory(DirectoryError),
     /// Error propagation
@@ -28,9 +28,9 @@ pub enum AkdError {
 
 impl std::error::Error for AkdError {}
 
-impl From<HistoryTreeNodeError> for AkdError {
-    fn from(error: HistoryTreeNodeError) -> Self {
-        Self::HistoryTreeNode(error)
+impl From<TreeNodeError> for AkdError {
+    fn from(error: TreeNodeError) -> Self {
+        Self::TreeNode(error)
     }
 }
 
@@ -61,7 +61,7 @@ impl From<AzksError> for AkdError {
 impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            AkdError::HistoryTreeNode(err) => {
+            AkdError::TreeNode(err) => {
                 writeln!(f, "AKD History Tree Node Error: {}", err)
             }
             AkdError::Directory(err) => {
@@ -80,9 +80,9 @@ impl std::fmt::Display for AkdError {
     }
 }
 
-/// Errors thrown by HistoryTreeNodes
+/// Errors thrown by TreeNodes
 #[derive(Debug, Eq, PartialEq)]
-pub enum HistoryTreeNodeError {
+pub enum TreeNodeError {
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
@@ -101,9 +101,9 @@ pub enum HistoryTreeNodeError {
     DigestDeserializationFailed(String),
 }
 
-impl std::error::Error for HistoryTreeNodeError {}
+impl std::error::Error for TreeNodeError {}
 
-impl fmt::Display for HistoryTreeNodeError {
+impl fmt::Display for TreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoDirection(node_label, child_label) => {

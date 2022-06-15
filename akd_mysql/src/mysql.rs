@@ -9,11 +9,11 @@
 
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
-use akd::history_tree_node::HistoryTreeNode;
 use akd::storage::types::{
     AkdLabel, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
+use akd::tree_node::TreeNode;
 use akd::NodeLabel;
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
@@ -490,7 +490,7 @@ impl<'a> AsyncMySqlDatabase {
         let statement = |i: usize| -> String {
             match &head {
                 DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::Azks>(i),
-                DbRecord::HistoryTreeNode(_) => DbRecord::set_batch_statement::<HistoryTreeNode>(i),
+                DbRecord::TreeNode(_) => DbRecord::set_batch_statement::<TreeNode>(i),
                 DbRecord::ValueState(_) => {
                     DbRecord::set_batch_statement::<akd::storage::types::ValueState>(i)
                 }
@@ -827,8 +827,8 @@ impl Storage for AsyncMySqlDatabase {
                     .entry(StorageType::Azks)
                     .or_insert_with(Vec::new)
                     .push(record),
-                DbRecord::HistoryTreeNode(_) => groups
-                    .entry(StorageType::HistoryTreeNode)
+                DbRecord::TreeNode(_) => groups
+                    .entry(StorageType::TreeNode)
                     .or_insert_with(Vec::new)
                     .push(record),
                 DbRecord::ValueState(_) => groups
@@ -851,8 +851,8 @@ impl Storage for AsyncMySqlDatabase {
                 if !value.is_empty() {
                     // Sort the records to match db-layer sorting which will help with insert performance
                     value.sort_by(|a, b| match &a {
-                        DbRecord::HistoryTreeNode(node) => {
-                            if let DbRecord::HistoryTreeNode(node2) = &b {
+                        DbRecord::TreeNode(node) => {
+                            if let DbRecord::TreeNode(node2) = &b {
                                 node.label.cmp(&node2.label)
                             } else {
                                 Ordering::Equal

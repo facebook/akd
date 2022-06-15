@@ -7,8 +7,8 @@
 
 //! Various storage and representation related types
 
-use crate::history_tree_node::{HistoryTreeNode, NodeType};
 use crate::storage::Storable;
+use crate::tree_node::{NodeType, TreeNode};
 use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 
@@ -17,8 +17,8 @@ use std::convert::TryInto;
 pub enum StorageType {
     /// Azks
     Azks = 1,
-    /// HistoryTreeNode
-    HistoryTreeNode = 2,
+    /// TreeNode
+    TreeNode = 2,
     /// EOZ: HistoryNodeState = 3 was removed from here.
     /// Better to keep ValueState = 4 as is?
     /// ValueState
@@ -170,8 +170,8 @@ pub enum ValueStateRetrievalFlag {
 pub enum DbRecord {
     /// An Azks
     Azks(Azks),
-    /// A HistoryTreeNode
-    HistoryTreeNode(HistoryTreeNode),
+    /// A TreeNodeNode
+    TreeNode(TreeNode),
     /// The state of the value for a particular key.
     ValueState(ValueState),
 }
@@ -180,7 +180,7 @@ impl Clone for DbRecord {
     fn clone(&self) -> Self {
         match &self {
             DbRecord::Azks(azks) => DbRecord::Azks(azks.clone()),
-            DbRecord::HistoryTreeNode(node) => DbRecord::HistoryTreeNode(node.clone()),
+            DbRecord::TreeNode(node) => DbRecord::TreeNode(node.clone()),
             DbRecord::ValueState(state) => DbRecord::ValueState(state.clone()),
         }
     }
@@ -192,7 +192,7 @@ impl DbRecord {
     pub fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),
-            DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
+            DbRecord::TreeNode(node) => node.get_full_binary_id(),
             DbRecord::ValueState(state) => state.get_full_binary_id(),
         }
     }
@@ -234,8 +234,8 @@ impl DbRecord {
         right_child_val: [u8; 32],
         right_child_len: u32,
         hash: [u8; 32],
-    ) -> HistoryTreeNode {
-        HistoryTreeNode {
+    ) -> TreeNode {
+        TreeNode {
             label: NodeLabel::new(label_val, label_len),
             last_epoch,
             least_decendent_ep,

@@ -326,11 +326,11 @@ pub mod client;
 pub mod directory;
 pub mod ecvrf;
 pub mod errors;
-pub mod history_tree_node;
 pub mod node_state;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
+pub mod tree_node;
 
 mod utils;
 
