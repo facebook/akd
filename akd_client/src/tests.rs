@@ -58,6 +58,7 @@ where
     }
 }
 
+#[allow(unused)]
 fn to_digest_vec<H>(hash_vec: Vec<H::Digest>) -> Vec<crate::types::Digest>
 where
     H: winter_crypto::Hasher,
@@ -422,7 +423,7 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
     // retrieves and verifies history proofs for the key
     let proof = akd.key_history::<Hash>(&key).await?;
     let internal_proof = convert_history_proof::<Hash>(&proof);
-    let (mut root_hash, current_epoch) =
+    let (root_hash, current_epoch) =
         akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
 
     // verifies both traditional and lean history verification passes

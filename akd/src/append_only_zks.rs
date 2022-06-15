@@ -319,7 +319,7 @@ impl Azks {
                     debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
-                        hash: to_digest::<H>(&unwrapped_child.hash)?,
+                        hash: optional_child_state_hash::<H>(&Some(unwrapped_child))?,
                     };
                 }
             }
@@ -629,7 +629,11 @@ impl Azks {
 
             layer_proofs.pop();
         }
-        let hash_val = to_digest::<H>(&curr_node.hash)?;
+        let hash_val = if curr_node.is_leaf() {
+            H::merge_with_int(to_digest::<H>(&curr_node.hash)?, curr_node.last_epoch)
+        } else {
+            to_digest::<H>(&curr_node.hash)?
+        };
 
         Ok((
             MembershipProof::<H> {

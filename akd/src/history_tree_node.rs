@@ -388,14 +388,14 @@ impl HistoryTreeNode {
     ) -> Result<(), AkdError> {
         // Mark the node as updated in this epoch.
         self.last_epoch = epoch;
+        let exclude_ep_val = exclude_ep.unwrap_or(false);
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
             NodeType::Leaf => {
-                let exclude_ep_val = exclude_ep.unwrap_or(false);
-                let mut hash_val = to_digest::<H>(&self.hash)?;
-                if !exclude_ep_val {
-                    hash_val = H::merge_with_int(hash_val, epoch);
-                }
+                let hash_val = to_digest::<H>(&self.hash)?;
+                // if !exclude_ep_val {
+                //     hash_val = H::merge_with_int(hash_val, epoch);
+                // }
 
                 let leaf_hash = hash_val;
                 // H::merge(&[hash_val, hash_label::<H>(self.label)]);
@@ -412,8 +412,8 @@ impl HistoryTreeNode {
 
                 // Get merged hashes for the children.
                 let child_hashes = H::merge(&[
-                    optional_child_state_label_hash::<H>(&left_child_state)?,
-                    optional_child_state_label_hash::<H>(&right_child_state)?,
+                    optional_child_state_label_hash::<H>(&left_child_state, exclude_ep_val)?,
+                    optional_child_state_label_hash::<H>(&right_child_state, exclude_ep_val)?,
                 ]);
                 // Calculate a hash over the children and node label
                 // self.hash = match self.node_type {
@@ -597,12 +597,16 @@ pub(crate) fn optional_history_child_state_to_label(input: &Option<HistoryTreeNo
 
 pub(crate) fn optional_child_state_label_hash<H: Hasher>(
     input: &Option<HistoryTreeNode>,
+    exclude_ep_val: bool,
 ) -> Result<H::Digest, AkdError> {
     match input {
-        Some(child_state) => Ok(H::merge(&[
-            to_digest::<H>(&child_state.hash)?,
-            hash_label::<H>(child_state.label),
-        ])),
+        Some(child_state) => {
+            let mut hash = to_digest::<H>(&child_state.hash)?;
+            if child_state.is_leaf() && !exclude_ep_val {
+                hash = H::merge_with_int(hash, child_state.last_epoch);
+            }
+            Ok(H::merge(&[hash, hash_label::<H>(child_state.label)]))
+        }
         None => Ok(H::merge(&[
             crate::utils::empty_node_hash::<H>(),
             hash_label::<H>(EMPTY_LABEL),
@@ -614,7 +618,16 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
     input: &Option<HistoryTreeNode>,
 ) -> Result<H::Digest, AkdError> {
     match input {
-        Some(child_state) => to_digest::<H>(&child_state.hash),
+        Some(child_state) => {
+            if child_state.is_leaf() {
+                Ok(H::merge_with_int(
+                    to_digest::<H>(&child_state.hash)?,
+                    child_state.last_epoch,
+                ))
+            } else {
+                to_digest::<H>(&child_state.hash)
+            }
+        }
         None => Ok(crate::utils::empty_node_hash::<H>()),
     }
 }
