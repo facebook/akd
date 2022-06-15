@@ -22,7 +22,10 @@ use crate::{
     },
     utils::empty_node_hash,
 };
-use winter_crypto::{hashers::Blake3_256, Digest};
+use winter_crypto::{
+    hashers::{Blake3_256, Sha3_256},
+    Digest,
+};
 use winter_math::fields::f128::BaseElement;
 type Blake3 = Blake3_256<BaseElement>;
 
@@ -87,6 +90,42 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
+    Ok(())
+}
+
+// This test also covers #144
+#[tokio::test]
+async fn test_small_key_history() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world"),
+    )])
+    .await?;
+
+    akd.publish::<Blake3>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world2"),
+    )])
+    .await?;
+
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    let current_azks = akd.retrieve_current_azks().await?;
+    let current_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let vrf_pk = akd.get_public_key().await?;
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hash,
+        current_epoch,
+        AkdLabel::from_utf8_str("hello"),
+        history_proof,
+        false,
+    )?;
+
     Ok(())
 }
 
@@ -534,29 +573,6 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     Ok(())
 }
 
-/*
-=========== Test Helpers ===========
-*/
-
-async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage>(
-    reader: &Directory<T, V>,
-    value: AkdValue,
-) -> Result<(), AkdError> {
-    // reader should read "hello" and this will populate the "cache" a log
-    let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
-    assert_eq!(value, lookup_proof.plaintext_value);
-    let current_azks = reader.retrieve_current_azks().await?;
-    let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
-    let pk = reader.get_public_key().await?;
-    lookup_verify::<Blake3>(
-        &pk,
-        root_hash,
-        AkdLabel::from_utf8_str("hello"),
-        lookup_proof,
-    )?;
-    Ok(())
-}
-
 #[tokio::test]
 async fn test_limited_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
@@ -781,9 +797,11 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     Ok(())
 }
 
-// // Test coverage on issue #144, verification failures with small trees (<4 nodes)
+// Test coverage on issue #144, verification failures with
+// small trees (<4 nodes) in both the tests below
+
 #[tokio::test]
-async fn test_simple_lookup_for_small_tree1() -> Result<(), AkdError> {
+async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -824,34 +842,36 @@ async fn test_simple_lookup_for_small_tree1() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-async fn test_simple_lookup_for_small_tree2() -> Result<(), AkdError> {
+async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _>::new::<Sha3_256<BaseElement>>(&db, &vrf, false).await?;
 
     let mut updates = vec![];
     for i in 0..1 {
         updates.push((
-            AkdLabel(format!("hello2{}", i).as_bytes().to_vec()),
-            AkdValue(format!("hello2{}", i).as_bytes().to_vec()),
+            AkdLabel(format!("hello{}", i).as_bytes().to_vec()),
+            AkdValue(format!("hello{}", i).as_bytes().to_vec()),
         ));
     }
 
-    akd.publish::<Blake3>(updates).await?;
+    akd.publish::<Sha3_256<BaseElement>>(updates).await?;
 
-    let target_label = AkdLabel(format!("hello2{}", 0).as_bytes().to_vec());
+    let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
 
     // retrieve the lookup proof
     let lookup_proof = akd.lookup(target_label.clone()).await?;
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd
+        .get_root_hash::<Sha3_256<BaseElement>>(&current_azks)
+        .await?;
 
     let vrf_pk = vrf.get_vrf_public_key().await?;
 
     // perform the "traditional" AKD verification
-    let akd_result = crate::client::lookup_verify::<Blake3>(
+    let akd_result = crate::client::lookup_verify::<Sha3_256<BaseElement>>(
         &vrf_pk,
         root_hash,
         target_label.clone(),
@@ -859,7 +879,30 @@ async fn test_simple_lookup_for_small_tree2() -> Result<(), AkdError> {
     );
 
     // check the two results to make sure they both verify
-    assert!(matches!(akd_result, Ok(())));
+    assert!(matches!(akd_result, Ok(())), "{:?}", akd_result);
 
+    Ok(())
+}
+
+/*
+=========== Test Helpers ===========
+*/
+
+async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage>(
+    reader: &Directory<T, V>,
+    value: AkdValue,
+) -> Result<(), AkdError> {
+    // reader should read "hello" and this will populate the "cache" a log
+    let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
+    assert_eq!(value, lookup_proof.plaintext_value);
+    let current_azks = reader.retrieve_current_azks().await?;
+    let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
+    let pk = reader.get_public_key().await?;
+    lookup_verify::<Blake3>(
+        &pk,
+        root_hash,
+        AkdLabel::from_utf8_str("hello"),
+        lookup_proof,
+    )?;
     Ok(())
 }
