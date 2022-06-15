@@ -428,7 +428,10 @@ impl TreeNode {
                 self.right_child = Some(child_node.label);
             }
         } else {
-            panic!("Unexpected child index: {:?}", direction);
+            return Err(StorageError::Other(format!(
+                "Unexpected child index: {:?}",
+                direction
+            )));
         }
         // Update parent of the child.
         child_node.parent = self.label;
@@ -455,7 +458,7 @@ impl TreeNode {
         } else if dir == Some(1) {
             self.right_child
         } else {
-            panic!("No child with that index!");
+            None
         }
     }
 
@@ -527,10 +530,7 @@ impl TreeNode {
                 } else if dir == 1 {
                     Ok(self.right_child)
                 } else {
-                    panic!(
-                        "AKD is based on a binary tree. No child with a given index: {}",
-                        dir
-                    );
+                    Err(AkdError::TreeNode(TreeNodeError::InvalidDirection(dir)))
                 }
             }
         }

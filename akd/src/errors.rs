@@ -83,6 +83,8 @@ impl std::fmt::Display for AkdError {
 /// Errors thrown by TreeNodes
 #[derive(Debug, Eq, PartialEq)]
 pub enum TreeNodeError {
+    /// At the moment the only supported dirs are 0, 1
+    InvalidDirection(usize),
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
@@ -106,6 +108,13 @@ impl std::error::Error for TreeNodeError {}
 impl fmt::Display for TreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidDirection(dir) => {
+                write!(
+                    f,
+                    "AKD is based on a binary tree. No child with a given index: {}",
+                    dir
+                )
+            }
             Self::NoDirection(node_label, child_label) => {
                 let mut to_print = format!("no direction provided for the node {:?}", node_label);
                 // Add child info if given.

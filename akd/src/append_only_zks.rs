@@ -798,8 +798,9 @@ mod tests {
         Ok(())
     }
 
+    // This test checks that a non-membership proof in a tree with 1 leaf verifies.
     #[tokio::test]
-    async fn test_nonmembership_proof_v_small() -> Result<(), AkdError> {
+    async fn test_nonmembership_proof_very_small() -> Result<(), AkdError> {
         let num_nodes = 2;
 
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
@@ -826,6 +827,8 @@ mod tests {
         Ok(())
     }
 
+    // This test verifies if a non-membership proof in a small tree of 2 leaves
+    // verifies.
     #[tokio::test]
     async fn test_nonmembership_proof_small() -> Result<(), AkdError> {
         let num_nodes = 3;
