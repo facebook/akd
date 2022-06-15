@@ -268,6 +268,7 @@ pub fn key_history_verify(
         });
     }
 
+    // Check that the sent proofs are for a contiguous sequence of decreasing versions
     for count in 0..num_proofs {
         if count > 0 {
             // Make sure this proof is for a version 1 more than the previous one.
@@ -283,7 +284,9 @@ pub fn key_history_verify(
         }
     }
 
+    // Check that all the individual update proofs check
     for (count, update_proof) in proof.update_proofs.into_iter().enumerate() {
+        // Get the highest version sent among the update proofs.
         last_version = if update_proof.version > last_version {
             update_proof.version
         } else {
@@ -318,7 +321,7 @@ pub fn key_history_verify(
     let next_marker = crate::utils::get_marker_version(last_version) + 1;
     let final_marker = crate::utils::get_marker_version(current_epoch);
 
-    // ***** PART 4 ***************************
+    // ***** Future checks below ***************************
     // Verify the VRFs and non-membership of future entries, up to the next marker
     for (i, ver) in (last_version + 1..(1 << next_marker)).enumerate() {
         let pf = &proof.non_existence_of_next_few[i];
@@ -335,7 +338,6 @@ pub fn key_history_verify(
         }
     }
 
-    // ***** PART 5 ***************************
     // Verify the VRFs and non-membership proofs for future markers
     for (i, pow) in (next_marker + 1..final_marker).enumerate() {
         let ver = 1 << pow;

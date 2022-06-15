@@ -180,7 +180,7 @@ impl HistoryTreeNode {
     ) -> Result<Vec<HistoryTreeNode>, StorageError> {
         let node_records: Vec<DbRecord> = storage.batch_get::<HistoryTreeNode>(keys).await?;
         let mut nodes = Vec::<HistoryTreeNode>::new();
-        for (_i, node) in node_records.into_iter().enumerate() {
+        for node in node_records.into_iter() {
             if let DbRecord::HistoryTreeNode(node) = node {
                 nodes.push(node);
             } else {
@@ -311,13 +311,12 @@ impl HistoryTreeNode {
 
                 if hashing {
                     // Update hashes from bottom to top.
+                    // Note that we don't need to hash the
+                    // node itself, since it's not changing.
                     debug!("BEGIN update hashes");
                     new_leaf
                         .update_node_hash::<_, H>(storage, epoch, exclude_ep)
                         .await?;
-                    // This node might be a leaf, we shouldn't update its hash,
-                    // otherwise we will re-hash its values.
-                    // self.update_node_hash::<_, H>(storage, epoch).await?;
                     new_node
                         .update_node_hash::<_, H>(storage, epoch, exclude_ep)
                         .await?;
@@ -392,18 +391,10 @@ impl HistoryTreeNode {
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
             NodeType::Leaf => {
-                let hash_val = to_digest::<H>(&self.hash)?;
-                // if !exclude_ep_val {
-                //     hash_val = H::merge_with_int(hash_val, epoch);
-                // }
-
-                let leaf_hash = hash_val;
-                // H::merge(&[hash_val, hash_label::<H>(self.label)]);
-
-                // Update the node hash.
-                self.hash = from_digest::<H>(leaf_hash);
+                // The leaf is initialized with its value.
+                // When it's used later, it'll be hashed with the epoch.
             }
-            // For non-leaf nodes, the hash is updated by merging the hashes of the node's children, and the label.
+            // For non-leaf nodes, the hash is updated by merging the hashes of the node's children.
             // It is assumed that the children already updated their hashes.
             _ => {
                 // Get children states.
@@ -415,11 +406,7 @@ impl HistoryTreeNode {
                     optional_child_state_label_hash::<H>(&left_child_state, exclude_ep_val)?,
                     optional_child_state_label_hash::<H>(&right_child_state, exclude_ep_val)?,
                 ]);
-                // Calculate a hash over the children and node label
-                // self.hash = match self.node_type {
-                //     NodeType::Root => from_digest::<H>(H::merge(&[child_hashes, hash_label::<H>(self.label)])),
-                //     _ => from_digest::<H>(child_hashes),
-                // };
+                // Store the hash
                 self.hash = from_digest::<H>(child_hashes);
             }
         }
@@ -432,7 +419,6 @@ impl HistoryTreeNode {
 
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
-    // #[async_recursion]
     pub(crate) async fn set_child<S: Storage + Sync + Send>(
         &mut self,
         storage: &S,
@@ -456,7 +442,6 @@ impl HistoryTreeNode {
 
         // Update last updated epoch.
         self.last_epoch = epoch;
-        // child_node.last_epoch = epoch;
 
         // Update the least descencent epoch
         if self.least_decendent_ep == 0u64 {

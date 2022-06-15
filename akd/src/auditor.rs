@@ -51,7 +51,6 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
 
     let db = AsyncInMemoryDatabase::new();
     let mut azks = Azks::new::<_, H>(&db).await?;
-    // azks.latest_epoch = epoch - 1;
     azks.batch_insert_leaves_helper::<_, H>(&db, unchanged_nodes, true)
         .await?;
     let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
