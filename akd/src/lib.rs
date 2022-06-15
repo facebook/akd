@@ -194,11 +194,14 @@
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
+//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
+//!     let current_epoch = current_azks.get_latest_epoch();
+//!     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await.unwrap();
 //!     let vrf_pk = akd.get_public_key().await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
 //!         &vrf_pk,
-//!         root_hashes,
-//!         previous_root_hashes,
+//!         root_hash,
+//!         current_epoch,
 //!         AkdLabel::from_utf8_str("hello"),
 //!         history_proof,
 //!         false,

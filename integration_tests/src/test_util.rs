@@ -198,15 +198,15 @@ pub(crate) async fn directory_test_suite<
                 match dir.key_history::<Blake3>(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
-                        let (root_hashes, previous_root_hashes) =
-                            akd::directory::get_key_history_hashes::<_, Blake3, V>(&dir, &proof)
+                        let (root_hash, current_epoch) =
+                            akd::directory::get_directory_root_hash_and_ep::<_, Blake3, V>(&dir)
                                 .await
                                 .unwrap();
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify::<Blake3>(
                             &vrf_pk,
-                            root_hashes,
-                            previous_root_hashes,
+                            root_hash,
+                            current_epoch,
                             key,
                             proof,
                             false,

@@ -15,10 +15,7 @@ use crate::{
     errors::HistoryTreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
     node_state::{hash_label, NodeLabel},
-    proof_structs::{
-        HistoryProof, HistoryProof2, LookupProof, MembershipProof, NonMembershipProof, UpdateProof,
-        UpdateProof2,
-    },
+    proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,
 };
@@ -176,39 +173,10 @@ pub fn lookup_verify<H: Hasher>(
 /// verified because the value has been removed ("tombstoned") from the storage layer.
 pub fn key_history_verify<H: Hasher>(
     vrf_pk: &VRFPublicKey,
-    root_hashes: Vec<H::Digest>,
-    previous_root_hashes: Vec<Option<H::Digest>>,
-    uname: AkdLabel,
-    proof: HistoryProof<H>,
-    allow_tombstones: bool,
-) -> Result<Vec<bool>, AkdError> {
-    let mut tombstones = vec![];
-    for (count, update_proof) in proof.proofs.into_iter().enumerate() {
-        let root_hash = root_hashes[count];
-        let previous_root_hash = previous_root_hashes[count];
-        let is_tombstone = verify_single_update_proof::<H>(
-            root_hash,
-            vrf_pk,
-            previous_root_hash,
-            update_proof,
-            &uname,
-            allow_tombstones,
-        )?;
-        tombstones.push(is_tombstone);
-    }
-    Ok(tombstones)
-}
-
-/// Verifies a key history proof, given the corresponding sequence of hashes.
-/// Returns a vector of whether the validity of a hash could be verified.
-/// When false, the value <=> hash validity at the position could not be
-/// verified because the value has been removed ("tombstoned") from the storage layer.
-pub fn key_history_verify2<H: Hasher>(
-    vrf_pk: &VRFPublicKey,
     root_hash: H::Digest,
     current_epoch: u64,
-    uname: AkdLabel,
-    proof: HistoryProof2<H>,
+    akd_key: AkdLabel,
+    proof: HistoryProof<H>,
     allow_tombstones: bool,
 ) -> Result<Vec<bool>, AkdError> {
     let mut tombstones = vec![];
@@ -220,7 +188,7 @@ pub fn key_history_verify2<H: Hasher>(
         return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
             format!(
                 "No update proofs included in the proof of user {:?} at epoch {:?}!",
-                uname, current_epoch
+                akd_key, current_epoch
             ),
         )));
     }
@@ -231,7 +199,7 @@ pub fn key_history_verify2<H: Hasher>(
             format!(
                 "The number of epochs included in the proofs for user {:?} 
                 did not match the number of update proofs!",
-                uname
+                akd_key
             ),
         )));
     }
@@ -251,7 +219,11 @@ pub fn key_history_verify2<H: Hasher>(
     }
 
     for (count, update_proof) in proof.update_proofs.into_iter().enumerate() {
-        last_version = update_proof.version;
+        last_version = if update_proof.version > last_version {
+            update_proof.version
+        } else {
+            last_version
+        };
         let ep_match = proof.epochs[count] == update_proof.epoch;
 
         if count > 0 {
@@ -267,11 +239,11 @@ pub fn key_history_verify2<H: Hasher>(
             }
         }
 
-        let is_tombstone = verify_single_update_proof2::<H>(
+        let is_tombstone = verify_single_update_proof::<H>(
             root_hash,
             vrf_pk,
             update_proof,
-            &uname,
+            &akd_key,
             allow_tombstones,
         )?;
         tombstones.push(is_tombstone && ep_match);
@@ -287,12 +259,12 @@ pub fn key_history_verify2<H: Hasher>(
         let pf = &proof.non_existence_of_next_few[i];
         let vrf_pf = &proof.next_few_vrf_proofs[i];
         let ver_label = pf.label;
-        vrf_pk.verify_label::<H>(&uname, false, ver, vrf_pf, ver_label)?;
+        vrf_pk.verify_label::<H>(&akd_key, false, ver, vrf_pf, ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(
                     format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, current_epoch))));
+                    akd_key, ver, current_epoch))));
         }
     }
 
@@ -303,12 +275,12 @@ pub fn key_history_verify2<H: Hasher>(
         let pf = &proof.non_existence_of_future_markers[i];
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
         let ver_label = pf.label;
-        vrf_pk.verify_label::<H>(&uname, false, ver, vrf_pf, ver_label)?;
+        vrf_pk.verify_label::<H>(&akd_key, false, ver, vrf_pf, ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, current_epoch))));
+                    format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    akd_key, ver, current_epoch))));
         }
     }
     Ok(tombstones)
@@ -318,158 +290,8 @@ pub fn key_history_verify2<H: Hasher>(
 fn verify_single_update_proof<H: Hasher>(
     root_hash: H::Digest,
     vrf_pk: &VRFPublicKey,
-    previous_root_hash: Option<H::Digest>,
     proof: UpdateProof<H>,
-    uname: &AkdLabel,
-    allow_tombstones: bool,
-) -> Result<bool, AkdError> {
-    let epoch = proof.epoch;
-    let version = proof.version;
-
-    let existence_vrf_proof = proof.existence_vrf_proof;
-    let existence_at_ep_ref = &proof.existence_at_ep;
-    let existence_at_ep = existence_at_ep_ref;
-    let existence_at_ep_label = existence_at_ep_ref.label;
-
-    let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
-
-    let non_existence_before_ep = &proof.non_existence_before_ep;
-
-    let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
-        (true, bytes) if bytes.0 == crate::TOMBSTONE => {
-            // A tombstone was encountered, we need to just take the
-            // hash of the value at "face value" since we don't have
-            // the real value available
-            (true, true)
-        }
-        (_, bytes) => {
-            // No tombstone so hash the value found, and compare to the existence proof's value
-            (
-                false,
-                hash_leaf_with_value::<H>(
-                    bytes,
-                    proof.epoch,
-                    &proof.commitment_proof,
-                    existence_at_ep_label,
-                ) == existence_at_ep.hash_val,
-            )
-        }
-    };
-    if !value_hash_valid {
-        return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
-            format!("Hash of plaintext value (v: {}) did not match expected hash in existence proof at epoch {}", version, epoch),
-        )));
-    }
-
-    // ***** PART 1 ***************************
-    // Verify the VRF and membership proof for the corresponding label for the version being updated to.
-    vrf_pk.verify_label::<H>(
-        uname,
-        false,
-        version,
-        &existence_vrf_proof,
-        existence_at_ep_label,
-    )?;
-    verify_membership(root_hash, existence_at_ep)?;
-    // ***** PART 2 ***************************
-    // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
-    if version > 1 {
-        // Verify the membership proof the for stale label of the previous version
-        let err_str = format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
-            (version - 1),
-            epoch
-        );
-        let previous_null_err = AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(err_str));
-        let previous_val_stale_at_ep =
-            previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
-        verify_membership(root_hash, previous_val_stale_at_ep)?;
-
-        let vrf_err_str = format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
-            (version - 1),
-            epoch
-        );
-
-        // Verify the VRF for the stale label corresponding to the previous version for this username
-        let vrf_previous_null_err =
-            AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(vrf_err_str));
-        let previous_val_vrf_proof = proof
-            .previous_val_vrf_proof
-            .as_ref()
-            .ok_or(vrf_previous_null_err)?;
-        vrf_pk.verify_label::<H>(
-            uname,
-            true,
-            version - 1,
-            previous_val_vrf_proof,
-            previous_val_stale_at_ep.label,
-        )?;
-    }
-
-    // ***** PART 3 ***************************
-    // Verify that the current version was only added in this epoch and didn't exist before.
-    if epoch > 1 {
-        let root_hash = previous_root_hash.ok_or(AzksError::NoEpochGiven)?;
-        verify_nonmembership(
-            root_hash,
-            non_existence_before_ep.as_ref().ok_or_else(|| AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(format!(
-                "Non-existence before this epoch proof of user {:?}'s version {:?} at epoch {:?} is None",
-                uname,
-                version,
-                epoch
-            ))))?
-        )?;
-    }
-
-    // Get the least and greatest marker entries for the current version
-    let next_marker = get_marker_version(version) + 1;
-    let final_marker = get_marker_version(epoch);
-
-    // ***** PART 4 ***************************
-    // Verify the VRFs and non-membership of future entries, up to the next marker
-    for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
-        let pf = &proof.non_existence_of_next_few[i];
-        let vrf_pf = &proof.next_few_vrf_proofs[i];
-        let ver_label = pf.label;
-        vrf_pk.verify_label::<H>(uname, false, ver, vrf_pf, ver_label)?;
-        if !verify_nonmembership(root_hash, pf)? {
-            return Err(AkdError::Directory(
-                DirectoryError::VerifyKeyHistoryProof(
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, epoch-1))));
-        }
-    }
-
-    // ***** PART 5 ***************************
-    // Verify the VRFs and non-membership proofs for future markers
-    for (i, pow) in (next_marker + 1..final_marker).enumerate() {
-        let ver = 1 << pow;
-        let pf = &proof.non_existence_of_future_markers[i];
-        let vrf_pf = &proof.future_marker_vrf_proofs[i];
-        let ver_label = pf.label;
-        vrf_pk.verify_label::<H>(uname, false, ver, vrf_pf, ver_label)?;
-        if !verify_nonmembership(root_hash, pf)? {
-            return Err(AkdError::Directory(
-                DirectoryError::VerifyKeyHistoryProof(
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, epoch-1))));
-        }
-    }
-
-    // return indicator of if the value <=> hash mapping was verified
-    // or if the hash was simply taken at face-value. True = hash mapping verified
-    Ok(is_tombstone)
-}
-
-/// Verifies a single update proof
-fn verify_single_update_proof2<H: Hasher>(
-    root_hash: H::Digest,
-    vrf_pk: &VRFPublicKey,
-    proof: UpdateProof2<H>,
-    uname: &AkdLabel,
+    akd_key: &AkdLabel,
     allow_tombstones: bool,
 ) -> Result<bool, AkdError> {
     let epoch = proof.epoch;
@@ -512,7 +334,7 @@ fn verify_single_update_proof2<H: Hasher>(
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
     vrf_pk.verify_label::<H>(
-        uname,
+        akd_key,
         false,
         version,
         &existence_vrf_proof,
@@ -526,7 +348,7 @@ fn verify_single_update_proof2<H: Hasher>(
         // Verify the membership proof the for stale label of the previous version
         let err_str = format!(
             "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
+            akd_key,
             (version - 1),
             epoch
         );
@@ -536,7 +358,7 @@ fn verify_single_update_proof2<H: Hasher>(
         verify_membership(root_hash, previous_val_stale_at_ep)?;
         let vrf_err_str = format!(
             "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
+            akd_key,
             (version - 1),
             epoch
         );
@@ -549,7 +371,7 @@ fn verify_single_update_proof2<H: Hasher>(
             .as_ref()
             .ok_or(vrf_previous_null_err)?;
         vrf_pk.verify_label::<H>(
-            uname,
+            akd_key,
             true,
             version - 1,
             previous_val_vrf_proof,
@@ -579,9 +401,8 @@ fn build_and_hash_layer<H: Hasher>(
 
 /// Helper for build_and_hash_layer
 fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::Digest {
-    let mut new_hash = H::merge(&[hashes[0], hashes[1]]);
-    new_hash = H::merge(&[new_hash, hash_label::<H>(parent_label)]);
-    new_hash
+    let new_hash = H::merge(&[hashes[0], hashes[1]]);
+    H::merge(&[new_hash, hash_label::<H>(parent_label)])
 }
 
 fn hash_leaf_with_value<H: Hasher>(
