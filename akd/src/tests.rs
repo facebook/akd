@@ -211,7 +211,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     Ok(())
 }
 
-// #[tokio::test]
+#[tokio::test]
 #[allow(dead_code)]
 async fn test_simple_audit() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
@@ -230,6 +230,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     ])
     .await?;
 
+    let root_hash_1 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
+
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
@@ -241,6 +245,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
         ),
     ])
     .await?;
+
+    let root_hash_2 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
 
     akd.publish::<Blake3>(vec![
         (
@@ -254,6 +262,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     ])
     .await?;
 
+    let root_hash_3 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
+
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
@@ -266,11 +278,19 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     ])
     .await?;
 
+    let root_hash_4 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
+
     akd.publish::<Blake3>(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world_updated"),
     )])
     .await?;
+
+    let root_hash_5 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
 
     akd.publish::<Blake3>(vec![
         (
@@ -284,69 +304,38 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     ])
     .await?;
 
-    let current_azks = akd.retrieve_current_azks().await?;
-    // FIXME: uncomment
-    /*
     let audit_proof_1 = akd.audit(1, 2).await?;
 
-    audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
-            .await?,
-        audit_proof_1,
-    )
-    .await?;
+    audit_verify::<Blake3>(vec![root_hash_1, root_hash_2], audit_proof_1).await?;
 
     let audit_proof_2 = akd.audit(1, 3).await?;
-    audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
-            .await?,
-        audit_proof_2,
-    )
-    .await?;
+    audit_verify::<Blake3>(vec![root_hash_1, root_hash_2, root_hash_3], audit_proof_2).await?;
 
     let audit_proof_3 = akd.audit(1, 4).await?;
     audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
-            .await?,
+        vec![root_hash_1, root_hash_2, root_hash_3, root_hash_4],
         audit_proof_3,
     )
     .await?;
 
     let audit_proof_4 = akd.audit(1, 5).await?;
     audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 5)
-            .await?,
+        vec![
+            root_hash_1,
+            root_hash_2,
+            root_hash_3,
+            root_hash_4,
+            root_hash_5,
+        ],
         audit_proof_4,
     )
     .await?;
 
     let audit_proof_5 = akd.audit(2, 3).await?;
-    audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 3)
-            .await?,
-        audit_proof_5,
-    )
-    .await?;
+    audit_verify::<Blake3>(vec![root_hash_2, root_hash_3], audit_proof_5).await?;
 
     let audit_proof_6 = akd.audit(2, 4).await?;
-    audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 4)
-            .await?,
-        audit_proof_6,
-    )
-    .await?;
+    audit_verify::<Blake3>(vec![root_hash_2, root_hash_3, root_hash_4], audit_proof_6).await?;
 
     let invalid_audit = akd.audit::<Blake3>(3, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
@@ -356,7 +345,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     let invalid_audit = akd.audit::<Blake3>(6, 7).await;
     assert!(matches!(invalid_audit, Err(_)));
-    */
+
     Ok(())
 }
 
@@ -380,6 +369,10 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     ])
     .await?;
 
+    let root_hash_1 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
+
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
@@ -391,6 +384,10 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         ),
     ])
     .await?;
+
+    let root_hash_2 = akd
+        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .await?;
 
     // Make the current azks a "checkpoint" to reset to later
     let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
@@ -413,7 +410,6 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     db.set(DbRecord::Azks(checkpoint_azks))
         .await
         .expect("Error resetting directory to previous epoch");
-    let current_azks = akd.retrieve_current_azks().await?;
 
     // History proof should not contain the third epoch's update but still verify
     let history_proof = akd
@@ -449,21 +445,14 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         lookup_proof,
     )?;
     // FIXME: uncomment
-    /*
     // Audit proof should only work up until checkpoint's epoch
+
     let audit_proof = akd.audit(1, 2).await?;
-    audit_verify::<Blake3>(
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 1)
-            .await?,
-        akd.get_root_hash_at_epoch::<Blake3>(&current_azks, 2)
-            .await?,
-        audit_proof,
-    )
-    .await?;
+    audit_verify::<Blake3>(vec![root_hash_1, root_hash_2], audit_proof).await?;
 
     let invalid_audit = akd.audit::<Blake3>(2, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
-    */
+
     Ok(())
 }
 
@@ -486,7 +475,7 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
     Ok(())
 }
 
-// #[tokio::test]
+#[tokio::test]
 #[allow(dead_code)]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
@@ -703,7 +692,6 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};

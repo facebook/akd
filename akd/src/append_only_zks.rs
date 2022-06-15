@@ -324,9 +324,7 @@ impl Azks {
                 }
             }
         }
-        // if longest_prefix != ROOT_LABEL {
-        //     longest_prefix_membership_proof.hash_val = H::merge(&[longest_prefix_membership_proof.hash_val, hash_label::<H>(longest_prefix)]);
-        // }
+
         debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
@@ -377,69 +375,6 @@ impl Azks {
         Ok(AppendOnlyProof { proofs, epochs })
     }
 
-    // FIXME: Remove if not needed
-    #[allow(unused)]
-    #[async_recursion]
-    async fn get_append_only_proof_helper_old<S: Storage + Sync + Send, H: Hasher>(
-        &self,
-        storage: &S,
-        node: HistoryTreeNode,
-        start_epoch: u64,
-        end_epoch: u64,
-    ) -> Result<AppendOnlyHelper<H>, AkdError> {
-        let mut unchanged = Vec::<Node<H>>::new();
-        let mut leaves = Vec::<Node<H>>::new();
-        if node.get_latest_epoch() <= start_epoch {
-            if node.is_root() {
-                // this is the case where the root is unchanged since the last epoch
-                return Ok((unchanged, leaves));
-            }
-
-            unchanged.push(Node::<H> {
-                label: node.label,
-                hash: to_digest::<H>(&node.hash)?,
-            });
-            return Ok((unchanged, leaves));
-        }
-        // if node.get_birth_epoch() > end_epoch {
-        //     // really you shouldn't even be here. Later do error checking
-        //     return Ok((unchanged, leaves));
-        // }
-        if node.is_leaf() {
-            leaves.push(Node::<H> {
-                label: node.label,
-                hash: to_digest::<H>(&node.hash)?,
-            });
-        } else {
-            for child_label in [node.left_child, node.right_child] {
-                match child_label {
-                    None => {
-                        continue;
-                    }
-                    Some(label) => {
-                        let child_node = HistoryTreeNode::get_from_storage(
-                            storage,
-                            &NodeKey(label),
-                            self.get_latest_epoch(),
-                        )
-                        .await?;
-                        let mut rec_output = self
-                            .get_append_only_proof_helper::<_, H>(
-                                storage,
-                                child_node,
-                                start_epoch,
-                                end_epoch,
-                            )
-                            .await?;
-                        unchanged.append(&mut rec_output.0);
-                        leaves.append(&mut rec_output.1);
-                    }
-                }
-            }
-        }
-        Ok((unchanged, leaves))
-    }
-
     #[async_recursion]
     async fn get_append_only_proof_helper<S: Storage + Sync + Send, H: Hasher>(
         &self,
@@ -458,7 +393,7 @@ impl Azks {
             }
             unchanged.push(Node::<H> {
                 label: node.label,
-                hash: to_digest::<H>(&node.hash)?,
+                hash: optional_child_state_hash::<H>(&Some(node))?,
             });
 
             return Ok((unchanged, leaves));
@@ -969,7 +904,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
@@ -1000,7 +935,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
@@ -1039,7 +974,7 @@ mod tests {
         Ok(())
     }
 
-    // #[tokio::test]
+    #[tokio::test]
     #[allow(dead_code)]
     async fn test_append_only_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
@@ -1116,3 +1051,66 @@ mod tests {
         Ok(())
     }
 }
+
+// FIXME: Remove if not needed
+// #[allow(unused)]
+// #[async_recursion]
+// async fn get_append_only_proof_helper_old<S: Storage + Sync + Send, H: Hasher>(
+//     &self,
+//     storage: &S,
+//     node: HistoryTreeNode,
+//     start_epoch: u64,
+//     end_epoch: u64,
+// ) -> Result<AppendOnlyHelper<H>, AkdError> {
+//     let mut unchanged = Vec::<Node<H>>::new();
+//     let mut leaves = Vec::<Node<H>>::new();
+//     if node.get_latest_epoch() <= start_epoch {
+//         if node.is_root() {
+//             // this is the case where the root is unchanged since the last epoch
+//             return Ok((unchanged, leaves));
+//         }
+
+//         unchanged.push(Node::<H> {
+//             label: node.label,
+//             hash: to_digest::<H>(&node.hash)?,
+//         });
+//         return Ok((unchanged, leaves));
+//     }
+//     // if node.get_birth_epoch() > end_epoch {
+//     //     // really you shouldn't even be here. Later do error checking
+//     //     return Ok((unchanged, leaves));
+//     // }
+//     if node.is_leaf() {
+//         leaves.push(Node::<H> {
+//             label: node.label,
+//             hash: to_digest::<H>(&node.hash)?,
+//         });
+//     } else {
+//         for child_label in [node.left_child, node.right_child] {
+//             match child_label {
+//                 None => {
+//                     continue;
+//                 }
+//                 Some(label) => {
+//                     let child_node = HistoryTreeNode::get_from_storage(
+//                         storage,
+//                         &NodeKey(label),
+//                         self.get_latest_epoch(),
+//                     )
+//                     .await?;
+//                     let mut rec_output = self
+//                         .get_append_only_proof_helper::<_, H>(
+//                             storage,
+//                             child_node,
+//                             start_epoch,
+//                             end_epoch,
+//                         )
+//                         .await?;
+//                     unchanged.append(&mut rec_output.0);
+//                     leaves.append(&mut rec_output.1);
+//                 }
+//             }
+//         }
+//     }
+//     Ok((unchanged, leaves))
+// }

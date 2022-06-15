@@ -31,7 +31,7 @@ pub async fn audit_verify<H: Hasher + Send + Sync>(
             &proof.proofs[i],
             start_hash,
             end_hash,
-            proof.epochs[i],
+            proof.epochs[i] + 1,
         )
         .await?;
     }
@@ -51,19 +51,25 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
 
     let db = AsyncInMemoryDatabase::new();
     let mut azks = Azks::new::<_, H>(&db).await?;
-    azks.latest_epoch = epoch - 1;
+    // azks.latest_epoch = epoch - 1;
     azks.batch_insert_leaves_helper::<_, H>(&db, unchanged_nodes, true)
         .await?;
     let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     let mut verified = computed_start_root_hash == start_hash;
-    println!("Verified start = {:?}", verified);
-    azks.latest_epoch = epoch;
-    azks.batch_insert_leaves_helper::<_, H>(&db, inserted, false)
+    azks.latest_epoch = epoch - 1;
+    let updated_inserted = inserted
+        .iter()
+        .map(|x| {
+            let mut y = *x;
+            y.hash = H::merge_with_int(x.hash, epoch);
+            y
+        })
+        .collect();
+    azks.batch_insert_leaves_helper::<_, H>(&db, updated_inserted, true)
         .await?;
     let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
-        println!("Verified end = {:?}", verified);
         return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
     }
     Ok(())
