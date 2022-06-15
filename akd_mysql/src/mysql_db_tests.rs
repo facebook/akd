@@ -11,9 +11,9 @@ use crate::mysql::*;
 
 // *** Tests *** //
 
-// #[tokio::test]
+#[tokio::test]
+// FIXME: Why is serial here??
 // #[serial]
-#[allow(dead_code)]
 async fn test_mysql_db() {
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(

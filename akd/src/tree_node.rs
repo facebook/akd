@@ -337,7 +337,7 @@ impl TreeNode {
                 debug!("BEGIN get child node from storage");
                 let child_node = self.get_child_state(storage, dir_leaf).await?;
                 debug!("BEGIN insert single leaf helper");
-                let result = match child_node {
+                match child_node {
                     Some(mut child_node) => {
                         child_node
                             .insert_single_leaf_helper::<_, H>(
@@ -366,8 +366,7 @@ impl TreeNode {
                         epoch,
                         dir_leaf.unwrap(),
                     ))),
-                };
-                result
+                }
             }
         }
     }
@@ -652,26 +651,6 @@ pub fn get_leaf_node<H: Hasher>(
         left_child: None,
         right_child: None,
         hash: from_digest::<H>(*value),
-    }
-}
-
-// FIXME: Remove if not needed
-#[allow(unused)]
-pub(crate) fn get_leaf_node_without_hashing<H: Hasher>(
-    node: Node<H>,
-    parent: NodeLabel,
-    birth_epoch: u64,
-) -> TreeNode {
-    let leaf_hash = from_digest::<H>(node.hash);
-    TreeNode {
-        label: node.label,
-        last_epoch: birth_epoch,
-        least_decendent_ep: birth_epoch,
-        parent,
-        node_type: NodeType::Leaf,
-        left_child: None,
-        right_child: None,
-        hash: leaf_hash,
     }
 }
 

@@ -9,9 +9,8 @@ use akd::ecvrf::HardCodedAkdVRF;
 use akd_mysql::mysql::*;
 use log::{error, info, warn};
 
-// #[tokio::test]
-// #[serial_test::serial]
-#[allow(dead_code)]
+#[tokio::test]
+#[serial_test::serial]
 async fn test_directory_operations() {
     crate::test_util::log_init(log::Level::Info);
 
@@ -64,9 +63,8 @@ async fn test_directory_operations() {
     info!("\n\n******** Completed MySQL Directory Operations Integration Test ********\n\n");
 }
 
-// #[tokio::test]
-// #[serial_test::serial]
-#[allow(dead_code)]
+#[tokio::test]
+#[serial_test::serial]
 async fn test_lookups() {
     crate::test_util::log_init(log::Level::Info);
 
