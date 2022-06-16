@@ -62,7 +62,6 @@ async fn test_simple_publish() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
@@ -130,7 +129,6 @@ async fn test_small_key_history() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_simple_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
@@ -251,7 +249,6 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_simple_audit() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
@@ -515,7 +512,6 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};

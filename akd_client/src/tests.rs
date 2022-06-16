@@ -219,7 +219,6 @@ where
 // ===================================
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
@@ -332,7 +331,6 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
@@ -407,7 +405,6 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
@@ -449,7 +446,6 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-#[allow(dead_code)]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
