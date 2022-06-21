@@ -522,7 +522,7 @@ impl Azks {
                             .get_child_state(storage, Direction::Some(i))
                             .await?;
                         nodes[count] = Node::<H> {
-                            label: optional_history_child_state_to_label(&sibling),
+                            label: optional_child_state_to_label(&sibling),
                             hash: optional_child_state_hash::<H>(&sibling)?,
                         };
                         count += 1;

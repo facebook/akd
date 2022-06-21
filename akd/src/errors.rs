@@ -62,7 +62,7 @@ impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             AkdError::TreeNode(err) => {
-                writeln!(f, "AKD History Tree Node Error: {}", err)
+                writeln!(f, "AKD Tree Node Error: {}", err)
             }
             AkdError::Directory(err) => {
                 writeln!(f, "AKD Directory Error: {}", err)

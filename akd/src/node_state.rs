@@ -59,7 +59,7 @@ impl<H: Hasher> Clone for Node<H> {
     }
 }
 
-/// The NodeLabel struct represents the label for a HistoryTreeNode.
+/// The NodeLabel struct represents the label for a TreeNode.
 /// Since the label itself may have any number of zeros pre-pended,
 /// just using a native type, unless it is a bit-vector, wouldn't work.
 /// Hence, we need a custom representation.

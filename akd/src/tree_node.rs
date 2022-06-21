@@ -566,7 +566,7 @@ pub(crate) fn hash_u8_with_label<H: Hasher>(
     Ok(H::merge(&[to_digest::<H>(digest)?, hash_label::<H>(label)]))
 }
 
-pub(crate) fn optional_history_child_state_to_label(input: &Option<TreeNode>) -> NodeLabel {
+pub(crate) fn optional_child_state_to_label(input: &Option<TreeNode>) -> NodeLabel {
     match input {
         Some(child_state) => child_state.label,
         None => EMPTY_LABEL,
