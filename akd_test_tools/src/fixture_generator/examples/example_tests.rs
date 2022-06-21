@@ -14,12 +14,11 @@ use akd::{
     ecvrf::HardCodedAkdVRF,
     storage::{memory::AsyncInMemoryDatabase, Storage, StorageUtil},
 };
-use clap::Parser;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 
 use crate::fixture_generator::reader::Reader;
-use crate::fixture_generator::{generator, parser::Args, reader::yaml::YamlFileReader};
+use crate::fixture_generator::{reader::yaml::YamlFileReader};
 
 type Blake3 = Blake3_256<BaseElement>;
 
