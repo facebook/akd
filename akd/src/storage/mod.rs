@@ -11,7 +11,7 @@ use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
 
 use async_trait::async_trait;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -29,8 +29,8 @@ pub mod memory;
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
 
-#[cfg(feature = "serde")]
 /// Storable represents an _item_ which can be stored in the storage layer
+#[cfg(feature = "serde_serialization")]
 pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
@@ -54,8 +54,8 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
     fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
 }
 
-#[cfg(not(feature = "serde"))]
 /// Storable represents an _item_ which can be stored in the storage layer
+#[cfg(not(feature = "serde_serialization"))]
 pub trait Storable: Clone + Sync {
     /// This particular storage will have a key type
     type Key: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
@@ -79,7 +79,7 @@ pub trait Storable: Clone + Sync {
     fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
 }
 
-/// Updated storage layer with better support of asynchronous work and batched operations
+/// Storage layer with support for asynchronous work and batched operations
 #[async_trait]
 pub trait Storage: Clone {
     /// Log some information about the cache (hit rate, etc)
@@ -141,7 +141,17 @@ pub trait Storage: Clone {
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
         &self,
-        keys: &[types::AkdLabel],
+        usernames: &[types::AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdLabel, u64>, StorageError>;
+    ) -> Result<HashMap<types::AkdLabel, (u64, types::AkdValue)>, StorageError>;
+}
+
+/// Optional storage layer utility functions for debug and test purposes
+#[async_trait]
+pub trait StorageUtil: Storage {
+    /// Retrieves all stored records of a given type from the data layer, ignoring any caching or transaction pending
+    async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError>;
+
+    /// Retrieves all stored records from the data layer, ignoring any caching or transaction pending
+    async fn batch_get_all_direct(&self) -> Result<Vec<DbRecord>, StorageError>;
 }

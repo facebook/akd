@@ -47,7 +47,10 @@ async fn test_directory_operations() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        crate::test_util::directory_test_suite::<_, HardCodedAkdVRF>(&mysql_db, 50, &vrf).await;
+        akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
+            &mysql_db, 50, &vrf,
+        )
+        .await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {

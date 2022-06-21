@@ -1,6 +1,6 @@
 [package]
 name = "akd_client"
-version = "0.5.4"
+version = "0.6.2"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Client verification companion for the auditable key directory with limited dependencies."
 license = "MIT OR Apache-2.0"

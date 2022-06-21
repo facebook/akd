@@ -149,11 +149,11 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;
@@ -273,11 +273,11 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;
@@ -593,11 +593,11 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     akd.publish::<Blake3>(vec![
         (
             AkdLabel::from_utf8_str("hello"),
-            AkdValue::from_utf8_str("world"),
+            AkdValue::from_utf8_str("world_2"),
         ),
         (
             AkdLabel::from_utf8_str("hello2"),
-            AkdValue::from_utf8_str("world2"),
+            AkdValue::from_utf8_str("world2_2"),
         ),
     ])
     .await?;

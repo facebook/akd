@@ -239,7 +239,6 @@ pub fn key_history_verify<H: Hasher>(
                 )));
             }
         }
-
         let is_tombstone = verify_single_update_proof::<H>(
             root_hash,
             vrf_pk,

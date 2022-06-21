@@ -32,8 +32,11 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
 #[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(bound = ""))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct Azks {
     /// The latest complete epoch
     pub latest_epoch: u64,

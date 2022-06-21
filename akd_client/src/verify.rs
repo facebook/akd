@@ -306,7 +306,6 @@ pub fn key_history_verify(
                 });
             }
         }
-
         let is_tombstone = verify_single_update_proof(
             root_hash,
             vrf_public_key,

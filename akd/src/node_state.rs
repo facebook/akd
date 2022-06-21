@@ -7,9 +7,15 @@
 
 //! The representation for the label of a history tree node.
 
-#[cfg(feature = "serde")]
-use crate::serialization::{digest_deserialize, digest_serialize};
+use crate::serialization::from_digest;
+#[cfg(feature = "serde_serialization")]
+use crate::serialization::{
+    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
+};
+use crate::storage::types::StorageType;
+use crate::storage::Storable;
 use crate::{Direction, EMPTY_LABEL};
+
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng, RngCore};
 
@@ -20,14 +26,23 @@ use std::{
 use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
-#[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
     /// the hash associated to this label
-    #[cfg_attr(feature = "serde", serde(serialize_with = "digest_serialize"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "digest_deserialize"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "digest_serialize")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "digest_deserialize")
+    )]
     pub hash: H::Digest,
 }
 
@@ -49,9 +64,20 @@ impl<H: Hasher> Clone for Node<H> {
 /// just using a native type, unless it is a bit-vector, wouldn't work.
 /// Hence, we need a custom representation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub val: [u8; 32],
     /// len keeps track of how long the binary string is
     pub len: u32,
@@ -239,7 +265,6 @@ pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
 }
 
 // Use test profile here other wise cargo complains function is never used.
-#[cfg(test)]
 fn byte_arr_from_u64_suffix(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();

@@ -19,8 +19,9 @@ use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueState
 use crate::storage::Storage;
 
 use log::{debug, error, info};
+
 #[cfg(feature = "rand")]
-use rand::{CryptoRng, RngCore};
+use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
 use crate::node_state::NodeLabel;
 use std::collections::HashMap;
@@ -45,7 +46,7 @@ pub struct LookupInfo {
 #[cfg(feature = "rand")]
 impl AkdValue {
     /// Gets a random value for a AKD
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
         Self::from_utf8_str(&get_random_str(rng))
     }
 }
@@ -53,7 +54,7 @@ impl AkdValue {
 #[cfg(feature = "rand")]
 impl AkdLabel {
     /// Creates a random key for a AKD
-    pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
         Self::from_utf8_str(&get_random_str(rng))
     }
 }
@@ -161,7 +162,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
                 }
-                Some(previous_version) => {
+                Some((_, previous_value)) if val == *previous_value => {
+                    // skip this version because the user is trying to re-publish the already most recent value
+                    // Issue #197: https://github.com/novifinancial/akd/issues/197
+                }
+                Some((previous_version, _)) => {
                     // Data found for the given user
                     let latest_version = *previous_version + 1;
                     let stale_label = self
@@ -193,6 +198,13 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             }
         }
         let insertion_set: Vec<Node<H>> = update_set.to_vec();
+
+        if insertion_set.is_empty() {
+            info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
+            // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
+            let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
+            return Ok(EpochHash(current_epoch, root_hash));
+        }
 
         if let false = self.storage.begin_transaction().await {
             error!("Transaction is already active");
@@ -227,7 +239,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
             .await?;
 
-        Ok(EpochHash(current_epoch, root_hash))
+        Ok(EpochHash(next_epoch, root_hash))
         // At the moment the tree root is not being written anywhere. Eventually we
         // want to change this to call a write operation to post to a blockchain or some such thing
     }
@@ -823,10 +835,11 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 #[cfg(feature = "rand")]
-fn get_random_str<R: RngCore + CryptoRng>(rng: &mut R) -> String {
-    let mut byte_str = [0u8; 32];
-    rng.fill_bytes(&mut byte_str);
-    format!("{:?}", &byte_str)
+fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
+    rng.sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect()
 }
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);

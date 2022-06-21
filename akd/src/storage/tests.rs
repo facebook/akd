@@ -8,10 +8,11 @@
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
 use crate::errors::StorageError;
-use crate::node_state::*;
+use crate::node_state::byte_arr_from_u64;
 use crate::storage::types::*;
 use crate::storage::Storage;
 use crate::tree_node::*;
+use crate::NodeLabel;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use tokio::time::{Duration, Instant};
@@ -243,7 +244,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1;
+                                && value_state.version == result.1 .0;
                         }
                         false
                     })
@@ -257,7 +258,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     });
 
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1), initial_record);
+                assert_eq!(Some(result.1 .0), initial_record);
             }
         }
     }
@@ -284,7 +285,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1;
+                                && value_state.version == result.1 .0;
                         }
                         false
                     })
@@ -297,7 +298,7 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                         }
                     });
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1), initial_record);
+                assert_eq!(Some(result.1 .0), initial_record);
             }
         }
     }

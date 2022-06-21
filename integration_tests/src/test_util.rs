@@ -123,9 +123,11 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
+// FIXME: We actually probably want to use this. Figure out where.
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
+#[allow(unused)]
 pub(crate) async fn directory_test_suite<
     S: akd::storage::Storage + Sync + Send,
     V: VRFKeyStorage,
