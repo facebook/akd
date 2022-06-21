@@ -25,7 +25,7 @@ pub(crate) const TEMP_IDS_TABLE: &str = "temp_ids_table";
 
 const SELECT_AZKS_DATA: &str = "`epoch`, `num_nodes`";
 const SELECT_HISTORY_TREE_NODE_DATA: &str =
-    "`label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`";
+    "`label_len`, `label_val`, `least_decendent_ep`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`";
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
 
@@ -62,7 +62,7 @@ impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :birth_epoch, :last_epoch, :parent_label_len, :parent_label_val, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `birth_epoch` = :birth_epoch, `last_epoch` = :last_epoch, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
+            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :least_decendent_ep, :last_epoch, :parent_label_len, :parent_label_val, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `least_decendent_ep` = :least_decendent_ep, `last_epoch` = :last_epoch, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
             DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
         }
     }
@@ -87,7 +87,7 @@ impl MySqlStorable for DbRecord {
             match St::data_type() {
                 StorageType::TreeNode => {
                     parts = format!(
-                        "{}(:label_len{}, :label_val{}, :birth_epoch{}, :last_epoch{}, :parent_label_len{}, :parent_label_val{}, :node_type{})",
+                        "{}(:label_len{}, :label_val{}, :least_decendent_ep{}, :last_epoch{}, :parent_label_len{}, :parent_label_val{}, :node_type{})",
                         parts, i, i, i, i, i, i, i
                     );
                 }
@@ -251,7 +251,7 @@ impl MySqlStorable for DbRecord {
             }
             StorageType::TreeNode => {
                 format!(
-                    "SELECT a.`label_len`, a.`label_val`, a.`birth_epoch`, a.`last_epoch`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
+                    "SELECT a.`label_len`, a.`label_val`, a.`least_decendent_ep`, a.`last_epoch`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
                     TABLE_HISTORY_TREE_NODES,
                     TEMP_IDS_TABLE
                 )
@@ -374,7 +374,7 @@ impl MySqlStorable for DbRecord {
                 }
             }
             StorageType::TreeNode => {
-                // `label_len`, `label_val`, `birth_epoch`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`,
+                // `label_len`, `label_val`, `least_decendent_ep`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`,
                 // `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`
                 if let (
                     Some(Ok(label_len)),
