@@ -123,7 +123,7 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
-// FIXME: We actually probably want to use this. Figure out where.
+// FIXME: We actually probably want to use this. Figure out
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
@@ -150,6 +150,8 @@ pub(crate) async fn directory_test_suite<
         );
     }
 
+    let mut root_hashes = vec![];
+
     // create & test the directory
     let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
     match maybe_dir {
@@ -172,6 +174,8 @@ pub(crate) async fn directory_test_suite<
                 } else {
                     info!("Published epoch {}", i);
                 }
+                let azks = dir.retrieve_current_azks().await.unwrap();
+                root_hashes.push(dir.get_root_hash::<Blake3>(&azks).await);
             }
 
             // Perform 10 random lookup proofs on the published users
@@ -222,16 +226,15 @@ pub(crate) async fn directory_test_suite<
             info!("2 random history proofs passed");
 
             // Perform an audit proof from 1u64 -> 2u64
-            // FIXME: uncomment
-            /*
             match dir.audit::<Blake3>(1u64, 2u64).await {
                 Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
                 Ok(proof) => {
-                    let start_root_hash = dir.get_root_hash_at_epoch::<Blake3>(&azks, 1u64).await;
-                    let end_root_hash = dir.get_root_hash_at_epoch::<Blake3>(&azks, 2u64).await;
+                    let start_root_hash = root_hashes[0].as_ref();
+                    let end_root_hash = root_hashes[1].as_ref();
                     match (start_root_hash, end_root_hash) {
                         (Ok(start), Ok(end)) => {
-                            if let Err(error) = akd::auditor::audit_verify(start, end, proof).await
+                            if let Err(error) =
+                                akd::auditor::audit_verify(vec![*start, *end], proof).await
                             {
                                 panic!("Error validating audit proof {:?}", error);
                             }
@@ -245,7 +248,6 @@ pub(crate) async fn directory_test_suite<
                     }
                 }
             }
-            */
             info!("Audit proof from 1u64 -> 2u64 passed");
         }
     }
