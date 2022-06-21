@@ -115,8 +115,7 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
                     match (start_root_hash, end_root_hash) {
                         (Ok(start), Ok(end)) => {
                             if let Err(error) =
-                                akd::auditor::audit_verify(vec![start.clone(), end.clone()], proof)
-                                    .await
+                                akd::auditor::audit_verify(vec![*start, *end], proof).await
                             {
                                 panic!("Error validating audit proof {:?}", error);
                             }

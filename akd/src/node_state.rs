@@ -5,15 +5,12 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! The representation for the label of a history tree node.
+//! The representation for the label of a tree node.
 
-use crate::serialization::from_digest;
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{
     bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
 };
-use crate::storage::types::StorageType;
-use crate::storage::Storable;
 use crate::{Direction, EMPTY_LABEL};
 
 #[cfg(feature = "rand")]
@@ -265,6 +262,7 @@ pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
 }
 
 // Use test profile here other wise cargo complains function is never used.
+#[allow(unused)]
 fn byte_arr_from_u64_suffix(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();
