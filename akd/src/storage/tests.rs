@@ -83,7 +83,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         // FIXME: Why is this 234? Should it just be 34??
         last_epoch: 234,
         // FIXME: what should least_child_ep really be?
-        least_decendent_ep: 1,
+        least_descendent_ep: 1,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
         left_child: None,

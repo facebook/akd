@@ -60,7 +60,7 @@ pub struct TreeNode {
     /// The last epoch this node was updated in
     pub last_epoch: u64,
     /// The least epoch of any child of this node
-    pub least_decendent_ep: u64,
+    pub least_descendent_ep: u64,
     /// The label of this node's parent
     pub parent: NodeLabel, // The root node is marked its own parent.
     /// The type of node: leaf root or interior.
@@ -120,7 +120,7 @@ impl Clone for TreeNode {
         Self {
             label: self.label,
             last_epoch: self.last_epoch,
-            least_decendent_ep: self.least_decendent_ep,
+            least_descendent_ep: self.least_descendent_ep,
             parent: self.parent,
             node_type: self.node_type,
             left_child: self.left_child,
@@ -138,7 +138,7 @@ impl TreeNode {
         parent: NodeLabel,
         node_type: NodeType,
         birth_epoch: u64,
-        least_decendent_ep: u64,
+        least_descendent_ep: u64,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
         hash: [u8; 32],
@@ -146,7 +146,7 @@ impl TreeNode {
         TreeNode {
             label,
             last_epoch: birth_epoch,
-            least_decendent_ep,
+            least_descendent_ep,
             parent, // Root node is its own parent
             node_type,
             left_child,
@@ -284,7 +284,7 @@ impl TreeNode {
                     NodeType::Interior,
                     epoch,
                     // if self is in the tree already, then its value should be moved up
-                    min(self.least_decendent_ep, epoch),
+                    min(self.least_descendent_ep, epoch),
                     None,
                     None,
                     [0u8; 32],
@@ -440,10 +440,10 @@ impl TreeNode {
         self.last_epoch = epoch;
 
         // Update the least descencent epoch
-        if self.least_decendent_ep == 0u64 {
-            self.least_decendent_ep = child_node.least_decendent_ep;
+        if self.least_descendent_ep == 0u64 {
+            self.least_descendent_ep = child_node.least_descendent_ep;
         } else {
-            self.least_decendent_ep = min(self.least_decendent_ep, child_node.least_decendent_ep);
+            self.least_descendent_ep = min(self.least_descendent_ep, child_node.least_descendent_ep);
         }
 
         self.write_to_storage(storage).await?;
@@ -543,8 +543,8 @@ impl TreeNode {
     }
 
     #[allow(unused)]
-    pub(crate) fn get_least_decendent_epoch(&self) -> u64 {
-        self.least_decendent_ep
+    pub(crate) fn get_least_descendent_epoch(&self) -> u64 {
+        self.least_descendent_ep
     }
 }
 
@@ -611,7 +611,7 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
 }
 
 /// Retrieve an empty root node
-pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_decendent_ep: Option<u64>) -> TreeNode {
+pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendent_ep: Option<u64>) -> TreeNode {
     // Empty root hash is the same as empty node hash
     let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash_no_label::<H>());
     let mut node = TreeNode::new(
@@ -628,8 +628,8 @@ pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_decendent_ep: Option<u64
     if let Some(epoch) = ep {
         node.last_epoch = epoch;
     }
-    if let Some(least_ep) = least_decendent_ep {
-        node.least_decendent_ep = least_ep;
+    if let Some(least_ep) = least_descendent_ep {
+        node.least_descendent_ep = least_ep;
     }
     node
 }
@@ -644,7 +644,7 @@ pub fn get_leaf_node<H: Hasher>(
     TreeNode {
         label,
         last_epoch: birth_epoch,
-        least_decendent_ep: birth_epoch,
+        least_descendent_ep: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
         // Leaf has no children.
@@ -669,7 +669,7 @@ mod tests {
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
 
     #[tokio::test]
-    async fn test_least_decendent_ep() -> Result<(), AkdError> {
+    async fn test_least_descendent_ep() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
         let new_leaf = get_leaf_node::<Blake3>(
@@ -707,8 +707,8 @@ mod tests {
 
         let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
 
-        let root_least_decendent_ep = match stored_root {
-            DbRecord::TreeNode(node) => node.least_decendent_ep,
+        let root_least_descendent_ep = match stored_root {
+            DbRecord::TreeNode(node) => node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
@@ -716,8 +716,8 @@ mod tests {
             .get::<TreeNode>(&NodeKey(root.right_child.unwrap()))
             .await?;
 
-        let right_child_least_decendent_ep = match stored_right_child {
-            DbRecord::TreeNode(node) => node.least_decendent_ep,
+        let right_child_least_descendent_ep = match stored_right_child {
+            DbRecord::TreeNode(node) => node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
@@ -725,28 +725,28 @@ mod tests {
             .get::<TreeNode>(&NodeKey(root.left_child.unwrap()))
             .await?;
 
-        let left_child_least_decendent_ep = match stored_left_child {
-            DbRecord::TreeNode(node) => node.least_decendent_ep,
+        let left_child_least_descendent_ep = match stored_left_child {
+            DbRecord::TreeNode(node) => node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
         let root_expected_least_dec = 1u64;
         assert!(
-            root_expected_least_dec == root_least_decendent_ep,
+            root_expected_least_dec == root_least_descendent_ep,
             "Least decendent epoch not equal to expected: root, expected: {:?}, got: {:?}",
             root_expected_least_dec,
-            root_least_decendent_ep
+            root_least_descendent_ep
         );
 
         let right_child_expected_least_dec = 2u64;
         assert!(
-            right_child_expected_least_dec == right_child_least_decendent_ep,
+            right_child_expected_least_dec == right_child_least_descendent_ep,
             "Least decendent epoch not equal to expected: right child"
         );
 
         let left_child_expected_least_dec = 1u64;
         assert!(
-            left_child_expected_least_dec == left_child_least_decendent_ep,
+            left_child_expected_least_dec == left_child_least_descendent_ep,
             "Least decendent epoch not equal to expected: left child"
         );
 

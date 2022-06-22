@@ -347,7 +347,7 @@ impl<'a> AsyncMySqlDatabase {
             + TABLE_HISTORY_TREE_NODES
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL,"
             + " `last_epoch` BIGINT UNSIGNED NOT NULL,"
-            + " `least_decendent_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
+            + " `least_descendent_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " `left_child_len` INT UNSIGNED, `left_child_label_val` VARBINARY(32),"
             + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32), `hash` VARBINARY(32) NOT NULL,"

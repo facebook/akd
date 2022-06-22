@@ -396,7 +396,7 @@ impl Azks {
             return Ok((unchanged, leaves));
         }
 
-        if node.least_decendent_ep > end_epoch {
+        if node.least_descendent_ep > end_epoch {
             return Ok((unchanged, leaves));
         }
 
