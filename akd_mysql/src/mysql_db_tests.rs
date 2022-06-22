@@ -6,6 +6,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use serial_test::serial;
+
 use crate::mysql::*;
 // use serial_test::serial;
 
@@ -13,7 +15,7 @@ use crate::mysql::*;
 
 #[tokio::test]
 // FIXME: Why is serial here??
-// #[serial]
+#[serial]
 async fn test_mysql_db() {
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(

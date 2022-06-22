@@ -25,7 +25,7 @@ pub(crate) const TEMP_IDS_TABLE: &str = "temp_ids_table";
 
 const SELECT_AZKS_DATA: &str = "`epoch`, `num_nodes`";
 const SELECT_HISTORY_TREE_NODE_DATA: &str =
-    "`label_len`, `label_val`, `least_decendent_ep`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`";
+    "`label_len`, `label_val`, `last_epoch`, `least_decendent_ep`, `parent_label_len`, `parent_label_val`, `node_type`";
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
 
@@ -62,7 +62,7 @@ impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
             DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :least_decendent_ep, :last_epoch, :parent_label_len, :parent_label_val, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `least_decendent_ep` = :least_decendent_ep, `last_epoch` = :last_epoch, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
+            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :last_epoch, :least_decendent_ep, :parent_label_len, :parent_label_val, :node_type) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `last_epoch` = :last_epoch, `least_decendent_ep` = :least_decendent_ep, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
             DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
         }
     }
@@ -73,7 +73,7 @@ impl MySqlStorable for DbRecord {
                 params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
             ),
             DbRecord::TreeNode(node) => Some(
-                params! { "label_len" => node.label.len, "label_val" => node.label.val, "last_epoch" => node.last_epoch, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
+                params! { "label_len" => node.label.len, "label_val" => node.label.val, "last_epoch" => node.last_epoch, "least_decendent_ep" => node.least_decendent_ep, "parent_label_len" => node.parent.len, "parent_label_val" => node.parent.val, "node_type" => node.node_type as u8 },
             ),
             DbRecord::ValueState(state) => Some(
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() },
@@ -251,7 +251,7 @@ impl MySqlStorable for DbRecord {
             }
             StorageType::TreeNode => {
                 format!(
-                    "SELECT a.`label_len`, a.`label_val`, a.`least_decendent_ep`, a.`last_epoch`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
+                    "SELECT a.`label_len`, a.`label_val`, a.`last_epoch`, a.`least_decendent_ep`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
                     TABLE_HISTORY_TREE_NODES,
                     TEMP_IDS_TABLE
                 )
@@ -374,7 +374,7 @@ impl MySqlStorable for DbRecord {
                 }
             }
             StorageType::TreeNode => {
-                // `label_len`, `label_val`, `least_decendent_ep`, `last_epoch`, `parent_label_len`, `parent_label_val`, `node_type`,
+                // `label_len`, `label_val`, `last_epoch`, `least_decendent_ep`, `parent_label_len`, `parent_label_val`, `node_type`,
                 // `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`
                 if let (
                     Some(Ok(label_len)),
