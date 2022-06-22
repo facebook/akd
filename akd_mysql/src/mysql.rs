@@ -344,8 +344,8 @@ impl<'a> AsyncMySqlDatabase {
             + " `last_epoch` BIGINT UNSIGNED NOT NULL,"
             + " `least_decendent_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
-            + " `left_child_len` INT UNSIGNED, `left_child_label_val` VARBINARY(32),"
-            + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32),"
+            + " `left_child_len` INT UNSIGNED DEFAULT NULL, `left_child_label_val` VARBINARY(32) DEFAULT NULL,"
+            + " `right_child_len` INT UNSIGNED DEFAULT NULL, `right_child_label_val` VARBINARY(32) DEFAULT NULL,"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 

@@ -12,6 +12,7 @@ use std::convert::TryInto;
 use akd::storage::types::{DbRecord, StorageType};
 use akd::storage::Storable;
 use akd::tree_node::{NodeKey, TreeNode};
+use akd::NodeLabel;
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -365,6 +366,24 @@ impl MySqlStorable for DbRecord {
             MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())
         }
 
+        fn optional_child_label<E>(
+            child_val: Option<std::result::Result<Vec<u8>, E>>,
+            child_len: Option<std::result::Result<u32, E>>,
+        ) -> core::result::Result<Option<NodeLabel>, MySqlError> {
+            if child_val.is_some() && child_len.is_some() {
+                match (child_val, child_len) {
+                    (Some(Ok(node_val)), Some(Ok(node_len))) => {
+                        return Ok(Some(NodeLabel::new(
+                            node_val.try_into().map_err(|_| cast_err())?,
+                            node_len,
+                        )))
+                    }
+                    (_, _) => return Ok(None),
+                }
+            }
+            Ok(None)
+        }
+
         match St::data_type() {
             StorageType::Azks => {
                 // epoch, num_nodes
@@ -384,10 +403,6 @@ impl MySqlStorable for DbRecord {
                     Some(Ok(parent_label_len)),
                     Some(Ok(parent_label_val)),
                     Some(Ok(node_type)),
-                    Some(Ok(left_child_len)),
-                    Some(Ok(left_child_val)),
-                    Some(Ok(right_child_len)),
-                    Some(Ok(right_child_val)),
                     Some(Ok(hash)),
                 ) = (
                     row.take_opt(0),
@@ -397,16 +412,19 @@ impl MySqlStorable for DbRecord {
                     row.take_opt(4),
                     row.take_opt(5),
                     row.take_opt(6),
-                    row.take_opt(7),
-                    row.take_opt(8),
-                    row.take_opt(9),
-                    row.take_opt(10),
                     row.take_opt(11),
                 ) {
+                    let left_child_len_res = row.take_opt(7);
+                    let left_child_val_res = row.take_opt(8);
+                    let right_child_len_res = row.take_opt(9);
+                    let right_child_val_res = row.take_opt(10);
+                    let left_child = optional_child_label(left_child_val_res, left_child_len_res)?;
+                    let right_child =
+                        optional_child_label(right_child_val_res, right_child_len_res)?;
+
                     let label_val_vec: Vec<u8> = label_val;
                     let parent_label_val_vec: Vec<u8> = parent_label_val;
-                    let left_child_val_vec: Vec<u8> = left_child_val;
-                    let right_child_val_vec: Vec<u8> = right_child_val;
+
                     let hash_vec: Vec<u8> = hash;
 
                     let node = DbRecord::build_history_tree_node(
@@ -417,10 +435,8 @@ impl MySqlStorable for DbRecord {
                         parent_label_val_vec.try_into().map_err(|_| cast_err())?,
                         parent_label_len,
                         node_type,
-                        left_child_val_vec.try_into().map_err(|_| cast_err())?,
-                        left_child_len,
-                        right_child_val_vec.try_into().map_err(|_| cast_err())?,
-                        right_child_len,
+                        left_child,
+                        right_child,
                         hash_vec.try_into().map_err(|_| cast_err())?,
                     );
                     return Ok(DbRecord::TreeNode(node));
