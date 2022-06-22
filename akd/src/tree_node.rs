@@ -443,7 +443,8 @@ impl TreeNode {
         if self.least_descendent_ep == 0u64 {
             self.least_descendent_ep = child_node.least_descendent_ep;
         } else {
-            self.least_descendent_ep = min(self.least_descendent_ep, child_node.least_descendent_ep);
+            self.least_descendent_ep =
+                min(self.least_descendent_ep, child_node.least_descendent_ep);
         }
 
         self.write_to_storage(storage).await?;
