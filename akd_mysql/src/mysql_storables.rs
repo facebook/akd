@@ -402,32 +402,21 @@ impl MySqlStorable for DbRecord {
             child_len: Option<Value>,
         ) -> core::result::Result<Option<NodeLabel>, MySqlError> {
             match (child_val, child_len) {
-                (Some(Value::NULL), _) => {
-                    Ok(None)
-                },
-                (_, Some(Value::NULL)) => {
-                    Ok(None)
-                },
-                (None, _) => {
-                    Ok(None)
-                }
-                (_, None) => {
-                    Ok(None)
-                }
+                (Some(Value::NULL), _) => Ok(None),
+                (_, Some(Value::NULL)) => Ok(None),
+                (None, _) => Ok(None),
+                (_, None) => Ok(None),
                 (Some(possible_bytes), Some(possible_u32)) => {
-                    match (from_value_opt::<u32>(possible_u32), from_value_opt::<Vec<u8>>(possible_bytes)) {
-                        (Ok(len), Ok(val)) => {
-                            Ok(Some(NodeLabel::new(
-                                val.try_into().map_err(|_| cast_err())?,
-                                len,
-                            )))
-                        }
-                        (Err(_len_err), _) => {
-                            Err(Error::from("Error decoding length"))
-                        }
-                        (_, Err(_val_err)) => {
-                            Err(Error::from("Error decoding value"))
-                        }
+                    match (
+                        from_value_opt::<u32>(possible_u32),
+                        from_value_opt::<Vec<u8>>(possible_bytes),
+                    ) {
+                        (Ok(len), Ok(val)) => Ok(Some(NodeLabel::new(
+                            val.try_into().map_err(|_| cast_err())?,
+                            len,
+                        ))),
+                        (Err(_len_err), _) => Err(Error::from("Error decoding length")),
+                        (_, Err(_val_err)) => Err(Error::from("Error decoding value")),
                     }
                 }
             }
