@@ -107,6 +107,7 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
     }
 }
 
+// FIXME: need to fix the documentation
 /// Proof that no leaves were deleted from the initial epoch.
 /// This means that unchanged_nodes should hash to the initial root hash
 /// and the vec of inserted is the set of leaves inserted between these epochs.
@@ -119,6 +120,25 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
 )]
 #[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct AppendOnlyProof<H: Hasher> {
+    /// Proof for a single epoch being append-only
+    pub proofs: Vec<SingleAppendOnlyProof<H>>,
+    /// Epochs over which this audit is being performed
+    pub epochs: Vec<u64>,
+}
+
+// FIXME: need to fix the documentation
+/// Proof that no leaves were deleted from the initial epoch.
+/// This means that unchanged_nodes should hash to the initial root hash
+/// and the vec of inserted is the set of leaves inserted between these epochs.
+/// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
+/// as the leaves, it should result in the final root hash.
+#[derive(Debug, PartialEq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
+pub struct SingleAppendOnlyProof<H: Hasher> {
     /// The inserted nodes & digests
     pub inserted: Vec<Node<H>>,
     /// The unchanged nodes & digests
@@ -126,7 +146,7 @@ pub struct AppendOnlyProof<H: Hasher> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<H: Hasher> Clone for AppendOnlyProof<H> {
+impl<H: Hasher> Clone for SingleAppendOnlyProof<H> {
     fn clone(&self) -> Self {
         Self {
             inserted: self.inserted.clone(),
@@ -188,6 +208,43 @@ impl<H: Hasher> Clone for LookupProof<H> {
     }
 }
 
+/// This proof is an array of [`UpdateProof`]s
+/// and proofs of non-membership of future entries
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(bound = ""))]
+pub struct HistoryProof<H: Hasher> {
+    /// For each version v = 1...n of a user's key,
+    /// include a proof that the previous version
+    /// was retired at the same time as this version
+    /// was added. (for version 1, it's just a mem proof).
+    pub update_proofs: Vec<UpdateProof<H>>,
+    /// The epochs at which updates were made.
+    pub epochs: Vec<u64>,
+    /// VRF Proofs for the labels of the next few values
+    pub next_few_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the next few values did not exist at this time
+    pub non_existence_of_next_few: Vec<NonMembershipProof<H>>,
+    /// VRF proofs for the labels of future marker entries
+    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that future markers did not exist
+    pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
+}
+
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<H: Hasher> Clone for HistoryProof<H> {
+    fn clone(&self) -> Self {
+        Self {
+            update_proofs: self.update_proofs.clone(),
+            epochs: self.epochs.clone(),
+            next_few_vrf_proofs: self.next_few_vrf_proofs.clone(),
+            non_existence_of_next_few: self.non_existence_of_next_few.clone(),
+            future_marker_vrf_proofs: self.future_marker_vrf_proofs.clone(),
+            non_existence_of_future_markers: self.non_existence_of_future_markers.clone(),
+        }
+    }
+}
+
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
 /// For each version of the value associated with the key, the verifier must check that:
 /// * the version was included in the claimed epoch,
@@ -202,12 +259,12 @@ impl<H: Hasher> Clone for LookupProof<H> {
 )]
 #[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct UpdateProof<H: Hasher> {
-    /// Epoch of this update
+    /// The epoch of this record
     pub epoch: u64,
-    /// Value at this update
-    pub plaintext_value: AkdValue,
     /// Version at this update
     pub version: u64,
+    /// The plaintext value in question
+    pub plaintext_value: AkdValue,
     /// VRF proof for the label for the current version
     pub existence_vrf_proof: Vec<u8>,
     /// Membership proof to show that the key was included in this epoch
@@ -216,16 +273,6 @@ pub struct UpdateProof<H: Hasher> {
     pub previous_val_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
     pub previous_val_stale_at_ep: Option<MembershipProof<H>>,
-    /// Proof that this value didn't exist prior to this ep
-    pub non_existence_before_ep: Option<NonMembershipProof<H>>,
-    /// VRF Proofs for the labels of the next few values
-    pub next_few_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that the next few values did not exist at this time
-    pub non_existence_of_next_few: Vec<NonMembershipProof<H>>,
-    /// VRF proofs for the labels of future marker entries
-    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that future markers did not exist
-    pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
@@ -235,39 +282,13 @@ impl<H: Hasher> Clone for UpdateProof<H> {
     fn clone(&self) -> Self {
         Self {
             epoch: self.epoch,
-            plaintext_value: self.plaintext_value.clone(),
             version: self.version,
-            existence_at_ep: self.existence_at_ep.clone(),
-            previous_val_stale_at_ep: self.previous_val_stale_at_ep.clone(),
-            non_existence_before_ep: self.non_existence_before_ep.clone(),
-            non_existence_of_next_few: self.non_existence_of_next_few.clone(),
-            non_existence_of_future_markers: self.non_existence_of_future_markers.clone(),
+            plaintext_value: self.plaintext_value.clone(),
             existence_vrf_proof: self.existence_vrf_proof.clone(),
+            existence_at_ep: self.existence_at_ep.clone(),
             previous_val_vrf_proof: self.previous_val_vrf_proof.clone(),
-            next_few_vrf_proofs: self.next_few_vrf_proofs.clone(),
-            future_marker_vrf_proofs: self.future_marker_vrf_proofs.clone(),
+            previous_val_stale_at_ep: self.previous_val_stale_at_ep.clone(),
             commitment_proof: self.commitment_proof.clone(),
-        }
-    }
-}
-
-/// This proof is just an array of [`UpdateProof`]s.
-#[derive(Debug, PartialEq)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
-pub struct HistoryProof<H: Hasher> {
-    /// The update proofs in the key history
-    pub proofs: Vec<UpdateProof<H>>,
-}
-
-// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<H: Hasher> Clone for HistoryProof<H> {
-    fn clone(&self) -> Self {
-        Self {
-            proofs: self.proofs.clone(),
         }
     }
 }

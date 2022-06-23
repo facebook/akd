@@ -35,7 +35,11 @@ fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), V
 
     let mut final_hash = merge(&[proof.hash_val, proof.label.hash()]);
     for parent in proof.layer_proofs.iter().rev() {
-        let hashes = parent.siblings.iter().map(|s| s.hash).collect();
+        let hashes = parent
+            .siblings
+            .iter()
+            .map(|s| merge(&[s.hash, s.label.hash()]))
+            .collect();
         final_hash = build_and_hash_layer(hashes, parent.direction, final_hash, parent.label)?;
     }
 
@@ -59,24 +63,34 @@ fn verify_nonmembership(
     proof: &NonMembershipProof,
 ) -> Result<bool, VerificationError> {
     let mut verified = true;
-    let mut lcp_hash = hash(&EMPTY_VALUE);
+
     let mut lcp_real = proof.longest_prefix_children[0].label;
+
+    let child_hash_left = merge(&[
+        proof.longest_prefix_children[0].hash,
+        proof.longest_prefix_children[0].label.hash(),
+    ]);
+
+    let child_hash_right = merge(&[
+        proof.longest_prefix_children[1].hash,
+        proof.longest_prefix_children[1].label.hash(),
+    ]);
+
     for i in 0..ARITY {
-        let child_hash = merge(&[
-            proof.longest_prefix_children[i].hash,
-            proof.longest_prefix_children[i].label.hash(),
-        ]);
-        lcp_hash = merge(&[lcp_hash, child_hash]);
         lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children[i].label);
     }
+
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
             val: [0u8; 32],
             len: 0,
         };
     }
-    // lcp_hash = H::merge(&[lcp_hash, hash_label::<H>(proof.longest_prefix)]);
+
+    let lcp_hash = merge(&[child_hash_left, child_hash_right]);
+
     verified = verified && (lcp_hash == proof.longest_prefix_membership_proof.hash_val);
+
     if !verified {
         return Err(verify_error!(
             LookupProof,
@@ -100,9 +114,9 @@ fn verify_nonmembership(
     Ok(verified)
 }
 
-fn hash_plaintext_value(value: &AkdValue, proof: &[u8]) -> Digest {
+fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
     let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
-    merge(&[hash(&EMPTY_VALUE), single_hash])
+    merge_with_int(single_hash, epoch)
 }
 
 /// This function is called to verify that a given NodeLabel is indeed
@@ -139,7 +153,9 @@ pub fn lookup_verify(
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
-    if hash_plaintext_value(&proof.plaintext_value, &proof.commitment_proof)
+    let fresh_label = existence_proof.label;
+
+    if hash_leaf_with_value(&proof.plaintext_value, proof.epoch, &proof.commitment_proof)
         != existence_proof.hash_val
     {
         return Err(verify_error!(
@@ -151,7 +167,6 @@ pub fn lookup_verify(
 
     #[cfg(feature = "vrf")]
     {
-        let fresh_label = existence_proof.label;
         verify_vrf(
             _vrf_public_key,
             &_akd_key,
@@ -202,25 +217,73 @@ pub fn lookup_verify(
 /// verified because the value has been removed ("tombstoned") from the storage layer.
 pub fn key_history_verify(
     vrf_public_key: &[u8],
-    root_hashes: Vec<Digest>,
-    previous_root_hashes: Vec<Option<Digest>>,
+    root_hash: Digest,
+    current_epoch: u64,
     akd_key: AkdLabel,
     proof: HistoryProof,
     allow_tombstones: bool,
 ) -> Result<Vec<bool>, VerificationError> {
     let mut tombstones = vec![];
-    let some_max_version = proof.proofs.get(0).map(|item| item.version);
-    for (count, update_proof) in proof.proofs.into_iter().enumerate() {
-        let root_hash = root_hashes[count];
-        let previous_root_hash = previous_root_hashes[count];
-        if let Some(max_version) = some_max_version {
-            if update_proof.version != max_version - (count as u64) {
-                // there is a version mismatch, therefore we should return an error as there appears to be
-                // missing history in the key history
+    let mut last_version = 0;
+
+    let num_proofs = proof.update_proofs.len();
+
+    // Make sure the update proofs are non-empty
+    if num_proofs == 0 {
+        return Err(VerificationError {
+            error_message: format!(
+                "No update proofs included in the proof of user {:?} at epoch {:?}!",
+                akd_key, current_epoch
+            ),
+            error_type: VerificationErrorType::HistoryProof,
+        });
+    }
+
+    // Make sure this proof has the same number of epochs as update proofs.
+    if num_proofs != proof.epochs.len() {
+        return Err(VerificationError {
+            error_message: format!(
+                "The number of epochs included in the proofs for user {:?} 
+                did not match the number of update proofs!",
+                akd_key
+            ),
+            error_type: VerificationErrorType::HistoryProof,
+        });
+    }
+
+    // Check that the sent proofs are for a contiguous sequence of decreasing versions
+    for count in 0..num_proofs {
+        if count > 0 {
+            // Make sure this proof is for a version 1 more than the previous one.
+            if proof.update_proofs[count].version + 1 != proof.update_proofs[count - 1].version {
+                return Err(VerificationError {
+                    error_message:
+                        format!("Why did you give me consecutive update proofs without version numbers decrememting by 1? Version {} = {}; version {} = {}",
+                        count, proof.update_proofs[count].version,
+                        count-1, proof.update_proofs[count-1].version
+                        ),
+                    error_type: VerificationErrorType::HistoryProof});
+            }
+        }
+    }
+
+    // Check that all the individual update proofs check
+    for (count, update_proof) in proof.update_proofs.into_iter().enumerate() {
+        // Get the highest version sent among the update proofs.
+        last_version = if update_proof.version > last_version {
+            update_proof.version
+        } else {
+            last_version
+        };
+        let ep_match = proof.epochs[count] == update_proof.epoch;
+        if count > 0 {
+            // Make sure this this epoch is more than the previous epoch you checked
+            if proof.epochs[count] > proof.epochs[count - 1] {
                 return Err(VerificationError {
                     error_message: format!(
-                        "Expected version {} is missing from the key history",
-                        count + 1
+                        "Why are your versions decreasing in updates and epochs not?!,
+                    epochs = {:?}",
+                        proof.epochs
                     ),
                     error_type: VerificationErrorType::HistoryProof,
                 });
@@ -229,13 +292,51 @@ pub fn key_history_verify(
         let is_tombstone = verify_single_update_proof(
             root_hash,
             vrf_public_key,
-            previous_root_hash,
             update_proof,
             &akd_key,
             allow_tombstones,
         )?;
-        tombstones.push(is_tombstone);
+        tombstones.push(is_tombstone && ep_match);
     }
+
+    // Get the least and greatest marker entries for the current version
+    let next_marker = crate::utils::get_marker_version(last_version) + 1;
+    let final_marker = crate::utils::get_marker_version(current_epoch);
+
+    // ***** Future checks below ***************************
+    // Verify the VRFs and non-membership of future entries, up to the next marker
+    for (i, ver) in (last_version + 1..(1 << next_marker)).enumerate() {
+        let pf = &proof.non_existence_of_next_few[i];
+        #[cfg(feature = "vrf")]
+        {
+            let vrf_pf = &proof.next_few_vrf_proofs[i];
+            let ver_label = pf.label;
+            verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
+        }
+        if !verify_nonmembership(root_hash, pf)? {
+            return Err(VerificationError {error_message:
+                    format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    &akd_key, ver, current_epoch), error_type: VerificationErrorType::HistoryProof});
+        }
+    }
+
+    // Verify the VRFs and non-membership proofs for future markers
+    for (i, pow) in (next_marker + 1..final_marker).enumerate() {
+        let ver = 1 << pow;
+        let pf = &proof.non_existence_of_future_markers[i];
+        #[cfg(feature = "vrf")]
+        {
+            let vrf_pf = &proof.future_marker_vrf_proofs[i];
+            let ver_label = pf.label;
+            verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
+        }
+        if !verify_nonmembership(root_hash, pf)? {
+            return Err(VerificationError {error_message:
+                    format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    akd_key, ver, current_epoch), error_type: VerificationErrorType::HistoryProof});
+        }
+    }
+
     Ok(tombstones)
 }
 
@@ -243,7 +344,6 @@ pub fn key_history_verify(
 fn verify_single_update_proof(
     root_hash: Digest,
     vrf_public_key: &[u8],
-    previous_root_hash: Option<Digest>,
     proof: UpdateProof,
     uname: &AkdLabel,
     allow_tombstone: bool,
@@ -252,11 +352,9 @@ fn verify_single_update_proof(
     let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
 
-    let existence_at_ep_ref = &proof.existence_at_ep;
-    let existence_at_ep = existence_at_ep_ref;
+    let existence_at_ep = &proof.existence_at_ep;
 
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
-    let non_existence_before_ep = &proof.non_existence_before_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstone, &proof.plaintext_value) {
         (true, bytes) if bytes == crate::TOMBSTONE => {
@@ -269,7 +367,8 @@ fn verify_single_update_proof(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_plaintext_value(bytes, &proof.commitment_proof) == existence_at_ep.hash_val,
+                hash_leaf_with_value(bytes, proof.epoch, &proof.commitment_proof)
+                    == existence_at_ep.hash_val,
             )
         }
     };
@@ -291,11 +390,10 @@ fn verify_single_update_proof(
             false,
             version,
             &proof.existence_vrf_proof,
-            existence_at_ep_ref.label,
+            existence_at_ep.label,
         )?;
     }
     verify_membership(root_hash, existence_at_ep)?;
-
     // ***** PART 2 ***************************
     // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
     if version > 1 {
@@ -332,7 +430,6 @@ fn verify_single_update_proof(
                 .previous_val_vrf_proof
                 .as_ref()
                 .ok_or(vrf_previous_null_err)?;
-
             verify_vrf(
                 vrf_public_key,
                 uname,
@@ -341,63 +438,6 @@ fn verify_single_update_proof(
                 previous_val_vrf_proof,
                 previous_val_stale_at_ep.label,
             )?;
-        }
-    }
-
-    // ***** PART 3 ***************************
-    // Verify that the current version was only added in this epoch and didn't exist before.
-    if epoch > 1 {
-        let root_hash = previous_root_hash.ok_or(VerificationError {
-            error_message: "No previous root hash given".to_string(),
-            error_type: VerificationErrorType::HistoryProof,
-        })?;
-        verify_nonmembership(
-            root_hash,
-            non_existence_before_ep.as_ref().ok_or_else(|| VerificationError {error_message: format!(
-                "Non-existence before this epoch proof of user {:?}'s version {:?} at epoch {:?} is None",
-                uname,
-                version,
-                epoch
-            ), error_type: VerificationErrorType::HistoryProof})?
-        )?;
-    }
-
-    // Get the least and greatest marker entries for the current version
-    let next_marker = crate::utils::get_marker_version(version) + 1;
-    let final_marker = crate::utils::get_marker_version(epoch);
-
-    // ***** PART 4 ***************************
-    // Verify the VRFs and non-membership of future entries, up to the next marker
-    for (i, ver) in (version + 1..(1 << next_marker)).enumerate() {
-        let pf = &proof.non_existence_of_next_few[i];
-        #[cfg(feature = "vrf")]
-        {
-            let vrf_pf = &proof.next_few_vrf_proofs[i];
-            let ver_label = pf.label;
-            verify_vrf(vrf_public_key, uname, false, ver, vrf_pf, ver_label)?;
-        }
-        if !verify_nonmembership(root_hash, pf)? {
-            return Err(VerificationError {error_message:
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, epoch-1), error_type: VerificationErrorType::HistoryProof});
-        }
-    }
-
-    // ***** PART 5 ***************************
-    // Verify the VRFs and non-membership proofs for future markers
-    for (i, pow) in (next_marker + 1..final_marker).enumerate() {
-        let ver = 1 << pow;
-        let pf = &proof.non_existence_of_future_markers[i];
-        #[cfg(feature = "vrf")]
-        {
-            let vrf_pf = &proof.future_marker_vrf_proofs[i];
-            let ver_label = pf.label;
-            verify_vrf(vrf_public_key, uname, false, ver, vrf_pf, ver_label)?;
-        }
-        if !verify_nonmembership(root_hash, pf)? {
-            return Err(VerificationError {error_message:
-                    format!("Non-existence before epoch proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    uname, ver, epoch-1), error_type: VerificationErrorType::HistoryProof});
         }
     }
 

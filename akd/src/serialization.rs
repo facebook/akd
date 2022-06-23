@@ -7,7 +7,7 @@
 
 //! This module contains serialization calls for helping serialize/deserialize digests
 
-use crate::errors::{AkdError, HistoryTreeNodeError};
+use crate::errors::{AkdError, TreeNodeError};
 
 #[cfg(feature = "serde_serialization")]
 use hex::{FromHex, ToHex};
@@ -19,7 +19,7 @@ use winter_utils::{Deserializable, SliceReader};
 /// Converts from &[u8] to H::Digest
 pub fn to_digest<H: Hasher>(input: &[u8]) -> Result<H::Digest, AkdError> {
     Ok(H::Digest::read_from(&mut SliceReader::new(input))
-        .map_err(|msg| HistoryTreeNodeError::DigestDeserializationFailed(format!("{}", msg)))?)
+        .map_err(|msg| TreeNodeError::DigestDeserializationFailed(format!("{}", msg)))?)
 }
 
 /// Converts from H::Digest to [u8; 32]

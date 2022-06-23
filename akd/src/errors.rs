@@ -15,7 +15,7 @@ use crate::node_state::NodeLabel;
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
-    HistoryTreeNode(HistoryTreeNodeError),
+    TreeNode(TreeNodeError),
     /// Error propagation
     Directory(DirectoryError),
     /// Error propagation
@@ -24,13 +24,15 @@ pub enum AkdError {
     Vrf(VrfError),
     /// Storage layer error thrown
     Storage(StorageError),
+    /// Audit verification error thrown
+    AuditErr(AuditorError),
 }
 
 impl std::error::Error for AkdError {}
 
-impl From<HistoryTreeNodeError> for AkdError {
-    fn from(error: HistoryTreeNodeError) -> Self {
-        Self::HistoryTreeNode(error)
+impl From<TreeNodeError> for AkdError {
+    fn from(error: TreeNodeError) -> Self {
+        Self::TreeNode(error)
     }
 }
 
@@ -58,11 +60,17 @@ impl From<AzksError> for AkdError {
     }
 }
 
+impl From<AuditorError> for AkdError {
+    fn from(error: AuditorError) -> Self {
+        Self::AuditErr(error)
+    }
+}
+
 impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            AkdError::HistoryTreeNode(err) => {
-                writeln!(f, "AKD History Tree Node Error: {}", err)
+            AkdError::TreeNode(err) => {
+                writeln!(f, "AKD Tree Node Error: {}", err)
             }
             AkdError::Directory(err) => {
                 writeln!(f, "AKD Directory Error: {}", err)
@@ -76,13 +84,18 @@ impl std::fmt::Display for AkdError {
             AkdError::Storage(err) => {
                 writeln!(f, "AKD Storage Error: {}", err)
             }
+            AkdError::AuditErr(err) => {
+                writeln!(f, "AKD Auditor Error {}", err)
+            }
         }
     }
 }
 
-/// Errors thrown by HistoryTreeNodes
-#[derive(Debug, PartialEq)]
-pub enum HistoryTreeNodeError {
+/// Errors thrown by TreeNodes
+#[derive(Debug, Eq, PartialEq)]
+pub enum TreeNodeError {
+    /// At the moment the only supported dirs are 0, 1
+    InvalidDirection(usize),
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
@@ -101,11 +114,18 @@ pub enum HistoryTreeNodeError {
     DigestDeserializationFailed(String),
 }
 
-impl std::error::Error for HistoryTreeNodeError {}
+impl std::error::Error for TreeNodeError {}
 
-impl fmt::Display for HistoryTreeNodeError {
+impl fmt::Display for TreeNodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidDirection(dir) => {
+                write!(
+                    f,
+                    "AKD is based on a binary tree. No child with a given index: {}",
+                    dir
+                )
+            }
             Self::NoDirection(node_label, child_label) => {
                 let mut to_print = format!("no direction provided for the node {:?}", node_label);
                 // Add child info if given.
@@ -214,7 +234,7 @@ impl fmt::Display for DirectoryError {
 }
 
 /// Represents a storage-layer error
-#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq))]
+#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum StorageError {
     /// Data wasn't found in the storage layer
@@ -274,6 +294,26 @@ impl fmt::Display for VrfError {
             }
             Self::Verification(error_string) => {
                 write!(f, "VRF proving or verifying: {}", error_string)
+            }
+        }
+    }
+}
+
+/// The errors thrown by various algorithms in [crate::directory::Directory]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
+pub enum AuditorError {
+    /// A general auditor error
+    VerifyAuditProof(String),
+}
+
+impl std::error::Error for AuditorError {}
+
+impl fmt::Display for AuditorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VerifyAuditProof(err_string) => {
+                write!(f, "Failed to verify audit {}", err_string)
             }
         }
     }

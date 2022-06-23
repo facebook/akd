@@ -39,7 +39,7 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
                 .collect(),
         );
     }
-
+    let mut root_hashes = vec![];
     // create & test the directory
     let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
     match maybe_dir {
@@ -58,6 +58,8 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
                 if let Err(error) = dir.publish::<Blake3>(data).await {
                     panic!("Error publishing batch {:?}", error);
                 }
+                let azks = dir.retrieve_current_azks().await.unwrap();
+                root_hashes.push(dir.get_root_hash::<Blake3>(&azks).await);
             }
 
             // Perform 10 random lookup proofs on the published users
@@ -85,15 +87,15 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
                 match dir.key_history::<Blake3>(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
-                        let (root_hashes, previous_root_hashes) =
-                            akd::directory::get_key_history_hashes::<_, Blake3, V>(&dir, &proof)
+                        let (root_hash, current_epoch) =
+                            akd::directory::get_directory_root_hash_and_ep::<_, Blake3, _>(&dir)
                                 .await
                                 .unwrap();
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify::<Blake3>(
                             &vrf_pk,
-                            root_hashes,
-                            previous_root_hashes,
+                            root_hash,
+                            current_epoch,
                             key,
                             proof,
                             false,
@@ -108,11 +110,12 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
             match dir.audit::<Blake3>(1u64, 2u64).await {
                 Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
                 Ok(proof) => {
-                    let start_root_hash = dir.get_root_hash_at_epoch::<Blake3>(&azks, 1u64).await;
-                    let end_root_hash = dir.get_root_hash_at_epoch::<Blake3>(&azks, 2u64).await;
+                    let start_root_hash = root_hashes[0].as_ref();
+                    let end_root_hash = root_hashes[1].as_ref();
                     match (start_root_hash, end_root_hash) {
                         (Ok(start), Ok(end)) => {
-                            if let Err(error) = akd::auditor::audit_verify(start, end, proof).await
+                            if let Err(error) =
+                                akd::auditor::audit_verify(vec![*start, *end], proof).await
                             {
                                 panic!("Error validating audit proof {:?}", error);
                             }

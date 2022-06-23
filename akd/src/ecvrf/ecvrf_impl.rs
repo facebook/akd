@@ -221,7 +221,7 @@ impl VRFPublicKey {
     ) -> Result<(), VrfError> {
         // Initialization of VRF context by providing a curve
 
-        let name_hash_bytes = H::hash(&uname.0);
+        let name_hash_bytes = H::hash(uname);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
         let hashed_label = H::merge(&[
@@ -280,6 +280,7 @@ impl<'a> From<&'a VRFPrivateKey> for VRFExpandedPrivateKey {
 }
 
 /// A VRF proof that can be used to validate an input with a public key
+#[derive(Copy, Clone)]
 pub struct Proof {
     gamma: EdwardsPoint,
     c: ed25519_Scalar,

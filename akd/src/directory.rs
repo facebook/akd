@@ -152,12 +152,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label::<H>(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add = crate::utils::commit_value::<H>(
-                        &commitment_key.as_bytes(),
-                        &uname,
-                        latest_version,
-                        &val,
-                    );
+                    let value_to_add =
+                        crate::utils::commit_value::<H>(&commitment_key.as_bytes(), &label, &val);
                     update_set.push(Node::<H> {
                         label,
                         hash: value_to_add,
@@ -184,8 +180,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add = crate::utils::commit_value::<H>(
                         &commitment_key.as_bytes(),
-                        &uname,
-                        latest_version,
+                        &fresh_label,
                         &val,
                     );
                     update_set.push(Node::<H> {
@@ -275,17 +270,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key::<H>().await?;
         let plaintext_value = lookup_info.value_state.plaintext_val;
-
+        let existence_vrf = self
+            .vrf
+            .get_label_proof::<H>(&uname, false, current_version)
+            .await?;
+        let commitment_label = self
+            .vrf
+            .get_node_label_from_vrf_pf::<H>(existence_vrf)
+            .await?;
         let lookup_proof = LookupProof {
-            epoch: current_epoch,
+            epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
             version: lookup_info.value_state.version,
-            existence_vrf_proof: self
-                .vrf
-                .get_label_proof::<H>(&uname, false, current_version)
-                .await?
-                .to_bytes()
-                .to_vec(),
+            existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
             existence_proof: current_azks
                 .get_membership_proof(&self.storage, lookup_info.existent_label, current_epoch)
                 .await?,
@@ -305,16 +302,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .to_bytes()
                 .to_vec(),
             freshness_proof: current_azks
-                .get_non_membership_proof(
-                    &self.storage,
-                    lookup_info.non_existent_label,
-                    current_epoch,
-                )
+                .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
             commitment_proof: crate::utils::get_commitment_proof::<H>(
                 &commitment_key.as_bytes(),
-                &uname,
-                current_version,
+                &commitment_label,
                 &plaintext_value,
             )
             .as_bytes()
@@ -443,15 +435,70 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             // reverse sort from highest epoch to lowest
             user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
 
-            let mut proofs = Vec::<UpdateProof<H>>::new();
+            let mut update_proofs = Vec::<UpdateProof<H>>::new();
+            let mut last_version = 0;
+            let mut epochs = Vec::<u64>::new();
             for user_state in user_data {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
                     let proof = self.create_single_update_proof(uname, &user_state).await?;
-                    proofs.push(proof);
+                    update_proofs.push(proof);
+                    last_version = if user_state.version > last_version {
+                        user_state.version
+                    } else {
+                        last_version
+                    };
+                    epochs.push(user_state.epoch);
                 }
             }
-            Ok(HistoryProof { proofs })
+            let next_marker = get_marker_version(last_version) + 1;
+            let final_marker = get_marker_version(current_epoch);
+
+            let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
+
+            for ver in last_version + 1..(1 << next_marker) {
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver)
+                    .await?;
+                non_existence_of_next_few.push(non_existence_of_ver);
+                next_few_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
+
+            for marker_power in next_marker..final_marker + 1 {
+                let ver = 1 << marker_power;
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver)
+                    .await?;
+                non_existence_of_future_markers.push(non_existence_of_ver);
+                future_marker_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            Ok(HistoryProof {
+                update_proofs,
+                epochs,
+                next_few_vrf_proofs,
+                non_existence_of_next_few,
+                future_marker_vrf_proofs,
+                non_existence_of_future_markers,
+            })
         } else {
             match std::str::from_utf8(&username) {
                 Ok(name) => Err(AkdError::Storage(StorageError::NotFound(format!(
@@ -482,7 +529,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
-
         let mut user_data = self.storage.get_user_data(uname).await?.states;
         // reverse sort from highest epoch to lowest
         user_data.sort_by(|a, b| b.epoch.partial_cmp(&a.epoch).unwrap());
@@ -500,15 +546,70 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             };
             Err(AkdError::Storage(StorageError::NotFound(msg)))
         } else {
-            let mut proofs = Vec::<UpdateProof<H>>::new();
+            let mut update_proofs = Vec::<UpdateProof<H>>::new();
+            let mut last_version = 0;
+            let mut epochs = Vec::<u64>::new();
             for user_state in limited_history {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
                     let proof = self.create_single_update_proof(uname, &user_state).await?;
-                    proofs.push(proof);
+                    update_proofs.push(proof);
+                    last_version = if user_state.version > last_version {
+                        user_state.version
+                    } else {
+                        last_version
+                    };
+                    epochs.push(user_state.epoch);
                 }
             }
-            Ok(HistoryProof { proofs })
+            let next_marker = get_marker_version(last_version) + 1;
+            let final_marker = get_marker_version(current_epoch);
+
+            let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
+
+            for ver in last_version + 1..(1 << next_marker) {
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver)
+                    .await?;
+                non_existence_of_next_few.push(non_existence_of_ver);
+                next_few_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
+            let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
+
+            for marker_power in next_marker..final_marker + 1 {
+                let ver = 1 << marker_power;
+                let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
+                let non_existence_of_ver = current_azks
+                    .get_non_membership_proof(&self.storage, label_for_ver)
+                    .await?;
+                non_existence_of_future_markers.push(non_existence_of_ver);
+                future_marker_vrf_proofs.push(
+                    self.vrf
+                        .get_label_proof::<H>(uname, false, ver)
+                        .await?
+                        .to_bytes()
+                        .to_vec(),
+                );
+            }
+
+            Ok(HistoryProof {
+                update_proofs,
+                epochs,
+                next_few_vrf_proofs,
+                non_existence_of_next_few,
+                future_marker_vrf_proofs,
+                non_existence_of_future_markers,
+            })
         }
     }
 
@@ -639,12 +740,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let label_at_ep = self.vrf.get_node_label::<H>(uname, false, version).await?;
 
         let current_azks = self.retrieve_current_azks().await?;
-        let existence_vrf_proof = self
+        let existence_vrf = self.vrf.get_label_proof::<H>(uname, false, version).await?;
+        let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
+        let existence_label = self
             .vrf
-            .get_label_proof::<H>(uname, false, version)
-            .await?
-            .to_bytes()
-            .to_vec();
+            .get_node_label_from_vrf_pf::<H>(existence_vrf)
+            .await?;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -668,60 +769,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     .to_vec(),
             );
         }
-        let mut non_existence_before_ep = Option::None;
-        if epoch != 0 {
-            non_existence_before_ep = Option::Some(
-                current_azks
-                    .get_non_membership_proof(&self.storage, label_at_ep, epoch - 1)
-                    .await?,
-            );
-        }
-
-        let next_marker = get_marker_version(version) + 1;
-        let final_marker = get_marker_version(epoch);
-
-        let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_of_next_few = Vec::<NonMembershipProof<H>>::new();
-
-        for ver in version + 1..(1 << next_marker) {
-            let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
-            let non_existence_of_ver = current_azks
-                .get_non_membership_proof(&self.storage, label_for_ver, epoch)
-                .await?;
-            non_existence_of_next_few.push(non_existence_of_ver);
-            next_few_vrf_proofs.push(
-                self.vrf
-                    .get_label_proof::<H>(uname, false, ver)
-                    .await?
-                    .to_bytes()
-                    .to_vec(),
-            );
-        }
-
-        let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_of_future_markers = Vec::<NonMembershipProof<H>>::new();
-
-        for marker_power in next_marker..final_marker + 1 {
-            let ver = 1 << marker_power;
-            let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
-            let non_existence_of_ver = current_azks
-                .get_non_membership_proof(&self.storage, label_for_ver, epoch)
-                .await?;
-            non_existence_of_future_markers.push(non_existence_of_ver);
-            future_marker_vrf_proofs.push(
-                self.vrf
-                    .get_label_proof::<H>(uname, false, ver)
-                    .await?
-                    .to_bytes()
-                    .to_vec(),
-            );
-        }
 
         let commitment_key = self.derive_commitment_key::<H>().await?;
         let commitment_proof = crate::utils::get_commitment_proof::<H>(
             &commitment_key.as_bytes(),
-            uname,
-            version,
+            &existence_label,
             plaintext_value,
         )
         .as_bytes()
@@ -729,17 +781,12 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         Ok(UpdateProof {
             epoch,
-            plaintext_value: plaintext_value.clone(),
             version,
+            plaintext_value: plaintext_value.clone(),
             existence_vrf_proof,
             existence_at_ep,
             previous_val_vrf_proof,
             previous_val_stale_at_ep,
-            non_existence_before_ep,
-            next_few_vrf_proofs,
-            non_existence_of_next_few,
-            future_marker_vrf_proofs,
-            non_existence_of_future_markers,
             commitment_proof,
         })
     }
@@ -803,7 +850,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
     let mut root_hashes = Vec::<H::Digest>::new();
     let mut previous_root_hashes = Vec::<Option<H::Digest>>::new();
     let current_azks = akd_dir.retrieve_current_azks().await?;
-    for proof in &history_proof.proofs {
+    for proof in &history_proof.update_proofs {
         let hash = akd_dir
             .get_root_hash_at_epoch::<H>(&current_azks, proof.epoch)
             .await?;
@@ -811,7 +858,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
         root_hashes.push(hash);
     }
 
-    for proof in &history_proof.proofs {
+    for proof in &history_proof.update_proofs {
         let epoch_in_question = proof.epoch - 1;
         if epoch_in_question == 0 {
             // edge condition
@@ -829,4 +876,18 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
     }
 
     Ok((root_hashes, previous_root_hashes))
+}
+
+/// Gets the azks root hash at the current epoch.
+pub async fn get_directory_root_hash_and_ep<
+    S: Storage + Sync + Send,
+    H: Hasher,
+    V: VRFKeyStorage,
+>(
+    akd_dir: &Directory<S, V>,
+) -> Result<(H::Digest, u64), AkdError> {
+    let current_azks = akd_dir.retrieve_current_azks().await?;
+    let latest_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd_dir.get_root_hash::<H>(&current_azks).await?;
+    Ok((root_hash, latest_epoch))
 }

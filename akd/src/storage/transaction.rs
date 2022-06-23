@@ -178,9 +178,9 @@ impl Transaction {
 mod tests {
     use super::*;
     use crate::append_only_zks::*;
-    use crate::history_tree_node::*;
     use crate::node_state::*;
     use crate::storage::types::*;
+    use crate::tree_node::*;
     use rand::{rngs::OsRng, seq::SliceRandom};
 
     #[tokio::test]
@@ -189,29 +189,25 @@ mod tests {
             num_nodes: 0,
             latest_epoch: 0,
         });
-        let node1 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+        let node1 = DbRecord::TreeNode(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(0), 0),
-            birth_epoch: 1,
             last_epoch: 1,
+            least_descendent_ep: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Root,
+            left_child: None,
+            right_child: None,
+            hash: [0u8; 32],
         });
-        let node2 = DbRecord::HistoryTreeNode(HistoryTreeNode {
+        let node2 = DbRecord::TreeNode(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
-            birth_epoch: 1,
             last_epoch: 1,
+            least_descendent_ep: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
             node_type: NodeType::Leaf,
-        });
-        let node_state1 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: [0u8; 32],
-            child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 1),
-        });
-        let node_state2 = DbRecord::HistoryNodeState(HistoryNodeState {
-            value: [0u8; 32],
-            child_states: [None, None],
-            key: NodeStateKey(NodeLabel::new(byte_arr_from_u64(1), 1), 2),
+            left_child: None,
+            right_child: None,
+            hash: [0u8; 32],
         });
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),
@@ -228,7 +224,7 @@ mod tests {
             plaintext_val: AkdValue::from_utf8_str("abc1234"),
         });
 
-        let records = vec![azks, node1, node2, node_state1, node_state2, value1, value2];
+        let records = vec![azks, node1, node2, value1, value2];
         let mut rng = OsRng;
 
         for _ in 1..10 {

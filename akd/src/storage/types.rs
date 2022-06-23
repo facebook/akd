@@ -6,13 +6,11 @@
 // of this source tree.
 
 //! Various storage and representation related types
-
-use crate::history_tree_node::{HistoryTreeNode, NodeType};
-use crate::node_state::{HistoryChildState, HistoryNodeState, NodeStateKey};
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::storage::Storable;
-use crate::{Azks, NodeLabel, ARITY};
+use crate::tree_node::{NodeType, TreeNode};
+use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 
 /// Various elements that can be stored
@@ -20,10 +18,10 @@ use std::convert::TryInto;
 pub enum StorageType {
     /// Azks
     Azks = 1,
-    /// HistoryTreeNode
-    HistoryTreeNode = 2,
-    /// HistoryNodeState
-    HistoryNodeState = 3,
+    /// TreeNode
+    TreeNode = 2,
+    /// EOZ: HistoryNodeState = 3 was removed from here.
+    /// Better to keep ValueState = 4 as is?
     /// ValueState
     ValueState = 4,
 }
@@ -211,10 +209,8 @@ pub enum ValueStateRetrievalFlag {
 pub enum DbRecord {
     /// An Azks
     Azks(Azks),
-    /// A HistoryTreeNode
-    HistoryTreeNode(HistoryTreeNode),
-    /// A HistoryNodeState
-    HistoryNodeState(HistoryNodeState),
+    /// A TreeNodeNode
+    TreeNode(TreeNode),
     /// The state of the value for a particular key.
     ValueState(ValueState),
 }
@@ -223,8 +219,7 @@ impl Clone for DbRecord {
     fn clone(&self) -> Self {
         match &self {
             DbRecord::Azks(azks) => DbRecord::Azks(azks.clone()),
-            DbRecord::HistoryNodeState(state) => DbRecord::HistoryNodeState(state.clone()),
-            DbRecord::HistoryTreeNode(node) => DbRecord::HistoryTreeNode(node.clone()),
+            DbRecord::TreeNode(node) => DbRecord::TreeNode(node.clone()),
             DbRecord::ValueState(state) => DbRecord::ValueState(state.clone()),
         }
     }
@@ -236,8 +231,7 @@ impl DbRecord {
     pub fn get_full_binary_id(&self) -> Vec<u8> {
         match &self {
             DbRecord::Azks(azks) => azks.get_full_binary_id(),
-            DbRecord::HistoryNodeState(state) => state.get_full_binary_id(),
-            DbRecord::HistoryTreeNode(node) => node.get_full_binary_id(),
+            DbRecord::TreeNode(node) => node.get_full_binary_id(),
             DbRecord::ValueState(state) => state.get_full_binary_id(),
         }
     }
@@ -264,51 +258,29 @@ impl DbRecord {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Build a history tree node from the properties
     pub fn build_history_tree_node(
         label_val: [u8; 32],
         label_len: u32,
-        birth_epoch: u64,
         last_epoch: u64,
+        least_descendent_ep: u64,
         parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
-    ) -> HistoryTreeNode {
-        HistoryTreeNode {
+        left_child: Option<NodeLabel>,
+        right_child: Option<NodeLabel>,
+        hash: [u8; 32],
+    ) -> TreeNode {
+        TreeNode {
             label: NodeLabel::new(label_val, label_len),
-            birth_epoch,
             last_epoch,
+            least_descendent_ep,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),
-        }
-    }
-
-    /// Build a history node state from the properties
-    pub fn build_history_node_state(
-        value: [u8; 32],
-        child_states: [Option<HistoryChildState>; ARITY],
-        label_len: u32,
-        label_val: [u8; 32],
-        epoch: u64,
-    ) -> HistoryNodeState {
-        HistoryNodeState {
-            value,
-            child_states,
-            key: NodeStateKey(NodeLabel::new(label_val, label_len), epoch),
-        }
-    }
-
-    /// Build a history child state from the properties
-    pub fn build_history_child_state(
-        label_len: u32,
-        label_val: [u8; 32],
-        hash_val: [u8; 32],
-        epoch_version: u64,
-    ) -> HistoryChildState {
-        HistoryChildState {
-            label: NodeLabel::new(label_val, label_len),
-            hash_val,
-            epoch_version,
+            left_child,
+            right_child,
+            hash,
         }
     }
 

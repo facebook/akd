@@ -7,16 +7,16 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::{
-    errors::HistoryTreeNodeError,
-    history_tree_node::*,
-    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof},
+    errors::TreeNodeError,
+    proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof},
     storage::{Storable, Storage},
+    tree_node::*,
 };
 
 use crate::serialization::to_digest;
 
 use crate::storage::types::StorageType;
-use crate::{errors::*, history_tree_node::HistoryTreeNode, node_state::*, ARITY, *};
+use crate::{errors::*, node_state::*, tree_node::TreeNode, ARITY, *};
 use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
@@ -81,7 +81,7 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H, S>(storage, Option::Some(0)).await?;
+        let root = get_empty_root::<H>(Option::Some(0), Option::Some(0));
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
@@ -98,27 +98,21 @@ impl Azks {
         &mut self,
         storage: &S,
         node: Node<H>,
+        epoch: u64,
     ) -> Result<(), AkdError> {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
-        self.increment_epoch();
+        // Since this function is only for testing batch_insert_leaves, which is one epoch
+        // increment for the entire batch. Hence, we want to take care of epochs outside.
+        let new_leaf = get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), epoch);
 
-        let new_leaf = get_leaf_node::<H, S>(
-            storage,
-            node.label,
-            &node.hash,
-            NodeLabel::root(),
-            self.latest_epoch,
-        )
-        .await?;
-
-        let mut root_node = HistoryTreeNode::get_from_storage(
+        let mut root_node = TreeNode::get_from_storage(
             storage,
             &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
         root_node
-            .insert_single_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
+            .insert_single_leaf::<_, H>(storage, new_leaf, epoch, &mut self.num_nodes, None)
             .await?;
 
         Ok(())
@@ -160,23 +154,12 @@ impl Azks {
         let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
         while !current_nodes.is_empty() {
-            let nodes = HistoryTreeNode::batch_get_from_storage(
-                storage,
-                &current_nodes,
-                self.get_latest_epoch(),
-            )
-            .await?;
+            let nodes =
+                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
+                    .await?;
             load_count += nodes.len() as u64;
 
             current_nodes = Vec::<NodeKey>::new();
-            let mut node_states = Vec::<NodeStateKey>::new();
-
-            // This for loop is just getting the keys for states that need to be loaded.
-            for node in &nodes {
-                node_states.push(get_state_map_key(node, node.get_latest_epoch()));
-            }
-            let states = storage.batch_get::<HistoryNodeState>(&node_states).await?;
-            load_count += states.len() as u64;
 
             // Now that states are loaded in the cache, you can read and access them.
             // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
@@ -189,11 +172,7 @@ impl Azks {
 
                 for dir in 0..ARITY {
                     let child = node
-                        .get_child_at_epoch::<S, H>(
-                            storage,
-                            self.latest_epoch,
-                            Direction::Some(dir),
-                        )
+                        .get_child_state::<S>(storage, Direction::Some(dir))
                         .await?;
 
                     if let Some(child) = child {
@@ -212,7 +191,7 @@ impl Azks {
         &mut self,
         storage: &S,
         insertion_set: Vec<Node<H>>,
-        append_only_usage: bool,
+        append_only_exclude_usage: bool,
     ) -> Result<(), AkdError> {
         let tic = Instant::now();
         let load_count = self
@@ -229,55 +208,45 @@ impl Azks {
 
         let mut hash_q = KeyedPriorityQueue::<NodeLabel, i32>::new();
         let mut priorities: i32 = 0;
-        let mut root_node = HistoryTreeNode::get_from_storage(
+        let mut root_node = TreeNode::get_from_storage(
             storage,
             &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
         for node in insertion_set {
-            let new_leaf = if append_only_usage {
-                get_leaf_node_without_hashing::<H, S>(
-                    storage,
-                    node,
-                    NodeLabel::root(),
-                    self.latest_epoch,
-                )
-                .await?
-            } else {
-                get_leaf_node::<H, S>(
-                    storage,
-                    node.label,
-                    &node.hash,
-                    NodeLabel::root(),
-                    self.latest_epoch,
-                )
-                .await?
-            };
-
+            let new_leaf =
+                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
             debug!("BEGIN insert leaf");
             root_node
-                .insert_leaf::<_, H>(storage, new_leaf, self.latest_epoch, &mut self.num_nodes)
+                .insert_leaf::<_, H>(
+                    storage,
+                    new_leaf,
+                    self.latest_epoch,
+                    &mut self.num_nodes,
+                    Some(append_only_exclude_usage),
+                )
                 .await?;
             debug!("END insert leaf");
 
             hash_q.push(node.label, priorities);
             priorities -= 1;
         }
-
         // Now hash up the tree, the highest priority items will be closer to the leaves.
         while let Some((next_node_label, _)) = hash_q.pop() {
-            let mut next_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
+            let mut next_node: TreeNode = TreeNode::get_from_storage(
                 storage,
                 &NodeKey(next_node_label),
                 self.get_latest_epoch(),
             )
             .await?;
-
             next_node
-                .update_hash::<_, H>(storage, self.latest_epoch)
+                .update_node_hash::<_, H>(
+                    storage,
+                    self.latest_epoch,
+                    Some(append_only_exclude_usage),
+                )
                 .await?;
-
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => {
@@ -300,14 +269,16 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
+        _epoch: u64,
     ) -> Result<MembershipProof<H>, AkdError> {
-        let (pf, _) = self
-            .get_membership_proof_and_node(storage, label, epoch)
-            .await?;
+        let (pf, _) = self.get_membership_proof_and_node(storage, label).await?;
         Ok(pf)
     }
 
+    // EOZ: There is a needless_range_loop warning by Clippy for `for i in 0..ARITY`
+    // and the suggestion is to use `for (i, <item>) in longest_prefix_children.iter_mut().enumerate().take(ARITY)`
+    // but I think this is inaccurate
+    #[allow(clippy::needless_range_loop)]
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
@@ -315,32 +286,27 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
-        let (longest_prefix_membership_proof, lcp_node_label) = self
-            .get_membership_proof_and_node(storage, label, epoch)
-            .await?;
-        let lcp_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
-            storage,
-            &NodeKey(lcp_node_label),
-            self.get_latest_epoch(),
-        )
-        .await?;
+        let (longest_prefix_membership_proof, lcp_node_label) =
+            self.get_membership_proof_and_node(storage, label).await?;
+        let lcp_node: TreeNode =
+            TreeNode::get_from_storage(storage, &NodeKey(lcp_node_label), self.get_latest_epoch())
+                .await?;
         let longest_prefix = lcp_node.label;
         // load with placeholder nodes, to be replaced in the loop below
         let mut longest_prefix_children = [Node {
             label: EMPTY_LABEL,
-            hash: crate::utils::empty_node_hash_no_label::<H>(),
+            hash: crate::utils::empty_node_hash::<H>(),
         }; ARITY];
-        let state = lcp_node.get_state_at_epoch(storage, epoch).await?;
-        for (i, child) in state.child_states.iter().enumerate() {
+        for i in 0..ARITY {
+            let child = lcp_node.get_child_state(storage, Some(i)).await?;
             match child {
                 None => {
                     debug!("i = {}, empty", i);
                     continue;
                 }
                 Some(child) => {
-                    let unwrapped_child: HistoryTreeNode = HistoryTreeNode::get_from_storage(
+                    let unwrapped_child: TreeNode = TreeNode::get_from_storage(
                         storage,
                         &NodeKey(child.label),
                         self.get_latest_epoch(),
@@ -349,13 +315,12 @@ impl Azks {
                     debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
-                        hash: unwrapped_child
-                            .get_value_without_label_at_epoch::<_, H>(storage, epoch)
-                            .await?,
+                        hash: optional_child_state_hash::<H>(&Some(unwrapped_child))?,
                     };
                 }
             }
         }
+
         debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
@@ -365,6 +330,7 @@ impl Azks {
         })
     }
 
+    // FIXME add an error if the epochs don't exist or end is less than start ep.
     /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
     /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
     /// tree after `start_epoch` and  up until `end_epoch`.
@@ -380,75 +346,74 @@ impl Azks {
         start_epoch: u64,
         end_epoch: u64,
     ) -> Result<AppendOnlyProof<H>, AkdError> {
+        let mut proofs = Vec::<SingleAppendOnlyProof<H>>::new();
+        let mut epochs = Vec::<u64>::new();
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
-        let node = HistoryTreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
-        let (unchanged, leaves) = self
-            .get_append_only_proof_helper::<_, H>(storage, node, start_epoch, end_epoch)
+        for ep in start_epoch..end_epoch {
+            let node = TreeNode::get_from_storage(
+                storage,
+                &NodeKey(NodeLabel::root()),
+                self.get_latest_epoch(),
+            )
             .await?;
-        Ok(AppendOnlyProof {
-            inserted: leaves,
-            unchanged_nodes: unchanged,
-        })
+            let (unchanged, leaves) = self
+                .get_append_only_proof_helper::<_, H>(storage, node, ep, ep + 1)
+                .await?;
+            proofs.push(SingleAppendOnlyProof {
+                inserted: leaves,
+                unchanged_nodes: unchanged,
+            });
+            epochs.push(ep);
+        }
+
+        Ok(AppendOnlyProof { proofs, epochs })
     }
 
     #[async_recursion]
     async fn get_append_only_proof_helper<S: Storage + Sync + Send, H: Hasher>(
         &self,
         storage: &S,
-        node: HistoryTreeNode,
+        node: TreeNode,
         start_epoch: u64,
         end_epoch: u64,
     ) -> Result<AppendOnlyHelper<H>, AkdError> {
         let mut unchanged = Vec::<Node<H>>::new();
         let mut leaves = Vec::<Node<H>>::new();
+
         if node.get_latest_epoch() <= start_epoch {
             if node.is_root() {
                 // this is the case where the root is unchanged since the last epoch
                 return Ok((unchanged, leaves));
             }
-
             unchanged.push(Node::<H> {
                 label: node.label,
-                hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
-                    .await?,
+                hash: optional_child_state_hash::<H>(&Some(node))?,
             });
+
             return Ok((unchanged, leaves));
         }
-        if node.get_birth_epoch() > end_epoch {
-            // really you shouldn't even be here. Later do error checking
+
+        if node.least_descendent_ep > end_epoch {
             return Ok((unchanged, leaves));
         }
+
         if node.is_leaf() {
             leaves.push(Node::<H> {
                 label: node.label,
-                hash: node
-                    .get_value_without_label_at_epoch::<_, H>(storage, node.get_latest_epoch())
-                    .await?,
+                hash: to_digest::<H>(&node.hash)?,
             });
         } else {
-            for child_node_state in node
-                .get_state_at_epoch(storage, end_epoch)
-                .await?
-                .child_states
-                .iter()
-                .cloned()
-            {
-                match child_node_state {
+            for child_label in [node.left_child, node.right_child] {
+                match child_label {
                     None => {
                         continue;
                     }
-                    Some(child_node_state) => {
-                        let child_node = HistoryTreeNode::get_from_storage(
+                    Some(label) => {
+                        let child_node = TreeNode::get_from_storage(
                             storage,
-                            &NodeKey(child_node_state.label),
+                            &NodeKey(label),
                             self.get_latest_epoch(),
                         )
                         .await?;
@@ -489,17 +454,18 @@ impl Azks {
     ) -> Result<H::Digest, AkdError> {
         if self.latest_epoch < epoch {
             // cannot retrieve information for future epoch
-            return Err(AkdError::HistoryTreeNode(
-                HistoryTreeNodeError::NonexistentAtEpoch(NodeLabel::root(), epoch),
-            ));
+            return Err(AkdError::TreeNode(TreeNodeError::NonexistentAtEpoch(
+                NodeLabel::root(),
+                epoch,
+            )));
         }
-        let root_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
+        let root_node: TreeNode = TreeNode::get_from_storage(
             storage,
             &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
-        root_node.get_value_at_epoch::<_, H>(storage, epoch).await
+        hash_u8_with_label::<H>(&root_node.hash, root_node.label)
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -520,59 +486,58 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        epoch: u64,
     ) -> Result<(MembershipProof<H>, NodeLabel), AkdError> {
         let mut layer_proofs = Vec::new();
-        let mut curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
+        let mut curr_node: TreeNode = TreeNode::get_from_storage(
             storage,
             &NodeKey(NodeLabel::root()),
             self.get_latest_epoch(),
         )
         .await?;
+
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = NodeLabel::root();
         while !equal && dir.is_some() {
             prev_node = curr_node.label;
-            let curr_state = curr_node.get_state_at_epoch(storage, epoch).await?;
+
             let mut nodes = [Node::<H> {
                 label: EMPTY_LABEL,
-                hash: H::hash(&EMPTY_VALUE),
+                hash: crate::utils::empty_node_hash::<H>(),
             }; ARITY - 1];
             let mut count = 0;
-            let direction = dir.ok_or({
-                AkdError::HistoryTreeNode(HistoryTreeNodeError::NoDirection(curr_node.label, None))
-            })?;
-            let next_state = curr_state.get_child_state_in_dir(direction);
-            if next_state == None {
-                break;
-            }
-            for i in 0..ARITY {
-                let no_direction_error = AkdError::HistoryTreeNode(
-                    HistoryTreeNodeError::NoDirection(curr_node.label, None),
-                );
-                if i != dir.ok_or(no_direction_error)? {
-                    nodes[count] = Node::<H> {
-                        label: optional_history_child_state_to_label(&curr_state.child_states[i]),
-                        hash: to_digest::<H>(&optional_history_child_state_to_hash::<H>(
-                            &curr_state.child_states[i],
-                        ))?,
-                    };
-                    count += 1;
+            let direction = dir.ok_or(AkdError::TreeNode(TreeNodeError::NoDirection(
+                curr_node.label,
+                None,
+            )))?;
+            let next_state = curr_node.get_child_state(storage, Some(direction)).await?;
+            if next_state.is_some() {
+                for i in 0..ARITY {
+                    let no_direction_error =
+                        AkdError::TreeNode(TreeNodeError::NoDirection(curr_node.label, None));
+
+                    if i != dir.ok_or(no_direction_error)? {
+                        let sibling = curr_node
+                            .get_child_state(storage, Direction::Some(i))
+                            .await?;
+                        nodes[count] = Node::<H> {
+                            label: optional_child_state_to_label(&sibling),
+                            hash: optional_child_state_hash::<H>(&sibling)?,
+                        };
+                        count += 1;
+                    }
                 }
+            } else {
+                break;
             }
             layer_proofs.push(proof_structs::LayerProof {
                 label: curr_node.label,
                 siblings: nodes,
                 direction: dir,
             });
-            let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
+            let new_curr_node: TreeNode = TreeNode::get_from_storage(
                 storage,
-                &NodeKey(
-                    curr_node
-                        .get_child_label_at_epoch::<_, H>(storage, epoch, dir)
-                        .await?,
-                ),
+                &NodeKey(curr_node.get_child(dir).unwrap().unwrap()),
                 self.get_latest_epoch(),
             )
             .await?;
@@ -580,21 +545,20 @@ impl Azks {
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
+
         if !equal {
-            let new_curr_node: HistoryTreeNode = HistoryTreeNode::get_from_storage(
-                storage,
-                &NodeKey(prev_node),
-                self.get_latest_epoch(),
-            )
-            .await?;
+            let new_curr_node: TreeNode =
+                TreeNode::get_from_storage(storage, &NodeKey(prev_node), self.get_latest_epoch())
+                    .await?;
             curr_node = new_curr_node;
 
             layer_proofs.pop();
         }
-
-        let hash_val = curr_node
-            .get_value_without_label_at_epoch::<_, H>(storage, epoch)
-            .await?;
+        let hash_val = if curr_node.is_leaf() {
+            H::merge_with_int(to_digest::<H>(&curr_node.hash)?, curr_node.last_epoch)
+        } else {
+            to_digest::<H>(&curr_node.hash)?
+        };
 
         Ok((
             MembershipProof::<H> {
@@ -613,7 +577,7 @@ type AppendOnlyHelper<H> = (Vec<Node<H>>, Vec<Node<H>>);
 mod tests {
     use super::*;
     use crate::{
-        auditor::verify_append_only,
+        auditor::audit_verify,
         client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
     };
@@ -640,7 +604,7 @@ mod tests {
             let hash = Blake3::hash(&input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_, Blake3>(&db, node).await?;
+            azks1.insert_leaf::<_, Blake3>(&db, node, 1).await?;
         }
 
         let db2 = AsyncInMemoryDatabase::new();
@@ -674,7 +638,7 @@ mod tests {
             let hash = Blake3Digest::new(input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_, Blake3>(&db, node).await?;
+            azks1.insert_leaf::<_, Blake3>(&db, node, 1).await?;
         }
 
         // Try randomly permuting
@@ -714,6 +678,36 @@ mod tests {
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
+            .await?;
+
+        let proof = azks
+            .get_membership_proof(&db, insertion_set[0].label, 1)
+            .await?;
+
+        verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_membership_proof_small() -> Result<(), AkdError> {
+        let num_nodes = 2;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for i in 0..num_nodes {
+            let mut label_arr = [0u8; 32];
+            label_arr[0] = u8::from(i);
+            let label = NodeLabel::new(label_arr, 256u32);
+            let input = [0u8; 32];
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+
         let db = AsyncInMemoryDatabase::new();
         let mut azks = Azks::new::<_, Blake3>(&db).await?;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone())
@@ -798,11 +792,72 @@ mod tests {
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set)
             .await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
-        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
         assert!(
             verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?,
             "Nonmembership proof does not verify"
         );
+        Ok(())
+    }
+
+    // This test checks that a non-membership proof in a tree with 1 leaf verifies.
+    #[tokio::test]
+    async fn test_nonmembership_proof_very_small() -> Result<(), AkdError> {
+        let num_nodes = 2;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for i in 0..num_nodes {
+            let mut label_arr = [0u8; 32];
+            label_arr[31] = u8::from(i);
+            let label = NodeLabel::new(label_arr, 256u32);
+            let mut input = [0u8; 32];
+            input[31] = u8::from(i);
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        let search_label = insertion_set[0].label;
+        azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone()[1..2].to_vec())
+            .await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
+
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
+        Ok(())
+    }
+
+    // This test verifies if a non-membership proof in a small tree of 2 leaves
+    // verifies.
+    #[tokio::test]
+    async fn test_nonmembership_proof_small() -> Result<(), AkdError> {
+        let num_nodes = 3;
+        let mut rng = OsRng;
+
+        let mut insertion_set: Vec<Node<Blake3>> = vec![];
+
+        for _ in 0..num_nodes {
+            let label = NodeLabel::random(&mut rng);
+            let mut input = [0u8; 32];
+            rng.fill_bytes(&mut input);
+            let hash = Blake3Digest::new(input);
+            let node = Node::<Blake3> { label, hash };
+            insertion_set.push(node);
+        }
+        let db = AsyncInMemoryDatabase::new();
+        let mut azks = Azks::new::<_, Blake3>(&db).await?;
+        let search_label = insertion_set[num_nodes - 1].label;
+        azks.batch_insert_leaves::<_, Blake3>(
+            &db,
+            insertion_set.clone()[0..num_nodes - 1].to_vec(),
+        )
+        .await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
+
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
+
         Ok(())
     }
 
@@ -829,12 +884,9 @@ mod tests {
             insertion_set.clone()[0..num_nodes - 1].to_vec(),
         )
         .await?;
-        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
-        assert!(
-            verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?,
-            "Nonmembership proof does not verify"
-        );
+        verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
 
         Ok(())
     }
@@ -864,8 +916,8 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
+        audit_verify::<Blake3>(vec![start_hash, end_hash], proof).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 
@@ -903,8 +955,7 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
-
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
+        audit_verify::<Blake3>(vec![start_hash, end_hash], proof).await?;
         Ok(())
     }
 
@@ -945,6 +996,8 @@ mod tests {
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set_2.clone())
             .await?;
 
+        let middle_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
+
         let mut insertion_set_3: Vec<Node<Blake3>> = vec![];
 
         for _ in 0..num_nodes {
@@ -962,8 +1015,9 @@ mod tests {
         let end_hash = azks.get_root_hash::<_, Blake3>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 3).await?;
+        let hashes = vec![start_hash, middle_hash, end_hash];
+        audit_verify::<Blake3>(hashes, proof).await?;
 
-        verify_append_only::<Blake3>(proof, start_hash, end_hash).await?;
         Ok(())
     }
 
@@ -974,9 +1028,10 @@ mod tests {
 
         let out = azks.get_root_hash_at_epoch::<_, Blake3>(&db, 123).await;
 
-        let expected = Err::<_, AkdError>(AkdError::HistoryTreeNode(
-            HistoryTreeNodeError::NonexistentAtEpoch(NodeLabel::root(), 123),
-        ));
+        let expected = Err::<_, AkdError>(AkdError::TreeNode(TreeNodeError::NonexistentAtEpoch(
+            NodeLabel::root(),
+            123,
+        )));
         assert_eq!(expected, out);
         Ok(())
     }

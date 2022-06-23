@@ -194,11 +194,14 @@
 //!     let current_azks = akd.retrieve_current_azks().await.unwrap();
 //!     // Get the azks root hashes at the required epochs
 //!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
+//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
+//!     let current_epoch = current_azks.get_latest_epoch();
+//!     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await.unwrap();
 //!     let vrf_pk = akd.get_public_key().await.unwrap();
 //!     key_history_verify::<Blake3_256<BaseElement>>(
 //!         &vrf_pk,
-//!         root_hashes,
-//!         previous_root_hashes,
+//!         root_hash,
+//!         current_epoch,
 //!         AkdLabel::from_utf8_str("hello"),
 //!         history_proof,
 //!         false,
@@ -270,9 +273,9 @@
 //!     // Get the latest commitment, i.e. azks root hash
 //!     let start_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 1u64).await.unwrap();
 //!     let end_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 2u64).await.unwrap();
+//!     let hashes = vec![start_root_hash, end_root_hash];
 //!     auditor::audit_verify::<Blake3_256<BaseElement>>(
-//!         start_root_hash,
-//!         end_root_hash,
+//!         hashes,
 //!         audit_proof,
 //!     ).await.unwrap();
 //! };
@@ -323,11 +326,11 @@ pub mod client;
 pub mod directory;
 pub mod ecvrf;
 pub mod errors;
-pub mod history_tree_node;
 pub mod node_state;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
+pub mod tree_node;
 
 mod utils;
 
@@ -354,6 +357,12 @@ pub const EMPTY_VALUE: [u8; 1] = [0u8];
 /// The label used for an empty node
 pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
     val: [1u8; 32],
+    len: 0,
+};
+
+/// The label used for a root node
+pub const ROOT_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
+    val: [0u8; 32],
     len: 0,
 };
 /// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).

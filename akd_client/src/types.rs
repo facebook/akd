@@ -83,7 +83,9 @@ impl NodeLabel {
         {
             prefix_len += 1;
         }
-
+        if *self == EMPTY_LABEL || other == EMPTY_LABEL {
+            return EMPTY_LABEL;
+        }
         self.get_prefix(prefix_len)
     }
 
@@ -229,16 +231,6 @@ pub struct UpdateProof {
     pub previous_val_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
     pub previous_val_stale_at_ep: Option<MembershipProof>,
-    /// Proof that this value didn't exist prior to this ep
-    pub non_existence_before_ep: Option<NonMembershipProof>,
-    /// VRF Proofs for the labels of the next few values
-    pub next_few_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that the next few values did not exist at this time
-    pub non_existence_of_next_few: Vec<NonMembershipProof>,
-    /// VRF proofs for the labels of future marker entries
-    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that future markers did not exist
-    pub non_existence_of_future_markers: Vec<NonMembershipProof>,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
@@ -248,5 +240,15 @@ pub struct UpdateProof {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryProof {
     /// The update proofs in the key history
-    pub proofs: Vec<UpdateProof>,
+    pub update_proofs: Vec<UpdateProof>,
+    /// The epochs at which updates were made.
+    pub epochs: Vec<u64>,
+    /// VRF Proofs for the labels of the next few values
+    pub next_few_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the next few values did not exist at this time
+    pub non_existence_of_next_few: Vec<NonMembershipProof>,
+    /// VRF proofs for the labels of future marker entries
+    pub future_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that future markers did not exist
+    pub non_existence_of_future_markers: Vec<NonMembershipProof>,
 }

@@ -337,44 +337,6 @@ impl Storage for AsyncInMemoryDatabase {
         }
         Ok(map)
     }
-
-    async fn get_epoch_lte_epoch(
-        &self,
-        node_label: crate::node_state::NodeLabel,
-        epoch_in_question: u64,
-    ) -> Result<u64, StorageError> {
-        let ids = (0..=epoch_in_question)
-            .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
-            .collect::<Vec<_>>();
-        let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
-            .await?;
-        let mut epochs = data
-            .into_iter()
-            .map(|item| {
-                if let DbRecord::HistoryNodeState(state) = item {
-                    state.key.1
-                } else {
-                    0u64
-                }
-            })
-            .collect::<Vec<u64>>();
-        // reverse sort
-        epochs.sort_unstable_by(|a, b| b.cmp(a));
-
-        // move through the epochs from largest to smallest, first one that's <= ```epoch_in_question```
-        // and Bob's your uncle
-        for item in epochs {
-            if item <= epoch_in_question {
-                return Ok(item);
-            }
-        }
-
-        Err(StorageError::NotFound(format!(
-            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
-            node_label.val, node_label.len, epoch_in_question
-        )))
-    }
 }
 
 #[async_trait]
@@ -386,8 +348,7 @@ impl StorageUtil for AsyncInMemoryDatabase {
             .into_iter()
             .filter(|record| match record {
                 DbRecord::Azks(_) => St::data_type() == StorageType::Azks,
-                DbRecord::HistoryTreeNode(_) => St::data_type() == StorageType::HistoryTreeNode,
-                DbRecord::HistoryNodeState(_) => St::data_type() == StorageType::HistoryNodeState,
+                DbRecord::TreeNode(_) => St::data_type() == StorageType::TreeNode,
                 DbRecord::ValueState(_) => St::data_type() == StorageType::ValueState,
             })
             .collect();
@@ -808,43 +769,6 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
         Ok(map)
     }
-
-    async fn get_epoch_lte_epoch(
-        &self,
-        node_label: crate::node_state::NodeLabel,
-        epoch_in_question: u64,
-    ) -> Result<u64, StorageError> {
-        let ids = (0..=epoch_in_question)
-            .map(|epoch| crate::node_state::NodeStateKey(node_label, epoch))
-            .collect::<Vec<_>>();
-        let data = self
-            .batch_get::<crate::node_state::HistoryNodeState>(&ids)
-            .await?;
-        let mut epochs = data
-            .into_iter()
-            .map(|item| {
-                if let DbRecord::HistoryNodeState(state) = item {
-                    state.key.1
-                } else {
-                    0u64
-                }
-            })
-            .collect::<Vec<u64>>();
-        // reverse sort
-        epochs.sort_unstable_by(|a, b| b.cmp(a));
-
-        // move through the epochs from largest to smallest, first one that's <= ```epoch_in_question```
-        // and Bob's your uncle
-        for item in epochs {
-            if item <= epoch_in_question {
-                return Ok(item);
-            }
-        }
-        Err(StorageError::NotFound(format!(
-            "Node (val: {:?}, len: {}) did not exist <= epoch {}",
-            node_label.val, node_label.len, epoch_in_question
-        )))
-    }
 }
 
 #[cfg(feature = "public-tests")]
@@ -857,8 +781,7 @@ impl StorageUtil for AsyncInMemoryDbWithCache {
             .into_iter()
             .filter(|record| match record {
                 DbRecord::Azks(_) => St::data_type() == StorageType::Azks,
-                DbRecord::HistoryTreeNode(_) => St::data_type() == StorageType::HistoryTreeNode,
-                DbRecord::HistoryNodeState(_) => St::data_type() == StorageType::HistoryNodeState,
+                DbRecord::TreeNode(_) => St::data_type() == StorageType::TreeNode,
                 DbRecord::ValueState(_) => St::data_type() == StorageType::ValueState,
             })
             .collect();
