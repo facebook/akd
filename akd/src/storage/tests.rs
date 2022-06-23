@@ -80,8 +80,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
 
     let node = TreeNode {
         label: NodeLabel::new(byte_arr_from_u64(13), 4),
-        // FIXME: Why is this 234? Should it just be 34??
-        last_epoch: 234,
+        last_epoch: 34,
         // FIXME: what should least_child_ep really be?
         least_descendent_ep: 1,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),

@@ -480,9 +480,8 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
-    // FIXME: uncomment
-    // Audit proof should only work up until checkpoint's epoch
 
+    // Audit proof should only work up until checkpoint's epoch
     let audit_proof = akd.audit(1, 2).await?;
     audit_verify::<Blake3>(vec![root_hash_1, root_hash_2], audit_proof).await?;
 

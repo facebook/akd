@@ -286,7 +286,6 @@ impl Azks {
         &self,
         storage: &S,
         label: NodeLabel,
-        _epoch: u64,
     ) -> Result<NonMembershipProof<H>, AkdError> {
         let (longest_prefix_membership_proof, lcp_node_label) =
             self.get_membership_proof_and_node(storage, label).await?;
@@ -793,7 +792,7 @@ mod tests {
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set)
             .await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
-        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
         assert!(
             verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?,
             "Nonmembership proof does not verify"
@@ -823,7 +822,7 @@ mod tests {
         let search_label = insertion_set[0].label;
         azks.batch_insert_leaves::<_, Blake3>(&db, insertion_set.clone()[1..2].to_vec())
             .await?;
-        let proof = azks.get_non_membership_proof(&db, search_label, 2).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
         verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
 
@@ -855,7 +854,7 @@ mod tests {
             insertion_set.clone()[0..num_nodes - 1].to_vec(),
         )
         .await?;
-        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
         verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
 
@@ -885,7 +884,7 @@ mod tests {
             insertion_set.clone()[0..num_nodes - 1].to_vec(),
         )
         .await?;
-        let proof = azks.get_non_membership_proof(&db, search_label, 1).await?;
+        let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
         verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?;
 

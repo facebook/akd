@@ -1282,14 +1282,6 @@ impl Storage for AsyncMySqlDatabase {
         let result = async {
             let tic = Instant::now();
 
-            /*
-            let command = "CREATE TABLE IF NOT EXISTS `".to_owned()
-                + TABLE_USER
-                + "` (`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, `version` BIGINT UNSIGNED NOT NULL,"
-                + " `node_label_val` VARBINARY(32) NOT NULL, `node_label_len` INT UNSIGNED NOT NULL, `data` VARCHAR(2000),"
-                + " PRIMARY KEY(`username`, `epoch`))";
-             */
-
             let mut conn = self.get_connection().await?;
             let mut statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"

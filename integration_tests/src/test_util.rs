@@ -123,7 +123,7 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
-// FIXME: We actually probably want to use this. Figure out
+// FIXME: We actually probably want to use this. Figure out later.
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
@@ -253,7 +253,6 @@ pub(crate) async fn directory_test_suite<
     }
 }
 
-#[allow(unused)]
 pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFKeyStorage>(
     mysql_db: &S,
     vrf: &V,
@@ -371,7 +370,6 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
 // Reset MySQL database by logging metrics which resets the metrics, and flushing cache.
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
-#[allow(unused)]
 async fn reset_mysql_db<S: akd::storage::Storage + Sync + Send>(mysql_db: &S) {
     mysql_db.log_metrics(Level::Trace).await;
     mysql_db.flush_cache().await;

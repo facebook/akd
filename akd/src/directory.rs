@@ -302,11 +302,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .to_bytes()
                 .to_vec(),
             freshness_proof: current_azks
-                .get_non_membership_proof(
-                    &self.storage,
-                    lookup_info.non_existent_label,
-                    current_epoch,
-                )
+                .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
             commitment_proof: crate::utils::get_commitment_proof::<H>(
                 &commitment_key.as_bytes(),
@@ -464,7 +460,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             for ver in last_version + 1..(1 << next_marker) {
                 let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
                 let non_existence_of_ver = current_azks
-                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .get_non_membership_proof(&self.storage, label_for_ver)
                     .await?;
                 non_existence_of_next_few.push(non_existence_of_ver);
                 next_few_vrf_proofs.push(
@@ -483,7 +479,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 let ver = 1 << marker_power;
                 let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
                 let non_existence_of_ver = current_azks
-                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .get_non_membership_proof(&self.storage, label_for_ver)
                     .await?;
                 non_existence_of_future_markers.push(non_existence_of_ver);
                 future_marker_vrf_proofs.push(
@@ -575,7 +571,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             for ver in last_version + 1..(1 << next_marker) {
                 let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
                 let non_existence_of_ver = current_azks
-                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .get_non_membership_proof(&self.storage, label_for_ver)
                     .await?;
                 non_existence_of_next_few.push(non_existence_of_ver);
                 next_few_vrf_proofs.push(
@@ -594,7 +590,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 let ver = 1 << marker_power;
                 let label_for_ver = self.vrf.get_node_label::<H>(uname, false, ver).await?;
                 let non_existence_of_ver = current_azks
-                    .get_non_membership_proof(&self.storage, label_for_ver, current_epoch)
+                    .get_non_membership_proof(&self.storage, label_for_ver)
                     .await?;
                 non_existence_of_future_markers.push(non_existence_of_ver);
                 future_marker_vrf_proofs.push(
@@ -844,7 +840,6 @@ fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
 
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
-// FIXME: This needs to go
 /// Gets hashes for key history proofs
 pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,

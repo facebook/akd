@@ -58,35 +58,6 @@ where
     }
 }
 
-#[allow(unused)]
-fn to_digest_vec<H>(hash_vec: Vec<H::Digest>) -> Vec<crate::types::Digest>
-where
-    H: winter_crypto::Hasher,
-{
-    let mut digest_vec = Vec::<crate::types::Digest>::new();
-    for hash_elem in hash_vec {
-        digest_vec.push(to_digest::<H>(hash_elem));
-    }
-    digest_vec
-}
-
-// FIXME: may want to get rid of this altogether
-#[allow(unused)]
-fn to_digest_vec_opt<H>(hash_vec: Vec<Option<H::Digest>>) -> Vec<Option<crate::types::Digest>>
-where
-    H: winter_crypto::Hasher,
-{
-    let mut digest_vec_opt = Vec::<Option<crate::types::Digest>>::new();
-    for hash_elem in hash_vec {
-        if let Some(h) = hash_elem {
-            digest_vec_opt.push(Some(to_digest::<H>(h)));
-        } else {
-            digest_vec_opt.push(None);
-        }
-    }
-    digest_vec_opt
-}
-
 fn convert_label(proof: akd::node_state::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
         len: proof.len,

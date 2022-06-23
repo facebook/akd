@@ -24,6 +24,8 @@ pub enum AkdError {
     Vrf(VrfError),
     /// Storage layer error thrown
     Storage(StorageError),
+    /// Audit verification error thrown
+    AuditErr(AuditorError),
 }
 
 impl std::error::Error for AkdError {}
@@ -58,6 +60,12 @@ impl From<AzksError> for AkdError {
     }
 }
 
+impl From<AuditorError> for AkdError {
+    fn from(error: AuditorError) -> Self {
+        Self::AuditErr(error)
+    }
+}
+
 impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
@@ -75,6 +83,9 @@ impl std::fmt::Display for AkdError {
             }
             AkdError::Storage(err) => {
                 writeln!(f, "AKD Storage Error: {}", err)
+            }
+            AkdError::AuditErr(err) => {
+                writeln!(f, "AKD Auditor Error {}", err)
             }
         }
     }
@@ -283,6 +294,26 @@ impl fmt::Display for VrfError {
             }
             Self::Verification(error_string) => {
                 write!(f, "VRF proving or verifying: {}", error_string)
+            }
+        }
+    }
+}
+
+/// The errors thrown by various algorithms in [crate::directory::Directory]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug)]
+pub enum AuditorError {
+    /// A general auditor error
+    VerifyAuditProof(String),
+}
+
+impl std::error::Error for AuditorError {}
+
+impl fmt::Display for AuditorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VerifyAuditProof(err_string) => {
+                write!(f, "Failed to verify audit {}", err_string)
             }
         }
     }

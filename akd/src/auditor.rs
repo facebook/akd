@@ -12,18 +12,33 @@ use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 use crate::{
-    errors::{AkdError, AzksError},
+    errors::{AkdError, AuditorError, AzksError},
     proof_structs::{AppendOnlyProof, SingleAppendOnlyProof},
     storage::memory::AsyncInMemoryDatabase,
     Azks,
 };
 
-// FIXME: Need to add error handling
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
 pub async fn audit_verify<H: Hasher + Send + Sync>(
     hashes: Vec<H::Digest>,
     proof: AppendOnlyProof<H>,
 ) -> Result<(), AkdError> {
+    if proof.epochs.len() + 1 != hashes.len() {
+        return Err(AkdError::AuditErr(AuditorError::VerifyAuditProof(format!(
+            "The proof has a different number of epochs than needed for hashes. 
+            The number of hashes you provide should be one more than the number of epochs! 
+            Number of epochs = {}, number of hashes = {}",
+            proof.epochs.len(),
+            hashes.len()
+        ))));
+    }
+    if proof.epochs.len() != proof.proofs.len() {
+        return Err(AkdError::AuditErr(AuditorError::VerifyAuditProof(format!(
+            "The proof has {} epochs and {} proofs. These should be equal!",
+            proof.epochs.len(),
+            proof.proofs.len()
+        ))));
+    }
     for i in 0..hashes.len() - 1 {
         let start_hash = hashes[i];
         let end_hash = hashes[i + 1];
@@ -45,7 +60,7 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
     end_hash: H::Digest,
     epoch: u64,
 ) -> Result<(), AkdError> {
-    // FIXME: Need to get rid of the clone here.
+    // FIXME: Need to get rid of the clone here. Will need modifications to the functions called here.
     let unchanged_nodes = proof.unchanged_nodes.clone();
     let inserted = proof.inserted.clone();
 

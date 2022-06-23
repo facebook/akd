@@ -114,20 +114,7 @@ fn verify_nonmembership(
     Ok(verified)
 }
 
-// FIXME might want to remove.
-#[allow(unused)]
-fn hash_plaintext_value(value: &AkdValue, proof: &[u8]) -> Digest {
-    let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
-    merge(&[hash(&EMPTY_VALUE), single_hash])
-}
-
-fn hash_leaf_with_value(
-    value: &crate::AkdValue,
-    epoch: u64,
-    proof: &[u8],
-    // FIXME get rid of this argument
-    _label: NodeLabel,
-) -> Digest {
+fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
     let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
     merge_with_int(single_hash, epoch)
 }
@@ -168,12 +155,8 @@ pub fn lookup_verify(
 
     let fresh_label = existence_proof.label;
 
-    if hash_leaf_with_value(
-        &proof.plaintext_value,
-        proof.epoch,
-        &proof.commitment_proof,
-        fresh_label,
-    ) != existence_proof.hash_val
+    if hash_leaf_with_value(&proof.plaintext_value, proof.epoch, &proof.commitment_proof)
+        != existence_proof.hash_val
     {
         return Err(verify_error!(
             LookupProof,
@@ -369,10 +352,7 @@ fn verify_single_update_proof(
     let _plaintext_value = &proof.plaintext_value;
     let version = proof.version;
 
-    let existence_at_ep_ref = &proof.existence_at_ep;
-    let existence_at_ep = existence_at_ep_ref;
-    // FIXME: Why does this need a reference??
-    let existence_at_ep_label = existence_at_ep_ref.label;
+    let existence_at_ep = &proof.existence_at_ep;
 
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
 
@@ -387,12 +367,8 @@ fn verify_single_update_proof(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_leaf_with_value(
-                    bytes,
-                    proof.epoch,
-                    &proof.commitment_proof,
-                    existence_at_ep_label,
-                ) == existence_at_ep.hash_val,
+                hash_leaf_with_value(bytes, proof.epoch, &proof.commitment_proof)
+                    == existence_at_ep.hash_val,
             )
         }
     };
@@ -414,7 +390,7 @@ fn verify_single_update_proof(
             false,
             version,
             &proof.existence_vrf_proof,
-            existence_at_ep_ref.label,
+            existence_at_ep.label,
         )?;
     }
     verify_membership(root_hash, existence_at_ep)?;

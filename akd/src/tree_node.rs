@@ -551,15 +551,6 @@ impl TreeNode {
 
 /////// Helpers //////
 
-// FIXME: Remove if not needed
-#[allow(unused)]
-pub(crate) fn hash_with_label<H: Hasher>(
-    digest: H::Digest,
-    label: NodeLabel,
-) -> Result<H::Digest, AkdError> {
-    Ok(H::merge(&[digest, hash_label::<H>(label)]))
-}
-
 pub(crate) fn hash_u8_with_label<H: Hasher>(
     digest: &[u8],
     label: NodeLabel,

@@ -50,7 +50,6 @@ pub(crate) fn empty_node_hash<H: Hasher>() -> H::Digest {
     H::merge(&[H::hash(&EMPTY_VALUE), hash_label::<H>(EMPTY_LABEL)])
 }
 
-#[allow(unused)]
 pub(crate) fn empty_node_hash_no_label<H: Hasher>() -> H::Digest {
     H::hash(&EMPTY_VALUE)
 }
@@ -71,15 +70,6 @@ pub(crate) fn get_commitment_proof<H: Hasher>(
     label: &NodeLabel,
     value: &AkdValue,
 ) -> H::Digest {
-    // H::hash(
-    //     &[
-    //         commitment_key,
-    //         &i2osp_array(label),
-    //         &version.to_be_bytes(),
-    //         &i2osp_array(value),
-    //     ]
-    //     .concat(),
-    // )
     H::hash(&[commitment_key, &label.val, &i2osp_array(value)].concat())
 }
 

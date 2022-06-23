@@ -124,12 +124,8 @@ pub fn lookup_verify<H: Hasher>(
 
     let fresh_label = existence_proof.label;
 
-    if hash_leaf_with_value::<H>(
-        &proof.plaintext_value,
-        proof.epoch,
-        &proof.commitment_proof,
-        fresh_label,
-    ) != existence_proof.hash_val
+    if hash_leaf_with_value::<H>(&proof.plaintext_value, proof.epoch, &proof.commitment_proof)
+        != existence_proof.hash_val
     {
         return Err(AkdError::Directory(DirectoryError::VerifyLookupProof(
             "Hash of plaintext value did not match expected hash in existence proof".to_string(),
@@ -297,10 +293,8 @@ fn verify_single_update_proof<H: Hasher>(
     let version = proof.version;
 
     let existence_vrf_proof = proof.existence_vrf_proof;
-    let existence_at_ep_ref = &proof.existence_at_ep;
-    let existence_at_ep = existence_at_ep_ref;
-    // FIXME: Why does this need a reference??
-    let existence_at_ep_label = existence_at_ep_ref.label;
+    let existence_at_ep = &proof.existence_at_ep;
+    let existence_at_ep_label = existence_at_ep.label;
 
     let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
 
@@ -315,12 +309,8 @@ fn verify_single_update_proof<H: Hasher>(
             // No tombstone so hash the value found, and compare to the existence proof's value
             (
                 false,
-                hash_leaf_with_value::<H>(
-                    bytes,
-                    proof.epoch,
-                    &proof.commitment_proof,
-                    existence_at_ep_label,
-                ) == existence_at_ep.hash_val,
+                hash_leaf_with_value::<H>(bytes, proof.epoch, &proof.commitment_proof)
+                    == existence_at_ep.hash_val,
             )
         }
     };
@@ -405,13 +395,7 @@ fn hash_layer<H: Hasher>(hashes: Vec<H::Digest>, parent_label: NodeLabel) -> H::
     H::merge(&[new_hash, hash_label::<H>(parent_label)])
 }
 
-fn hash_leaf_with_value<H: Hasher>(
-    value: &crate::AkdValue,
-    epoch: u64,
-    proof: &[u8],
-    // FIXME get rid of this argument
-    _label: NodeLabel,
-) -> H::Digest {
+fn hash_leaf_with_value<H: Hasher>(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> H::Digest {
     let single_hash = crate::utils::bind_commitment::<H>(value, proof);
     H::merge_with_int(single_hash, epoch)
 }
