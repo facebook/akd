@@ -326,7 +326,8 @@ pub mod client;
 pub mod directory;
 pub mod ecvrf;
 pub mod errors;
-pub mod node_state;
+pub mod helper_structs;
+pub mod node_label;
 pub mod proof_structs;
 pub mod serialization;
 pub mod storage;
@@ -336,8 +337,9 @@ mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
-pub use directory::{Directory, EpochHash};
-pub use node_state::{Node, NodeLabel};
+pub use directory::Directory;
+pub use helper_structs::{EpochHash, Node};
+pub use node_label::NodeLabel;
 pub use storage::types::{AkdLabel, AkdValue};
 
 // ========== Constants and type aliases ========== //
@@ -355,13 +357,13 @@ pub const LEAF_LEN: u32 = 256;
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
 
 /// The label used for an empty node
-pub const EMPTY_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
+pub const EMPTY_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
     val: [1u8; 32],
     len: 0,
 };
 
 /// The label used for a root node
-pub const ROOT_LABEL: crate::node_state::NodeLabel = crate::node_state::NodeLabel {
+pub const ROOT_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
     val: [0u8; 32],
     len: 0,
 };

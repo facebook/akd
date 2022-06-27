@@ -16,7 +16,7 @@ use crate::{
 use crate::serialization::to_digest;
 
 use crate::storage::types::StorageType;
-use crate::{errors::*, node_state::*, tree_node::TreeNode, ARITY, *};
+use crate::{errors::*, node_label::*, tree_node::TreeNode, ARITY, *};
 use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};

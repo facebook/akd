@@ -7,7 +7,7 @@
 
 //! This module contains the raw implementation implements the ECVRF functionality for use in the AKD crate
 
-use crate::{errors::VrfError, node_state::NodeLabel, storage::types::AkdLabel};
+use crate::{errors::VrfError, node_label::NodeLabel, storage::types::AkdLabel};
 use core::convert::TryFrom;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT,

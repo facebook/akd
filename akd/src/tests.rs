@@ -14,7 +14,7 @@ use crate::{
     directory::{get_key_history_hashes, Directory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
-    node_state::hash_label,
+    node_label::hash_label,
     storage::{
         memory::AsyncInMemoryDatabase,
         types::{AkdLabel, AkdValue, DbRecord},

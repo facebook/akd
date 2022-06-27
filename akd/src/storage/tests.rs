@@ -8,7 +8,7 @@
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
 use crate::errors::StorageError;
-use crate::node_state::byte_arr_from_u64;
+use crate::node_label::byte_arr_from_u64;
 use crate::storage::types::*;
 use crate::storage::Storage;
 use crate::tree_node::*;

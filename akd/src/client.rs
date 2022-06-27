@@ -14,7 +14,7 @@ use crate::{
     ecvrf::VRFPublicKey,
     errors::TreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
-    node_state::{hash_label, NodeLabel},
+    node_label::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,

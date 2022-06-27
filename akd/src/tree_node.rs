@@ -11,7 +11,7 @@ use crate::errors::{AkdError, StorageError, TreeNodeError};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction, EMPTY_LABEL};
+use crate::{node_label::*, Direction, EMPTY_LABEL};
 use async_recursion::async_recursion;
 use log::debug;
 use std::cmp::min;
@@ -650,7 +650,7 @@ pub fn get_leaf_node<H: Hasher>(
 mod tests {
     use super::*;
     use crate::{
-        node_state::{byte_arr_from_u64, hash_label, NodeLabel},
+        node_label::{byte_arr_from_u64, hash_label, NodeLabel},
         EMPTY_VALUE,
     };
     use std::convert::TryInto;

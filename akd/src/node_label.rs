@@ -8,9 +8,7 @@
 //! The representation for the label of a tree node.
 
 #[cfg(feature = "serde_serialization")]
-use crate::serialization::{
-    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
-};
+use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::{Direction, EMPTY_LABEL};
 
 #[cfg(feature = "rand")]
@@ -21,40 +19,6 @@ use std::{
     fmt::{self, Debug},
 };
 use winter_crypto::Hasher;
-
-/// Represents a node's label & associated hash
-#[derive(Debug, PartialEq)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-pub struct Node<H: Hasher> {
-    /// the label associated with the accompanying hash
-    pub label: NodeLabel,
-    /// the hash associated to this label
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(serialize_with = "digest_serialize")
-    )]
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(deserialize_with = "digest_deserialize")
-    )]
-    pub hash: H::Digest,
-}
-
-// can't use #derive because it doesn't bind correctly
-// #derive and generics are not friendly; might make Debug weird too ...
-// see also:
-// https://users.rust-lang.org/t/why-does-deriving-clone-not-work-in-this-case-but-implementing-manually-does/29075
-// https://github.com/rust-lang/rust/issues/26925
-impl<H: Hasher> Copy for Node<H> {}
-
-impl<H: Hasher> Clone for Node<H> {
-    fn clone(&self) -> Node<H> {
-        *self
-    }
-}
 
 /// The NodeLabel struct represents the label for a TreeNode.
 /// Since the label itself may have any number of zeros pre-pended,
@@ -272,6 +236,8 @@ fn byte_arr_from_u64_suffix(input_int: u64) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
+    use crate::Node;
+
     use super::*;
     use rand::rngs::OsRng;
 

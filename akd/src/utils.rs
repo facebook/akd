@@ -10,7 +10,7 @@
 // 3. If so, add child label to batch set
 
 use crate::{
-    node_state::{hash_label, NodeLabel},
+    node_label::{hash_label, NodeLabel},
     storage::types::AkdValue,
     EMPTY_LABEL, EMPTY_VALUE,
 };

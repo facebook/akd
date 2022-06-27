@@ -58,7 +58,7 @@ where
     }
 }
 
-fn convert_label(proof: akd::node_state::NodeLabel) -> crate::types::NodeLabel {
+fn convert_label(proof: akd::node_label::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
         len: proof.len,
         val: proof.val,

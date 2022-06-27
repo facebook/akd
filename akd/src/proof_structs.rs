@@ -10,7 +10,9 @@
 
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{digest_deserialize, digest_serialize};
-use crate::{node_state::Node, node_state::NodeLabel, storage::types::AkdValue, Direction, ARITY};
+use crate::{
+    helper_structs::Node, node_label::NodeLabel, storage::types::AkdValue, Direction, ARITY,
+};
 use winter_crypto::Hasher;
 
 /// Proof value at a single layer of the tree
@@ -107,12 +109,10 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
     }
 }
 
-// FIXME: need to fix the documentation
 /// Proof that no leaves were deleted from the initial epoch.
-/// This means that unchanged_nodes should hash to the initial root hash
-/// and the vec of inserted is the set of leaves inserted between these epochs.
-/// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
-/// as the leaves, it should result in the final root hash.
+/// This is done using a list of SingleAppendOnly proofs, one proof
+/// for each epoch between the initial epoch and final epochs which are
+/// being audited.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(
     feature = "serde_serialization",
@@ -126,12 +126,12 @@ pub struct AppendOnlyProof<H: Hasher> {
     pub epochs: Vec<u64>,
 }
 
-// FIXME: need to fix the documentation
 /// Proof that no leaves were deleted from the initial epoch.
 /// This means that unchanged_nodes should hash to the initial root hash
 /// and the vec of inserted is the set of leaves inserted between these epochs.
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
-/// as the leaves, it should result in the final root hash.
+/// as the leaves with the correct epoch of insertion,
+/// it should result in the final root hash.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(
     feature = "serde_serialization",

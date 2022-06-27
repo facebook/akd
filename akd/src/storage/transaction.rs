@@ -178,7 +178,7 @@ impl Transaction {
 mod tests {
     use super::*;
     use crate::append_only_zks::*;
-    use crate::node_state::*;
+    use crate::node_label::*;
     use crate::storage::types::*;
     use crate::tree_node::*;
     use rand::{rngs::OsRng, seq::SliceRandom};
