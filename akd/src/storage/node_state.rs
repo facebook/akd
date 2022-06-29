@@ -7,7 +7,7 @@
 
 //! The representation for the label of a history tree node.
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_serialization")]
 use crate::serialization::{digest_deserialize, digest_serialize};
 use crate::{Direction, EMPTY_LABEL};
 #[cfg(feature = "rand")]
@@ -21,13 +21,22 @@ use winter_crypto::Hasher;
 
 /// Represents a node's label & associated hash
 #[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct Node<H: Hasher> {
     /// the label associated with the accompanying hash
     pub label: NodeLabel,
     /// the hash associated to this label
-    #[cfg_attr(feature = "serde", serde(serialize_with = "digest_serialize"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "digest_deserialize"))]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "digest_serialize")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "digest_deserialize")
+    )]
     pub hash: H::Digest,
 }
 
@@ -49,7 +58,10 @@ impl<H: Hasher> Clone for Node<H> {
 /// just using a native type, unless it is a bit-vector, wouldn't work.
 /// Hence, we need a custom representation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
     pub val: [u8; 32],
