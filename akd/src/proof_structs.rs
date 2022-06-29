@@ -211,8 +211,11 @@ impl<H: Hasher> Clone for LookupProof<H> {
 /// This proof is an array of [`UpdateProof`]s
 /// and proofs of non-membership of future entries
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(bound = ""))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct HistoryProof<H: Hasher> {
     /// For each version v = 1...n of a user's key,
     /// include a proof that the previous version
