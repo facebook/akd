@@ -73,21 +73,21 @@ impl MySqlStorable for DbRecord {
                 params! { "key" => 1u8, "epoch" => azks.latest_epoch, "num_nodes" => azks.num_nodes },
             ),
             DbRecord::TreeNode(node) => Some(params! {
-                "label_len" => node.label.len,
-                "label_val" => node.label.val,
+                "label_len" => node.label.label_len,
+                "label_val" => node.label.label_val,
                 "last_epoch" => node.last_epoch,
                 "least_descendent_ep" => node.least_descendent_ep,
-                "parent_label_len" => node.parent.len,
-                "parent_label_val" => node.parent.val,
+                "parent_label_len" => node.parent.label_len,
+                "parent_label_val" => node.parent.label_val,
                 "node_type" => node.node_type as u8,
-                "left_child_len" => node.left_child.map(|lc| lc.len),
-                "left_child_label_val" => node.left_child.map(|lc| lc.val),
-                "right_child_len" => node.right_child.map(|rc| rc.len),
-                "right_child_label_val" => node.right_child.map(|rc| rc.val),
+                "left_child_len" => node.left_child.map(|lc| lc.label_len),
+                "left_child_label_val" => node.left_child.map(|lc| lc.label_val),
+                "right_child_len" => node.right_child.map(|rc| rc.label_len),
+                "right_child_label_val" => node.right_child.map(|rc| rc.label_val),
                 "hash" => node.hash,
             }),
             DbRecord::ValueState(state) => Some(
-                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.len, "node_label_val" => state.label.val, "data" => state.plaintext_val.0.clone() },
+                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.label_len, "node_label_val" => state.label.label_val, "data" => state.plaintext_val.0.clone() },
             ),
         }
     }
@@ -136,8 +136,14 @@ impl MySqlStorable for DbRecord {
                     ("num_nodes".to_string(), Value::from(azks.num_nodes)),
                 ]),
                 DbRecord::TreeNode(node) => Ok(vec![
-                    (format!("label_len{}", idx), Value::from(node.label.len)),
-                    (format!("label_val{}", idx), Value::from(node.label.val)),
+                    (
+                        format!("label_len{}", idx),
+                        Value::from(node.label.label_len),
+                    ),
+                    (
+                        format!("label_val{}", idx),
+                        Value::from(node.label.label_val),
+                    ),
                     (format!("last_epoch{}", idx), Value::from(node.last_epoch)),
                     (
                         format!("least_descendent_ep{}", idx),
@@ -145,11 +151,11 @@ impl MySqlStorable for DbRecord {
                     ),
                     (
                         format!("parent_label_len{}", idx),
-                        Value::from(node.parent.len),
+                        Value::from(node.parent.label_len),
                     ),
                     (
                         format!("parent_label_val{}", idx),
-                        Value::from(node.parent.val),
+                        Value::from(node.parent.label_val),
                     ),
                     (
                         format!("node_type{}", idx),
@@ -157,19 +163,19 @@ impl MySqlStorable for DbRecord {
                     ),
                     (
                         format!("left_child_len{}", idx),
-                        Value::from(node.left_child.map(|lc| lc.len)),
+                        Value::from(node.left_child.map(|lc| lc.label_len)),
                     ),
                     (
                         format!("left_child_label_val{}", idx),
-                        Value::from(node.left_child.map(|lc| lc.val)),
+                        Value::from(node.left_child.map(|lc| lc.label_val)),
                     ),
                     (
                         format!("right_child_len{}", idx),
-                        Value::from(node.right_child.map(|rc| rc.len)),
+                        Value::from(node.right_child.map(|rc| rc.label_len)),
                     ),
                     (
                         format!("right_child_label_val{}", idx),
-                        Value::from(node.right_child.map(|rc| rc.val)),
+                        Value::from(node.right_child.map(|rc| rc.label_val)),
                     ),
                     (format!("hash{}", idx), Value::from(node.hash)),
                 ]),
@@ -179,11 +185,11 @@ impl MySqlStorable for DbRecord {
                     (format!("version{}", idx), Value::from(state.version)),
                     (
                         format!("node_label_len{}", idx),
-                        Value::from(state.label.len),
+                        Value::from(state.label.label_len),
                     ),
                     (
                         format!("node_label_val{}", idx),
-                        Value::from(state.label.val),
+                        Value::from(state.label.label_val),
                     ),
                     (
                         format!("data{}", idx),
@@ -321,8 +327,8 @@ impl MySqlStorable for DbRecord {
                 let bin = St::get_full_binary_key_id(key);
                 if let Ok(back) = TreeNode::key_from_full_binary(&bin) {
                     Some(params! {
-                        "label_len" => back.0.len,
-                        "label_val" => back.0.val,
+                        "label_len" => back.0.label_len,
+                        "label_val" => back.0.label_val,
                     })
                 } else {
                     None
@@ -357,8 +363,8 @@ impl MySqlStorable for DbRecord {
                         // so we'll leave the unwrap to simplify
                         let back: NodeKey = TreeNode::key_from_full_binary(&bin).unwrap();
                         vec![
-                            (format!("label_len{}", idx), Value::from(back.0.len)),
-                            (format!("label_val{}", idx), Value::from(back.0.val)),
+                            (format!("label_len{}", idx), Value::from(back.0.label_len)),
+                            (format!("label_val{}", idx), Value::from(back.0.label_val)),
                         ]
                     })
                     .into_iter()

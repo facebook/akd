@@ -25,7 +25,7 @@ pub fn verify_membership<H: Hasher>(
     root_hash: H::Digest,
     proof: &MembershipProof<H>,
 ) -> Result<(), AkdError> {
-    if proof.label.len == 0 {
+    if proof.label.label_len == 0 {
         let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
         if final_hash == root_hash {
             return Ok(());
@@ -81,8 +81,8 @@ pub fn verify_nonmembership<H: Hasher>(
 
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
-            val: [0u8; 32],
-            len: 0,
+            label_val: [0u8; 32],
+            label_len: 0,
         };
     }
 

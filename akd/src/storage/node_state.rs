@@ -51,10 +51,10 @@ impl<H: Hasher> Clone for Node<H> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct NodeLabel {
-    /// val stores a binary string as a u64
-    pub val: [u8; 32],
+    /// val stores a binary string as an array of 32 bytes.
+    pub label_val: [u8; 32],
     /// len keeps track of how long the binary string is
-    pub len: u32,
+    pub label_len: u32,
 }
 
 impl PartialOrd for NodeLabel {
@@ -66,9 +66,9 @@ impl PartialOrd for NodeLabel {
 impl Ord for NodeLabel {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         //`label_len`, `label_val`
-        let len_cmp = self.len.cmp(&other.len);
+        let len_cmp = self.label_len.cmp(&other.label_len);
         if let std::cmp::Ordering::Equal = len_cmp {
-            self.val.cmp(&other.val)
+            self.label_val.cmp(&other.label_val)
         } else {
             len_cmp
         }
@@ -77,7 +77,7 @@ impl Ord for NodeLabel {
 
 impl fmt::Display for NodeLabel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(0x{}, {})", hex::encode(&self.val), self.len)
+        write!(f, "(0x{}, {})", hex::encode(&self.label_val), self.label_len)
     }
 }
 
@@ -88,18 +88,18 @@ impl NodeLabel {
     }
 
     /// Creates a new NodeLabel with the given value and len.
-    pub fn new(val: [u8; 32], len: u32) -> Self {
-        NodeLabel { val, len }
+    pub fn new(label_val: [u8; 32], label_len: u32) -> Self {
+        NodeLabel { label_val, label_len }
     }
 
     /// Gets the length of a NodeLabel.
     pub fn get_len(&self) -> u32 {
-        self.len
+        self.label_len
     }
 
     /// Gets the value of a NodeLabel.
     pub fn get_val(&self) -> [u8; 32] {
-        self.val
+        self.label_val
     }
 
     /// Generate a random NodeLabel for testing purposes
@@ -107,21 +107,21 @@ impl NodeLabel {
     pub fn random<R: RngCore + CryptoRng>(rng: &mut R) -> Self {
         // FIXME: should we always select length-64 labels?
         Self {
-            val: rng.gen(),
-            len: 256,
+            label_val: rng.gen(),
+            label_len: 256,
         }
     }
 
     /// Returns the bit at a specified index, and a 0 on an out of range index
     fn get_bit_at(&self, index: u32) -> u8 {
-        if index >= self.len {
+        if index >= self.label_len {
             return 0;
         }
 
         let usize_index: usize = index.try_into().unwrap();
         let index_full_blocks = usize_index / 8;
         let index_remainder = usize_index % 8;
-        (self.val[index_full_blocks] >> (7 - index_remainder)) & 1
+        (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
@@ -138,8 +138,8 @@ impl NodeLabel {
         let len_div = usize_len / 8;
 
         let mut out_val = [0u8; 32];
-        out_val[..len_div].clone_from_slice(&self.val[..len_div]);
-        out_val[len_div] = (self.val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
+        out_val[..len_div].clone_from_slice(&self.label_val[..len_div]);
+        out_val[len_div] = (self.label_val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
 
         Self::new(out_val, len)
     }
@@ -169,7 +169,7 @@ impl NodeLabel {
         val[byte_index] ^= bit_flip_marker;
 
         let mut out_val = [0u8; 32];
-        out_val[..byte_index].clone_from_slice(&self.val[..byte_index]);
+        out_val[..byte_index].clone_from_slice(&self.label_val[..byte_index]);
         out_val[byte_index] = (val[byte_index] >> (7 - bit_index)) << (7 - bit_index);
 
         Self::new(out_val, len)

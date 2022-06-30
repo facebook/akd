@@ -70,7 +70,7 @@ pub(crate) fn get_commitment_proof<H: Hasher>(
     label: &NodeLabel,
     value: &AkdValue,
 ) -> H::Digest {
-    H::hash(&[commitment_key, &label.val, &i2osp_array(value)].concat())
+    H::hash(&[commitment_key, &label.label_val, &i2osp_array(value)].concat())
 }
 
 // Used by the server to produce a commitment for an AkdLabel, version, and AkdValue

@@ -1212,13 +1212,13 @@ impl Storage for AsyncMySqlDatabase {
                     ) {
                         // explicitly check the array length for safety
                         if node_label_val.len() == 32 {
-                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
                             return Some(ValueState {
                                 epoch,
                                 version,
                                 label: NodeLabel {
-                                    val,
-                                    len: node_label_len,
+                                    label_val,
+                                    label_len: node_label_len,
                                 },
                                 plaintext_val: akd::storage::types::AkdValue(data),
                                 username: akd::storage::types::AkdLabel(username),
@@ -1330,13 +1330,13 @@ impl Storage for AsyncMySqlDatabase {
                     ) {
                         // explicitly check the array length for safety
                         if node_label_val.len() == 32 {
-                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
                             return Some(ValueState {
                                 epoch,
                                 version,
                                 label: NodeLabel {
-                                    val,
-                                    len: node_label_len,
+                                    label_val,
+                                    label_len: node_label_len,
                                 },
                                 plaintext_val: akd::storage::types::AkdValue(data),
                                 username: akd::storage::types::AkdLabel(username),

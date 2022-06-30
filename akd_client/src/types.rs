@@ -37,8 +37,8 @@ pub const EMPTY_VALUE: [u8; 1] = [0u8];
 
 /// The label used for an empty node
 pub const EMPTY_LABEL: NodeLabel = NodeLabel {
-    val: [1u8; 32],
-    len: 0,
+    label_val: [1u8; 32],
+    label_len: 0,
 };
 
 /// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
@@ -57,24 +57,24 @@ pub const TOMBSTONE: &[u8] = &[];
 #[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
-    pub val: [u8; 32],
+    pub label_val: [u8; 32],
     /// len keeps track of how long the binary string is
-    pub len: u32,
+    pub label_len: u32,
 }
 
 impl NodeLabel {
     pub(crate) fn hash(&self) -> Digest {
-        let hash_input = [&self.len.to_be_bytes()[..], &self.val].concat();
+        let hash_input = [&self.label_len.to_be_bytes()[..], &self.label_val].concat();
         crate::hash::hash(&hash_input)
     }
 
     /// Takes as input a pointer to the caller and another NodeLabel,
     /// returns a NodeLabel that is the longest common prefix of the two.
     pub(crate) fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
-        let shorter_len = if self.len < other.len {
-            self.len
+        let shorter_len = if self.label_len < other.label_len {
+            self.label_len
         } else {
-            other.len
+            other.label_len
         };
 
         let mut prefix_len = 0;
@@ -91,25 +91,25 @@ impl NodeLabel {
 
     /// Returns the bit at a specified index, and a 0 on an out of range index
     fn get_bit_at(&self, index: u32) -> u8 {
-        if index >= self.len {
+        if index >= self.label_len {
             return 0;
         }
 
         let usize_index: usize = index.try_into().unwrap();
         let index_full_blocks = usize_index / 8;
         let index_remainder = usize_index % 8;
-        (self.val[index_full_blocks] >> (7 - index_remainder)) & 1
+        (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
     pub(crate) fn get_prefix(&self, len: u32) -> Self {
-        if len >= self.len {
+        if len >= self.label_len {
             return *self;
         }
         if len == 0 {
             return Self {
-                val: [0u8; 32],
-                len: 0,
+                label_val: [0u8; 32],
+                label_len: 0,
             };
         }
 
@@ -118,10 +118,13 @@ impl NodeLabel {
         let len_div = usize_len / 8;
 
         let mut out_val = [0u8; 32];
-        out_val[..len_div].clone_from_slice(&self.val[..len_div]);
-        out_val[len_div] = (self.val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
+        out_val[..len_div].clone_from_slice(&self.label_val[..len_div]);
+        out_val[len_div] = (self.label_val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
 
-        Self { val: out_val, len }
+        Self {
+            label_val: out_val,
+            label_len: len,
+        }
     }
 }
 

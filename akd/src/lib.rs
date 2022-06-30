@@ -358,14 +358,14 @@ pub const EMPTY_VALUE: [u8; 1] = [0u8];
 
 /// The label used for an empty node
 pub const EMPTY_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
-    val: [1u8; 32],
-    len: 0,
+    label_val: [1u8; 32],
+    label_len: 0,
 };
 
 /// The label used for a root node
 pub const ROOT_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
-    val: [0u8; 32],
-    len: 0,
+    label_val: [0u8; 32],
+    label_len: 0,
 };
 /// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
 /// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to

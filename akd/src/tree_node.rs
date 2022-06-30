@@ -91,8 +91,8 @@ impl Storable for TreeNode {
 
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::TreeNode as u8];
-        result.extend_from_slice(&key.0.len.to_le_bytes());
-        result.extend_from_slice(&key.0.val);
+        result.extend_from_slice(&key.0.label_len.to_le_bytes());
+        result.extend_from_slice(&key.0.label_val);
         result
     }
 

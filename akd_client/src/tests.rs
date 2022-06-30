@@ -60,8 +60,8 @@ where
 
 fn convert_label(proof: akd::node_label::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
-        len: proof.len,
-        val: proof.val,
+        label_len: proof.label_len,
+        label_val: proof.label_val,
     }
 }
 
