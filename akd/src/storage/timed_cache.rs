@@ -124,7 +124,7 @@ impl TimedCache {
     }
 
     /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned
-    pub async fn hit_test<St: Storable>(&self, key: &St::Key) -> Option<DbRecord> {
+    pub async fn hit_test<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         self.clean().await;
 
         debug!("BEGIN cache retrieve {:?}", key);

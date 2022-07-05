@@ -16,6 +16,16 @@ use crate::{
 use winter_crypto::Hasher;
 
 /// Proof value at a single layer of the tree
+/// Note that this is really a helper struct to
+/// hold the sibling path for a Merkle tree proof.
+/// When sending a sibling path, you need to know
+/// which direction to hash a node (left or right)
+/// since in a compressed tree, the label alone is not
+/// enough to derive the path.
+/// Thus, we include the direction at which to place the
+/// ancestor of the node for which a proof is being generated.
+/// The parent is the parent of the level in the tree at which you are.
+/// See documentation for [`MembershipProof`] to see how this is used.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(
     feature = "serde_serialization",
@@ -221,11 +231,13 @@ pub struct HistoryProof<H: Hasher> {
     pub update_proofs: Vec<UpdateProof<H>>,
     /// The epochs at which updates were made.
     pub epochs: Vec<u64>,
-    /// VRF Proofs for the labels of the next few values
+    /// VRF Proofs for the labels of the next few values, these are
+    /// values in the set [latest_version + 1, ..., 2^(log(latest_version+1))-1]
     pub next_few_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that the next few values did not exist at this time
     pub non_existence_of_next_few: Vec<NonMembershipProof<H>>,
-    /// VRF proofs for the labels of future marker entries
+    /// VRF proofs for the labels of future marker entries, these are values with
+    /// version numbers [2^(log(latest_version+1)), ..., 2^(log(latest_epoch))]
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof<H>>,
@@ -270,9 +282,9 @@ pub struct UpdateProof<H: Hasher> {
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof<H>,
     /// VRF proof for the label for the previous version which became stale
-    pub previous_val_vrf_proof: Option<Vec<u8>>,
+    pub previous_version_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
-    pub previous_val_stale_at_ep: Option<MembershipProof<H>>,
+    pub previous_version_stale_at_ep: Option<MembershipProof<H>>,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
@@ -286,8 +298,8 @@ impl<H: Hasher> Clone for UpdateProof<H> {
             plaintext_value: self.plaintext_value.clone(),
             existence_vrf_proof: self.existence_vrf_proof.clone(),
             existence_at_ep: self.existence_at_ep.clone(),
-            previous_val_vrf_proof: self.previous_val_vrf_proof.clone(),
-            previous_val_stale_at_ep: self.previous_val_stale_at_ep.clone(),
+            previous_version_vrf_proof: self.previous_version_vrf_proof.clone(),
+            previous_version_stale_at_ep: self.previous_version_stale_at_ep.clone(),
             commitment_proof: self.commitment_proof.clone(),
         }
     }

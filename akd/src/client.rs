@@ -296,7 +296,7 @@ fn verify_single_update_proof<H: Hasher>(
     let existence_at_ep = &proof.existence_at_ep;
     let existence_at_ep_label = existence_at_ep.label;
 
-    let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
+    let previous_val_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
         (true, bytes) if bytes.0 == crate::TOMBSTONE => {
@@ -356,7 +356,7 @@ fn verify_single_update_proof<H: Hasher>(
         let vrf_previous_null_err =
             AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(vrf_err_str));
         let previous_val_vrf_proof = proof
-            .previous_val_vrf_proof
+            .previous_version_vrf_proof
             .as_ref()
             .ok_or(vrf_previous_null_err)?;
         vrf_pk.verify_label::<H>(

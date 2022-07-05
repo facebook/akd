@@ -770,8 +770,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             plaintext_value: plaintext_value.clone(),
             existence_vrf_proof,
             existence_at_ep,
-            previous_val_vrf_proof,
-            previous_val_stale_at_ep,
+            previous_version_vrf_proof: previous_val_vrf_proof,
+            previous_version_stale_at_ep: previous_val_stale_at_ep,
             commitment_proof,
         })
     }
