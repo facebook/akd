@@ -177,12 +177,10 @@ impl Azks {
                 }
 
                 for dir in 0..ARITY {
-                    let child = node
-                        .get_child_state::<S>(storage, Direction::Some(dir))
-                        .await?;
+                    let child_label = node.get_child_label(Direction::Some(dir));
 
-                    if let Some(child) = child {
-                        current_nodes.push(NodeKey(child.label));
+                    if let Some(child_label) = child_label {
+                        current_nodes.push(NodeKey(child_label));
                     }
                 }
             }

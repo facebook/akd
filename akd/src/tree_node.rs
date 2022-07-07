@@ -346,7 +346,7 @@ impl TreeNode {
             self.write_to_storage(storage).await?;
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// This handler is used for insert_single_leaf_helper,
@@ -355,6 +355,7 @@ impl TreeNode {
     /// This means that the current node needs to be pushed down one level (away from root)
     /// in the tree and replaced with a new node whose label is equal to the longest common prefix.
     #[async_recursion]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn insert_single_leaf_helper_base_case_handler<
         S: Storage + Sync + Send,
         H: Hasher,
@@ -432,6 +433,8 @@ impl TreeNode {
 
     // This is the handler for the case where the calling node is the longest common prefix of itself
     // and the inserted leaf, so we just need to modify the tree structure further down the tree.
+    #[allow(clippy::too_many_arguments)]
+    #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper_recursive_case_handler<
         S: Storage + Sync + Send,
         H: Hasher,
