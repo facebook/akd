@@ -14,13 +14,11 @@ use crate::{
     directory::{get_key_history_hashes, Directory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
-    node_label::hash_label,
     storage::{
         memory::AsyncInMemoryDatabase,
         types::{AkdLabel, AkdValue, DbRecord},
         Storage,
     },
-    utils::empty_node_hash,
 };
 use winter_crypto::{
     hashers::{Blake3_256, Sha3_256},

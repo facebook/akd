@@ -8,6 +8,8 @@
 //! The implementation of a node for a history patricia tree
 
 use crate::errors::{AkdError, StorageError, TreeNodeError};
+#[cfg(feature = "serde_serialization")]
+use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
@@ -23,7 +25,10 @@ use winter_crypto::Hasher;
 /// This enum is used to mark nodes using the node_type variable
 /// of a TreeNode.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub enum NodeType {
     /// Nodes with this type only have dummy children. Their value is
     /// input when they're created and the hash is H(value, creation_epoch)
@@ -60,8 +65,11 @@ pub(crate) type InsertionNode<'a> = (Direction, &'a mut TreeNode);
 /// To facilitate this, we require this struct to include the last time a node was updated
 /// as well as the oldest descendant it holds.
 #[derive(Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(bound = ""))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct TreeNode {
     /// The binary label for this node
     pub label: NodeLabel,
@@ -78,12 +86,23 @@ pub struct TreeNode {
     /// Label of the right child, None if there is none.
     pub right_child: Option<NodeLabel>,
     /// Hash (aka state) of the node.
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
     pub hash: [u8; 32],
 }
 
 /// Wraps the label with which to find a node in storage.
 #[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
 pub struct NodeKey(pub NodeLabel);
 
 impl Storable for TreeNode {
