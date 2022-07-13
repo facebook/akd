@@ -29,7 +29,7 @@ use crate::fixture_generator::writer::Writer;
 type Blake3 = Blake3_256<BaseElement>;
 
 /// Directory state comprises all database records at a particular epoch.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     pub epoch: u32,
     pub records: Vec<DbRecord>,
@@ -37,7 +37,7 @@ pub struct State {
 
 /// Delta comprises all key updates published to the directory to advance to an
 /// epoch.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Delta {
     pub epoch: u32,
     pub updates: Vec<(AkdLabel, AkdValue)>,

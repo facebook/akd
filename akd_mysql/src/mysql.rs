@@ -437,12 +437,12 @@ impl<'a> AsyncMySqlDatabase {
                 }
             }
         };
-        let result = self.check_for_infra_error(out)?;
+        self.check_for_infra_error(out)?;
         let toc = Instant::now() - tic;
         *(self.time_write.write().await) += toc;
 
         debug!("END MySQL set");
-        Ok(result)
+        Ok(())
     }
 
     /// NOTE: This is assuming all of the DB records have been narrowed down to a single record type!
