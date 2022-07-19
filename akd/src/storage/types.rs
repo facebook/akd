@@ -9,7 +9,7 @@
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::storage::Storable;
-use crate::tree_node::{NodeType, TreeNode};
+use crate::tree_node::{NodeType, TreeNode, TreeNodeWithPreviousValue};
 use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 
@@ -210,7 +210,7 @@ pub enum DbRecord {
     /// An Azks
     Azks(Azks),
     /// A TreeNodeNode
-    TreeNode(TreeNode),
+    TreeNode(TreeNodeWithPreviousValue),
     /// The state of the value for a particular key.
     ValueState(ValueState),
 }
@@ -271,16 +271,44 @@ impl DbRecord {
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
         hash: [u8; 32],
-    ) -> TreeNode {
-        TreeNode {
-            label: NodeLabel::new(label_val, label_len),
-            last_epoch,
-            least_descendent_ep,
-            parent: NodeLabel::new(parent_label_val, parent_label_len),
-            node_type: NodeType::from_u8(node_type),
-            left_child,
-            right_child,
-            hash,
+        p_last_epoch: Option<u64>,
+        p_least_descendent_ep: Option<u64>,
+        p_parent_label_val: Option<[u8; 32]>,
+        p_parent_label_len: Option<u32>,
+        p_node_type: Option<u8>,
+        p_left_child: Option<NodeLabel>,
+        p_right_child: Option<NodeLabel>,
+        p_hash: Option<[u8; 32]>,
+    ) -> TreeNodeWithPreviousValue {
+        let label = NodeLabel::new(label_val, label_len);
+        let p_node = match (p_last_epoch, p_least_descendent_ep, p_parent_label_val, p_parent_label_len, p_node_type, p_hash) {
+            (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => {
+                Some(TreeNode {
+                    label,
+                    last_epoch: a,
+                    least_descendent_ep: b,
+                    parent: NodeLabel::new(c, d),
+                    node_type: NodeType::from_u8(e),
+                    left_child: p_left_child,
+                    right_child: p_right_child,
+                    hash: f,
+                })
+            },
+            _ => None
+        };
+        TreeNodeWithPreviousValue {
+            label,
+            latest_node: TreeNode {
+                label,
+                last_epoch,
+                least_descendent_ep,
+                parent: NodeLabel::new(parent_label_val, parent_label_len),
+                node_type: NodeType::from_u8(node_type),
+                left_child,
+                right_child,
+                hash,
+            },
+            previous_node: p_node,
         }
     }
 

@@ -49,6 +49,136 @@ impl NodeType {
 
 pub(crate) type InsertionNode<'a> = (Direction, &'a mut TreeNode);
 
+/// Represents a `TreeNode` with it's current state and potential future state.
+/// Depending on the `epoch` which the Directory believes is the "most current"
+/// version, we may need to load a slightly older version of the tree node. This is because
+/// we can't guarantee that a "publish" operation is globally atomic at the storage layer,
+/// however we do assume record-level atomicity. This means that some records may be updated
+/// to "future" values, and therefore we might need to temporarily read their previous values.
+///
+/// The Directory publishes the AZKS last of all, once all other records are successfully written.
+/// This single record is where the "current" epoch is determined, so until it's publish a Directory
+/// instance (example: read-only, only generating proofs) will think current history is set at epoch - 1.
+///
+/// This structure holds the label along with the current value & epoch - 1
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
+pub struct TreeNodeWithPreviousValue {
+    /// The label of the node
+    pub label: NodeLabel,
+    /// The "latest" node, either future or current
+    pub latest_node: TreeNode,
+    /// The "previous" node, either current or past
+    pub previous_node: Option<TreeNode>,
+}
+
+impl Storable for TreeNodeWithPreviousValue {
+    type Key = NodeKey;
+
+    fn data_type() -> StorageType {
+        StorageType::TreeNode
+    }
+
+    fn get_id(&self) -> NodeKey {
+        NodeKey(self.label)
+    }
+
+    fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
+        let mut result = vec![StorageType::TreeNode as u8];
+        result.extend_from_slice(&key.0.len.to_le_bytes());
+        result.extend_from_slice(&key.0.val);
+        result
+    }
+
+    fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
+        if bin.len() < 37 {
+            return Err("Not enough bytes to form a proper key".to_string());
+        }
+
+        if bin[0] != StorageType::TreeNode as u8 {
+            return Err("Not a history tree node key".to_string());
+        }
+
+        let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
+        let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
+        let len = u32::from_le_bytes(len_bytes);
+
+        Ok(NodeKey(NodeLabel::new(val_bytes, len)))
+    }
+}
+
+impl TreeNodeWithPreviousValue {
+
+    pub(crate) fn from_tree_node(node: TreeNode) -> Self {
+        Self {
+            label: node.label,
+            latest_node: node,
+            previous_node: None
+        }
+    }
+
+    pub(crate) async fn write_to_storage<S: Storage + Send + Sync>(
+        &self,
+        storage: &S,
+    ) -> Result<(), StorageError> {
+        storage.set(DbRecord::TreeNode(self.clone())).await
+    }
+
+    pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
+        storage: &S,
+        key: &NodeKey,
+        current_epoch: u64,
+    ) -> Result<TreeNode, StorageError> {
+        match storage.get::<Self>(key).await? {
+            DbRecord::TreeNode(node) => {
+                if node.latest_node.last_epoch > current_epoch {
+                    if let Some(previous_node) = node.previous_node {
+                        Ok(previous_node)
+                    } else {
+                        // no previous, return not found
+                        Err(StorageError::NotFound(format!("TreeNode {:?} at epoch {}", key, current_epoch)))
+                    }
+                } else {
+                    Ok(node.latest_node)
+                }
+            }
+            _ => Err(StorageError::NotFound(format!("TreeNode {:?}", key))),
+        }
+    }
+
+    pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
+        storage: &S,
+        keys: &[NodeKey],
+        current_epoch: u64,
+    ) -> Result<Vec<TreeNode>, StorageError> {
+        let node_records: Vec<DbRecord> = storage.batch_get::<Self>(keys).await?;
+        let mut nodes = Vec::<TreeNode>::new();
+        for node in node_records.into_iter() {
+            if let DbRecord::TreeNode(node) = node {
+                if node.latest_node.last_epoch > current_epoch {
+                    if let Some(previous_node) = node.previous_node {
+                        nodes.push(previous_node);
+                    } else {
+                        // no previous, return not found
+                        return Err(StorageError::NotFound(format!("TreeNode {:?} at epoch {}", node.label, current_epoch)));
+                    }
+                } else {
+                    nodes.push(node.latest_node);
+                }
+            } else {
+                return Err(StorageError::NotFound(
+                    "Batch retrieve returned types <> TreeNode".to_string(),
+                ));
+            }
+        }
+        Ok(nodes)
+    }
+}
+
 /// A TreeNode represents a generic interior node of a compressed history tree.
 /// The main idea here is that the tree is changing at every epoch and that we do not need
 /// to replicate the state of a node, unless it changes.
@@ -89,6 +219,51 @@ pub struct TreeNode {
     pub hash: [u8; 32],
 }
 
+impl TreeNode {
+    // Storage operations
+    pub(crate) async fn write_to_storage<S: Storage + Send + Sync>(
+        &self,
+        storage: &S,
+    ) -> Result<(), StorageError> {
+
+        // retrieve the higest node properties, at a previous epoch than this one. If we're modifying "this" epoch, simply take it as no need for a rotation.
+        // When we write the node, with an updated epoch value, we'll rotate the stored value and capture the previous
+        let target_epoch = match self.last_epoch {
+            e if e > 0 => e - 1,
+            other => other
+        };
+        let previous = match TreeNodeWithPreviousValue::get_from_storage(storage, &NodeKey(self.label), target_epoch).await {
+            Ok(p)=> Some(p),
+            Err(StorageError::NotFound(_)) => None,
+            Err(other) => return Err(other)
+        };
+        // construct the "new" record, shifting the most recent stored value into the "previous" field
+        let left_shifted = TreeNodeWithPreviousValue {
+            label: self.label,
+            latest_node: self.clone(),
+            previous_node: previous,
+        };
+        // write this updated tuple record back to storage
+        left_shifted.write_to_storage(storage).await
+    }
+
+    pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
+        storage: &S,
+        key: &NodeKey,
+        current_epoch: u64,
+    ) -> Result<TreeNode, StorageError> {
+        TreeNodeWithPreviousValue::get_from_storage(storage, key, current_epoch).await
+    }
+
+    pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
+        storage: &S,
+        keys: &[NodeKey],
+        current_epoch: u64,
+    ) -> Result<Vec<TreeNode>, StorageError> {
+        TreeNodeWithPreviousValue::batch_get_from_storage(storage, keys, current_epoch).await
+    }
+}
+
 /// Wraps the label with which to find a node in storage.
 #[derive(Clone, PartialEq, Eq, Hash, std::fmt::Debug)]
 #[cfg_attr(
@@ -96,41 +271,6 @@ pub struct TreeNode {
     derive(serde::Deserialize, serde::Serialize)
 )]
 pub struct NodeKey(pub NodeLabel);
-
-impl Storable for TreeNode {
-    type Key = NodeKey;
-
-    fn data_type() -> StorageType {
-        StorageType::TreeNode
-    }
-
-    fn get_id(&self) -> NodeKey {
-        NodeKey(self.label)
-    }
-
-    fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
-        let mut result = vec![StorageType::TreeNode as u8];
-        result.extend_from_slice(&key.0.len.to_le_bytes());
-        result.extend_from_slice(&key.0.val);
-        result
-    }
-
-    fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
-        if bin.len() < 37 {
-            return Err("Not enough bytes to form a proper key".to_string());
-        }
-
-        if bin[0] != StorageType::TreeNode as u8 {
-            return Err("Not a history tree node key".to_string());
-        }
-
-        let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
-        let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
-        let len = u32::from_le_bytes(len_bytes);
-
-        Ok(NodeKey(NodeLabel::new(val_bytes, len)))
-    }
-}
 
 unsafe impl Sync for TreeNode {}
 
@@ -174,44 +314,8 @@ impl TreeNode {
         }
     }
 
-    pub(crate) async fn write_to_storage<S: Storage + Send + Sync>(
-        &self,
-        storage: &S,
-    ) -> Result<(), StorageError> {
-        storage.set(DbRecord::TreeNode(self.clone())).await
-    }
-
-    pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
-        key: &NodeKey,
-        _current_epoch: u64,
-    ) -> Result<TreeNode, StorageError> {
-        match storage.get::<TreeNode>(key).await? {
-            DbRecord::TreeNode(node) => Ok(node),
-            _ => Err(StorageError::NotFound(format!("TreeNode {:?}", key))),
-        }
-    }
-
-    pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
-        keys: &[NodeKey],
-        _current_epoch: u64,
-    ) -> Result<Vec<TreeNode>, StorageError> {
-        let node_records: Vec<DbRecord> = storage.batch_get::<TreeNode>(keys).await?;
-        let mut nodes = Vec::<TreeNode>::new();
-        for node in node_records.into_iter() {
-            if let DbRecord::TreeNode(node) = node {
-                nodes.push(node);
-            } else {
-                return Err(StorageError::NotFound(
-                    "Batch retrieve returned types <> TreeNode".to_string(),
-                ));
-            }
-        }
-        Ok(nodes)
-    }
-
     /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
+    #[cfg(test)]
     pub(crate) async fn insert_single_leaf<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
@@ -259,7 +363,7 @@ impl TreeNode {
 
         if self.is_root() {
             *num_nodes += 1;
-            let child_state = self.get_child_state(storage, dir_leaf).await?;
+            let child_state = self.get_child_state(storage, dir_leaf, epoch).await?;
             // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
                 // Set up parent-child connection.
@@ -354,7 +458,7 @@ impl TreeNode {
             // Recurse!
             None => {
                 debug!("BEGIN get child node from storage");
-                let child_node = self.get_child_state(storage, dir_leaf).await?;
+                let child_node = self.get_child_state(storage, dir_leaf, epoch).await?;
                 debug!("BEGIN insert single leaf helper");
                 match child_node {
                     Some(mut child_node) => {
@@ -410,8 +514,8 @@ impl TreeNode {
             // It is assumed that the children already updated their hashes.
             _ => {
                 // Get children states.
-                let left_child_state = self.get_child_state(storage, Some(0)).await?;
-                let right_child_state = self.get_child_state(storage, Some(1)).await?;
+                let left_child_state = self.get_child_state(storage, Some(0), epoch).await?;
+                let right_child_state = self.get_child_state(storage, Some(1), epoch).await?;
 
                 // Get merged hashes for the children.
                 let child_hashes = H::merge(&[
@@ -514,6 +618,7 @@ impl TreeNode {
         &self,
         storage: &S,
         direction: Direction,
+        current_epoch: u64,
     ) -> Result<Option<TreeNode>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
@@ -522,9 +627,9 @@ impl TreeNode {
             Direction::Some(_dir) => {
                 if let Some(child_label) = self.get_child_label(direction) {
                     let child_key = NodeKey(child_label);
-                    let get_result = storage.get::<TreeNode>(&child_key).await;
+                    let get_result = Self::get_from_storage(storage, &child_key, current_epoch).await;
                     match get_result {
-                        Ok(DbRecord::TreeNode(ht_node)) => Ok(Some(ht_node)),
+                        Ok(node) => Ok(Some(node)),
                         Err(StorageError::NotFound(_)) => Ok(None),
                         _ => Err(AkdError::Storage(StorageError::NotFound(format!(
                             "TreeNode {:?}",
@@ -716,28 +821,28 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
 
         let root_least_descendent_ep = match stored_root {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+            DbRecord::TreeNode(node) => node.latest_node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
         let stored_right_child = db
-            .get::<TreeNode>(&NodeKey(root.right_child.unwrap()))
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(root.right_child.unwrap()))
             .await?;
 
         let right_child_least_descendent_ep = match stored_right_child {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+            DbRecord::TreeNode(node) => node.latest_node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
         let stored_left_child = db
-            .get::<TreeNode>(&NodeKey(root.left_child.unwrap()))
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(root.left_child.unwrap()))
             .await?;
 
         let left_child_least_descendent_ep = match stored_left_child {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+            DbRecord::TreeNode(node) => node.latest_node.least_descendent_ep,
             _ => panic!("Root not found in storage."),
         };
 
@@ -815,9 +920,9 @@ mod tests {
         let expected = Blake3::merge(&[leaves_hash, hash_label::<Blake3>(root.label)]);
 
         // Get root hash
-        let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.hash, node.label)?,
+            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
             _ => panic!("Root not found in storage."),
         };
 
@@ -883,9 +988,9 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.hash, node.label)?,
+            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
             _ => panic!("Root not found in storage."),
         };
 
@@ -974,9 +1079,9 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.hash, node.label)?,
+            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
             _ => panic!("Root not found in storage."),
         };
 
@@ -1053,9 +1158,9 @@ mod tests {
             .await?;
         }
 
-        let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.hash, node.label)?,
+            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
             _ => panic!("Root not found in storage."),
         };
 

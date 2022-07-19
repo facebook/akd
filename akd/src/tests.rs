@@ -383,8 +383,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     Ok(())
 }
 
-// #[tokio::test]
-#[allow(dead_code)]
+#[tokio::test]
 async fn test_read_during_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};

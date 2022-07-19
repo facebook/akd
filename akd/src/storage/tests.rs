@@ -19,6 +19,7 @@ use tokio::time::{Duration, Instant};
 
 type Azks = crate::append_only_zks::Azks;
 type TreeNode = crate::tree_node::TreeNode;
+type PvTreeNode = crate::tree_node::TreeNodeWithPreviousValue;
 
 // *** Tests *** //
 
@@ -95,23 +96,23 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let key = NodeKey(NodeLabel::new(byte_arr_from_u64(13), 4));
     let key2 = NodeKey(NodeLabel::new(byte_arr_from_u64(16), 4));
 
-    let set_result = storage.set(DbRecord::TreeNode(node.clone())).await;
+    let set_result = storage.set(DbRecord::TreeNode(PvTreeNode::from_tree_node(node.clone()))).await;
     assert_eq!(Ok(()), set_result);
 
-    let set_result = storage.set(DbRecord::TreeNode(node2.clone())).await;
+    let set_result = storage.set(DbRecord::TreeNode(PvTreeNode::from_tree_node(node2.clone()))).await;
     assert_eq!(Ok(()), set_result);
 
-    let get_result = storage.get::<TreeNode>(&key).await;
+    let get_result = storage.get::<PvTreeNode>(&key).await;
     if let Ok(DbRecord::TreeNode(got_node)) = get_result {
         assert_eq!(got_node.label, node.label);
-        assert_eq!(got_node.parent, node.parent);
-        assert_eq!(got_node.node_type, node.node_type);
-        assert_eq!(got_node.last_epoch, node.last_epoch);
+        assert_eq!(got_node.latest_node.parent, node.parent);
+        assert_eq!(got_node.latest_node.node_type, node.node_type);
+        assert_eq!(got_node.latest_node.last_epoch, node.last_epoch);
     } else {
         panic!("Failed to retrieve History Tree Node");
     }
 
-    let get_result = storage.get::<TreeNode>(&key2).await;
+    let get_result = storage.get::<PvTreeNode>(&key2).await;
     if let Err(err) = get_result {
         panic!("Failed to retrieve history tree node (2) {:?}", err)
     }
