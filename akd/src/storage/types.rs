@@ -206,6 +206,7 @@ pub enum ValueStateRetrievalFlag {
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
 )]
+#[allow(clippy::large_enum_variant)]
 pub enum DbRecord {
     /// An Azks
     Azks(Azks),
