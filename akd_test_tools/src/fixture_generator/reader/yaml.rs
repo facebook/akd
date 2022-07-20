@@ -85,7 +85,7 @@ impl YamlFileReader {
                 }
                 Some(Ok(line)) => {
                     // avoid the extra allocation call with a format!
-                    let _ = write!(doc, "{}\n", line);
+                    let _ = writeln!(doc, "{}", line);
                     self.buffer.next();
                 }
                 None => {
