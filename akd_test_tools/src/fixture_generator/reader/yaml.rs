@@ -7,10 +7,11 @@
 
 //! This module contains an implementor of the Reader trait for the YAML format.
 
+use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Seek, SeekFrom};
 use std::iter::Peekable;
-use std::result::Result;
+use std::result::Result; // import without risk of name clashing
 
 use serde::de::DeserializeOwned;
 
@@ -83,7 +84,8 @@ impl YamlFileReader {
                     return Ok(doc);
                 }
                 Some(Ok(line)) => {
-                    doc.push_str(&format!("{}\n", line));
+                    // avoid the extra allocation call with a format!
+                    let _ = write!(doc, "{}\n", line);
                     self.buffer.next();
                 }
                 None => {
