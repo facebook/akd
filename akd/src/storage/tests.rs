@@ -96,10 +96,16 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     let key = NodeKey(NodeLabel::new(byte_arr_from_u64(13), 4));
     let key2 = NodeKey(NodeLabel::new(byte_arr_from_u64(16), 4));
 
-    let set_result = storage.set(DbRecord::TreeNode(PvTreeNode::from_tree_node(node.clone()))).await;
+    let set_result = storage
+        .set(DbRecord::TreeNode(PvTreeNode::from_tree_node(node.clone())))
+        .await;
     assert_eq!(Ok(()), set_result);
 
-    let set_result = storage.set(DbRecord::TreeNode(PvTreeNode::from_tree_node(node2.clone()))).await;
+    let set_result = storage
+        .set(DbRecord::TreeNode(PvTreeNode::from_tree_node(
+            node2.clone(),
+        )))
+        .await;
     assert_eq!(Ok(()), set_result);
 
     let get_result = storage.get::<PvTreeNode>(&key).await;

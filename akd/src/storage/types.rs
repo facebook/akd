@@ -281,20 +281,25 @@ impl DbRecord {
         p_hash: Option<[u8; 32]>,
     ) -> TreeNodeWithPreviousValue {
         let label = NodeLabel::new(label_val, label_len);
-        let p_node = match (p_last_epoch, p_least_descendent_ep, p_parent_label_val, p_parent_label_len, p_node_type, p_hash) {
-            (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => {
-                Some(TreeNode {
-                    label,
-                    last_epoch: a,
-                    least_descendent_ep: b,
-                    parent: NodeLabel::new(c, d),
-                    node_type: NodeType::from_u8(e),
-                    left_child: p_left_child,
-                    right_child: p_right_child,
-                    hash: f,
-                })
-            },
-            _ => None
+        let p_node = match (
+            p_last_epoch,
+            p_least_descendent_ep,
+            p_parent_label_val,
+            p_parent_label_len,
+            p_node_type,
+            p_hash,
+        ) {
+            (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => Some(TreeNode {
+                label,
+                last_epoch: a,
+                least_descendent_ep: b,
+                parent: NodeLabel::new(c, d),
+                node_type: NodeType::from_u8(e),
+                left_child: p_left_child,
+                right_child: p_right_child,
+                hash: f,
+            }),
+            _ => None,
         };
         TreeNodeWithPreviousValue {
             label,

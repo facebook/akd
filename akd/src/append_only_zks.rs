@@ -300,7 +300,9 @@ impl Azks {
             hash: crate::utils::empty_node_hash::<H>(),
         }; ARITY];
         for i in 0..ARITY {
-            let child = lcp_node.get_child_state(storage, Some(i), self.latest_epoch).await?;
+            let child = lcp_node
+                .get_child_state(storage, Some(i), self.latest_epoch)
+                .await?;
             match child {
                 None => {
                     debug!("i = {}, empty", i);
@@ -511,7 +513,9 @@ impl Azks {
                 curr_node.label,
                 None,
             )))?;
-            let next_state = curr_node.get_child_state(storage, Some(direction), self.latest_epoch).await?;
+            let next_state = curr_node
+                .get_child_state(storage, Some(direction), self.latest_epoch)
+                .await?;
             if next_state.is_some() {
                 for i in 0..ARITY {
                     let no_direction_error =
@@ -595,6 +599,7 @@ mod tests {
         let num_nodes = 10;
         let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
+        azks1.increment_epoch();
 
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
 
@@ -630,6 +635,7 @@ mod tests {
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
+        azks1.increment_epoch();
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
 
         for _ in 0..num_nodes {

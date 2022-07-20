@@ -112,12 +112,11 @@ impl Storable for TreeNodeWithPreviousValue {
 }
 
 impl TreeNodeWithPreviousValue {
-
     pub(crate) fn from_tree_node(node: TreeNode) -> Self {
         Self {
             label: node.label,
             latest_node: node,
-            previous_node: None
+            previous_node: None,
         }
     }
 
@@ -140,7 +139,10 @@ impl TreeNodeWithPreviousValue {
                         Ok(previous_node)
                     } else {
                         // no previous, return not found
-                        Err(StorageError::NotFound(format!("TreeNode {:?} at epoch {}", key, current_epoch)))
+                        Err(StorageError::NotFound(format!(
+                            "TreeNode {:?} at epoch {}",
+                            key, current_epoch
+                        )))
                     }
                 } else {
                     Ok(node.latest_node)
@@ -164,7 +166,10 @@ impl TreeNodeWithPreviousValue {
                         nodes.push(previous_node);
                     } else {
                         // no previous, return not found
-                        return Err(StorageError::NotFound(format!("TreeNode {:?} at epoch {}", node.label, current_epoch)));
+                        return Err(StorageError::NotFound(format!(
+                            "TreeNode {:?} at epoch {}",
+                            node.label, current_epoch
+                        )));
                     }
                 } else {
                     nodes.push(node.latest_node);
@@ -225,17 +230,22 @@ impl TreeNode {
         &self,
         storage: &S,
     ) -> Result<(), StorageError> {
-
         // retrieve the higest node properties, at a previous epoch than this one. If we're modifying "this" epoch, simply take it as no need for a rotation.
         // When we write the node, with an updated epoch value, we'll rotate the stored value and capture the previous
         let target_epoch = match self.last_epoch {
             e if e > 0 => e - 1,
-            other => other
+            other => other,
         };
-        let previous = match TreeNodeWithPreviousValue::get_from_storage(storage, &NodeKey(self.label), target_epoch).await {
-            Ok(p)=> Some(p),
+        let previous = match TreeNodeWithPreviousValue::get_from_storage(
+            storage,
+            &NodeKey(self.label),
+            target_epoch,
+        )
+        .await
+        {
+            Ok(p) => Some(p),
             Err(StorageError::NotFound(_)) => None,
-            Err(other) => return Err(other)
+            Err(other) => return Err(other),
         };
         // construct the "new" record, shifting the most recent stored value into the "previous" field
         let left_shifted = TreeNodeWithPreviousValue {
@@ -627,7 +637,8 @@ impl TreeNode {
             Direction::Some(_dir) => {
                 if let Some(child_label) = self.get_child_label(direction) {
                     let child_key = NodeKey(child_label);
-                    let get_result = Self::get_from_storage(storage, &child_key, current_epoch).await;
+                    let get_result =
+                        Self::get_from_storage(storage, &child_key, current_epoch).await;
                     match get_result {
                         Ok(node) => Ok(Some(node)),
                         Err(StorageError::NotFound(_)) => Ok(None),
@@ -821,7 +832,9 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
+            .await?;
 
         let root_least_descendent_ep = match stored_root {
             DbRecord::TreeNode(node) => node.latest_node.least_descendent_ep,
@@ -920,9 +933,13 @@ mod tests {
         let expected = Blake3::merge(&[leaves_hash, hash_label::<Blake3>(root.label)]);
 
         // Get root hash
-        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
+            DbRecord::TreeNode(node) => {
+                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -988,9 +1005,13 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
+            DbRecord::TreeNode(node) => {
+                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -1079,9 +1100,13 @@ mod tests {
         root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
             .await?;
 
-        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
+            DbRecord::TreeNode(node) => {
+                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -1158,9 +1183,13 @@ mod tests {
             .await?;
         }
 
-        let stored_root = db.get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root())).await?;
+        let stored_root = db
+            .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
+            .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?,
+            DbRecord::TreeNode(node) => {
+                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+            }
             _ => panic!("Root not found in storage."),
         };
 
