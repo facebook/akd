@@ -210,7 +210,7 @@ pub enum ValueStateRetrievalFlag {
 pub enum DbRecord {
     /// An Azks
     Azks(Azks),
-    /// A TreeNodeNode
+    /// A TreeNode
     TreeNode(TreeNodeWithPreviousValue),
     /// The state of the value for a particular key.
     ValueState(ValueState),
@@ -261,7 +261,7 @@ impl DbRecord {
 
     #[allow(clippy::too_many_arguments)]
     /// Build a history tree node from the properties
-    pub fn build_history_tree_node(
+    pub fn build_tree_node_with_previous_value(
         label_val: [u8; 32],
         label_len: u32,
         last_epoch: u64,

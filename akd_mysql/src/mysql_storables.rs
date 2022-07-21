@@ -570,7 +570,7 @@ impl MySqlStorable for DbRecord {
                         None => None,
                     };
 
-                    let node = DbRecord::build_history_tree_node(
+                    let node = DbRecord::build_tree_node_with_previous_value(
                         label_val_vec.try_into().map_err(|_| cast_err())?,
                         label_len,
                         last_epoch,

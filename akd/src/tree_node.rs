@@ -49,16 +49,17 @@ impl NodeType {
 
 pub(crate) type InsertionNode<'a> = (Direction, &'a mut TreeNode);
 
-/// Represents a `TreeNode` with it's current state and potential future state.
+/// Represents a `TreeNode` with its current state and potential future state.
 /// Depending on the `epoch` which the Directory believes is the "most current"
 /// version, we may need to load a slightly older version of the tree node. This is because
 /// we can't guarantee that a "publish" operation is globally atomic at the storage layer,
 /// however we do assume record-level atomicity. This means that some records may be updated
 /// to "future" values, and therefore we might need to temporarily read their previous values.
 ///
-/// The Directory publishes the AZKS last of all, once all other records are successfully written.
-/// This single record is where the "current" epoch is determined, so until it's publish a Directory
-/// instance (example: read-only, only generating proofs) will think current history is set at epoch - 1.
+/// The Directory publishes the AZKS after all other records are successfully written.
+/// This single record is where the "current" epoch is determined, so any instances with read-only
+/// access (example: Directory instances service proof generation, but not publishing) will be notified
+/// that a new epoch is available, flush their caches, and retrieve data from storage directly again.
 ///
 /// This structure holds the label along with the current value & epoch - 1
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -100,7 +101,7 @@ impl Storable for TreeNodeWithPreviousValue {
         }
 
         if bin[0] != StorageType::TreeNode as u8 {
-            return Err("Not a history tree node key".to_string());
+            return Err("Not a tree node key".to_string());
         }
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
@@ -112,6 +113,33 @@ impl Storable for TreeNodeWithPreviousValue {
 }
 
 impl TreeNodeWithPreviousValue {
+    /// Determine which of the previous + latest nodes to retrieve based on the
+    /// target epoch. If it should be older than the latest node, and there is no
+    /// previous node, it returns Not Found
+    fn determine_node_to_get(&self, target_epoch: u64) -> Result<TreeNode, StorageError> {
+        // If a publish is currently underway, and "some" nodes have been updated to future values
+        // our "target_epoch" may point to some older data. Therefore we may need to load a previous
+        // version of this node.
+        if self.latest_node.last_epoch > target_epoch {
+            if let Some(previous_node) = &self.previous_node {
+                Ok(previous_node.clone())
+            } else {
+                // no previous, return not found
+                Err(StorageError::NotFound(format!(
+                    "TreeNode {:?} at epoch {}",
+                    NodeKey(self.label),
+                    target_epoch
+                )))
+            }
+        } else {
+            // Otherwise the currently targeted epoch just points to the most up-to-date value, retrieve that
+            Ok(self.latest_node.clone())
+        }
+    }
+
+    /// Construct a TreeNode with "previous" value where the
+    /// previous value is None. This is useful for the first
+    /// time a node appears in the directory data layer.
     pub(crate) fn from_tree_node(node: TreeNode) -> Self {
         Self {
             label: node.label,
@@ -127,56 +155,34 @@ impl TreeNodeWithPreviousValue {
         storage.set(DbRecord::TreeNode(self.clone())).await
     }
 
-    pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
+    pub(crate) async fn get_appropriate_tree_node_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         key: &NodeKey,
-        current_epoch: u64,
+        target_epoch: u64,
     ) -> Result<TreeNode, StorageError> {
         match storage.get::<Self>(key).await? {
-            DbRecord::TreeNode(node) => {
-                if node.latest_node.last_epoch > current_epoch {
-                    if let Some(previous_node) = node.previous_node {
-                        Ok(previous_node)
-                    } else {
-                        // no previous, return not found
-                        Err(StorageError::NotFound(format!(
-                            "TreeNode {:?} at epoch {}",
-                            key, current_epoch
-                        )))
-                    }
-                } else {
-                    Ok(node.latest_node)
-                }
-            }
-            _ => Err(StorageError::NotFound(format!("TreeNode {:?}", key))),
+            DbRecord::TreeNode(node) => node.determine_node_to_get(target_epoch),
+            _ => Err(StorageError::NotFound(format!(
+                "TreeNodeWithPreviousValue {:?}",
+                key
+            ))),
         }
     }
 
-    pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
+    pub(crate) async fn batch_get_appropriate_tree_node_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         keys: &[NodeKey],
-        current_epoch: u64,
+        target_epoch: u64,
     ) -> Result<Vec<TreeNode>, StorageError> {
         let node_records: Vec<DbRecord> = storage.batch_get::<Self>(keys).await?;
         let mut nodes = Vec::<TreeNode>::new();
         for node in node_records.into_iter() {
             if let DbRecord::TreeNode(node) = node {
-                if node.latest_node.last_epoch > current_epoch {
-                    if let Some(previous_node) = node.previous_node {
-                        nodes.push(previous_node);
-                    } else {
-                        // no previous, return not found
-                        return Err(StorageError::NotFound(format!(
-                            "TreeNode {:?} at epoch {}",
-                            node.label, current_epoch
-                        )));
-                    }
-                } else {
-                    nodes.push(node.latest_node);
-                }
+                let correct_node = node.determine_node_to_get(target_epoch)?;
+                nodes.push(correct_node);
             } else {
                 return Err(StorageError::NotFound(
-                    "Batch retrieve returned types <> TreeNode".to_string(),
+                    "Batch retrieve returned types <> TreeNodeWithPreviousValue".to_string(),
                 ));
             }
         }
@@ -230,13 +236,21 @@ impl TreeNode {
         &self,
         storage: &S,
     ) -> Result<(), StorageError> {
-        // retrieve the higest node properties, at a previous epoch than this one. If we're modifying "this" epoch, simply take it as no need for a rotation.
+        // MOTIVATION:
+        // We want to retrieve the previous latest_node value, so we want to investigate where (epoch - 1).
+        // When a request comes in to write the node with a future epoch, (epoch - 1) will be the latest node in storage
+        // and we'll do a shift-left. The get call should ideally utilize a cached value, so this should be safe to
+        // call repeatedly. If the node retrieved from storage has the same epoch as the incoming changes, we don't shift
+        // since the assumption is either (1) there's no changes or (2) a shift already occurred previously where the
+        // epoch changed.
+
+        // retrieve the highest node properties, at a previous epoch than this one. If we're modifying "this" epoch, simply take it as no need for a rotation.
         // When we write the node, with an updated epoch value, we'll rotate the stored value and capture the previous
         let target_epoch = match self.last_epoch {
             e if e > 0 => e - 1,
             other => other,
         };
-        let previous = match TreeNodeWithPreviousValue::get_from_storage(
+        let previous = match TreeNodeWithPreviousValue::get_appropriate_tree_node_from_storage(
             storage,
             &NodeKey(self.label),
             target_epoch,
@@ -260,17 +274,27 @@ impl TreeNode {
     pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         key: &NodeKey,
-        current_epoch: u64,
+        target_epoch: u64,
     ) -> Result<TreeNode, StorageError> {
-        TreeNodeWithPreviousValue::get_from_storage(storage, key, current_epoch).await
+        TreeNodeWithPreviousValue::get_appropriate_tree_node_from_storage(
+            storage,
+            key,
+            target_epoch,
+        )
+        .await
     }
 
     pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
         storage: &S,
         keys: &[NodeKey],
-        current_epoch: u64,
+        target_epoch: u64,
     ) -> Result<Vec<TreeNode>, StorageError> {
-        TreeNodeWithPreviousValue::batch_get_from_storage(storage, keys, current_epoch).await
+        TreeNodeWithPreviousValue::batch_get_appropriate_tree_node_from_storage(
+            storage,
+            keys,
+            target_epoch,
+        )
+        .await
     }
 }
 
