@@ -347,11 +347,11 @@ impl<'a> AsyncMySqlDatabase {
             + TABLE_HISTORY_TREE_NODES
             + "` (`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL,"
             + " `last_epoch` BIGINT UNSIGNED NOT NULL,"
-            + " `least_descendent_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
+            + " `least_descendant_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " `left_child_len` INT UNSIGNED, `left_child_label_val` VARBINARY(32),"
             + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32), `hash` VARBINARY(32) NOT NULL,"
-            + " `p_last_epoch` BIGINT UNSIGNED, `p_least_descendent_ep` BIGINT UNSIGNED, "
+            + " `p_last_epoch` BIGINT UNSIGNED, `p_least_descendant_ep` BIGINT UNSIGNED, "
             + " `p_parent_label_len` INT UNSIGNED, `p_parent_label_val` VARBINARY(32), "
             + " `p_node_type` SMALLINT UNSIGNED, `p_left_child_len` INT UNSIGNED, `p_left_child_label_val` VARBINARY(32), "
             + " `p_right_child_len` INT UNSIGNED, `p_right_child_label_val` VARBINARY(32), `p_hash` VARBINARY(32),"
@@ -873,7 +873,7 @@ impl Storage for AsyncMySqlDatabase {
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(
         &self,
-        id: &St::Key,
+        id: &St::StorageKey,
     ) -> core::result::Result<DbRecord, StorageError> {
         // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
         // log instead of the raw storage layer
@@ -901,7 +901,7 @@ impl Storage for AsyncMySqlDatabase {
 
     async fn get_direct<St: Storable>(
         &self,
-        id: &St::Key,
+        id: &St::StorageKey,
     ) -> core::result::Result<DbRecord, StorageError> {
         *(self.num_reads.write().await) += 1;
         self.record_call_stats(
@@ -966,7 +966,7 @@ impl Storage for AsyncMySqlDatabase {
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
-        ids: &[St::Key],
+        ids: &[St::StorageKey],
     ) -> core::result::Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
 
@@ -975,7 +975,7 @@ impl Storage for AsyncMySqlDatabase {
             return Ok(map);
         }
 
-        let mut key_set: HashSet<St::Key> = ids.iter().cloned().collect::<HashSet<_>>();
+        let mut key_set: HashSet<St::StorageKey> = ids.iter().cloned().collect::<HashSet<_>>();
 
         let trans_active = self.is_transaction_active().await;
         // first check the transaction log & cache records
@@ -1218,13 +1218,13 @@ impl Storage for AsyncMySqlDatabase {
                     ) {
                         // explicitly check the array length for safety
                         if node_label_val.len() == 32 {
-                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
                             return Some(ValueState {
                                 epoch,
                                 version,
                                 label: NodeLabel {
-                                    val,
-                                    len: node_label_len,
+                                    label_val,
+                                    label_len: node_label_len,
                                 },
                                 plaintext_val: akd::storage::types::AkdValue(data),
                                 username: akd::storage::types::AkdLabel(username),
@@ -1336,13 +1336,13 @@ impl Storage for AsyncMySqlDatabase {
                     ) {
                         // explicitly check the array length for safety
                         if node_label_val.len() == 32 {
-                            let val: [u8; 32] = node_label_val.try_into().unwrap();
+                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
                             return Some(ValueState {
                                 epoch,
                                 version,
                                 label: NodeLabel {
-                                    val,
-                                    len: node_label_len,
+                                    label_val,
+                                    label_len: node_label_len,
                                 },
                                 plaintext_val: akd::storage::types::AkdValue(data),
                                 username: akd::storage::types::AkdLabel(username),

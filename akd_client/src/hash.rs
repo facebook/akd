@@ -98,7 +98,11 @@ pub(crate) fn build_and_hash_layer(
     parent_label: NodeLabel,
 ) -> Result<PublicDigest, VerificationError> {
     let direction = dir.ok_or_else(|| {
-        verify_error!(NoDirection, PublicDigest, format!("{:?}", parent_label.val))
+        verify_error!(
+            NoDirection,
+            PublicDigest,
+            format!("{:?}", parent_label.label_val)
+        )
     })?;
     let mut hashes_mut = hashes.to_vec();
     hashes_mut.insert(direction, ancestor_hash);

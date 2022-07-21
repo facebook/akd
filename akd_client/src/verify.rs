@@ -20,7 +20,7 @@ use crate::{verify_error, VerificationError, VerificationErrorType, ARITY};
 
 /// Verify the membership proof
 fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), VerificationError> {
-    if proof.label.len == 0 {
+    if proof.label.label_len == 0 {
         let final_hash = merge(&[proof.hash_val, proof.label.hash()]);
         if final_hash == root_hash {
             return Ok(());
@@ -82,8 +82,8 @@ fn verify_nonmembership(
 
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
-            val: [0u8; 32],
-            len: 0,
+            label_val: [0u8; 32],
+            label_len: 0,
         };
     }
 

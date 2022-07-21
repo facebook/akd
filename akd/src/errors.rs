@@ -8,7 +8,7 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
-use crate::node_state::NodeLabel;
+use crate::node_label::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
 #[cfg_attr(test, derive(PartialEq))]
@@ -26,6 +26,8 @@ pub enum AkdError {
     Storage(StorageError),
     /// Audit verification error thrown
     AuditErr(AuditorError),
+    /// Test error
+    TestErr(String),
 }
 
 impl std::error::Error for AkdError {}
@@ -86,6 +88,9 @@ impl std::fmt::Display for AkdError {
             }
             AkdError::AuditErr(err) => {
                 writeln!(f, "AKD Auditor Error {}", err)
+            }
+            AkdError::TestErr(err) => {
+                writeln!(f, "{}", err)
             }
         }
     }

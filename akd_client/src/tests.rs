@@ -58,10 +58,10 @@ where
     }
 }
 
-fn convert_label(proof: akd::node_state::NodeLabel) -> crate::types::NodeLabel {
+fn convert_label(proof: akd::node_label::NodeLabel) -> crate::types::NodeLabel {
     crate::types::NodeLabel {
-        len: proof.len,
-        val: proof.val,
+        label_len: proof.label_len,
+        label_val: proof.label_val,
     }
 }
 
@@ -158,9 +158,9 @@ where
             version: proof.version,
             existence_vrf_proof: proof.existence_vrf_proof.clone(),
             existence_at_ep: convert_membership_proof(&proof.existence_at_ep),
-            previous_val_vrf_proof: proof.previous_val_vrf_proof.clone(),
+            previous_val_vrf_proof: proof.previous_version_vrf_proof.clone(),
             previous_val_stale_at_ep: proof
-                .previous_val_stale_at_ep
+                .previous_version_stale_at_ep
                 .clone()
                 .map(|val| convert_membership_proof(&val)),
             commitment_proof: proof.commitment_proof.clone(),

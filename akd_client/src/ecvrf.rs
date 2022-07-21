@@ -172,8 +172,8 @@ impl VRFPublicKey {
 
         let output: Output = (&proof).into();
         let expected_label = NodeLabel {
-            val: output.to_truncated_bytes(),
-            len: 256u32,
+            label_val: output.to_truncated_bytes(),
+            label_len: 256u32,
         };
         if expected_label == label {
             Ok(())

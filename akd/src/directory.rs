@@ -10,8 +10,8 @@
 use crate::append_only_zks::Azks;
 
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
-use crate::node_state::Node;
 use crate::proof_structs::*;
+use crate::{helper_structs::LookupInfo, EpochHash, Node};
 
 use crate::errors::{AkdError, DirectoryError, StorageError};
 
@@ -23,25 +23,10 @@ use log::{debug, error, info};
 #[cfg(feature = "rand")]
 use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
-use crate::node_state::NodeLabel;
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use winter_crypto::{Digest, Hasher};
-
-/// Root hash of the tree and its associated epoch
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
-
-#[derive(Clone)]
-/// Info needed for a lookup of a user for an epoch
-pub struct LookupInfo {
-    value_state: ValueState,
-    marker_version: u64,
-    existent_label: NodeLabel,
-    marker_label: NodeLabel,
-    non_existent_label: NodeLabel,
-}
 
 #[cfg(feature = "rand")]
 impl AkdValue {
@@ -785,8 +770,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             plaintext_value: plaintext_value.clone(),
             existence_vrf_proof,
             existence_at_ep,
-            previous_val_vrf_proof,
-            previous_val_stale_at_ep,
+            previous_version_vrf_proof: previous_val_vrf_proof,
+            previous_version_stale_at_ep: previous_val_stale_at_ep,
             commitment_proof,
         })
     }

@@ -119,7 +119,7 @@ pub struct ValueState {
 }
 
 impl crate::storage::Storable for ValueState {
-    type Key = ValueStateKey;
+    type StorageKey = ValueStateKey;
 
     fn data_type() -> StorageType {
         StorageType::ValueState
@@ -265,7 +265,7 @@ impl DbRecord {
         label_val: [u8; 32],
         label_len: u32,
         last_epoch: u64,
-        least_descendent_ep: u64,
+        least_descendant_ep: u64,
         parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
@@ -273,7 +273,7 @@ impl DbRecord {
         right_child: Option<NodeLabel>,
         hash: [u8; 32],
         p_last_epoch: Option<u64>,
-        p_least_descendent_ep: Option<u64>,
+        p_least_descendant_ep: Option<u64>,
         p_parent_label_val: Option<[u8; 32]>,
         p_parent_label_len: Option<u32>,
         p_node_type: Option<u8>,
@@ -284,7 +284,7 @@ impl DbRecord {
         let label = NodeLabel::new(label_val, label_len);
         let p_node = match (
             p_last_epoch,
-            p_least_descendent_ep,
+            p_least_descendant_ep,
             p_parent_label_val,
             p_parent_label_len,
             p_node_type,
@@ -293,7 +293,7 @@ impl DbRecord {
             (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => Some(TreeNode {
                 label,
                 last_epoch: a,
-                least_descendent_ep: b,
+                least_descendant_ep: b,
                 parent: NodeLabel::new(c, d),
                 node_type: NodeType::from_u8(e),
                 left_child: p_left_child,
@@ -307,7 +307,7 @@ impl DbRecord {
             latest_node: TreeNode {
                 label,
                 last_epoch,
-                least_descendent_ep,
+                least_descendant_ep,
                 parent: NodeLabel::new(parent_label_val, parent_label_len),
                 node_type: NodeType::from_u8(node_type),
                 left_child,

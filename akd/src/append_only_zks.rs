@@ -16,7 +16,7 @@ use crate::{
 use crate::serialization::to_digest;
 
 use crate::storage::types::StorageType;
-use crate::{errors::*, node_state::*, tree_node::TreeNode, ARITY, *};
+use crate::{errors::*, node_label::*, tree_node::TreeNode, ARITY, *};
 use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
@@ -45,7 +45,7 @@ pub struct Azks {
 }
 
 impl Storable for Azks {
-    type Key = u8;
+    type StorageKey = u8;
 
     fn data_type() -> StorageType {
         StorageType::Azks
@@ -113,7 +113,13 @@ impl Azks {
         )
         .await?;
         root_node
-            .insert_single_leaf::<_, H>(storage, new_leaf, epoch, &mut self.num_nodes, None)
+            .insert_single_leaf_and_hash::<_, H>(
+                storage,
+                new_leaf,
+                epoch,
+                &mut self.num_nodes,
+                None,
+            )
             .await?;
 
         Ok(())
@@ -172,12 +178,10 @@ impl Azks {
                 }
 
                 for dir in 0..ARITY {
-                    let child = node
-                        .get_child_state::<S>(storage, Direction::Some(dir), self.latest_epoch)
-                        .await?;
+                    let child_label = node.get_child_label(Direction::Some(dir));
 
-                    if let Some(child) = child {
-                        current_nodes.push(NodeKey(child.label));
+                    if let Some(child_label) = child_label {
+                        current_nodes.push(NodeKey(child_label));
                     }
                 }
             }
@@ -398,7 +402,7 @@ impl Azks {
             return Ok((unchanged, leaves));
         }
 
-        if node.least_descendent_ep > end_epoch {
+        if node.least_descendant_ep > end_epoch {
             return Ok((unchanged, leaves));
         }
 

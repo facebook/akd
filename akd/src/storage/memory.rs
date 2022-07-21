@@ -154,7 +154,7 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a stored record from the data layer
-    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
             if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
@@ -165,7 +165,10 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+    async fn get_direct<St: Storable>(
+        &self,
+        id: &St::StorageKey,
+    ) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -200,7 +203,7 @@ impl Storage for AsyncInMemoryDatabase {
     /// Retrieve a batch of records by id
     async fn batch_get<St: Storable>(
         &self,
-        ids: &[St::Key],
+        ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
         for key in ids.iter() {
@@ -583,7 +586,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         Ok(())
     }
 
-    async fn get<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+    async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
         if self.is_transaction_active().await {
             if let Some(result) = self.trans.get::<St>(id).await {
                 // there's a transacted item, return that one since it's "more up to date"
@@ -594,7 +597,10 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: &St::Key) -> Result<DbRecord, StorageError> {
+    async fn get_direct<St: Storable>(
+        &self,
+        id: &St::StorageKey,
+    ) -> Result<DbRecord, StorageError> {
         let bin_id = St::get_full_binary_key_id(id);
         // if the request is for a value state, look in the value state set
         if St::data_type() == StorageType::ValueState {
@@ -640,7 +646,7 @@ impl Storage for AsyncInMemoryDbWithCache {
 
     async fn batch_get<St: Storable>(
         &self,
-        ids: &[St::Key],
+        ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError> {
         let mut map = Vec::new();
         for key in ids.iter() {

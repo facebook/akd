@@ -22,7 +22,7 @@ args:
     - 10
   out: src/fixture_generator/examples/test.yaml
   no_generated_updates: false
-version: 0.6.2
+version: 0.7.0
 
 # State - Epoch 9
 ---
@@ -30,974 +30,1046 @@ epoch: 9
 records:
   - TreeNode:
       label:
-        val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-        len: 256
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
       latest_node:
         label:
-          val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: BEEBD4D0A5D81DA3B71088C0A8AE31DE14F92AA99642B362006A371608B9C965
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-        len: 256
-      latest_node:
-        label:
-          val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: FF753863F012831C90ED9BC8E7D7E2050CB718FF17F03493333680067C4DCF08
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-        len: 256
-      latest_node:
-        label:
-          val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-          len: 256
-        last_epoch: 6
-        least_descendent_ep: 6
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: E4C5FE4F9AAC34F5F78223F460D6FB3816D36146041D55F3C4B6AAB7068B695C
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         last_epoch: 7
-        least_descendent_ep: 2
+        least_descendant_ep: 1
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         node_type: Interior
         left_child:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         right_child:
-          val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-          len: 256
-        hash: 2716B550BCB6DFEA4516BE6802AA6830DAD3933B78EA0EA6A18D41CD415282EB
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        last_epoch: 6
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        right_child:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        hash: 1255EA40EE34C81FCE41D5356C671062044AAF04F57D4317DBCEE7AA6744A786
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        hash: 571EA34808F0831540AE7E685894EDABD639EA36F0894B36A168F06022CE3F3D
       previous_node:
         label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         last_epoch: 5
-        least_descendent_ep: 1
+        least_descendant_ep: 1
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         node_type: Interior
         left_child:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         right_child:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        hash: 7629CF87E9054642CC0CAAC7F6C712A157477FB0370D6F5941D76A6F1CBDD9EA
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        hash: 340AFE0F14B83ABF1832B0BD43F57F91DAD9CADA6FD02C57DEC646A8F4D16BE7
   - TreeNode:
       label:
-        val: "1000000000000000000000000000000000000000000000000000000000000000"
-        len: 4
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
       latest_node:
         label:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        right_child:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        hash: C17FE2D3EBE73E577C7E92BC7E6C045EDE0D5A0683756CE164BAB619CFF459DF
+      previous_node:
+        label:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 2
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        right_child:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        hash: EEAD67837E9FE12481A9E124C00F47F105F7D79CD7487AC29394E298F64E8A17
+  - TreeNode:
+      label:
+        label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        last_epoch: 3
+        least_descendant_ep: 3
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 90770228689458EEFDF16864084C950017BC1661AEA9CDD44C1D7B2A3E9322B8
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 1
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 7
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        right_child:
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        hash: 1ABAA3401CFFC8297A2C1EDFBB6BD2F379E2401BDFB8F1D38F4F4ADC8C9AC1DD
+      previous_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 6
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        right_child:
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        hash: DB9A047B951D8D5A34E567B95102B6803DD8A92B2D8D121ED85DB21F77E97ECE
+  - TreeNode:
+      label:
+        label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+        label_len: 7
+      latest_node:
+        label:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        last_epoch: 6
+        least_descendant_ep: 5
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Interior
+        left_child:
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
+        right_child:
+          label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+          label_len: 256
+        hash: 661CC778B4E0E929AFCDA4D981E1A2BA4625ED9C67FBC2FB8379F6FE2DE9DCDD
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 7
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        hash: D5F62AE7015C8491C9312C0C1C72CADA910AEC5A7B18D63118937500BB6867CC
+      previous_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 6
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
+        hash: 8F909EFDA1980E94BEA274350471CE4FF4318689DF5DDFB3C48741881F15BB5B
+  - TreeNode:
+      label:
+        label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
+      latest_node:
+        label:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 4
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+          label_len: 256
+        right_child:
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: B0801BF8319B318A174564BCAF4F52C8D467354AFCF890246A2FA980D6A2B9A4
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+        label_len: 256
+      latest_node:
+        label:
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 723ECCF6434F1D6BB9DB710F08C6F4C23A56F857846993B25346B979BF8FF07A
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         last_epoch: 4
-        least_descendent_ep: 2
+        least_descendant_ep: 2
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Interior
         left_child:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
         right_child:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        hash: 57B4A8836E8BE163143B369B7C4EEC5CC5ED2EA62FD90D3D99A8FC3F4220E463
-      previous_node:
-        label:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        last_epoch: 3
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
-        right_child:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        hash: 3394EC6EFD0E2CCCBA17BA5231B15835DC70B6F66F995F457ED73D4E1C71CDFD
-  - TreeNode:
-      label:
-        val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-        len: 256
-      latest_node:
-        label:
-          val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-          len: 256
-        last_epoch: 1
-        least_descendent_ep: 1
-        parent:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: B74A15524C17B9E49AEE617AFBD5957E0D7AF541B1E3EAFB58DA7D627EDDB943
+          label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+          label_len: 256
+        hash: AE6DF5D9B14F3BB2019100C98FDF603DC10C98AED419EFA17114A75414B71382
       previous_node: ~
   - TreeNode:
       label:
-        val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-        len: 256
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 0
       latest_node:
         label:
-          val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-          len: 256
-        last_epoch: 1
-        least_descendent_ep: 1
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: ADCC175A7072C86AB5152DBA40D1A28441C1EAAD92578D3570F1052CF33472B1
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-        len: 256
-      latest_node:
-        label:
-          val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-          len: 256
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         last_epoch: 7
-        least_descendent_ep: 7
+        least_descendant_ep: 1
         parent:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 590D7D0D4FF859DCA9A28EC26A3BF972830EEB2DCF2A9CC004C961985649B3D0
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 5
-      latest_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 6
-        least_descendent_ep: 1
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Interior
-        left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        right_child:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
-        hash: 40D2AD9F64333B45030A2BB5E2E31ABC74E4DB9E428CF819C284320D1FB8E8D2
-      previous_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Interior
-        left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        right_child:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
-        hash: 13BB3202847043568D1D6E81B84606F3F74F3B705781D2EE847B0A953D0A6BBD
-  - TreeNode:
-      label:
-        val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-        len: 256
-      latest_node:
-        label:
-          val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 515E3062BB3E9609C8A6F0E2C2C746F9CC5C23BC8315968327B7E164118F28FB
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "9000000000000000000000000000000000000000000000000000000000000000"
-        len: 6
-      latest_node:
-        label:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Interior
-        left_child:
-          val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-          len: 256
-        right_child:
-          val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-          len: 256
-        hash: D9B597EBE98EE3DC7C33FFEFE3C8739D505DD3AC869AE9CFAA2ABB7DEC721202
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 3
-      latest_node:
-        label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        last_epoch: 6
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Interior
-        left_child:
-          val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-          len: 256
-        right_child:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        hash: E88DF4396F961AE86EAE41B11375E101C08847E8169515FAA4FBF21B9A656E8B
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 7
-      latest_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Interior
-        left_child:
-          val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-          len: 256
-        right_child:
-          val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-          len: 256
-        hash: A3448031173D14A17817518A822C7947824347EDA66EBA53F9F70A70D7571DD8
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-        len: 256
-      latest_node:
-        label:
-          val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-          len: 256
-        last_epoch: 3
-        least_descendent_ep: 3
-        parent:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 48AA8A592178AB15373B0B3ACE7EC1DE7835A7EF9C01352684312B58F30FBF51
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 1
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        last_epoch: 7
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        right_child:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        hash: 89A0D023A5292D54C167071595F324824636AE6749E072AB91E3FB3792B34745
-      previous_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        last_epoch: 5
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        right_child:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        hash: FB59331EACE31FD244C3C02D2A0EA5BAFC9A6F425666CA858256911BD4171806
-  - TreeNode:
-      label:
-        val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-        len: 256
-      latest_node:
-        label:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        last_epoch: 3
-        least_descendent_ep: 3
-        parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 96E573EBF17EBFB5E4CBBA3CCC01E1C08BC02C47F7D5C78E4217E6E29EB002DD
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-        len: 256
-      latest_node:
-        label:
-          val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-          len: 256
-        last_epoch: 6
-        least_descendent_ep: 6
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: D9E6B0373D031DE21095D8BAE0CFEE429BEA5E5C2B6CBAF5DBD414F7B84CAC3B
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 0
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        last_epoch: 7
-        least_descendent_ep: 1
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Root
         left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         right_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        hash: A185765E18E037D39A9192C7A42659CB6ADEEEFD228FAD8ED8CA7D1A46B677FB
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        hash: F6FE8A8A78D998FE12760E6399049486B1EC154EF0EAC1282996850DC7E0C293
       previous_node:
         label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         last_epoch: 6
-        least_descendent_ep: 1
+        least_descendant_ep: 1
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Root
         left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         right_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        hash: 959F77560A5691B1C4FFFE7E2844065E42BC966CD49DD13CC7D38B7CC74EADBC
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        hash: 943A688FAC897FFD938EC7B694E6426A21E2832A82BF5097B4418DD87E22E67F
   - TreeNode:
       label:
-        val: "6000000000000000000000000000000000000000000000000000000000000000"
-        len: 3
+        label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+        label_len: 256
       latest_node:
         label:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        last_epoch: 5
-        least_descendent_ep: 2
-        parent:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Interior
-        left_child:
-          val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-          len: 256
-        right_child:
-          val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-          len: 256
-        hash: FBE41C5DC65A8589EC6D16451C092369E97109C1290F3971C99B199D9E4B2B25
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-        len: 256
-      latest_node:
-        label:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
-        last_epoch: 2
-        least_descendent_ep: 2
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 53FE05220926C50E9C5714F65170CB173C7C58C3D69636378E2FDADB342123D2
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: FC00000000000000000000000000000000000000000000000000000000000000
-        len: 6
-      latest_node:
-        label:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        last_epoch: 6
-        least_descendent_ep: 3
-        parent:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        node_type: Interior
-        left_child:
-          val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-          len: 256
-        right_child:
-          val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-          len: 256
-        hash: 24F1243A36BC675BA3667A5322D30146B69F0CFEF3F99E622FBB76A112A77BE6
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-        len: 256
-      latest_node:
-        label:
-          val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-          len: 256
-        last_epoch: 2
-        least_descendent_ep: 2
-        parent:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: AC6813FB6B82F3C9BBF212FF0BF9B1C593E6604F0E41C4B1EE9C1614A0FFBDFD
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "4000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+          label_len: 256
         last_epoch: 7
-        least_descendent_ep: 2
+        least_descendant_ep: 7
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-          len: 256
-        right_child:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        hash: 6CFD4C94459087ACE2C7876FE55BD44F9F75369B4A8DB7E8E650D50367A664B3
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 8FBDF2FE9E1DFABF4829872AE19540908EB09700854224D2811A323EC5F48E1A
       previous_node: ~
   - TreeNode:
       label:
-        val: "1800000000000000000000000000000000000000000000000000000000000000"
-        len: 5
+        label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+        label_len: 256
       latest_node:
         label:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        last_epoch: 4
-        least_descendent_ep: 3
-        parent:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        node_type: Interior
-        left_child:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        right_child:
-          val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-          len: 256
-        hash: 63AF7A9D6E80BB1CD0785940962F82F0F8CBBDEF634CA1913A08411788D7EA58
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 6
-      latest_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
         last_epoch: 6
-        least_descendent_ep: 1
+        least_descendant_ep: 6
         parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        node_type: Interior
-        left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        right_child:
-          val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-          len: 256
-        hash: B4822D2172E4140C185CB4B7DBAA955775CC2A8E2F05D501FB4206E4CF175C66
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 21C382F6C2978B0A225996662CB55665D506E6302B38E293849660C30BF75C24
       previous_node: ~
   - TreeNode:
       label:
-        val: A000000000000000000000000000000000000000000000000000000000000000
-        len: 3
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 5
       latest_node:
         label:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        last_epoch: 6
-        least_descendent_ep: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        last_epoch: 7
+        least_descendant_ep: 2
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Interior
         left_child:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
+          label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+          label_len: 256
         right_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        hash: DFC5FC51E9608548B595904A2988985466BA3CACD805AD7CF2ACD0A30141088E
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        hash: 78E2842F722E4E5FFE9E34DDF2561BD48B1CA7434CAA8199B944D4B6F9B4BBC6
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+        label_len: 6
+      latest_node:
+        label:
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        last_epoch: 7
+        least_descendant_ep: 5
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+          label_len: 256
+        right_child:
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        hash: 881BB3509996314A5178B9DD39F4909D6B259F63BD1F53C20446DBD0B74EDDCD
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
+      latest_node:
+        label:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 7
+        least_descendant_ep: 3
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: 3B1390E4D29B583260D35B5389D9C7BCBD9C97E5B3949030EBBE5B170B3B1589
       previous_node:
         label:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        last_epoch: 5
-        least_descendent_ep: 1
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 6
+        least_descendant_ep: 3
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         node_type: Interior
         left_child:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         right_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        hash: C503FC72B3AA36E7051DFA55468956B7B5C2EDBA9120B644B2D10A8F16700953
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: 9407039F921FFC9215B77FF52CA7933C8039C0155D15FD60073DAEC96A0C71D6
   - TreeNode:
       label:
-        val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-        len: 256
+        label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+        label_len: 256
       latest_node:
         label:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        last_epoch: 2
+        least_descendant_ep: 2
         parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 9F0B76C2FF55B6E4947ECCDB290121E8FC48945B8AEA3D9E00EA833A4667D418
+        hash: 6AC3BDE2ABEE7BAE9D8F9435D71634AEAA2336B2ED6E16F0FC30E2F0A524A3E0
       previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 5D05A4153EA41555879070AC10A5ACD959BADBA7F5552A7CB504CFB115492136
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        last_epoch: 6
+        least_descendant_ep: 3
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        right_child:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        hash: D7DC60E87665D755B7769DFBA34EE340ABBA89DE4B0B41477F3D2DD023D0E538
+      previous_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        last_epoch: 5
+        least_descendant_ep: 3
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
+        right_child:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        hash: 767BCF2280177F77F427D59C5A7AF057993EA6826F3ABE07712AAF3CBEA93816
+  - TreeNode:
+      label:
+        label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        last_epoch: 1
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 45627169C98C1A4FF8980B9A2DD366CB1610B208D23EE5A4EAEEE107CA69E1B8
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
+        parent:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 5A2404C174B3F0620A0562A250282D75344330FB3969C09FD0A742E3B6FC0CB7
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        last_epoch: 3
+        least_descendant_ep: 3
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: B8B3A5893CB6FB1C4FC34FAD95A63E61BFE66E87BA5EA8FF263000189A606AE8
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+          label_len: 256
+        last_epoch: 4
+        least_descendant_ep: 4
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: DBBA0386E5046EA5222F0E1FD8A86CCC113CF8C57E4564902FB71C0D40CE1071
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 7
+      latest_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Interior
+        left_child:
+          label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+          label_len: 256
+        right_child:
+          label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+          label_len: 256
+        hash: 01A33DDEB4E8BD403C05C287E998E94B40A84EC924DBE446AE81A3F72B0E925B
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        last_epoch: 4
+        least_descendant_ep: 4
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Interior
+        left_child:
+          label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+          label_len: 256
+        right_child:
+          label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+          label_len: 256
+        hash: 2D6198E41F52D33A1C68E053ED912C9E68566EC4BB1D988A8EAFB30E11E486F1
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 0493A983ABDBE41810BBA9D54D2804577A3DC2B41E974B5A07C9005DEBBBCD35
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 4
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        right_child:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        hash: 780E9DF458C59A7AA9197429A38E9ED5C0379A6C57E9E0E9A963D7CA36764367
+      previous_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 3
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
+        right_child:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        hash: 827EBE3E299733ADE8C9FA8CC59B0B0ADA2BC99DB9B0AC46B63687DA638F512E
   - Azks:
       latest_epoch: 7
-      num_nodes: 35
+      num_nodes: 37
   - TreeNode:
       label:
-        val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-        len: 256
+        label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+        label_len: 256
       latest_node:
         label:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
-        last_epoch: 2
-        least_descendent_ep: 2
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
         parent:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 8D0417650E053E0FD51DC5607F9817E85572708031729C804504282ABDB0230C
+        hash: 3FBE1AEE46DAB8D35BA1D74454A0DB9DCE33917A8A99B44A720FF8F00752D0D0
       previous_node: ~
   - TreeNode:
       label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 1
+        label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+        label_len: 256
       latest_node:
         label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+          label_len: 256
         last_epoch: 7
-        least_descendent_ep: 1
+        least_descendant_ep: 7
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 2CDFE135F99FD606C2850C97CE07C4AE7A251F8900A1E2D47885BEBDFACFADD0
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
+        last_epoch: 2
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 83937D4BF9DBCEB006895AC0B363E3ECD2C2CD80AB00A90B978F47521AEA2BE4
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+          label_len: 256
+        last_epoch: 7
+        least_descendant_ep: 7
+        parent:
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 6BAB2E5412798C5D91A7E18D203E39A2E867DB05485A78258C3E10DBBC5FBA7B
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 5
+      latest_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        last_epoch: 6
+        least_descendant_ep: 5
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         node_type: Interior
         left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
         right_child:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        hash: C7326F250E314264161F3C8064A943386547F742BAAC0AB1D9B408135F1DA0FA
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        hash: C7F5B2FBC96F291E5AC632215822913ABDDD96328C29E13E73A093ECAD386E92
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+          label_len: 256
+        last_epoch: 4
+        least_descendant_ep: 4
+        parent:
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 2AF132337318392123EEB102284D91020FE6765FC79591E8E3C28A846D65F306
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 3E3D161F40956B43142D7DE5A72688BFE3337C3A3FAD7F858FC4FE4E2108C2B9
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: A000000000000000000000000000000000000000000000000000000000000000
+        label_len: 3
+      latest_node:
+        label:
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 6
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
+        right_child:
+          label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+          label_len: 256
+        hash: E2F0324A6739F7B00499C9CBC13ADB910E7640AE53CE948A575B715FEBCB0527
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 1
+      latest_node:
+        label:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 7
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        right_child:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        hash: 594CAF4024443C3D2089AB5C5BEDA40534CB9ED3B4B4D65B23A9EC4243FF43BB
       previous_node:
         label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         last_epoch: 6
-        least_descendent_ep: 1
+        least_descendant_ep: 1
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Interior
         left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         right_child:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        hash: F23957622E184E9E4C920B4F4E7684E5CD0DF5FF94331973A8970F3DDABAE16C
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        hash: 33A1FD8F674B067A3AC7F56CCE20635303BBA8E4E861155EC7A5827A25DEB3AA
   - TreeNode:
       label:
-        val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-        len: 256
+        label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+        label_len: 256
       latest_node:
         label:
-          val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-          len: 256
-        last_epoch: 7
-        least_descendent_ep: 7
-        parent:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: C284727DBC89D0883249BAF208B8BCA833B78D3B7975F0743457A65138B2C74D
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-        len: 256
-      latest_node:
-        label:
-          val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-          len: 256
-        last_epoch: 6
-        least_descendent_ep: 6
-        parent:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: A0EBBBA33A04D23D31E220AAEE12E50BDC5B220A56B4F06F0F80FBF110E2FA44
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: C000000000000000000000000000000000000000000000000000000000000000
-        len: 2
-      latest_node:
-        label:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        last_epoch: 7
-        least_descendent_ep: 3
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-          len: 256
-        right_child:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        hash: CF9FEE075E3327A41B3F511486453E54B868FCCF98A49916E8CEC826BA6002A8
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-        len: 256
-      latest_node:
-        label:
-          val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-          len: 256
-        last_epoch: 7
-        least_descendent_ep: 7
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: CFBE6A08CFE0147C76B9ABE0B40AD9983D7FD32B60CA503AB92066E0D984807E
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-        len: 256
-      latest_node:
-        label:
-          val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-          len: 256
+          label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+          label_len: 256
         last_epoch: 4
-        least_descendent_ep: 4
+        least_descendant_ep: 4
         parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 73684149233A296A9A8118D98BA2AB703AFF012089643F08F0473A1EE8536EAC
+        hash: 2938BF394DCF83BBAA356544850EE4FA00D5B64061C63424FD33809F824C148A
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+          label_len: 256
+        last_epoch: 7
+        least_descendant_ep: 7
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 4A69BA3A1BE6292B9BAF0384DA7C0EF455940A2E5F8607AA39127DC51873EF14
       previous_node: ~
   - ValueState:
-      plaintext_val: 77715A413769357258613866313231664A585533624F6F6B74714E6965504162
+      plaintext_val: 444469576B38786D4832796C706344637752377536524D66414C61326B594237
       version: 1
       label:
-        val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-        len: 256
-      epoch: 5
-      username: 6C5874436833696C44313350613166366A3946457A673053336267644348395A
-  - ValueState:
-      plaintext_val: 7958696C67675A7073476D6155436C757432414B50784C58734C6B3741615655
-      version: 1
-      label:
-        val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-        len: 256
-      epoch: 2
-      username: 6C6F6976513061574C4B554E6875726B5A72723538334A5A584159554F394550
-  - ValueState:
-      plaintext_val: 4842697374496238324C704C636871553257644E62465551615538434D444953
-      version: 1
-      label:
-        val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-        len: 256
-      epoch: 2
-      username: 5039525A623165476B325A7A54747857775A6E5771636352386F527438576447
-  - ValueState:
-      plaintext_val: 5A474A7873716C7A5A62786F43427236496E6173477554614856326E38386339
-      version: 1
-      label:
-        val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-        len: 256
-      epoch: 3
-      username: 3745465548646C554E49566C4B7844684D7273454243546B45324C526D5A7363
-  - ValueState:
-      plaintext_val: 3250474A67594431685272337A4E4372726259394769316D485761724F653456
-      version: 1
-      label:
-        val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-        len: 256
+        label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+        label_len: 256
       epoch: 7
-      username: 6B4C3269496F784867537634383476696A70666C5A76514B56733865744D4334
+      username: 4941797377796E6D3343617A76634A7162753866726E716E6D524E377142634D
   - ValueState:
-      plaintext_val: 5279686471747546534679437053705367597144344F306A436C4E66646F324C
+      plaintext_val: 73376D4178336A6D346D4B524D7877424551596F4E6F793867616D55554A795A
       version: 1
       label:
-        val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-        len: 256
-      epoch: 3
-      username: 4D7375676D584A42454B6856784D71514F4E65354F376A755451576469753246
+        label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+        label_len: 256
+      epoch: 5
+      username: 6C7456313964656D5141363365794E346F4C756845694C4C47687856356E3158
   - ValueState:
-      plaintext_val: 3247565067644F6D57704B6D6C5231504A77436B3133304755726364655A4773
+      plaintext_val: 51715071695077794F5A374137554F615866656C776A37587057713132706337
       version: 1
       label:
-        val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-        len: 256
+        label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+        label_len: 256
+      epoch: 6
+      username: 794473444A364C52755870555066766B546D4E306E684D326B4E613248744742
+  - ValueState:
+      plaintext_val: 6C7338686C7352735467385543644F4D514169357639386B36504835556C7837
+      version: 1
+      label:
+        label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+        label_len: 256
+      epoch: 7
+      username: 6E6134533968476D3263646D426D7473326247585A3335337050546B766B6C43
+  - ValueState:
+      plaintext_val: 534F724B446165514B3749427647627A49556F75435A4134656A77575030664F
+      version: 1
+      label:
+        label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+        label_len: 256
       epoch: 1
-      username: 766F67394331614E4B704F793353474A78376864546C334A7A76673577624E35
+      username: 55724B78347667357A724279454E43756D644F3434544F6630794977496C654A
   - ValueState:
-      plaintext_val: 705455344E42416C343167697438775343774C784F596E547043343735304F4A
+      plaintext_val: 4E39774A6B346B423238315059584268756B657064304C356B6F6C6C3653524E
       version: 1
       label:
-        val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-        len: 256
-      epoch: 7
-      username: 36755370743942677049414C4B43416E4F55327951634F46646334595A733536
-  - ValueState:
-      plaintext_val: 463873583942654A4E7A4637414F4A4365364E3966524538364F57424864576A
-      version: 1
-      label:
-        val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-        len: 256
-      epoch: 5
-      username: 6B696E6D46676F65316C467039484B4F393054424761454B42717A5833343031
-  - ValueState:
-      plaintext_val: 47317A586754464D59796E747950316B4C577A3455715A7A4C5A47525A64526B
-      version: 1
-      label:
-        val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-        len: 256
-      epoch: 6
-      username: 72786E474F6B70336D3348327450555536616557373270554B35585A6536654D
-  - ValueState:
-      plaintext_val: 72693434464E553051736D483777424D365556645239466E785477584D663869
-      version: 1
-      label:
-        val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-        len: 256
-      epoch: 2
-      username: 55366F4671315A575A7176514E56593436516C716F6A5161616A623356786A77
-  - ValueState:
-      plaintext_val: 4742476E625333457461594C41506B556F4948495435577A7154716662354C61
-      version: 1
-      label:
-        val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-        len: 256
-      epoch: 1
-      username: 6D7A3879366F653769696A34767A6A6E70633550734B61445554414F684D514E
-  - ValueState:
-      plaintext_val: 6D4F433458564D73383842735A6C4D456E44427035536F663479304E51535172
-      version: 1
-      label:
-        val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-        len: 256
-      epoch: 5
-      username: 70626A7374796E746C365065334542636A4E696341446B31444549305077626F
-  - ValueState:
-      plaintext_val: 5977347944766D72485377333038304F46626137716C4E5350474B426F43746D
-      version: 1
-      label:
-        val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-        len: 256
-      epoch: 6
-      username: 535564554F6A664C7A36734E7A4552794678616B774B4346526C64754D387668
-  - ValueState:
-      plaintext_val: 31724838384A494A394B7474476A563669684439624C4F344C6E523557634B64
-      version: 1
-      label:
-        val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-        len: 256
-      epoch: 7
-      username: 5A4846614A5A373547336E726765427641416277435358474D6C77716D754168
-  - ValueState:
-      plaintext_val: 6B68303643704742364F56474A31334941706564434F4B4F4933574745774959
-      version: 1
-      label:
-        val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-        len: 256
-      epoch: 5
-      username: 7052486F6162506E756964564355357077544C36534B6C4C694873726A7A5531
-  - ValueState:
-      plaintext_val: 725353736A73373351527333394E3269654361386C4C3733376D394177355443
-      version: 1
-      label:
-        val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-        len: 256
-      epoch: 6
-      username: 6C41613674554755535A6A755141793042786D4E39663632726A50365A35394A
-  - ValueState:
-      plaintext_val: 364752385062676B3235764F69767461757A5347345A394A6D30693757596677
-      version: 1
-      label:
-        val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-        len: 256
+        label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+        label_len: 256
       epoch: 4
-      username: 655969414F584457633632496D53754C7A4C6F506C6F584A304F585578466975
+      username: 68556A335635454332465944796F7638614F53546D64474D4F52636873735332
+  - ValueState:
+      plaintext_val: 486E6E375061384C544D57753976476D6277474674394434555A345353506761
+      version: 1
+      label:
+        label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+        label_len: 256
+      epoch: 3
+      username: 5A6A58775A65346C6D5145504B5356795257615A4A726C6B6655725749464431
+  - ValueState:
+      plaintext_val: 734A356371484D73455A46744B394A7056304E7A317874326979647866695466
+      version: 1
+      label:
+        label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+        label_len: 256
+      epoch: 4
+      username: 717869613358677632647A6150516D37385A7074344B416E6A51584662584870
+  - ValueState:
+      plaintext_val: 414A3069783546764F7075337A737235383353364B4339576261764453526242
+      version: 1
+      label:
+        label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+        label_len: 256
+      epoch: 6
+      username: 4334637462627161536A42756D514A4F4769614832416E6378454D554837744C
+  - ValueState:
+      plaintext_val: 66344F6F66734F774434627A4865664D326E4F30654844766A4F66337A725633
+      version: 1
+      label:
+        label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+        label_len: 256
+      epoch: 6
+      username: 5772515A326B686930596F4E736F44476D594E634130594E69425457334C355A
+  - ValueState:
+      plaintext_val: 4C4F364778674A584F766C4F6E667A56653076776A6466304659354838475870
+      version: 1
+      label:
+        label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+        label_len: 256
+      epoch: 4
+      username: 38453631424F6856516441464635635558434B4C647A6D535A543930474E6552
+  - ValueState:
+      plaintext_val: 384452416974656F726438485772693047647341795863374F7342786769415A
+      version: 1
+      label:
+        label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+        label_len: 256
+      epoch: 6
+      username: 6175753175505141566852564B4C34764B793557653469355830576576464458
+  - ValueState:
+      plaintext_val: 4D5374386370773143334B48374662704C3849596F666B5635646A447A676845
+      version: 1
+      label:
+        label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+        label_len: 256
+      epoch: 3
+      username: 6A7A3357756C483848304B6B5A636B423667636B494C614A666D6A316576564B
+  - ValueState:
+      plaintext_val: 5452334D637059637945366E6B32457733713337773979477A6941673138714C
+      version: 1
+      label:
+        label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+        label_len: 256
+      epoch: 5
+      username: 456C384F62694B364149716B49436F4B76566878567A64376A70736A49494875
+  - ValueState:
+      plaintext_val: 663555416771504C3077426D7845656F536D4861506D7071306F476C48493065
+      version: 1
+      label:
+        label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+        label_len: 256
+      epoch: 5
+      username: 42773073374D557648356F3756354351394C6931676C6B306736694135775755
+  - ValueState:
+      plaintext_val: 3850516C5A55756F526A43584363564E336A7677515862694C41696363704F39
+      version: 1
+      label:
+        label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+        label_len: 256
+      epoch: 2
+      username: 596E326C4C4173354B6F54757935516D3443516554796463736874334A6E3034
+  - ValueState:
+      plaintext_val: 75314575354D77597279464D6F5A74646C736732736246765130393872433047
+      version: 1
+      label:
+        label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+        label_len: 256
+      epoch: 7
+      username: 79707572553772694E50427450496D33447061687475536C4A41453059774469
+  - ValueState:
+      plaintext_val: 386138316A62715A614D4B6A61574878676F33395673486E3047304949457763
+      version: 1
+      label:
+        label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+        label_len: 256
+      epoch: 7
+      username: 725A49365A445179697A6259713663425053676373495A6B7A694C6E30374F52
+  - ValueState:
+      plaintext_val: 7349464164414F386A71754143436E4E3759676A454D52524B71586D6A796457
+      version: 1
+      label:
+        label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+        label_len: 256
+      epoch: 2
+      username: 725567653051506D565866526D685971696474637645575559734637344F3937
 
 # Delta - Epoch 10
 ---
 epoch: 10
-updates:
-  - - 587837466330704A525550706C54344C5A464D39336535427378694D766D5A50
-    - 6E324777664D6C625830377375506B32346964524237654A763077496661796D
-  - - 50356F7275365A36393662304C4D4668504E6C6E39704C5842344D5A7A383275
-    - 72506C7775324C7554763633394133334E464F58644350734443693759483556
-  - - 766C703468775A5548594955324E524B783359664A7648777663554B4D636851
-    - 61374E56674E64305A704752685A7758497737314A544370764F49454457584A
-  - - 6B77386955643131616753687552613954754E6D65444F375A30463930626677
-    - 32774D474F474A766D5739523266697261675970633733416C50476A4C754E72
+updates: []
 
 # State - Epoch 10
 ---
@@ -1005,1230 +1077,1038 @@ epoch: 10
 records:
   - TreeNode:
       label:
-        val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-        len: 256
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
       latest_node:
         label:
-          val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: BEEBD4D0A5D81DA3B71088C0A8AE31DE14F92AA99642B362006A371608B9C965
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-        len: 256
-      latest_node:
-        label:
-          val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: FF753863F012831C90ED9BC8E7D7E2050CB718FF17F03493333680067C4DCF08
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-        len: 256
-      latest_node:
-        label:
-          val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-          len: 256
-        last_epoch: 6
-        least_descendent_ep: 6
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: E4C5FE4F9AAC34F5F78223F460D6FB3816D36146041D55F3C4B6AAB7068B695C
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        last_epoch: 8
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        right_child:
-          val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-          len: 256
-        hash: A78E3A4B10479223CA6E505A5D85BA2969E640ECAA7D9F99AF3C7AC8F73142F2
-      previous_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         last_epoch: 7
-        least_descendent_ep: 2
+        least_descendant_ep: 1
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         node_type: Interior
         left_child:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         right_child:
-          val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-          len: 256
-        hash: 2716B550BCB6DFEA4516BE6802AA6830DAD3933B78EA0EA6A18D41CD415282EB
-  - TreeNode:
-      label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        last_epoch: 8
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        right_child:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        hash: 59108C4DA4BF0FEA1D8E86A63BFF0B6C514905D73FB2D66E553B9D0DE1A99F29
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        hash: 571EA34808F0831540AE7E685894EDABD639EA36F0894B36A168F06022CE3F3D
       previous_node:
         label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 5
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        hash: 340AFE0F14B83ABF1832B0BD43F57F91DAD9CADA6FD02C57DEC646A8F4D16BE7
+  - TreeNode:
+      label:
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
+      latest_node:
+        label:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        right_child:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        hash: C17FE2D3EBE73E577C7E92BC7E6C045EDE0D5A0683756CE164BAB619CFF459DF
+      previous_node:
+        label:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 2
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        right_child:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        hash: EEAD67837E9FE12481A9E124C00F47F105F7D79CD7487AC29394E298F64E8A17
+  - TreeNode:
+      label:
+        label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        last_epoch: 3
+        least_descendant_ep: 3
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 90770228689458EEFDF16864084C950017BC1661AEA9CDD44C1D7B2A3E9322B8
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 1
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 7
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        right_child:
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        hash: 1ABAA3401CFFC8297A2C1EDFBB6BD2F379E2401BDFB8F1D38F4F4ADC8C9AC1DD
+      previous_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         last_epoch: 6
-        least_descendent_ep: 1
+        least_descendant_ep: 2
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Interior
         left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         right_child:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        hash: 1255EA40EE34C81FCE41D5356C671062044AAF04F57D4317DBCEE7AA6744A786
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        hash: DB9A047B951D8D5A34E567B95102B6803DD8A92B2D8D121ED85DB21F77E97ECE
   - TreeNode:
       label:
-        val: "1000000000000000000000000000000000000000000000000000000000000000"
-        len: 4
+        label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+        label_len: 7
       latest_node:
         label:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        last_epoch: 8
-        least_descendent_ep: 2
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        last_epoch: 6
+        least_descendant_ep: 5
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
         node_type: Interior
         left_child:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
         right_child:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        hash: ED5DA08F67695D0D2D62C4FD7729BA499902652D954137F1A4F7A0AD9DF40FCD
+          label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+          label_len: 256
+        hash: 661CC778B4E0E929AFCDA4D981E1A2BA4625ED9C67FBC2FB8379F6FE2DE9DCDD
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 7
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        hash: D5F62AE7015C8491C9312C0C1C72CADA910AEC5A7B18D63118937500BB6867CC
       previous_node:
         label:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 6
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
+        hash: 8F909EFDA1980E94BEA274350471CE4FF4318689DF5DDFB3C48741881F15BB5B
+  - TreeNode:
+      label:
+        label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
+      latest_node:
+        label:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 4
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+          label_len: 256
+        right_child:
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: B0801BF8319B318A174564BCAF4F52C8D467354AFCF890246A2FA980D6A2B9A4
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+        label_len: 256
+      latest_node:
+        label:
+          label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 723ECCF6434F1D6BB9DB710F08C6F4C23A56F857846993B25346B979BF8FF07A
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         last_epoch: 4
-        least_descendent_ep: 2
+        least_descendant_ep: 2
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Interior
         left_child:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
         right_child:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        hash: 57B4A8836E8BE163143B369B7C4EEC5CC5ED2EA62FD90D3D99A8FC3F4220E463
-  - TreeNode:
-      label:
-        val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-        len: 256
-      latest_node:
-        label:
-          val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-          len: 256
-        last_epoch: 1
-        least_descendent_ep: 1
-        parent:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: B74A15524C17B9E49AEE617AFBD5957E0D7AF541B1E3EAFB58DA7D627EDDB943
+          label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+          label_len: 256
+        hash: AE6DF5D9B14F3BB2019100C98FDF603DC10C98AED419EFA17114A75414B71382
       previous_node: ~
   - TreeNode:
       label:
-        val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-        len: 256
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 0
       latest_node:
         label:
-          val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-          len: 256
-        last_epoch: 1
-        least_descendent_ep: 1
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: ADCC175A7072C86AB5152DBA40D1A28441C1EAAD92578D3570F1052CF33472B1
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-        len: 256
-      latest_node:
-        label:
-          val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-          len: 256
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         last_epoch: 7
-        least_descendent_ep: 7
+        least_descendant_ep: 1
         parent:
-          val: D000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 590D7D0D4FF859DCA9A28EC26A3BF972830EEB2DCF2A9CC004C961985649B3D0
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 5
-      latest_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 6
-        least_descendent_ep: 1
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Interior
-        left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        right_child:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
-        hash: 40D2AD9F64333B45030A2BB5E2E31ABC74E4DB9E428CF819C284320D1FB8E8D2
-      previous_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Interior
-        left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        right_child:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
-        hash: 13BB3202847043568D1D6E81B84606F3F74F3B705781D2EE847B0A953D0A6BBD
-  - TreeNode:
-      label:
-        val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-        len: 256
-      latest_node:
-        label:
-          val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-          len: 256
-        last_epoch: 5
-        least_descendent_ep: 5
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 515E3062BB3E9609C8A6F0E2C2C746F9CC5C23BC8315968327B7E164118F28FB
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "1800000000000000000000000000000000000000000000000000000000000000"
-        len: 6
-      latest_node:
-        label:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        last_epoch: 8
-        least_descendent_ep: 3
-        parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        node_type: Interior
-        left_child:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        right_child:
-          val: 1BAFC2DC5E11D1A3123E22A53420C3BBABA16759A4DFBD76D8890DA6BF1F5C62
-          len: 256
-        hash: 1D2AEB990BE2DE1631B359108E81750B733C5FEAD8DAE7042363F1B530008B92
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: A800000000000000000000000000000000000000000000000000000000000000
-        len: 5
-      latest_node:
-        label:
-          val: A800000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 8
-        least_descendent_ep: 2
-        parent:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        node_type: Interior
-        left_child:
-          val: A805CEDF56D1B1A0AAD36EF3DC45B9999C453C6BE818E987D56BADDA32DA4CB1
-          len: 256
-        right_child:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
-        hash: A0BBD3C3AADB9B68D556983FDC3D3295D725774DE409898478A58B1DC86E2C86
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "9000000000000000000000000000000000000000000000000000000000000000"
-        len: 6
-      latest_node:
-        label:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Interior
-        left_child:
-          val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-          len: 256
-        right_child:
-          val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-          len: 256
-        hash: D9B597EBE98EE3DC7C33FFEFE3C8739D505DD3AC869AE9CFAA2ABB7DEC721202
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 3
-      latest_node:
-        label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        last_epoch: 6
-        least_descendent_ep: 1
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Interior
-        left_child:
-          val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-          len: 256
-        right_child:
-          val: "9000000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        hash: E88DF4396F961AE86EAE41B11375E101C08847E8169515FAA4FBF21B9A656E8B
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: D000000000000000000000000000000000000000000000000000000000000000
-        len: 5
-      latest_node:
-        label:
-          val: D000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        last_epoch: 8
-        least_descendent_ep: 7
-        parent:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        node_type: Interior
-        left_child:
-          val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-          len: 256
-        right_child:
-          val: D4C3B34E1DB12EA6BE29A6F8F11142401BDF5D7035FDADB40AFD21F9702F0261
-          len: 256
-        hash: 33B1ECF5E795F1D73587373B4AA48839A89E3C63A5ACA06A715B5B182948AFD1
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 7
-      latest_node:
-        label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
-        last_epoch: 5
-        least_descendent_ep: 1
-        parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Interior
-        left_child:
-          val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-          len: 256
-        right_child:
-          val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-          len: 256
-        hash: A3448031173D14A17817518A822C7947824347EDA66EBA53F9F70A70D7571DD8
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-        len: 256
-      latest_node:
-        label:
-          val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-          len: 256
-        last_epoch: 3
-        least_descendent_ep: 3
-        parent:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 48AA8A592178AB15373B0B3ACE7EC1DE7835A7EF9C01352684312B58F30FBF51
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 1
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        last_epoch: 8
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        right_child:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        hash: 2F0F735B4727FE265F537E1BBA77AAABE525F6238B1570E9D9AED0A9E9FD529D
-      previous_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        last_epoch: 7
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        right_child:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        hash: 89A0D023A5292D54C167071595F324824636AE6749E072AB91E3FB3792B34745
-  - TreeNode:
-      label:
-        val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-        len: 256
-      latest_node:
-        label:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        last_epoch: 3
-        least_descendent_ep: 3
-        parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 96E573EBF17EBFB5E4CBBA3CCC01E1C08BC02C47F7D5C78E4217E6E29EB002DD
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-        len: 256
-      latest_node:
-        label:
-          val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-          len: 256
-        last_epoch: 6
-        least_descendent_ep: 6
-        parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: D9E6B0373D031DE21095D8BAE0CFEE429BEA5E5C2B6CBAF5DBD414F7B84CAC3B
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "0000000000000000000000000000000000000000000000000000000000000000"
-        len: 0
-      latest_node:
-        label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        last_epoch: 8
-        least_descendent_ep: 1
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Root
         left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         right_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        hash: 29637E816E478A10660879B19AC9620856BF0C688BF0DE3426DFC162C49A51EF
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        hash: F6FE8A8A78D998FE12760E6399049486B1EC154EF0EAC1282996850DC7E0C293
       previous_node:
         label:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        last_epoch: 7
-        least_descendent_ep: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        last_epoch: 6
+        least_descendant_ep: 1
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Root
         left_child:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         right_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        hash: A185765E18E037D39A9192C7A42659CB6ADEEEFD228FAD8ED8CA7D1A46B677FB
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        hash: 943A688FAC897FFD938EC7B694E6426A21E2832A82BF5097B4418DD87E22E67F
   - TreeNode:
       label:
-        val: "6000000000000000000000000000000000000000000000000000000000000000"
-        len: 3
+        label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+        label_len: 256
       latest_node:
         label:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        last_epoch: 8
-        least_descendent_ep: 2
-        parent:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Interior
-        left_child:
-          val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-          len: 256
-        right_child:
-          val: "7400000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        hash: DBD79641389B38A9545E7F6B4B60D0E62662C4BD062C2C10A5CE10DAADC35F1E
-      previous_node:
-        label:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        last_epoch: 5
-        least_descendent_ep: 2
-        parent:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Interior
-        left_child:
-          val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-          len: 256
-        right_child:
-          val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-          len: 256
-        hash: FBE41C5DC65A8589EC6D16451C092369E97109C1290F3971C99B199D9E4B2B25
-  - TreeNode:
-      label:
-        val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-        len: 256
-      latest_node:
-        label:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
-        last_epoch: 2
-        least_descendent_ep: 2
-        parent:
-          val: A800000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: 53FE05220926C50E9C5714F65170CB173C7C58C3D69636378E2FDADB342123D2
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: FC00000000000000000000000000000000000000000000000000000000000000
-        len: 6
-      latest_node:
-        label:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        last_epoch: 6
-        least_descendent_ep: 3
-        parent:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        node_type: Interior
-        left_child:
-          val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-          len: 256
-        right_child:
-          val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-          len: 256
-        hash: 24F1243A36BC675BA3667A5322D30146B69F0CFEF3F99E622FBB76A112A77BE6
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-        len: 256
-      latest_node:
-        label:
-          val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-          len: 256
-        last_epoch: 2
-        least_descendent_ep: 2
-        parent:
-          val: "7400000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: AC6813FB6B82F3C9BBF212FF0BF9B1C593E6604F0E41C4B1EE9C1614A0FFBDFD
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "4000000000000000000000000000000000000000000000000000000000000000"
-        len: 2
-      latest_node:
-        label:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        last_epoch: 8
-        least_descendent_ep: 2
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-          len: 256
-        right_child:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        hash: C2042B886776C5B96E3C064709F292985022B054832204008C95570E0EE1D4EC
-      previous_node:
-        label:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+          label_len: 256
         last_epoch: 7
-        least_descendent_ep: 2
+        least_descendant_ep: 7
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        node_type: Interior
-        left_child:
-          val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-          len: 256
-        right_child:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        hash: 6CFD4C94459087ACE2C7876FE55BD44F9F75369B4A8DB7E8E650D50367A664B3
-  - TreeNode:
-      label:
-        val: 1BAFC2DC5E11D1A3123E22A53420C3BBABA16759A4DFBD76D8890DA6BF1F5C62
-        len: 256
-      latest_node:
-        label:
-          val: 1BAFC2DC5E11D1A3123E22A53420C3BBABA16759A4DFBD76D8890DA6BF1F5C62
-          len: 256
-        last_epoch: 8
-        least_descendent_ep: 8
-        parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 6
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: A0735FC57C4865A6E22DD365423641A8539A2929817CD244286C7BEA4F72CE0C
+        hash: 8FBDF2FE9E1DFABF4829872AE19540908EB09700854224D2811A323EC5F48E1A
       previous_node: ~
   - TreeNode:
       label:
-        val: "7400000000000000000000000000000000000000000000000000000000000000"
-        len: 6
+        label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+        label_len: 256
       latest_node:
         label:
-          val: "7400000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        last_epoch: 8
-        least_descendent_ep: 2
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
         parent:
-          val: "6000000000000000000000000000000000000000000000000000000000000000"
-          len: 3
-        node_type: Interior
-        left_child:
-          val: 748C06DEB17555788B8CD34201F9FAE3097D533AE73A750FB35B73E97E160955
-          len: 256
-        right_child:
-          val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-          len: 256
-        hash: 336664D48EEFCFAB4B442AEC57205C7E9DB97832C13E0C7FC005D541012D1449
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: "1800000000000000000000000000000000000000000000000000000000000000"
-        len: 5
-      latest_node:
-        label:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        last_epoch: 8
-        least_descendent_ep: 3
-        parent:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        node_type: Interior
-        left_child:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 6
-        right_child:
-          val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-          len: 256
-        hash: 975A693412D38C29A7D899DE6E09CC6AF62D4AB29D46C50CF719AE122E3EEAAB
-      previous_node:
-        label:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
-        last_epoch: 4
-        least_descendent_ep: 3
-        parent:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
-        node_type: Interior
-        left_child:
-          val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-          len: 256
-        right_child:
-          val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-          len: 256
-        hash: 63AF7A9D6E80BB1CD0785940962F82F0F8CBBDEF634CA1913A08411788D7EA58
-  - TreeNode:
-      label:
-        val: 748C06DEB17555788B8CD34201F9FAE3097D533AE73A750FB35B73E97E160955
-        len: 256
-      latest_node:
-        label:
-          val: 748C06DEB17555788B8CD34201F9FAE3097D533AE73A750FB35B73E97E160955
-          len: 256
-        last_epoch: 8
-        least_descendent_ep: 8
-        parent:
-          val: "7400000000000000000000000000000000000000000000000000000000000000"
-          len: 6
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 6F282CD0EABF8D540FA029B58800B203B279BB9C6BB3F1710200A77D4C6C84BC
+        hash: 21C382F6C2978B0A225996662CB55665D506E6302B38E293849660C30BF75C24
       previous_node: ~
   - TreeNode:
       label:
-        val: B000000000000000000000000000000000000000000000000000000000000000
-        len: 6
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 5
       latest_node:
         label:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        last_epoch: 6
-        least_descendent_ep: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        last_epoch: 7
+        least_descendant_ep: 2
         parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Interior
         left_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 7
+          label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+          label_len: 256
         right_child:
-          val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-          len: 256
-        hash: B4822D2172E4140C185CB4B7DBAA955775CC2A8E2F05D501FB4206E4CF175C66
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        hash: 78E2842F722E4E5FFE9E34DDF2561BD48B1CA7434CAA8199B944D4B6F9B4BBC6
       previous_node: ~
   - TreeNode:
       label:
-        val: A000000000000000000000000000000000000000000000000000000000000000
-        len: 3
+        label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+        label_len: 6
       latest_node:
         label:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
-        last_epoch: 8
-        least_descendent_ep: 1
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        last_epoch: 7
+        least_descendant_ep: 5
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         node_type: Interior
         left_child:
-          val: A800000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+          label_len: 256
         right_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        hash: 8D100216ABE0F17F9EE436AECDEDE255086098D6DD8AFD006A5A4CF0BCF432AE
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        hash: 881BB3509996314A5178B9DD39F4909D6B259F63BD1F53C20446DBD0B74EDDCD
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 2
+      latest_node:
+        label:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        last_epoch: 7
+        least_descendant_ep: 3
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        node_type: Interior
+        left_child:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        right_child:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: 3B1390E4D29B583260D35B5389D9C7BCBD9C97E5B3949030EBBE5B170B3B1589
       previous_node:
         label:
-          val: A000000000000000000000000000000000000000000000000000000000000000
-          len: 3
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         last_epoch: 6
-        least_descendent_ep: 1
+        least_descendant_ep: 3
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
         node_type: Interior
         left_child:
-          val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-          len: 256
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         right_child:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        hash: DFC5FC51E9608548B595904A2988985466BA3CACD805AD7CF2ACD0A30141088E
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        hash: 9407039F921FFC9215B77FF52CA7933C8039C0155D15FD60073DAEC96A0C71D6
   - TreeNode:
       label:
-        val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-        len: 256
+        label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+        label_len: 256
       latest_node:
         label:
-          val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-          len: 256
+          label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+          label_len: 256
+        last_epoch: 2
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 6AC3BDE2ABEE7BAE9D8F9435D71634AEAA2336B2ED6E16F0FC30E2F0A524A3E0
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 5D05A4153EA41555879070AC10A5ACD959BADBA7F5552A7CB504CFB115492136
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        last_epoch: 6
+        least_descendant_ep: 3
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        right_child:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        hash: D7DC60E87665D755B7769DFBA34EE340ABBA89DE4B0B41477F3D2DD023D0E538
+      previous_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         last_epoch: 5
-        least_descendent_ep: 5
+        least_descendant_ep: 3
         parent:
-          val: B000000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
+        right_child:
+          label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+          label_len: 256
+        hash: 767BCF2280177F77F427D59C5A7AF057993EA6826F3ABE07712AAF3CBEA93816
+  - TreeNode:
+      label:
+        label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+          label_len: 256
+        last_epoch: 1
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 9F0B76C2FF55B6E4947ECCDB290121E8FC48945B8AEA3D9E00EA833A4667D418
+        hash: 45627169C98C1A4FF8980B9A2DD366CB1610B208D23EE5A4EAEEE107CA69E1B8
       previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
+        parent:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 5A2404C174B3F0620A0562A250282D75344330FB3969C09FD0A742E3B6FC0CB7
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        last_epoch: 3
+        least_descendant_ep: 3
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: B8B3A5893CB6FB1C4FC34FAD95A63E61BFE66E87BA5EA8FF263000189A606AE8
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+          label_len: 256
+        last_epoch: 4
+        least_descendant_ep: 4
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: DBBA0386E5046EA5222F0E1FD8A86CCC113CF8C57E4564902FB71C0D40CE1071
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 7
+      latest_node:
+        label:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Interior
+        left_child:
+          label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+          label_len: 256
+        right_child:
+          label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+          label_len: 256
+        hash: 01A33DDEB4E8BD403C05C287E998E94B40A84EC924DBE446AE81A3F72B0E925B
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 4
+      latest_node:
+        label:
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        last_epoch: 4
+        least_descendant_ep: 4
+        parent:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        node_type: Interior
+        left_child:
+          label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+          label_len: 256
+        right_child:
+          label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+          label_len: 256
+        hash: 2D6198E41F52D33A1C68E053ED912C9E68566EC4BB1D988A8EAFB30E11E486F1
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 0493A983ABDBE41810BBA9D54D2804577A3DC2B41E974B5A07C9005DEBBBCD35
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 3
+      latest_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 4
+        least_descendant_ep: 2
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        node_type: Interior
+        left_child:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        right_child:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        hash: 780E9DF458C59A7AA9197429A38E9ED5C0379A6C57E9E0E9A963D7CA36764367
+      previous_node:
+        label:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
+        last_epoch: 3
+        least_descendant_ep: 2
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
+        right_child:
+          label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+          label_len: 256
+        hash: 827EBE3E299733ADE8C9FA8CC59B0B0ADA2BC99DB9B0AC46B63687DA638F512E
   - Azks:
-      latest_epoch: 8
-      num_nodes: 43
+      latest_epoch: 7
+      num_nodes: 37
   - TreeNode:
       label:
-        val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-        len: 256
+        label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+        label_len: 256
       latest_node:
         label:
-          val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-          len: 256
+          label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+          label_len: 256
+        last_epoch: 5
+        least_descendant_ep: 5
+        parent:
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 3FBE1AEE46DAB8D35BA1D74454A0DB9DCE33917A8A99B44A720FF8F00752D0D0
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+          label_len: 256
+        last_epoch: 7
+        least_descendant_ep: 7
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 2CDFE135F99FD606C2850C97CE07C4AE7A251F8900A1E2D47885BEBDFACFADD0
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+          label_len: 256
         last_epoch: 2
-        least_descendent_ep: 2
+        least_descendant_ep: 2
         parent:
-          val: "1000000000000000000000000000000000000000000000000000000000000000"
-          len: 4
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 8D0417650E053E0FD51DC5607F9817E85572708031729C804504282ABDB0230C
+        hash: 83937D4BF9DBCEB006895AC0B363E3ECD2C2CD80AB00A90B978F47521AEA2BE4
       previous_node: ~
   - TreeNode:
       label:
-        val: "8000000000000000000000000000000000000000000000000000000000000000"
-        len: 1
+        label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+        label_len: 256
       latest_node:
         label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
-        last_epoch: 8
-        least_descendent_ep: 1
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        right_child:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        hash: 20D01710BB2FE080F66D36B7000CE5D1A2E7929DF608551438EF22E20F589067
-      previous_node:
-        label:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+          label_len: 256
         last_epoch: 7
-        least_descendent_ep: 1
+        least_descendant_ep: 7
         parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 0
-        node_type: Interior
-        left_child:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        right_child:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        hash: C7326F250E314264161F3C8064A943386547F742BAAC0AB1D9B408135F1DA0FA
-  - TreeNode:
-      label:
-        val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-        len: 256
-      latest_node:
-        label:
-          val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-          len: 256
-        last_epoch: 7
-        least_descendent_ep: 7
-        parent:
-          val: "4000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
+          label_val: "2800000000000000000000000000000000000000000000000000000000000000"
+          label_len: 6
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: C284727DBC89D0883249BAF208B8BCA833B78D3B7975F0743457A65138B2C74D
+        hash: 6BAB2E5412798C5D91A7E18D203E39A2E867DB05485A78258C3E10DBBC5FBA7B
       previous_node: ~
   - TreeNode:
       label:
-        val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-        len: 256
+        label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 5
       latest_node:
         label:
-          val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-          len: 256
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 5
         last_epoch: 6
-        least_descendent_ep: 6
+        least_descendant_ep: 5
         parent:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: A0EBBBA33A04D23D31E220AAEE12E50BDC5B220A56B4F06F0F80FBF110E2FA44
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Interior
+        left_child:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        right_child:
+          label_val: "6600000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        hash: C7F5B2FBC96F291E5AC632215822913ABDDD96328C29E13E73A093ECAD386E92
       previous_node: ~
   - TreeNode:
       label:
-        val: C000000000000000000000000000000000000000000000000000000000000000
-        len: 2
+        label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+        label_len: 256
       latest_node:
         label:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        last_epoch: 8
-        least_descendent_ep: 3
+          label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+          label_len: 256
+        last_epoch: 4
+        least_descendant_ep: 4
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 2AF132337318392123EEB102284D91020FE6765FC79591E8E3C28A846D65F306
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+        label_len: 256
+      latest_node:
+        label:
+          label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+          label_len: 256
+        last_epoch: 6
+        least_descendant_ep: 6
+        parent:
+          label_val: "6000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 7
+        node_type: Leaf
+        left_child: ~
+        right_child: ~
+        hash: 3E3D161F40956B43142D7DE5A72688BFE3337C3A3FAD7F858FC4FE4E2108C2B9
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: A000000000000000000000000000000000000000000000000000000000000000
+        label_len: 3
+      latest_node:
+        label:
+          label_val: A000000000000000000000000000000000000000000000000000000000000000
+          label_len: 3
+        last_epoch: 7
+        least_descendant_ep: 6
+        parent:
+          label_val: "8000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         node_type: Interior
         left_child:
-          val: D000000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+          label_len: 256
         right_child:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        hash: 99769D461FF6A75411ACC5495023F4BDBE663C7CAB811ECC45255C11AFA875B7
+          label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+          label_len: 256
+        hash: E2F0324A6739F7B00499C9CBC13ADB910E7640AE53CE948A575B715FEBCB0527
+      previous_node: ~
+  - TreeNode:
+      label:
+        label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+        label_len: 1
+      latest_node:
+        label:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 7
+        least_descendant_ep: 1
+        parent:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
+        node_type: Interior
+        left_child:
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        right_child:
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        hash: 594CAF4024443C3D2089AB5C5BEDA40534CB9ED3B4B4D65B23A9EC4243FF43BB
       previous_node:
         label:
-          val: C000000000000000000000000000000000000000000000000000000000000000
-          len: 2
-        last_epoch: 7
-        least_descendent_ep: 3
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 1
+        last_epoch: 6
+        least_descendant_ep: 1
         parent:
-          val: "8000000000000000000000000000000000000000000000000000000000000000"
-          len: 1
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 0
         node_type: Interior
         left_child:
-          val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-          len: 256
+          label_val: "0000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
         right_child:
-          val: FC00000000000000000000000000000000000000000000000000000000000000
-          len: 6
-        hash: CF9FEE075E3327A41B3F511486453E54B868FCCF98A49916E8CEC826BA6002A8
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 2
+        hash: 33A1FD8F674B067A3AC7F56CCE20635303BBA8E4E861155EC7A5827A25DEB3AA
   - TreeNode:
       label:
-        val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-        len: 256
+        label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+        label_len: 256
       latest_node:
         label:
-          val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-          len: 256
-        last_epoch: 7
-        least_descendent_ep: 7
-        parent:
-          val: "0000000000000000000000000000000000000000000000000000000000000000"
-          len: 2
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: CFBE6A08CFE0147C76B9ABE0B40AD9983D7FD32B60CA503AB92066E0D984807E
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: A805CEDF56D1B1A0AAD36EF3DC45B9999C453C6BE818E987D56BADDA32DA4CB1
-        len: 256
-      latest_node:
-        label:
-          val: A805CEDF56D1B1A0AAD36EF3DC45B9999C453C6BE818E987D56BADDA32DA4CB1
-          len: 256
-        last_epoch: 8
-        least_descendent_ep: 8
-        parent:
-          val: A800000000000000000000000000000000000000000000000000000000000000
-          len: 5
-        node_type: Leaf
-        left_child: ~
-        right_child: ~
-        hash: C54B52124D8394A9068E96E8FF3230385C1FF88B133C54AA9295A4B6EF8C04EA
-      previous_node: ~
-  - TreeNode:
-      label:
-        val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-        len: 256
-      latest_node:
-        label:
-          val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-          len: 256
+          label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+          label_len: 256
         last_epoch: 4
-        least_descendent_ep: 4
+        least_descendant_ep: 4
         parent:
-          val: "1800000000000000000000000000000000000000000000000000000000000000"
-          len: 5
+          label_val: "5000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 4
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 73684149233A296A9A8118D98BA2AB703AFF012089643F08F0473A1EE8536EAC
+        hash: 2938BF394DCF83BBAA356544850EE4FA00D5B64061C63424FD33809F824C148A
       previous_node: ~
   - TreeNode:
       label:
-        val: D4C3B34E1DB12EA6BE29A6F8F11142401BDF5D7035FDADB40AFD21F9702F0261
-        len: 256
+        label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+        label_len: 256
       latest_node:
         label:
-          val: D4C3B34E1DB12EA6BE29A6F8F11142401BDF5D7035FDADB40AFD21F9702F0261
-          len: 256
-        last_epoch: 8
-        least_descendent_ep: 8
+          label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+          label_len: 256
+        last_epoch: 7
+        least_descendant_ep: 7
         parent:
-          val: D000000000000000000000000000000000000000000000000000000000000000
-          len: 5
+          label_val: "4000000000000000000000000000000000000000000000000000000000000000"
+          label_len: 3
         node_type: Leaf
         left_child: ~
         right_child: ~
-        hash: 53A52452E860752A5A442EA2907518870C294600D88FBE7641871913A9CD7AC5
+        hash: 4A69BA3A1BE6292B9BAF0384DA7C0EF455940A2E5F8607AA39127DC51873EF14
       previous_node: ~
   - ValueState:
-      plaintext_val: 77715A413769357258613866313231664A585533624F6F6B74714E6965504162
+      plaintext_val: 444469576B38786D4832796C706344637752377536524D66414C61326B594237
       version: 1
       label:
-        val: 922E47D8E10917FA31CDEC4E61AF793824772D10A8B923E68C8D6149D3437D08
-        len: 256
-      epoch: 5
-      username: 6C5874436833696C44313350613166366A3946457A673053336267644348395A
-  - ValueState:
-      plaintext_val: 7958696C67675A7073476D6155436C757432414B50784C58734C6B3741615655
-      version: 1
-      label:
-        val: 14BD2735D0FE23762E9D36B4F65F01C68EC7641C0046517A5FBA0F0F7EBA36AF
-        len: 256
-      epoch: 2
-      username: 6C6F6976513061574C4B554E6875726B5A72723538334A5A584159554F394550
-  - ValueState:
-      plaintext_val: 6E324777664D6C625830377375506B32346964524237654A763077496661796D
-      version: 1
-      label:
-        val: 748C06DEB17555788B8CD34201F9FAE3097D533AE73A750FB35B73E97E160955
-        len: 256
-      epoch: 8
-      username: 587837466330704A525550706C54344C5A464D39336535427378694D766D5A50
-  - ValueState:
-      plaintext_val: 4842697374496238324C704C636871553257644E62465551615538434D444953
-      version: 1
-      label:
-        val: 76492A48AE9A86EA43209EF05FBB366AB71C9B758F815E4EA74D7D5F61CE4B9B
-        len: 256
-      epoch: 2
-      username: 5039525A623165476B325A7A54747857775A6E5771636352386F527438576447
-  - ValueState:
-      plaintext_val: 5A474A7873716C7A5A62786F43427236496E6173477554614856326E38386339
-      version: 1
-      label:
-        val: FCA1598D989B140AC95530C4ABC5472CDC6FA55561464966412D8171D8951837
-        len: 256
-      epoch: 3
-      username: 3745465548646C554E49566C4B7844684D7273454243546B45324C526D5A7363
-  - ValueState:
-      plaintext_val: 3250474A67594431685272337A4E4372726259394769316D485761724F653456
-      version: 1
-      label:
-        val: 223E2D18098E82AC260B10573735A69B8127F06550264A932A0D05D9D718D810
-        len: 256
+        label_val: 03CF39BEE14A24E1CB2A9AE2561422B2C3AB0346D5DA412D295DD95C40DF02BA
+        label_len: 256
       epoch: 7
-      username: 6B4C3269496F784867537634383476696A70666C5A76514B56733865744D4334
+      username: 4941797377796E6D3343617A76634A7162753866726E716E6D524E377142634D
   - ValueState:
-      plaintext_val: 5279686471747546534679437053705367597144344F306A436C4E66646F324C
+      plaintext_val: 73376D4178336A6D346D4B524D7877424551596F4E6F793867616D55554A795A
       version: 1
       label:
-        val: 18F14022442807AA07B7ADB1046851FE172930B772454B2BD7BD37F7768490FC
-        len: 256
-      epoch: 3
-      username: 4D7375676D584A42454B6856784D71514F4E65354F376A755451576469753246
+        label_val: 662741829F48A5BD5C8D73F311B8D762FA588C4B526911E4D18C631FDC92AB40
+        label_len: 256
+      epoch: 5
+      username: 6C7456313964656D5141363365794E346F4C756845694C4C47687856356E3158
   - ValueState:
-      plaintext_val: 3247565067644F6D57704B6D6C5231504A77436B3133304755726364655A4773
+      plaintext_val: 51715071695077794F5A374137554F615866656C776A37587057713132706337
       version: 1
       label:
-        val: 918DE3C1290259B5620F21668C5A43085C27ABA934922EEA910FE5F400C5433E
-        len: 256
+        label_val: AEDCFFB8E67AF702B4308E26658EB0C275478F45A899E3BB36F87380B77BB668
+        label_len: 256
+      epoch: 6
+      username: 794473444A364C52755870555066766B546D4E306E684D326B4E613248744742
+  - ValueState:
+      plaintext_val: 6C7338686C7352735467385543644F4D514169357639386B36504835556C7837
+      version: 1
+      label:
+        label_val: 28D60E486FD3B1110798937604C52DDBEA0CE55C42E0FED1D5063943C3BC3ACD
+        label_len: 256
+      epoch: 7
+      username: 6E6134533968476D3263646D426D7473326247585A3335337050546B766B6C43
+  - ValueState:
+      plaintext_val: 534F724B446165514B3749427647627A49556F75435A4134656A77575030664F
+      version: 1
+      label:
+        label_val: 19F22D94196C67342FCEA2919C04BF2A0A1A9BB6A26FD6BDE46A50DE019391E2
+        label_len: 256
       epoch: 1
-      username: 766F67394331614E4B704F793353474A78376864546C334A7A76673577624E35
+      username: 55724B78347667357A724279454E43756D644F3434544F6630794977496C654A
   - ValueState:
-      plaintext_val: 705455344E42416C343167697438775343774C784F596E547043343735304F4A
+      plaintext_val: 4E39774A6B346B423238315059584268756B657064304C356B6F6C6C3653524E
       version: 1
       label:
-        val: D3862020C781983F009DB56C33B4DFF345549F1DBCA8081C1DD9BA822D7688D8
-        len: 256
-      epoch: 7
-      username: 36755370743942677049414C4B43416E4F55327951634F46646334595A733536
-  - ValueState:
-      plaintext_val: 463873583942654A4E7A4637414F4A4365364E3966524538364F57424864576A
-      version: 1
-      label:
-        val: B18AA89F7E57D1719DC6DC419DC43673F995BA7CA6ED458050876E5362654F96
-        len: 256
-      epoch: 5
-      username: 6B696E6D46676F65316C467039484B4F393054424761454B42717A5833343031
-  - ValueState:
-      plaintext_val: 47317A586754464D59796E747950316B4C577A3455715A7A4C5A47525A64526B
-      version: 1
-      label:
-        val: FE7F27808FC2730D6D4A765D7CE15CCD52A9AD64276FF22470E4F3834E7469AD
-        len: 256
-      epoch: 6
-      username: 72786E474F6B70336D3348327450555536616557373270554B35585A6536654D
-  - ValueState:
-      plaintext_val: 72693434464E553051736D483777424D365556645239466E785477584D663869
-      version: 1
-      label:
-        val: AFA3177CD8706F1408B9BA702E68F956E7F0F0DCD880D62B6F466070D227BD25
-        len: 256
-      epoch: 2
-      username: 55366F4671315A575A7176514E56593436516C716F6A5161616A623356786A77
-  - ValueState:
-      plaintext_val: 4742476E625333457461594C41506B556F4948495435577A7154716662354C61
-      version: 1
-      label:
-        val: B03533A33EC84B1B4DC42AE51EE8C0A134D958CF9063AF6EDEF92AA7F29A9BB5
-        len: 256
-      epoch: 1
-      username: 6D7A3879366F653769696A34767A6A6E70633550734B61445554414F684D514E
-  - ValueState:
-      plaintext_val: 6D4F433458564D73383842735A6C4D456E44427035536F663479304E51535172
-      version: 1
-      label:
-        val: B47830A50C1E0B775A2803A8765118C462921A2C59C47948716090FA796A90F9
-        len: 256
-      epoch: 5
-      username: 70626A7374796E746C365065334542636A4E696341446B31444549305077626F
-  - ValueState:
-      plaintext_val: 5977347944766D72485377333038304F46626137716C4E5350474B426F43746D
-      version: 1
-      label:
-        val: 88C2E779D415023E331C94CBBD069621A3924998C7E113533F8475068C6AE6DC
-        len: 256
-      epoch: 6
-      username: 535564554F6A664C7A36734E7A4552794678616B774B4346526C64754D387668
-  - ValueState:
-      plaintext_val: 31724838384A494A394B7474476A563669684439624C4F344C6E523557634B64
-      version: 1
-      label:
-        val: 4857961BE8C6C9ADF6890A1A68A33196D96C59CE697EA44D9E2CF1B2D90508BC
-        len: 256
-      epoch: 7
-      username: 5A4846614A5A373547336E726765427641416277435358474D6C77716D754168
-  - ValueState:
-      plaintext_val: 61374E56674E64305A704752685A7758497737314A544370764F49454457584A
-      version: 1
-      label:
-        val: 1BAFC2DC5E11D1A3123E22A53420C3BBABA16759A4DFBD76D8890DA6BF1F5C62
-        len: 256
-      epoch: 8
-      username: 766C703468775A5548594955324E524B783359664A7648777663554B4D636851
-  - ValueState:
-      plaintext_val: 32774D474F474A766D5739523266697261675970633733416C50476A4C754E72
-      version: 1
-      label:
-        val: D4C3B34E1DB12EA6BE29A6F8F11142401BDF5D7035FDADB40AFD21F9702F0261
-        len: 256
-      epoch: 8
-      username: 6B77386955643131616753687552613954754E6D65444F375A30463930626677
-  - ValueState:
-      plaintext_val: 6B68303643704742364F56474A31334941706564434F4B4F4933574745774959
-      version: 1
-      label:
-        val: 61B6CF9432424B3139006A631373FA7C62226FEBCD8942868BC2EA1812C3919A
-        len: 256
-      epoch: 5
-      username: 7052486F6162506E756964564355357077544C36534B6C4C694873726A7A5531
-  - ValueState:
-      plaintext_val: 72506C7775324C7554763633394133334E464F58644350734443693759483556
-      version: 1
-      label:
-        val: A805CEDF56D1B1A0AAD36EF3DC45B9999C453C6BE818E987D56BADDA32DA4CB1
-        len: 256
-      epoch: 8
-      username: 50356F7275365A36393662304C4D4668504E6C6E39704C5842344D5A7A383275
-  - ValueState:
-      plaintext_val: 725353736A73373351527333394E3269654361386C4C3733376D394177355443
-      version: 1
-      label:
-        val: B3115786A09AB0A9C0E0F6E76360F158576F9FB0D7F2A7047CC30672997C4782
-        len: 256
-      epoch: 6
-      username: 6C41613674554755535A6A755141793042786D4E39663632726A50365A35394A
-  - ValueState:
-      plaintext_val: 364752385062676B3235764F69767461757A5347345A394A6D30693757596677
-      version: 1
-      label:
-        val: 1F9B54A8A00C993C2B9FAF9563275A9DBA07F63E9CA36169A5A42DC6DC267121
-        len: 256
+        label_val: 8FFBD676B5FE0D6E7035A3B326962823C5C58B90D4C2DE500A00A3944AC03C5A
+        label_len: 256
       epoch: 4
-      username: 655969414F584457633632496D53754C7A4C6F506C6F584A304F585578466975
+      username: 68556A335635454332465944796F7638614F53546D64474D4F52636873735332
+  - ValueState:
+      plaintext_val: 486E6E375061384C544D57753976476D6277474674394434555A345353506761
+      version: 1
+      label:
+        label_val: 6B44031AA7BB842CB94AE41A485B10382EB5D4769C0EE3A45396C6041D181731
+        label_len: 256
+      epoch: 3
+      username: 5A6A58775A65346C6D5145504B5356795257615A4A726C6B6655725749464431
+  - ValueState:
+      plaintext_val: 734A356371484D73455A46744B394A7056304E7A317874326979647866695466
+      version: 1
+      label:
+        label_val: 5200A5714B04F5FE02124DD20EC5AD0A09B22D8DCC3B0CBBA400FE42194ABA7C
+        label_len: 256
+      epoch: 4
+      username: 717869613358677632647A6150516D37385A7074344B416E6A51584662584870
+  - ValueState:
+      plaintext_val: 414A3069783546764F7075337A737235383353364B4339576261764453526242
+      version: 1
+      label:
+        label_val: 6740C58DF1415FA1ECB50FE484C02D15DC4EEC822B80B46718F058B9005C75AB
+        label_len: 256
+      epoch: 6
+      username: 4334637462627161536A42756D514A4F4769614832416E6378454D554837744C
+  - ValueState:
+      plaintext_val: 66344F6F66734F774434627A4865664D326E4F30654844766A4F66337A725633
+      version: 1
+      label:
+        label_val: 6000E55800C8E190A56E4AFCAE4CA6D225C59FB2A2BB1FB2FFF9C1E7C4FCA82A
+        label_len: 256
+      epoch: 6
+      username: 5772515A326B686930596F4E736F44476D594E634130594E69425457334C355A
+  - ValueState:
+      plaintext_val: 4C4F364778674A584F766C4F6E667A56653076776A6466304659354838475870
+      version: 1
+      label:
+        label_val: 5E21660C73D68FCBF3F7917A72093C8C3F3727276532B31718C77C9C140944F2
+        label_len: 256
+      epoch: 4
+      username: 38453631424F6856516441464635635558434B4C647A6D535A543930474E6552
+  - ValueState:
+      plaintext_val: 384452416974656F726438485772693047647341795863374F7342786769415A
+      version: 1
+      label:
+        label_val: 610072CE1E076F09D9A40B8130BC9C51DFD76BD39D0C9D615EFC52166AFC7BA9
+        label_len: 256
+      epoch: 6
+      username: 6175753175505141566852564B4C34764B793557653469355830576576464458
+  - ValueState:
+      plaintext_val: 4D5374386370773143334B48374662704C3849596F666B5635646A447A676845
+      version: 1
+      label:
+        label_val: 9003BBE48B6D2FE44C69CF6EAEA3BF78920175C9137FEB1083C8147A84E90D78
+        label_len: 256
+      epoch: 3
+      username: 6A7A3357756C483848304B6B5A636B423667636B494C614A666D6A316576564B
+  - ValueState:
+      plaintext_val: 5452334D637059637945366E6B32457733713337773979477A6941673138714C
+      version: 1
+      label:
+        label_val: 2B767EEC6A1C45D15820B0D03FA0D2EC55E79A1CFC38322213FD172CFDDF862A
+        label_len: 256
+      epoch: 5
+      username: 456C384F62694B364149716B49436F4B76566878567A64376A70736A49494875
+  - ValueState:
+      plaintext_val: 663555416771504C3077426D7845656F536D4861506D7071306F476C48493065
+      version: 1
+      label:
+        label_val: DEAC2423F4DE98C701E3259D2E5C4FF49835720E1D26657EC6CD1AFBE925D7DE
+        label_len: 256
+      epoch: 5
+      username: 42773073374D557648356F3756354351394C6931676C6B306736694135775755
+  - ValueState:
+      plaintext_val: 3850516C5A55756F526A43584363564E336A7677515862694C41696363704F39
+      version: 1
+      label:
+        label_val: 07BEF721DA45F7F053DDE0F100319FEDED8FBA883F357C7B1D26369AF67968D8
+        label_len: 256
+      epoch: 2
+      username: 596E326C4C4173354B6F54757935516D3443516554796463736874334A6E3034
+  - ValueState:
+      plaintext_val: 75314575354D77597279464D6F5A74646C736732736246765130393872433047
+      version: 1
+      label:
+        label_val: BF461B82AF8A8D3D5035A2DB6EF58E6F52ED8648D714A96E4480F49DE766C859
+        label_len: 256
+      epoch: 7
+      username: 79707572553772694E50427450496D33447061687475536C4A41453059774469
+  - ValueState:
+      plaintext_val: 386138316A62715A614D4B6A61574878676F33395673486E3047304949457763
+      version: 1
+      label:
+        label_val: 4ED295392315A9F184D2049B63426657573075000DFD0D13577FEA28BBC57192
+        label_len: 256
+      epoch: 7
+      username: 725A49365A445179697A6259713663425053676373495A6B7A694C6E30374F52
+  - ValueState:
+      plaintext_val: 7349464164414F386A71754143436E4E3759676A454D52524B71586D6A796457
+      version: 1
+      label:
+        label_val: 82321D5C397F89CA25B822CA2A7E8AB5D56E156CFBB71365E717D438A327ED37
+        label_len: 256
+      epoch: 2
+      username: 725567653051506D565866526D685971696474637645575559734637344F3937

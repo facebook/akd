@@ -8,7 +8,7 @@
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
 use crate::errors::StorageError;
-use crate::node_state::byte_arr_from_u64;
+use crate::node_label::byte_arr_from_u64;
 use crate::storage::types::*;
 use crate::storage::Storage;
 use crate::tree_node::*;
@@ -83,7 +83,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
         label: NodeLabel::new(byte_arr_from_u64(13), 4),
         last_epoch: 34,
         // FIXME: what should least_child_ep really be?
-        least_descendent_ep: 1,
+        least_descendant_ep: 1,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
         left_child: None,
@@ -167,8 +167,8 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
                 plaintext_val: AkdValue(value.clone()),
                 version: epoch,
                 label: NodeLabel {
-                    val: byte_arr_from_u64(1),
-                    len: 1u32,
+                    label_val: byte_arr_from_u64(1),
+                    label_len: 1u32,
                 },
                 epoch,
                 username: AkdLabel(user.clone()),
@@ -330,8 +330,8 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
                 plaintext_val: AkdValue(value.clone()),
                 version: 1u64,
                 label: NodeLabel {
-                    val: byte_arr_from_u64(1),
-                    len: 1u32,
+                    label_val: byte_arr_from_u64(1),
+                    label_len: 1u32,
                 },
                 epoch,
                 username: AkdLabel(user.clone()),
@@ -399,8 +399,8 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
         plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
-            val: byte_arr_from_u64(1),
-            len: 1u32,
+            label_val: byte_arr_from_u64(1),
+            label_len: 1u32,
         },
         epoch: 1u64,
         username: AkdLabel(rand_user),
@@ -593,8 +593,8 @@ async fn test_tombstoning_data<S: Storage + Sync + Send>(
         plaintext_val: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
-            val: byte_arr_from_u64(1),
-            len: 1u32,
+            label_val: byte_arr_from_u64(1),
+            label_len: 1u32,
         },
         epoch: 1u64,
         username: AkdLabel(rand_user.clone()),
