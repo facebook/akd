@@ -16,7 +16,7 @@ use winter_crypto::Hasher;
 use crate::{storage::types::ValueState, NodeLabel};
 
 /// Represents a node's label & associated hash
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -50,7 +50,7 @@ impl<H: Hasher> Clone for Node<H> {
 }
 
 /// Root hash of the tree and its associated epoch
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct EpochHash<H: Hasher>(pub u64, pub H::Digest);
 
 #[derive(Clone)]

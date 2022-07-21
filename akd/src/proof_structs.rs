@@ -10,9 +10,7 @@
 
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{digest_deserialize, digest_serialize};
-use crate::{
-    helper_structs::Node, node_label::NodeLabel, storage::types::AkdValue, Direction, ARITY,
-};
+use crate::{node_label::NodeLabel, storage::types::AkdValue, Direction, Node, ARITY};
 use winter_crypto::Hasher;
 
 /// Proof value at a single layer of the tree

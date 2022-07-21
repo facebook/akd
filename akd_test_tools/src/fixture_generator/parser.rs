@@ -37,7 +37,7 @@ pub struct User {
 /// This tool allows a directory to be created with specified and random
 /// contents, capturing the directory state and epoch-to-epoch delta in
 /// an output file for use in debugging and as test fixtures.
-#[derive(Parser, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Parser, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[clap(setting = AppSettings::DeriveDisplayOrder)]
 pub struct Args {
     /// Users and their associated key update events.

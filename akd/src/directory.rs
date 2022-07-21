@@ -10,8 +10,8 @@
 use crate::append_only_zks::Azks;
 
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
-use crate::helper_structs::{EpochHash, LookupInfo, Node};
 use crate::proof_structs::*;
+use crate::{helper_structs::LookupInfo, EpochHash, Node};
 
 use crate::errors::{AkdError, DirectoryError, StorageError};
 

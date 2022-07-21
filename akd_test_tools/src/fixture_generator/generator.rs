@@ -45,7 +45,7 @@ pub struct Delta {
 
 /// Metadata about the output, including arguments passed to this tool and
 /// the tool version.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metadata {
     pub args: Args,
     pub version: String,
