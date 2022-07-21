@@ -151,8 +151,14 @@ impl MySqlStorable for DbRecord {
                 DbRecord::TreeNode(node) => {
                     let pnode = &node.previous_node;
                     Ok(vec![
-                        (format!("label_len{}", idx), Value::from(node.label.label_len)),
-                        (format!("label_val{}", idx), Value::from(node.label.label_val)),
+                        (
+                            format!("label_len{}", idx),
+                            Value::from(node.label.label_len),
+                        ),
+                        (
+                            format!("label_val{}", idx),
+                            Value::from(node.label.label_val),
+                        ),
                         (
                             format!("last_epoch{}", idx),
                             Value::from(node.latest_node.last_epoch),
@@ -212,19 +218,35 @@ impl MySqlStorable for DbRecord {
                         ),
                         (
                             format!("p_left_child_len{}", idx),
-                            Value::from(pnode.clone().and_then(|a| a.left_child.map(|lc| lc.label_len))),
+                            Value::from(
+                                pnode
+                                    .clone()
+                                    .and_then(|a| a.left_child.map(|lc| lc.label_len)),
+                            ),
                         ),
                         (
                             format!("p_left_child_label_val{}", idx),
-                            Value::from(pnode.clone().and_then(|a| a.left_child.map(|lc| lc.label_val))),
+                            Value::from(
+                                pnode
+                                    .clone()
+                                    .and_then(|a| a.left_child.map(|lc| lc.label_val)),
+                            ),
                         ),
                         (
                             format!("p_right_child_len{}", idx),
-                            Value::from(pnode.clone().and_then(|a| a.right_child.map(|rc| rc.label_len))),
+                            Value::from(
+                                pnode
+                                    .clone()
+                                    .and_then(|a| a.right_child.map(|rc| rc.label_len)),
+                            ),
                         ),
                         (
                             format!("p_right_child_label_val{}", idx),
-                            Value::from(pnode.clone().and_then(|a| a.right_child.map(|rc| rc.label_val))),
+                            Value::from(
+                                pnode
+                                    .clone()
+                                    .and_then(|a| a.right_child.map(|rc| rc.label_val)),
+                            ),
                         ),
                         (
                             format!("p_hash{}", idx),
