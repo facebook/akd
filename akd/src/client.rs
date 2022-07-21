@@ -14,7 +14,7 @@ use crate::{
     ecvrf::VRFPublicKey,
     errors::TreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
-    node_state::{hash_label, NodeLabel},
+    node_label::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,
@@ -25,7 +25,7 @@ pub fn verify_membership<H: Hasher>(
     root_hash: H::Digest,
     proof: &MembershipProof<H>,
 ) -> Result<(), AkdError> {
-    if proof.label.len == 0 {
+    if proof.label.label_len == 0 {
         let final_hash = H::merge(&[proof.hash_val, hash_label::<H>(proof.label)]);
         if final_hash == root_hash {
             return Ok(());
@@ -81,8 +81,8 @@ pub fn verify_nonmembership<H: Hasher>(
 
     if lcp_real == EMPTY_LABEL {
         lcp_real = NodeLabel {
-            val: [0u8; 32],
-            len: 0,
+            label_val: [0u8; 32],
+            label_len: 0,
         };
     }
 
@@ -296,7 +296,7 @@ fn verify_single_update_proof<H: Hasher>(
     let existence_at_ep = &proof.existence_at_ep;
     let existence_at_ep_label = existence_at_ep.label;
 
-    let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
+    let previous_val_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
         (true, bytes) if bytes.0 == crate::TOMBSTONE => {
@@ -356,7 +356,7 @@ fn verify_single_update_proof<H: Hasher>(
         let vrf_previous_null_err =
             AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(vrf_err_str));
         let previous_val_vrf_proof = proof
-            .previous_val_vrf_proof
+            .previous_version_vrf_proof
             .as_ref()
             .ok_or(vrf_previous_null_err)?;
         vrf_pk.verify_label::<H>(

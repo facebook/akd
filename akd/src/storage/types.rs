@@ -119,7 +119,7 @@ pub struct ValueState {
 }
 
 impl crate::storage::Storable for ValueState {
-    type Key = ValueStateKey;
+    type StorageKey = ValueStateKey;
 
     fn data_type() -> StorageType {
         StorageType::ValueState
@@ -264,7 +264,7 @@ impl DbRecord {
         label_val: [u8; 32],
         label_len: u32,
         last_epoch: u64,
-        least_descendent_ep: u64,
+        least_descendant_ep: u64,
         parent_label_val: [u8; 32],
         parent_label_len: u32,
         node_type: u8,
@@ -275,7 +275,7 @@ impl DbRecord {
         TreeNode {
             label: NodeLabel::new(label_val, label_len),
             last_epoch,
-            least_descendent_ep,
+            least_descendant_ep,
             parent: NodeLabel::new(parent_label_val, parent_label_len),
             node_type: NodeType::from_u8(node_type),
             left_child,

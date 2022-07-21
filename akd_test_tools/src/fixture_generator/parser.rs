@@ -21,14 +21,14 @@ const EVENT_PATTERN: &str = r"\d+|(\(\s*(\d+)\s*,\s*'(\w*)'\s*\))";
 
 /// A key update the tool should include in the tree at the given epoch.
 /// If "value" is None, the tool will randomly generate a value for the epoch.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserEvent {
     pub epoch: u32,
     pub value: Option<AkdValue>,
 }
 
 /// A user whose key update events should be included in the tree.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub label: AkdLabel,
     pub events: Vec<UserEvent>,
@@ -37,7 +37,7 @@ pub struct User {
 /// This tool allows a directory to be created with specified and random
 /// contents, capturing the directory state and epoch-to-epoch delta in
 /// an output file for use in debugging and as test fixtures.
-#[derive(Parser, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Parser, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[clap(setting = AppSettings::DeriveDisplayOrder)]
 pub struct Args {
     /// Users and their associated key update events.

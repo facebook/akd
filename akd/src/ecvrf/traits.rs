@@ -9,7 +9,7 @@
 //! of public and private keys
 use super::{Proof, VRFPrivateKey, VRFPublicKey};
 use crate::serialization::from_digest;
-use crate::{errors::VrfError, node_state::NodeLabel, storage::types::AkdLabel};
+use crate::{errors::VrfError, node_label::NodeLabel, storage::types::AkdLabel};
 
 use async_trait::async_trait;
 use std::convert::TryInto;

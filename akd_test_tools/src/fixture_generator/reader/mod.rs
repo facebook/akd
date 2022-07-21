@@ -24,7 +24,7 @@ pub trait Reader {
     fn read_delta(&mut self, epoch: u32) -> Result<Delta, ReaderError>;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ReaderError {
     NotFound,
     Format(String),

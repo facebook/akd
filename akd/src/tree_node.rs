@@ -13,7 +13,7 @@ use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::serialization::{from_digest, to_digest};
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Storable, Storage};
-use crate::{node_state::*, Direction, EMPTY_LABEL};
+use crate::{node_label::*, Direction, EMPTY_LABEL};
 use async_recursion::async_recursion;
 use log::debug;
 use std::cmp::min;
@@ -22,17 +22,23 @@ use std::marker::{Send, Sync};
 use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
+/// This enum is used to mark nodes using the node_type variable
+/// of a TreeNode.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
 )]
 pub enum NodeType {
-    /// Nodes with this type only have dummy children.
+    /// Nodes with this type only have dummy children. Their value is
+    /// input when they're created and the hash is H(value, creation_epoch)
     Leaf = 1,
-    /// Nodes with this type do not have parents and their value includes a hash of their label.
+    /// Nodes with this type do not have parents and their value,
+    /// like Interior below, is a hash of their children's
+    /// hash along with their respective labels.
     Root = 2,
-    /// Nodes of this type must have non-dummy children and their value is a hash of their children, along with the labels of the children.
+    /// Nodes of this type must have non-dummy children
+    /// and their value is a hash of their children, along with the labels of the children.
     Interior = 3,
 }
 
@@ -49,13 +55,15 @@ impl NodeType {
 
 pub(crate) type InsertionNode<'a> = (Direction, &'a mut TreeNode);
 
-/// A TreeNode represents a generic interior node of a compressed history tree.
+/// A TreeNode represents a generic node of a Merkle Patricia Trei with ordering.
 /// The main idea here is that the tree is changing at every epoch and that we do not need
-/// to replicate the state of a node, unless it changes.
-/// However, in order to allow for a user to monitor the state of a key-value pair in
-/// the past, the older states also need to be stored.
-/// While the states themselves can be stored elsewhere,
-/// we need a list of epochs when this node was updated, and that is what this data structure is meant to do.
+/// to touch the state of a node, unless it changes.
+/// The leaves of the tree represented by these nodes is supposed to allow for a user
+/// to monitor the state of a key-value pair in the past.
+/// We achieve this by including the epoch a leaf was added as part of the hash stored in it.
+/// At a later time, we may need to access older sub-trees of the tree built with these nodes.
+/// To facilitate this, we require this struct to include the last time a node was updated
+/// as well as the oldest descendant it holds.
 #[derive(Debug, Eq, PartialEq)]
 #[cfg_attr(
     feature = "serde_serialization",
@@ -67,11 +75,11 @@ pub struct TreeNode {
     pub label: NodeLabel,
     /// The last epoch this node was updated in
     pub last_epoch: u64,
-    /// The least epoch of any child of this node
-    pub least_descendent_ep: u64,
+    /// The least epoch of any descendant of this node
+    pub least_descendant_ep: u64,
     /// The label of this node's parent
     pub parent: NodeLabel, // The root node is marked its own parent.
-    /// The type of node: leaf root or interior.
+    /// The type of node: leaf, root or interior.
     pub node_type: NodeType, // Leaf, Root or Interior
     /// Label of the left child, None if there is none.
     pub left_child: Option<NodeLabel>,
@@ -98,7 +106,7 @@ pub struct TreeNode {
 pub struct NodeKey(pub NodeLabel);
 
 impl Storable for TreeNode {
-    type Key = NodeKey;
+    type StorageKey = NodeKey;
 
     fn data_type() -> StorageType {
         StorageType::TreeNode
@@ -108,14 +116,25 @@ impl Storable for TreeNode {
         NodeKey(self.label)
     }
 
+    // The key is computed using the node_label and to make sure this
+    // is unique, use both the label's val [`NodeLabel::label_val`] and
+    // its len [`NodeLabel::label_len`].
+    // The label_len originally is a u32, so it takes 4 bytes to write it.
+    // The label_val, which is a [u8; 32] occupies the remaining 32 bytes,
+    // so a total of 36 bytes are written.
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::TreeNode as u8];
-        result.extend_from_slice(&key.0.len.to_le_bytes());
-        result.extend_from_slice(&key.0.val);
+        result.extend_from_slice(&key.0.label_len.to_le_bytes());
+        result.extend_from_slice(&key.0.label_val);
         result
     }
 
     fn key_from_full_binary(bin: &[u8]) -> Result<NodeKey, String> {
+        // When the key is originally written down, it includes
+        // [1 byte]: the type of the data structure represented by this key.
+        // [4 bytes]: the length of the NodeLabel represented by this binary
+        // [32 bytes]: the value of the NodeLabel
+        // Totalling to 37 bytes.
         if bin.len() < 37 {
             return Err("Not enough bytes to form a proper key".to_string());
         }
@@ -124,8 +143,11 @@ impl Storable for TreeNode {
             return Err("Not a history tree node key".to_string());
         }
 
+        // The len is a u32, so read the first 4 bytes to get the len in bytes.
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
+        // The val is of type [u8; 32], hence the rest of the 32 bytes are the value.
         let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
+        // Get the length as a u32 from the bytes.
         let len = u32::from_le_bytes(len_bytes);
 
         Ok(NodeKey(NodeLabel::new(val_bytes, len)))
@@ -139,7 +161,7 @@ impl Clone for TreeNode {
         Self {
             label: self.label,
             last_epoch: self.last_epoch,
-            least_descendent_ep: self.least_descendent_ep,
+            least_descendant_ep: self.least_descendant_ep,
             parent: self.parent,
             node_type: self.node_type,
             left_child: self.left_child,
@@ -157,7 +179,7 @@ impl TreeNode {
         parent: NodeLabel,
         node_type: NodeType,
         birth_epoch: u64,
-        least_descendent_ep: u64,
+        least_descendant_ep: u64,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
         hash: [u8; 32],
@@ -165,7 +187,7 @@ impl TreeNode {
         TreeNode {
             label,
             last_epoch: birth_epoch,
-            least_descendent_ep,
+            least_descendant_ep,
             parent, // Root node is its own parent
             node_type,
             left_child,
@@ -211,8 +233,10 @@ impl TreeNode {
         Ok(nodes)
     }
 
-    /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed
-    pub(crate) async fn insert_single_leaf<S: Storage + Sync + Send, H: Hasher>(
+    /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed.
+    /// This function is only used in testing, since in general, we want to update the hashes of nodes
+    /// in a batch to prevent repeated work.
+    pub(crate) async fn insert_single_leaf_and_hash<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
         new_leaf: Self,
@@ -227,6 +251,10 @@ impl TreeNode {
     }
 
     /// Inserts a single leaf node without hashing, creates new nodes where needed
+    /// Essentially, this function updates the structure of the Patricia Trei for which
+    /// TreeNode is used but not the hash stored in updated parts of this Trei.
+    /// This is used for batch inserting leaves, so that hashes can be updated
+    /// in an amortized way, at a later time.
     pub(crate) async fn insert_leaf<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
@@ -243,11 +271,13 @@ impl TreeNode {
 
     /// Inserts a single leaf node and updates the required hashes,
     /// if hashing is true. Creates new nodes where neded.
+    /// This is used to both batch insert leaves in a Patricia Trei as well as
+    /// for the single leaf insertions for testing.
     #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
-        mut new_leaf: Self,
+        new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
         hashing: bool,
@@ -258,135 +288,215 @@ impl TreeNode {
             .get_longest_common_prefix_and_dirs(new_leaf.label);
 
         if self.is_root() {
+            // Account for the new leaf in the tree. We want to account for it only once, so let's do it on the root.
             *num_nodes += 1;
             let child_state = self.get_child_state(storage, dir_leaf).await?;
-            // If the root does not have a child at the direction the new leaf should be at, we add it.
             if child_state == None {
-                // Set up parent-child connection.
-                self.set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
-                    .await?;
-
-                if hashing {
-                    // Update the hash of the leaf first since the parent hash will rely on the fact.
-                    new_leaf
-                        .update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                        .await?;
-
-                    self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                        .await?;
-                } else {
-                    // If no hashing, we need to manually save the nodes.
-                    new_leaf.write_to_storage(storage).await?;
-                    self.write_to_storage(storage).await?;
-                }
-
-                return Ok(());
+                // This case is not entered very often, in fact it only happens
+                // when you are actually instantiating the tree. Initially the tree only
+                // consists of the root node. Then, a left child and a right child are inserted relatively soon.
+                return self
+                    .insert_single_leaf_helper_root_handler::<S, H>(
+                        storage, new_leaf, epoch, hashing, exclude_ep, dir_leaf,
+                    )
+                    .await;
             }
         }
 
         // if a node is the longest common prefix of itself and the leaf, dir_self will be None
         match dir_self {
             Some(_) => {
-                *num_nodes += 1;
                 // This is the case where the calling node and the leaf have a longest common prefix
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
-                let mut parent =
-                    TreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch).await?;
-                let self_dir_in_parent = parent.get_direction(self);
-
-                debug!("BEGIN create new node");
-                let mut new_node = TreeNode::new(
-                    lcs_label,
-                    parent.label,
-                    NodeType::Interior,
-                    epoch,
-                    // if self is in the tree already, then its value should be moved up
-                    min(self.least_descendent_ep, epoch),
-                    None,
-                    None,
-                    [0u8; 32],
-                );
-                // Set up child-parent connections from top to bottom
-                // (set child sets both child for the parent and parent for the child)
-                // 1. Replace the self with the new node.
-                debug!("BEGIN set node child parent(new_node)");
-                parent
-                    .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch)
-                    .await?;
-
-                // 2. Set children of the new node (new leaf and self)
-                debug!("BEGIN set node child new_node(new_leaf)");
-                new_node
-                    .set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
-                    .await?;
-
-                debug!("BEGIN set node child new_node(self)");
-                new_node
-                    .set_child(storage, &mut (dir_self, self), epoch)
-                    .await?;
-
-                if hashing {
-                    // Update hashes from bottom to top.
-                    // Note that we don't need to hash the
-                    // node itself, since it's not changing.
-                    debug!("BEGIN update hashes");
-                    new_leaf
-                        .update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                        .await?;
-                    new_node
-                        .update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                        .await?;
-                    parent
-                        .update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                        .await?;
-                } else {
-                    // If no hashing, we need to manually save the nodes.
-                    new_leaf.write_to_storage(storage).await?;
-                    new_node.write_to_storage(storage).await?;
-                    parent.write_to_storage(storage).await?;
-                }
-                debug!("END insert single leaf (dir_self = Some)");
-                Ok(())
+                return self
+                    .insert_single_leaf_helper_base_case_handler::<S, H>(
+                        storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, lcs_label,
+                        dir_leaf, dir_self,
+                    )
+                    .await;
             }
             // Case where the current node is equal to the lcs
             // Recurse!
             None => {
-                debug!("BEGIN get child node from storage");
-                let child_node = self.get_child_state(storage, dir_leaf).await?;
-                debug!("BEGIN insert single leaf helper");
-                match child_node {
-                    Some(mut child_node) => {
-                        child_node
-                            .insert_single_leaf_helper::<_, H>(
-                                storage, new_leaf, epoch, num_nodes, hashing, exclude_ep,
-                            )
-                            .await?;
-                        if hashing {
-                            debug!("BEGIN update hashes");
-                            *self =
-                                TreeNode::get_from_storage(storage, &NodeKey(self.label), epoch)
-                                    .await?;
-                            if self.node_type != NodeType::Leaf {
-                                self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
-                                    .await?;
-                            }
-                        } else {
-                            debug!("BEGIN retrieve self");
-                            *self =
-                                TreeNode::get_from_storage(storage, &NodeKey(self.label), epoch)
-                                    .await?;
-                        }
-                        debug!("END insert single leaf (dir_self = None)");
-                        Ok(())
-                    }
-                    None => Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
-                        epoch,
-                        dir_leaf.unwrap(),
-                    ))),
-                }
+                // This is the case where the calling node is the longest common prefix of itself
+                // and the inserted leaf, so we just need to modify the tree structure further down the tree.
+                return self
+                    .insert_single_leaf_helper_recursive_case_handler::<S, H>(
+                        storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, dir_leaf,
+                    )
+                    .await;
             }
+        }
+    }
+
+    /// This handler is used to handle the case when the tree is just starting out and
+    /// at least one of the root's (left or right) children is None.
+    pub(crate) async fn insert_single_leaf_helper_root_handler<
+        S: Storage + Sync + Send,
+        H: Hasher,
+    >(
+        &mut self,
+        storage: &S,
+        mut new_leaf: Self,
+        epoch: u64,
+        hashing: bool,
+        exclude_ep: Option<bool>,
+        dir_leaf: Option<usize>,
+    ) -> Result<(), AkdError> {
+        // If the root does not have a child at the direction the new leaf should be at, we add it.
+
+        // Set up parent-child connection.
+        self.set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
+            .await?;
+
+        if hashing {
+            // Update the hash of the leaf first since the parent hash will rely on the fact.
+            new_leaf
+                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .await?;
+
+            self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .await?;
+        } else {
+            // If no hashing, we need to manually save the nodes.
+            new_leaf.write_to_storage(storage).await?;
+            self.write_to_storage(storage).await?;
+        }
+
+        Ok(())
+    }
+
+    /// This handler is used for insert_single_leaf_helper,
+    /// is the case where the calling node and the leaf have a longest common prefix
+    /// not equal to the label of the calling node.
+    /// This means that the current node needs to be pushed down one level (away from root)
+    /// in the tree and replaced with a new node whose label is equal to the longest common prefix.
+    #[async_recursion]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn insert_single_leaf_helper_base_case_handler<
+        S: Storage + Sync + Send,
+        H: Hasher,
+    >(
+        &mut self,
+        storage: &S,
+        mut new_leaf: Self,
+        epoch: u64,
+        num_nodes: &mut u64,
+        hashing: bool,
+        exclude_ep: Option<bool>,
+        lcs_label: NodeLabel,
+        dir_leaf: Option<usize>,
+        dir_self: Option<usize>,
+    ) -> Result<(), AkdError> {
+        // We will be creating a new node, so let's account for it.
+        *num_nodes += 1;
+        let mut parent = TreeNode::get_from_storage(storage, &NodeKey(self.parent), epoch).await?;
+        let self_dir_in_parent = parent.get_direction(self);
+
+        debug!("BEGIN create new node");
+        let mut new_node = TreeNode::new(
+            lcs_label,
+            parent.label,
+            NodeType::Interior,
+            epoch,
+            // if self is in the tree already, then its value should be moved up
+            min(self.least_descendant_ep, epoch),
+            None,
+            None,
+            [0u8; 32],
+        );
+        // Set up child-parent connections from top to bottom
+        // (set child sets both child for the parent and parent for the child)
+        // 1. Replace the self with the new node.
+        debug!("BEGIN set node child parent(new_node)");
+        parent
+            .set_child(storage, &mut (self_dir_in_parent, &mut new_node), epoch)
+            .await?;
+
+        // 2. Set children of the new node (new leaf and self)
+        debug!("BEGIN set node child new_node(new_leaf)");
+        new_node
+            .set_child(storage, &mut (dir_leaf, &mut new_leaf), epoch)
+            .await?;
+
+        debug!("BEGIN set node child new_node(self)");
+        new_node
+            .set_child(storage, &mut (dir_self, self), epoch)
+            .await?;
+
+        if hashing {
+            // Update hashes from bottom to top.
+            // Note that we don't need to hash the
+            // node itself, since it's not changing.
+            debug!("BEGIN update hashes");
+            new_leaf
+                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .await?;
+            new_node
+                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .await?;
+            parent
+                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .await?;
+        } else {
+            // If no hashing, we need to manually save the nodes.
+            new_leaf.write_to_storage(storage).await?;
+            new_node.write_to_storage(storage).await?;
+            parent.write_to_storage(storage).await?;
+        }
+        debug!("END insert single leaf (dir_self = Some)");
+        Ok(())
+    }
+
+    // This is the handler for the case where the calling node is the longest common prefix of itself
+    // and the inserted leaf, so we just need to modify the tree structure further down the tree.
+    #[allow(clippy::too_many_arguments)]
+    #[async_recursion]
+    pub(crate) async fn insert_single_leaf_helper_recursive_case_handler<
+        S: Storage + Sync + Send,
+        H: Hasher,
+    >(
+        &mut self,
+        storage: &S,
+        new_leaf: Self,
+        epoch: u64,
+        num_nodes: &mut u64,
+        hashing: bool,
+        exclude_ep: Option<bool>,
+        dir_leaf: Option<usize>,
+    ) -> Result<(), AkdError> {
+        debug!("BEGIN get child node from storage");
+        let child_node = self.get_child_state(storage, dir_leaf).await?;
+        debug!("BEGIN insert single leaf helper");
+        match child_node {
+            Some(mut child_node) => {
+                child_node
+                    .insert_single_leaf_helper::<_, H>(
+                        storage, new_leaf, epoch, num_nodes, hashing, exclude_ep,
+                    )
+                    .await?;
+                if hashing {
+                    debug!("BEGIN update hashes");
+                    *self =
+                        TreeNode::get_from_storage(storage, &NodeKey(self.label), epoch).await?;
+                    if self.node_type != NodeType::Leaf {
+                        self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                            .await?;
+                    }
+                } else {
+                    debug!("BEGIN retrieve self");
+                    *self =
+                        TreeNode::get_from_storage(storage, &NodeKey(self.label), epoch).await?;
+                }
+                debug!("END insert single leaf (dir_self = None)");
+                Ok(())
+            }
+            None => Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
+                epoch,
+                dir_leaf.unwrap(),
+            ))),
         }
     }
 
@@ -459,11 +569,11 @@ impl TreeNode {
         self.last_epoch = epoch;
 
         // Update the least descencent epoch
-        if self.least_descendent_ep == 0u64 {
-            self.least_descendent_ep = child_node.least_descendent_ep;
+        if self.least_descendant_ep == 0u64 {
+            self.least_descendant_ep = child_node.least_descendant_ep;
         } else {
-            self.least_descendent_ep =
-                min(self.least_descendent_ep, child_node.least_descendent_ep);
+            self.least_descendant_ep =
+                min(self.least_descendant_ep, child_node.least_descendant_ep);
         }
 
         self.write_to_storage(storage).await?;
@@ -563,8 +673,8 @@ impl TreeNode {
     }
 
     #[allow(unused)]
-    pub(crate) fn get_least_descendent_epoch(&self) -> u64 {
-        self.least_descendent_ep
+    pub(crate) fn get_least_descendant_epoch(&self) -> u64 {
+        self.least_descendant_ep
     }
 }
 
@@ -622,7 +732,7 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
 }
 
 /// Retrieve an empty root node
-pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendent_ep: Option<u64>) -> TreeNode {
+pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendant_ep: Option<u64>) -> TreeNode {
     // Empty root hash is the same as empty node hash
     let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash_no_label::<H>());
     let mut node = TreeNode::new(
@@ -639,8 +749,8 @@ pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendent_ep: Option<u6
     if let Some(epoch) = ep {
         node.last_epoch = epoch;
     }
-    if let Some(least_ep) = least_descendent_ep {
-        node.least_descendent_ep = least_ep;
+    if let Some(least_ep) = least_descendant_ep {
+        node.least_descendant_ep = least_ep;
     }
     node
 }
@@ -655,7 +765,7 @@ pub fn get_leaf_node<H: Hasher>(
     TreeNode {
         label,
         last_epoch: birth_epoch,
-        least_descendent_ep: birth_epoch,
+        least_descendant_ep: birth_epoch,
         parent,
         node_type: NodeType::Leaf,
         // Leaf has no children.
@@ -669,7 +779,7 @@ pub fn get_leaf_node<H: Hasher>(
 mod tests {
     use super::*;
     use crate::{
-        node_state::{byte_arr_from_u64, hash_label, NodeLabel},
+        node_label::{byte_arr_from_u64, hash_label, NodeLabel},
         EMPTY_VALUE,
     };
     use std::convert::TryInto;
@@ -680,7 +790,7 @@ mod tests {
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
 
     #[tokio::test]
-    async fn test_least_descendent_ep() -> Result<(), AkdError> {
+    async fn test_least_descendant_ep() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
         let new_leaf = get_leaf_node::<Blake3>(
@@ -707,19 +817,25 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf::<_, Blake3>(&db, new_leaf.clone(), 1, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(
+            &db,
+            new_leaf.clone(),
+            1,
+            &mut num_nodes,
+            None,
+        )
+        .await?;
+
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
-            .await?;
-
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
         let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
 
-        let root_least_descendent_ep = match stored_root {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+        let root_least_descendant_ep = match stored_root {
+            DbRecord::TreeNode(node) => node.least_descendant_ep,
             _ => panic!("Root not found in storage."),
         };
 
@@ -727,8 +843,8 @@ mod tests {
             .get::<TreeNode>(&NodeKey(root.right_child.unwrap()))
             .await?;
 
-        let right_child_least_descendent_ep = match stored_right_child {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+        let right_child_least_descendant_ep = match stored_right_child {
+            DbRecord::TreeNode(node) => node.least_descendant_ep,
             _ => panic!("Root not found in storage."),
         };
 
@@ -736,28 +852,28 @@ mod tests {
             .get::<TreeNode>(&NodeKey(root.left_child.unwrap()))
             .await?;
 
-        let left_child_least_descendent_ep = match stored_left_child {
-            DbRecord::TreeNode(node) => node.least_descendent_ep,
+        let left_child_least_descendant_ep = match stored_left_child {
+            DbRecord::TreeNode(node) => node.least_descendant_ep,
             _ => panic!("Root not found in storage."),
         };
 
         let root_expected_least_dec = 1u64;
         assert!(
-            root_expected_least_dec == root_least_descendent_ep,
+            root_expected_least_dec == root_least_descendant_ep,
             "Least decendent epoch not equal to expected: root, expected: {:?}, got: {:?}",
             root_expected_least_dec,
-            root_least_descendent_ep
+            root_least_descendant_ep
         );
 
         let right_child_expected_least_dec = 2u64;
         assert!(
-            right_child_expected_least_dec == right_child_least_descendent_ep,
+            right_child_expected_least_dec == right_child_least_descendant_ep,
             "Least decendent epoch not equal to expected: right child"
         );
 
         let left_child_expected_least_dec = 1u64;
         assert!(
-            left_child_expected_least_dec == left_child_least_descendent_ep,
+            left_child_expected_least_dec == left_child_least_descendant_ep,
             "Least decendent epoch not equal to expected: left child"
         );
 
@@ -783,7 +899,7 @@ mod tests {
             0,
         );
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_0.clone(), 0, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 0, &mut num_nodes, None)
             .await?;
         assert_eq!(num_nodes, 2);
 
@@ -796,7 +912,7 @@ mod tests {
         );
 
         // Insert leaf 1.
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes, None)
             .await?;
 
         // Calculate expected root hash.
@@ -874,13 +990,13 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
         let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
@@ -965,13 +1081,13 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
             .await?;
 
         let stored_root = db.get::<TreeNode>(&NodeKey(NodeLabel::root())).await?;
@@ -1043,7 +1159,7 @@ mod tests {
 
         for i in 0..8 {
             let ep: u64 = i.try_into().unwrap();
-            root.insert_single_leaf::<_, Blake3>(
+            root.insert_single_leaf_and_hash::<_, Blake3>(
                 &db,
                 leaves[7 - i].clone(),
                 ep + 1,
