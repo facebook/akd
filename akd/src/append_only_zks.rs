@@ -94,6 +94,7 @@ impl Azks {
 
     /// Inserts a single leaf and is only used for testing, since batching is more efficient.
     /// We just want to make sure batch insertions work correctly and this function is useful for that.
+    #[cfg(test)]
     pub async fn insert_leaf<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
         storage: &S,
@@ -303,7 +304,9 @@ impl Azks {
             hash: crate::utils::empty_node_hash::<H>(),
         }; ARITY];
         for i in 0..ARITY {
-            let child = lcp_node.get_child_state(storage, Some(i)).await?;
+            let child = lcp_node
+                .get_child_state(storage, Some(i), self.latest_epoch)
+                .await?;
             match child {
                 None => {
                     debug!("i = {}, empty", i);
@@ -514,7 +517,9 @@ impl Azks {
                 curr_node.label,
                 None,
             )))?;
-            let next_state = curr_node.get_child_state(storage, Some(direction)).await?;
+            let next_state = curr_node
+                .get_child_state(storage, Some(direction), self.latest_epoch)
+                .await?;
             if next_state.is_some() {
                 for i in 0..ARITY {
                     let no_direction_error =
@@ -522,7 +527,7 @@ impl Azks {
 
                     if i != dir.ok_or(no_direction_error)? {
                         let sibling = curr_node
-                            .get_child_state(storage, Direction::Some(i))
+                            .get_child_state(storage, Direction::Some(i), self.latest_epoch)
                             .await?;
                         nodes[count] = Node::<H> {
                             label: optional_child_state_to_label(&sibling),
@@ -598,6 +603,7 @@ mod tests {
         let num_nodes = 10;
         let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
+        azks1.increment_epoch();
 
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
 
@@ -633,6 +639,7 @@ mod tests {
         let mut rng = OsRng;
         let db = AsyncInMemoryDatabase::new();
         let mut azks1 = Azks::new::<_, Blake3>(&db).await?;
+        azks1.increment_epoch();
         let mut insertion_set: Vec<Node<Blake3>> = vec![];
 
         for _ in 0..num_nodes {

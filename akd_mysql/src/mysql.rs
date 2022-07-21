@@ -13,7 +13,7 @@ use akd::storage::types::{
     AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
 use akd::storage::{Storable, Storage};
-use akd::tree_node::TreeNode;
+use akd::tree_node::TreeNodeWithPreviousValue;
 use akd::NodeLabel;
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
@@ -351,6 +351,10 @@ impl<'a> AsyncMySqlDatabase {
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " `left_child_len` INT UNSIGNED, `left_child_label_val` VARBINARY(32),"
             + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32), `hash` VARBINARY(32) NOT NULL,"
+            + " `p_last_epoch` BIGINT UNSIGNED, `p_least_descendant_ep` BIGINT UNSIGNED, "
+            + " `p_parent_label_len` INT UNSIGNED, `p_parent_label_val` VARBINARY(32), "
+            + " `p_node_type` SMALLINT UNSIGNED, `p_left_child_len` INT UNSIGNED, `p_left_child_label_val` VARBINARY(32), "
+            + " `p_right_child_len` INT UNSIGNED, `p_right_child_label_val` VARBINARY(32), `p_hash` VARBINARY(32),"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 
@@ -481,7 +485,9 @@ impl<'a> AsyncMySqlDatabase {
         let statement = |i: usize| -> String {
             match &head {
                 DbRecord::Azks(_) => DbRecord::set_batch_statement::<akd::Azks>(i),
-                DbRecord::TreeNode(_) => DbRecord::set_batch_statement::<TreeNode>(i),
+                DbRecord::TreeNode(_) => {
+                    DbRecord::set_batch_statement::<TreeNodeWithPreviousValue>(i)
+                }
                 DbRecord::ValueState(_) => {
                     DbRecord::set_batch_statement::<akd::storage::types::ValueState>(i)
                 }

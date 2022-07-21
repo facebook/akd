@@ -189,7 +189,7 @@ mod tests {
             num_nodes: 0,
             latest_epoch: 0,
         });
-        let node1 = DbRecord::TreeNode(TreeNode {
+        let node1 = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(0), 0),
             last_epoch: 1,
             least_descendant_ep: 1,
@@ -198,8 +198,8 @@ mod tests {
             left_child: None,
             right_child: None,
             hash: [0u8; 32],
-        });
-        let node2 = DbRecord::TreeNode(TreeNode {
+        }));
+        let node2 = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             last_epoch: 1,
             least_descendant_ep: 1,
@@ -208,7 +208,7 @@ mod tests {
             left_child: None,
             right_child: None,
             hash: [0u8; 32],
-        });
+        }));
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),
             epoch: 1,

@@ -463,10 +463,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     Ok(())
 }
 
-// This test is meant to test whether an akd client
-// can still read during a publish operation.
-// #[tokio::test]
-#[allow(dead_code)]
+#[tokio::test]
 async fn test_read_during_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
