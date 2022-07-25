@@ -9,7 +9,7 @@
 //! don't want the overhead of VRF computation. It is not designed for testing, but to
 //! provide full functionality of the prod library but WITHOUT VRFs.
 
-use crate::{errors::VRFStorageError, node_state::NodeLabel, storage::types::AkdLabel};
+use crate::{errors::VRFStorageError, node_label::NodeLabel, storage::types::AkdLabel};
 use async_trait::async_trait;
 use winter_crypto::Digest;
 use winter_crypto::Hasher;
