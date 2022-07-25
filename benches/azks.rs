@@ -8,7 +8,7 @@
 #[macro_use]
 extern crate criterion;
 
-use akd::{append_only_zks::Azks, node_state::Node, node_state::NodeLabel};
+use akd::{append_only_zks::Azks, helper_structs::Node, node_label::NodeLabel};
 use criterion::Criterion;
 use rand::{prelude::ThreadRng, thread_rng, RngCore};
 use std::time::Instant;
