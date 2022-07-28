@@ -422,7 +422,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
             let mut update_proofs = Vec::<UpdateProof<H>>::new();
             let mut last_version = 0;
-            let mut epochs = Vec::<u64>::new();
             for user_state in user_data {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
@@ -433,7 +432,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     } else {
                         last_version
                     };
-                    epochs.push(user_state.epoch);
                 }
             }
             let next_marker = get_marker_version(last_version) + 1;
@@ -478,7 +476,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
             Ok(HistoryProof {
                 update_proofs,
-                epochs,
                 next_few_vrf_proofs,
                 non_existence_of_next_few,
                 future_marker_vrf_proofs,
@@ -533,7 +530,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         } else {
             let mut update_proofs = Vec::<UpdateProof<H>>::new();
             let mut last_version = 0;
-            let mut epochs = Vec::<u64>::new();
             for user_state in limited_history {
                 // Ignore states in storage that are ahead of current directory epoch
                 if user_state.epoch <= current_epoch {
@@ -544,7 +540,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     } else {
                         last_version
                     };
-                    epochs.push(user_state.epoch);
                 }
             }
             let next_marker = get_marker_version(last_version) + 1;
@@ -589,7 +584,6 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
             Ok(HistoryProof {
                 update_proofs,
-                epochs,
                 next_few_vrf_proofs,
                 non_existence_of_next_few,
                 future_marker_vrf_proofs,

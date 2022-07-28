@@ -230,8 +230,6 @@ pub struct HistoryProof<H: Hasher> {
     /// was retired at the same time as this version
     /// was added. (for version 1, it's just a mem proof).
     pub update_proofs: Vec<UpdateProof<H>>,
-    /// The epochs at which updates were made.
-    pub epochs: Vec<u64>,
     /// VRF Proofs for the labels of the next few values, these are
     /// values in the set [latest_version + 1, ..., 2^(log(latest_version+1))-1]
     pub next_few_vrf_proofs: Vec<Vec<u8>>,
@@ -249,7 +247,6 @@ impl<H: Hasher> Clone for HistoryProof<H> {
     fn clone(&self) -> Self {
         Self {
             update_proofs: self.update_proofs.clone(),
-            epochs: self.epochs.clone(),
             next_few_vrf_proofs: self.next_few_vrf_proofs.clone(),
             non_existence_of_next_few: self.non_existence_of_next_few.clone(),
             future_marker_vrf_proofs: self.future_marker_vrf_proofs.clone(),

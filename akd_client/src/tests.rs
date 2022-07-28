@@ -169,7 +169,6 @@ where
     }
     crate::types::HistoryProof {
         update_proofs: res_update_proofs,
-        epochs: history_proof.epochs.clone(),
         next_few_vrf_proofs: history_proof.next_few_vrf_proofs.clone(),
         non_existence_of_next_few: history_proof
             .non_existence_of_next_few
