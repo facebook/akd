@@ -81,7 +81,7 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H>(Option::Some(0), Option::Some(0));
+        let root = get_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
@@ -104,7 +104,9 @@ impl Azks {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         // Since this function is only for testing batch_insert_leaves, which is one epoch
         // increment for the entire batch. Hence, we want to take care of epochs outside.
-        let new_leaf = get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), epoch);
+        let new_leaf =
+            get_leaf_node::<H, S>(storage, node.label, &node.hash, NodeLabel::root(), epoch)
+                .await?;
 
         let mut root_node = TreeNode::get_from_storage(
             storage,
@@ -113,7 +115,7 @@ impl Azks {
         )
         .await?;
         root_node
-            .insert_single_leaf_and_hash::<_, H>(
+            .insert_single_leaf_and_hash::<S, H>(
                 storage,
                 new_leaf,
                 epoch,
@@ -220,8 +222,14 @@ impl Azks {
         )
         .await?;
         for node in insertion_set {
-            let new_leaf =
-                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
+            let new_leaf = get_leaf_node::<H, S>(
+                storage,
+                node.label,
+                &node.hash,
+                NodeLabel::root(),
+                self.latest_epoch,
+            )
+            .await?;
             debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(
