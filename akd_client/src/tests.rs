@@ -364,13 +364,27 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             &vrf_pk.to_bytes(),
             from_digest::<Hash>(root_hash),
             current_epoch,
-            key_bytes,
-            internal_proof,
+            key_bytes.clone(),
+            internal_proof.clone(),
             false,
         );
         assert!(akd_result.is_err(), "{:?}", akd_result);
         assert!(lean_result.is_err(), "{:?}", lean_result);
     }
+
+    // history proof with updates of non-decreasing versions/epochs fail to verify
+    let mut borked_proof = internal_proof.clone();
+    borked_proof.update_proofs = borked_proof.update_proofs.into_iter().rev().collect();
+    let akd_result = crate::verify::key_history_verify(
+        &vrf_pk.to_bytes(),
+        from_digest::<Hash>(root_hash),
+        current_epoch,
+        key_bytes,
+        borked_proof,
+        false,
+    );
+    assert!(matches!(akd_result, Err(_)), "{:?}", akd_result);
+
     Ok(())
 }
 

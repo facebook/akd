@@ -255,7 +255,7 @@ pub fn key_history_verify(
         }
     }
 
-    // Check that all the individual update proofs check
+    // Verify all individual update proofs
     let mut maybe_previous_update_epoch = None;
     for update_proof in proof.update_proofs.into_iter() {
         // Get the highest version sent among the update proofs.

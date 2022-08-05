@@ -203,7 +203,7 @@ pub fn key_history_verify<H: Hasher>(
         }
     }
 
-    // Check that all the individual update proofs check
+    // Verify all individual update proofs
     let mut maybe_previous_update_epoch = None;
     for update_proof in proof.update_proofs.into_iter() {
         last_version = if update_proof.version > last_version {
