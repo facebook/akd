@@ -239,18 +239,6 @@ pub fn key_history_verify(
         });
     }
 
-    // Make sure this proof has the same number of epochs as update proofs.
-    if num_proofs != proof.epochs.len() {
-        return Err(VerificationError {
-            error_message: format!(
-                "The number of epochs included in the proofs for user {:?} 
-                did not match the number of update proofs!",
-                akd_key
-            ),
-            error_type: VerificationErrorType::HistoryProof,
-        });
-    }
-
     // Check that the sent proofs are for a contiguous sequence of decreasing versions
     for count in 0..num_proofs {
         if count > 0 {
@@ -267,28 +255,30 @@ pub fn key_history_verify(
         }
     }
 
-    // Check that all the individual update proofs check
-    for (count, update_proof) in proof.update_proofs.into_iter().enumerate() {
+    // Verify all individual update proofs
+    let mut maybe_previous_update_epoch = None;
+    for update_proof in proof.update_proofs.into_iter() {
         // Get the highest version sent among the update proofs.
         last_version = if update_proof.version > last_version {
             update_proof.version
         } else {
             last_version
         };
-        let ep_match = proof.epochs[count] == update_proof.epoch;
-        if count > 0 {
+
+        if let Some(previous_update_epoch) = maybe_previous_update_epoch {
             // Make sure this this epoch is more than the previous epoch you checked
-            if proof.epochs[count] > proof.epochs[count - 1] {
+            if update_proof.epoch > previous_update_epoch {
                 return Err(VerificationError {
                     error_message: format!(
                         "Why are your versions decreasing in updates and epochs not?!,
-                    epochs = {:?}",
-                        proof.epochs
+                        epoch = {}, previous epoch = {}",
+                        update_proof.epoch, previous_update_epoch
                     ),
                     error_type: VerificationErrorType::HistoryProof,
                 });
             }
         }
+        maybe_previous_update_epoch = Some(update_proof.epoch);
         let is_tombstone = verify_single_update_proof(
             root_hash,
             vrf_public_key,
@@ -296,7 +286,7 @@ pub fn key_history_verify(
             &akd_key,
             allow_tombstones,
         )?;
-        tombstones.push(is_tombstone && ep_match);
+        tombstones.push(is_tombstone);
     }
 
     // Get the least and greatest marker entries for the current version

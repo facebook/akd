@@ -244,8 +244,6 @@ pub struct UpdateProof {
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,
-    /// The epochs at which updates were made.
-    pub epochs: Vec<u64>,
     /// VRF Proofs for the labels of the next few values
     pub next_few_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that the next few values did not exist at this time

@@ -295,9 +295,22 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
         root_hash,
         current_epoch,
         AkdLabel::from_utf8_str("hello4"),
-        key_history_proof,
+        key_history_proof.clone(),
         false,
     )?;
+
+    // history proof with updates of non-decreasing versions/epochs fail to verify
+    let mut borked_proof = key_history_proof.clone();
+    borked_proof.update_proofs = borked_proof.update_proofs.into_iter().rev().collect();
+    let result = key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hash,
+        current_epoch,
+        AkdLabel::from_utf8_str("hello4"),
+        borked_proof,
+        false,
+    );
+    assert!(matches!(result, Err(_)), "{:?}", result);
 
     Ok(())
 }
