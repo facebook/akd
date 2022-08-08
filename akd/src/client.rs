@@ -16,6 +16,7 @@ use crate::{
     errors::{AkdError, AzksError, DirectoryError},
     node_label::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
+    serialization::to_digest,
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,
 };
@@ -344,6 +345,21 @@ fn verify_single_update_proof<H: Hasher>(
         let previous_null_err = AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(err_str));
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
+
+        // Check that the correct value is included in the previous stale proof
+        if H::merge_with_int(H::hash(&crate::EMPTY_VALUE), epoch)
+            != previous_val_stale_at_ep.hash_val
+        {
+            let former_err_str = format!(
+                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
+                akd_key,
+                (version - 1),
+                epoch
+            );
+            return Err(AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(
+                former_err_str,
+            )));
+        }
         verify_membership(root_hash, previous_val_stale_at_ep)?;
         let vrf_err_str = format!(
             "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
