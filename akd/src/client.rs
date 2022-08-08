@@ -16,7 +16,6 @@ use crate::{
     errors::{AkdError, AzksError, DirectoryError},
     node_label::{hash_label, NodeLabel},
     proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
-    serialization::to_digest,
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,
 };
