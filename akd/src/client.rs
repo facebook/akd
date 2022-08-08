@@ -350,6 +350,7 @@ fn verify_single_update_proof<H: Hasher>(
                 former_err_str,
             )));
         }
+        // Check the membership for previous stale proof
         verify_membership(root_hash, previous_val_stale_at_ep)?;
         let vrf_err_str = format!(
             "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
