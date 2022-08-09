@@ -344,7 +344,7 @@ fn verify_single_update_proof(
 
     let existence_at_ep = &proof.existence_at_ep;
 
-    let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
+    let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstone, &proof.plaintext_value) {
         (true, bytes) if bytes == crate::TOMBSTONE => {
@@ -398,9 +398,10 @@ fn verify_single_update_proof(
             error_message: err_str,
             error_type: VerificationErrorType::HistoryProof,
         };
-        let previous_val_stale_at_ep =
-            previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
-        verify_membership(root_hash, previous_val_stale_at_ep)?;
+        let previous_version_stale_at_ep = previous_version_stale_at_ep
+            .as_ref()
+            .ok_or(previous_null_err)?;
+        verify_membership(root_hash, previous_version_stale_at_ep)?;
 
         #[cfg(feature = "vrf")]
         {
@@ -416,8 +417,8 @@ fn verify_single_update_proof(
                 error_message: vrf_err_str,
                 error_type: VerificationErrorType::HistoryProof,
             };
-            let previous_val_vrf_proof = proof
-                .previous_val_vrf_proof
+            let previous_version_vrf_proof = proof
+                .previous_version_vrf_proof
                 .as_ref()
                 .ok_or(vrf_previous_null_err)?;
             verify_vrf(
@@ -425,8 +426,8 @@ fn verify_single_update_proof(
                 uname,
                 true,
                 version - 1,
-                previous_val_vrf_proof,
-                previous_val_stale_at_ep.label,
+                previous_version_vrf_proof,
+                previous_version_stale_at_ep.label,
             )?;
         }
     }

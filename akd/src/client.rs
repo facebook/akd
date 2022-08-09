@@ -286,7 +286,7 @@ fn verify_single_update_proof<H: Hasher>(
     let existence_at_ep = &proof.existence_at_ep;
     let existence_at_ep_label = existence_at_ep.label;
 
-    let previous_val_stale_at_ep = &proof.previous_version_stale_at_ep;
+    let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
         (true, bytes) if bytes.0 == crate::TOMBSTONE => {
@@ -332,9 +332,10 @@ fn verify_single_update_proof<H: Hasher>(
             epoch
         );
         let previous_null_err = AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(err_str));
-        let previous_val_stale_at_ep =
-            previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
-        verify_membership(root_hash, previous_val_stale_at_ep)?;
+        let previous_version_stale_at_ep = previous_version_stale_at_ep
+            .as_ref()
+            .ok_or(previous_null_err)?;
+        verify_membership(root_hash, previous_version_stale_at_ep)?;
         let vrf_err_str = format!(
             "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
             akd_key,
@@ -345,7 +346,7 @@ fn verify_single_update_proof<H: Hasher>(
         // Verify the VRF for the stale label corresponding to the previous version for this username
         let vrf_previous_null_err =
             AkdError::Directory(DirectoryError::VerifyKeyHistoryProof(vrf_err_str));
-        let previous_val_vrf_proof = proof
+        let previous_version_vrf_proof = proof
             .previous_version_vrf_proof
             .as_ref()
             .ok_or(vrf_previous_null_err)?;
@@ -353,8 +354,8 @@ fn verify_single_update_proof<H: Hasher>(
             akd_key,
             true,
             version - 1,
-            previous_val_vrf_proof,
-            previous_val_stale_at_ep.label,
+            previous_version_vrf_proof,
+            previous_version_stale_at_ep.label,
         )?;
     }
 

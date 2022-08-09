@@ -231,9 +231,9 @@ pub struct UpdateProof {
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof,
     /// VRF proof for the label for the previous version which became stale
-    pub previous_val_vrf_proof: Option<Vec<u8>>,
+    pub previous_version_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
-    pub previous_val_stale_at_ep: Option<MembershipProof>,
+    pub previous_version_stale_at_ep: Option<MembershipProof>,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
