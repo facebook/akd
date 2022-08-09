@@ -28,10 +28,6 @@ async fn my_async_test() {
 /// Global test startup constructor. Only runs in the TEST profile. Each
 /// crate which wants logging enabled in tests being run should make this call
 /// itself.
-///
-/// However we additionally call the init_logger(..) fn in the external storage
-/// based test suite in case an external entity doesn't want to deal with the
-/// ctor construction (or initializing the logger themselves)
 #[cfg(test)]
 #[ctor::ctor]
 fn test_start() {
