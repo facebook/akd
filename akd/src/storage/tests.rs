@@ -48,7 +48,6 @@ mod memory_storage_tests {
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
 pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
-    crate::test_utils::init_logger(log::Level::Info);
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;

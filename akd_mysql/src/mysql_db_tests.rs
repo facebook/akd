@@ -17,6 +17,7 @@ use crate::mysql::*;
 // FIXME: Why is serial here??
 #[serial]
 async fn test_mysql_db() {
+    akd::test_utils::init_logger(log::Level::Info);
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(
             "localhost",
