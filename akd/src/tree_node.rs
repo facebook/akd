@@ -434,23 +434,23 @@ impl TreeNode {
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
-                return self
+                self
                     .insert_single_leaf_helper_base_case_handler::<S, H>(
                         storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, lcs_label,
                         dir_leaf, dir_self,
                     )
-                    .await;
+                    .await
             }
             // Case where the current node is equal to the lcs
             // Recurse!
             None => {
                 // This is the case where the calling node is the longest common prefix of itself
                 // and the inserted leaf, so we just need to modify the tree structure further down the tree.
-                return self
+                self
                     .insert_single_leaf_helper_recursive_case_handler::<S, H>(
                         storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, dir_leaf,
                     )
-                    .await;
+                    .await
             }
         }
     }

@@ -48,12 +48,12 @@ pub fn verify_membership<H: Hasher>(
     if final_hash == root_hash {
         Ok(())
     } else {
-        return Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
+        Err(AkdError::AzksErr(AzksError::VerifyMembershipProof(
             format!(
                 "Membership proof for label {:?} did not verify",
                 proof.label
             ),
-        )));
+        )))
     }
 }
 
