@@ -239,9 +239,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let lookup_info = self
             .get_lookup_info::<H>(uname.clone(), current_epoch)
             .await?;
-        
-        self
-            .lookup_with_info::<H>(uname, &current_azks, current_epoch, lookup_info)
+
+        self.lookup_with_info::<H>(uname, &current_azks, current_epoch, lookup_info)
             .await
     }
 
