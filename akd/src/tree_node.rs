@@ -244,10 +244,12 @@ impl TreeNode {
         &self,
         storage: &S,
     ) -> Result<(), StorageError> {
-        self.save_to_storage(storage, false).await
+        self.write_to_storage_impl(storage, false).await
     }
 
-    async fn save_to_storage<S: Storage + Send + Sync>(
+    /// Internal function to be used for storage operations. If a node is new (i.e., is_new_node=true), the node's previous version
+    /// will be used as None without the cost of finding this information in the cache or worse yet in the database.
+    async fn write_to_storage_impl<S: Storage + Send + Sync>(
         &self,
         storage: &S,
         is_new_node: bool,
@@ -371,7 +373,7 @@ impl TreeNode {
             right_child,
             hash,
         };
-        new_node.save_to_storage(storage, true).await?;
+        new_node.write_to_storage_impl(storage, true).await?;
         Ok(new_node)
     }
 
