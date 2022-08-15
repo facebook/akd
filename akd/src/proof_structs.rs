@@ -169,7 +169,7 @@ impl<H: Hasher> Clone for SingleAppendOnlyProof<H> {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -218,7 +218,7 @@ impl<H: Hasher> Clone for LookupProof<H> {
 
 /// This proof is an array of [`UpdateProof`]s
 /// and proofs of non-membership of future entries
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
