@@ -352,6 +352,7 @@ impl Clone for TreeNode {
 impl TreeNode {
     // FIXME: Figure out how to better group arguments.
     #[allow(clippy::too_many_arguments)]
+    /// Creates a new TreeNode and writes it to the storage.
     async fn new<S: Storage + Send + Sync>(
         storage: &S,
         label: NodeLabel,
