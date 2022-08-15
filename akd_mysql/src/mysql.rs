@@ -911,10 +911,6 @@ impl Storage for AsyncMySqlDatabase {
         )
         .await;
 
-        if St::data_type() == StorageType::TreeNode {
-            println!("Get direct tree node.");
-        }
-
         debug!("BEGIN MySQL get {:?}", id);
         let result = async {
             let tic = Instant::now();
