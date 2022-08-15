@@ -24,7 +24,7 @@ use winter_crypto::Hasher;
 /// ancestor of the node for which a proof is being generated.
 /// The parent is the parent of the level in the tree at which you are.
 /// See documentation for [`MembershipProof`] to see how this is used.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -140,7 +140,7 @@ pub struct AppendOnlyProof<H: Hasher> {
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
 /// as the leaves with the correct epoch of insertion,
 /// it should result in the final root hash.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
