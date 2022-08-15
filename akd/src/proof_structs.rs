@@ -52,7 +52,7 @@ impl<H: Hasher> Clone for LayerProof<H> {
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -121,7 +121,7 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
 /// This is done using a list of SingleAppendOnly proofs, one proof
 /// for each epoch between the initial epoch and final epochs which are
 /// being audited.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)

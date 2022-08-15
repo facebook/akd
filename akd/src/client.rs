@@ -201,7 +201,7 @@ pub fn key_history_verify<H: Hasher>(
                     ))));
             }
         }
-    }
+}
 
     // Verify all individual update proofs
     let mut maybe_previous_update_epoch = None;
