@@ -81,7 +81,7 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
+        let root = create_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
@@ -105,7 +105,7 @@ impl Azks {
         // Since this function is only for testing batch_insert_leaves, which is one epoch
         // increment for the entire batch. Hence, we want to take care of epochs outside.
         let new_leaf =
-            get_leaf_node::<H, S>(storage, node.label, &node.hash, NodeLabel::root(), epoch)
+            create_leaf_node::<H, S>(storage, node.label, &node.hash, NodeLabel::root(), epoch)
                 .await?;
 
         let mut root_node = TreeNode::get_from_storage(
@@ -222,7 +222,7 @@ impl Azks {
         )
         .await?;
         for node in insertion_set {
-            let new_leaf = get_leaf_node::<H, S>(
+            let new_leaf = create_leaf_node::<H, S>(
                 storage,
                 node.label,
                 &node.hash,

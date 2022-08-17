@@ -879,8 +879,8 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
     }
 }
 
-/// Retrieve an empty root node
-pub async fn get_empty_root<H: Hasher, S: Storage + Sync + Send>(
+/// Create an empty root node.
+pub async fn create_empty_root<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     ep: Option<u64>,
     least_descendant_ep: Option<u64>,
@@ -909,8 +909,8 @@ pub async fn get_empty_root<H: Hasher, S: Storage + Sync + Send>(
     Ok(node)
 }
 
-/// Get a specific leaf node
-pub async fn get_leaf_node<H: Hasher, S: Storage + Sync + Send>(
+/// Create a specific leaf node.
+pub async fn create_leaf_node<H: Hasher, S: Storage + Sync + Send>(
     storage: &S,
     label: NodeLabel,
     value: &H::Digest,
@@ -950,9 +950,9 @@ mod tests {
     async fn test_least_descendant_ep() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root =
-            get_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
-        let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+        let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &Blake3::hash(&EMPTY_VALUE),
@@ -961,7 +961,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &Blake3::hash(&[1u8]),
@@ -970,7 +970,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &Blake3::hash(&[1u8, 1u8]),
@@ -1053,7 +1053,7 @@ mod tests {
         let db = InMemoryDb::new();
 
         let mut root =
-            get_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
         root.write_to_storage(&db).await?;
 
@@ -1061,7 +1061,7 @@ mod tests {
         let mut num_nodes = 1;
 
         // Prepare the leaf to be inserted with label 0.
-        let leaf_0 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
             &Blake3::hash(&EMPTY_VALUE),
@@ -1075,7 +1075,7 @@ mod tests {
         assert_eq!(num_nodes, 2);
 
         // Prepare another leaf to insert with label 1.
-        let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
             &Blake3::hash(&[1u8]),
@@ -1123,9 +1123,9 @@ mod tests {
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root =
-            get_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
-        let leaf_0 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &Blake3::hash(&EMPTY_VALUE),
@@ -1134,7 +1134,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &Blake3::hash(&[1u8]),
@@ -1143,7 +1143,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &Blake3::hash(&[1u8, 1u8]),
@@ -1206,10 +1206,10 @@ mod tests {
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root =
-            get_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
 
-        let leaf_0 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
             &Blake3::hash(&EMPTY_VALUE),
@@ -1218,7 +1218,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
             &Blake3::hash(&[1u8]),
@@ -1227,7 +1227,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
             &Blake3::hash(&[1u8, 1u8]),
@@ -1236,7 +1236,7 @@ mod tests {
         )
         .await?;
 
-        let leaf_3 = get_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_3 = create_leaf_node::<Blake3, InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
             &Blake3::hash(&[0u8, 1u8]),
@@ -1312,7 +1312,7 @@ mod tests {
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
         let mut root =
-            get_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
@@ -1320,7 +1320,7 @@ mod tests {
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i.clone() << 61;
-            let new_leaf = get_leaf_node::<Blake3, InMemoryDb>(
+            let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
                 &db,
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
                 &Blake3::hash(&leaf_u64.to_be_bytes()),
