@@ -24,7 +24,7 @@ use winter_crypto::Hasher;
 /// ancestor of the node for which a proof is being generated.
 /// The parent is the parent of the level in the tree at which you are.
 /// See documentation for [`MembershipProof`] to see how this is used.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -52,7 +52,7 @@ impl<H: Hasher> Clone for LayerProof<H> {
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash value
 /// in the tree at a given epoch.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -88,7 +88,7 @@ impl<H: Hasher> Clone for MembershipProof<H> {
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -121,7 +121,7 @@ impl<H: Hasher> Clone for NonMembershipProof<H> {
 /// This is done using a list of SingleAppendOnly proofs, one proof
 /// for each epoch between the initial epoch and final epochs which are
 /// being audited.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -140,7 +140,7 @@ pub struct AppendOnlyProof<H: Hasher> {
 /// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
 /// as the leaves with the correct epoch of insertion,
 /// it should result in the final root hash.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -169,7 +169,7 @@ impl<H: Hasher> Clone for SingleAppendOnlyProof<H> {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -218,7 +218,7 @@ impl<H: Hasher> Clone for LookupProof<H> {
 
 /// This proof is an array of [`UpdateProof`]s
 /// and proofs of non-membership of future entries
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -262,7 +262,7 @@ impl<H: Hasher> Clone for HistoryProof<H> {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
