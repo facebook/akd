@@ -244,6 +244,16 @@ impl TreeNode {
         &self,
         storage: &S,
     ) -> Result<(), StorageError> {
+        self.write_to_storage_impl(storage, false).await
+    }
+
+    /// Internal function to be used for storage operations. If a node is new (i.e., is_new_node=true), the node's previous version
+    /// will be used as None without the cost of finding this information in the cache or worse yet in the database.
+    async fn write_to_storage_impl<S: Storage + Send + Sync>(
+        &self,
+        storage: &S,
+        is_new_node: bool,
+    ) -> Result<(), StorageError> {
         // MOTIVATION:
         // We want to retrieve the previous latest_node value, so we want to investigate where (epoch - 1).
         // When a request comes in to write the node with a future epoch, (epoch - 1) will be the latest node in storage
@@ -258,16 +268,24 @@ impl TreeNode {
             e if e > 0 => e - 1,
             other => other,
         };
-        let previous = match TreeNodeWithPreviousValue::get_appropriate_tree_node_from_storage(
-            storage,
-            &NodeKey(self.label),
-            target_epoch,
-        )
-        .await
-        {
-            Ok(p) => Some(p),
-            Err(StorageError::NotFound(_)) => None,
-            Err(other) => return Err(other),
+        // Previous value of a new node are None.
+        // Note that if a request for a non-existent node is issued,
+        // it will skip the cache and directly go to the database
+        // which means a big hit in performance!
+        let previous = if is_new_node {
+            None
+        } else {
+            match TreeNodeWithPreviousValue::get_appropriate_tree_node_from_storage(
+                storage,
+                &NodeKey(self.label),
+                target_epoch,
+            )
+            .await
+            {
+                Ok(p) => Some(p),
+                Err(StorageError::NotFound(_)) => None,
+                Err(other) => return Err(other),
+            }
         };
         // construct the "new" record, shifting the most recent stored value into the "previous" field
         let left_shifted = TreeNodeWithPreviousValue {
@@ -334,7 +352,9 @@ impl Clone for TreeNode {
 impl TreeNode {
     // FIXME: Figure out how to better group arguments.
     #[allow(clippy::too_many_arguments)]
-    fn new(
+    /// Creates a new TreeNode and writes it to the storage.
+    async fn new<S: Storage + Send + Sync>(
+        storage: &S,
         label: NodeLabel,
         parent: NodeLabel,
         node_type: NodeType,
@@ -343,8 +363,8 @@ impl TreeNode {
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
         hash: [u8; 32],
-    ) -> Self {
-        TreeNode {
+    ) -> Result<Self, StorageError> {
+        let new_node = TreeNode {
             label,
             last_epoch: birth_epoch,
             least_descendant_ep,
@@ -353,7 +373,9 @@ impl TreeNode {
             left_child,
             right_child,
             hash,
-        }
+        };
+        new_node.write_to_storage_impl(storage, true).await?;
+        Ok(new_node)
     }
 
     /// Inserts a single leaf node and updates the required hashes, creating new nodes where needed.
@@ -519,6 +541,7 @@ impl TreeNode {
 
         debug!("BEGIN create new node");
         let mut new_node = TreeNode::new(
+            storage,
             lcs_label,
             parent.label,
             NodeType::Interior,
@@ -528,7 +551,8 @@ impl TreeNode {
             None,
             None,
             [0u8; 32],
-        );
+        )
+        .await?;
         // Set up child-parent connections from top to bottom
         // (set child sets both child for the parent and parent for the child)
         // 1. Replace the self with the new node.
@@ -563,8 +587,7 @@ impl TreeNode {
                 .update_node_hash::<_, H>(storage, epoch, exclude_ep)
                 .await?;
         } else {
-            // If no hashing, we need to manually save the nodes.
-            new_leaf.write_to_storage(storage).await?;
+            // If no hashing, we need to manually save the nodes (new leaf already saved above).
             new_node.write_to_storage(storage).await?;
             parent.write_to_storage(storage).await?;
         }
@@ -855,11 +878,16 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
     }
 }
 
-/// Retrieve an empty root node
-pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendant_ep: Option<u64>) -> TreeNode {
+/// Create an empty root node.
+pub async fn create_empty_root<H: Hasher, S: Storage + Sync + Send>(
+    storage: &S,
+    ep: Option<u64>,
+    least_descendant_ep: Option<u64>,
+) -> Result<TreeNode, StorageError> {
     // Empty root hash is the same as empty node hash
     let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash_no_label::<H>());
     let mut node = TreeNode::new(
+        storage,
         NodeLabel::root(),
         NodeLabel::root(),
         NodeType::Root,
@@ -869,34 +897,38 @@ pub fn get_empty_root<H: Hasher>(ep: Option<u64>, least_descendant_ep: Option<u6
         None,
         None,
         empty_root_hash,
-    );
+    )
+    .await?;
     if let Some(epoch) = ep {
         node.last_epoch = epoch;
     }
     if let Some(least_ep) = least_descendant_ep {
         node.least_descendant_ep = least_ep;
     }
-    node
+    Ok(node)
 }
 
-/// Get a specific leaf node
-pub fn get_leaf_node<H: Hasher>(
+/// Create a specific leaf node.
+pub async fn create_leaf_node<H: Hasher, S: Storage + Sync + Send>(
+    storage: &S,
     label: NodeLabel,
     value: &H::Digest,
     parent: NodeLabel,
     birth_epoch: u64,
-) -> TreeNode {
-    TreeNode {
+) -> Result<TreeNode, StorageError> {
+    let new_node = TreeNode::new(
+        storage,
         label,
-        last_epoch: birth_epoch,
-        least_descendant_ep: birth_epoch,
         parent,
-        node_type: NodeType::Leaf,
-        // Leaf has no children.
-        left_child: None,
-        right_child: None,
-        hash: from_digest::<H>(*value),
-    }
+        NodeType::Leaf,
+        birth_epoch,
+        birth_epoch,
+        None,
+        None,
+        from_digest::<H>(*value),
+    )
+    .await?;
+    Ok(new_node)
 }
 
 #[cfg(test)]
@@ -916,27 +948,35 @@ mod tests {
     #[tokio::test]
     async fn test_least_descendant_ep() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
-        let new_leaf = get_leaf_node::<Blake3>(
+        let mut root =
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+                .await?;
+        let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
-        );
+        )
+        .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             2,
-        );
+        )
+        .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &Blake3::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             3,
-        );
+        )
+        .await?;
 
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
@@ -1011,31 +1051,37 @@ mod tests {
     async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
 
-        let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
+        let mut root =
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+                .await?;
         root.write_to_storage(&db).await?;
 
         // Num nodes in total (currently only the root).
         let mut num_nodes = 1;
 
         // Prepare the leaf to be inserted with label 0.
-        let leaf_0 = get_leaf_node::<Blake3>(
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
         root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 0, &mut num_nodes, None)
             .await?;
         assert_eq!(num_nodes, 2);
 
         // Prepare another leaf to insert with label 1.
-        let leaf_1 = get_leaf_node::<Blake3>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
         // Insert leaf 1.
         root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes, None)
@@ -1075,27 +1121,35 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
-        let leaf_0 = get_leaf_node::<Blake3>(
+        let mut root =
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+                .await?;
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
-        );
+        )
+        .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             2,
-        );
+        )
+        .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &Blake3::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             3,
-        );
+        )
+        .await?;
 
         let leaf_0_hash = Blake3::merge(&[
             Blake3::merge_with_int(Blake3::hash(&EMPTY_VALUE), 1),
@@ -1150,35 +1204,45 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
+        let mut root =
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+                .await?;
 
-        let leaf_0 = get_leaf_node::<Blake3>(
+        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
             &Blake3::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
-        let leaf_1 = get_leaf_node::<Blake3>(
+        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
             &Blake3::hash(&[1u8]),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
-        let leaf_2 = get_leaf_node::<Blake3>(
+        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
             &Blake3::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
-        let leaf_3 = get_leaf_node::<Blake3>(
+        let leaf_3 = create_leaf_node::<Blake3, InMemoryDb>(
+            &db,
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
             &Blake3::hash(&[0u8, 1u8]),
             NodeLabel::root(),
             0,
-        );
+        )
+        .await?;
 
         let leaf_0_hash = Blake3::merge(&[
             Blake3::merge_with_int(Blake3::hash(&EMPTY_VALUE), 1),
@@ -1246,19 +1310,23 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let db = InMemoryDb::new();
-        let mut root = get_empty_root::<Blake3>(Option::Some(0u64), Option::Some(0u64));
+        let mut root =
+            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+                .await?;
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
         let mut leaves = Vec::<TreeNode>::new();
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i.clone() << 61;
-            let new_leaf = get_leaf_node::<Blake3>(
+            let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
+                &db,
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
                 &Blake3::hash(&leaf_u64.to_be_bytes()),
                 NodeLabel::root(),
                 7 - i,
-            );
+            )
+            .await?;
             leaf_hashes.push(Blake3::merge(&[
                 Blake3::merge_with_int(Blake3::hash(&leaf_u64.to_be_bytes()), 8 - i),
                 hash_label::<Blake3>(new_leaf.label),
