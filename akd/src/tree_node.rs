@@ -24,7 +24,7 @@ use winter_crypto::Hasher;
 /// There are three types of nodes: root, leaf and interior.
 /// This enum is used to mark nodes using the node_type variable
 /// of a TreeNode.
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -68,7 +68,7 @@ pub(crate) type InsertionNode<'a> = (Direction, &'a mut TreeNode);
 /// that a new epoch is available, flush their caches, and retrieve data from storage directly again.
 ///
 /// This structure holds the label along with the current value & epoch - 1
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -205,7 +205,7 @@ impl TreeNodeWithPreviousValue {
 /// At a later time, we may need to access older sub-trees of the tree built with these nodes.
 /// To facilitate this, we require this struct to include the last time a node was updated
 /// as well as the oldest descendant it holds.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
