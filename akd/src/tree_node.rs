@@ -587,8 +587,7 @@ impl TreeNode {
                 .update_node_hash::<_, H>(storage, epoch, exclude_ep)
                 .await?;
         } else {
-            // If no hashing, we need to manually save the nodes.
-            new_leaf.write_to_storage(storage).await?;
+            // If no hashing, we need to manually save the nodes (new leaf already saved above).
             new_node.write_to_storage(storage).await?;
             parent.write_to_storage(storage).await?;
         }

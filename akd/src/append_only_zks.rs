@@ -81,13 +81,11 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = create_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
+        create_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
         };
-
-        root.write_to_storage(storage).await?;
 
         Ok(azks)
     }
