@@ -333,6 +333,9 @@ pub mod serialization;
 pub mod storage;
 pub mod tree_node;
 
+#[cfg(feature = "protobuf")]
+pub mod proto;
+
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
