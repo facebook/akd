@@ -30,8 +30,8 @@ message Node {
     optional bytes hash = 2;
 }
 
-/* SingleAppendOnlyProof represents a proof that no leaves were changed or removed between epoch t and t + 1 */
-message SingleAppendOnlyProof {
+/* SingleEncodedProof represents a proof that no leaves were changed or removed between epoch t and t + 1 */
+message SingleEncodedProof {
     repeated Node inserted = 1;
     repeated Node unchanged = 2;
 }

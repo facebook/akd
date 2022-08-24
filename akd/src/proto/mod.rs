@@ -15,6 +15,11 @@ use protobuf::RepeatedField;
 use std::convert::{TryFrom, TryInto};
 
 pub mod audit;
+// Forget the generics, we're hardcoding to blake3
+use winter_crypto::hashers::Blake3_256;
+use winter_math::fields::f128::BaseElement;
+type Hasher = Blake3_256<BaseElement>;
+type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
 // ************************ Converters ************************ //
 
@@ -35,13 +40,13 @@ macro_rules! require {
 
 macro_rules! hash_to_bytes {
     ($obj:expr) => {
-        crate::serialization::from_digest::<H>($obj).to_vec()
+        crate::serialization::from_digest::<Hasher>($obj).to_vec()
     };
 }
 
 macro_rules! hash_from_bytes {
     ($obj:expr) => {
-        crate::serialization::to_digest::<H>($obj)
+        crate::serialization::to_digest::<Hasher>($obj)
             .map_err(|_| "Failed to convert bytes to digest".to_string())?
     };
 }
@@ -84,11 +89,9 @@ impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
 // Node
 // ==============================================================
 
-impl<H> From<&crate::helper_structs::Node<H>> for audit::Node
-where
-    H: winter_crypto::Hasher + Clone,
+impl From<&crate::helper_structs::Node<Hasher>> for audit::Node
 {
-    fn from(input: &crate::helper_structs::Node<H>) -> Self {
+    fn from(input: &crate::helper_structs::Node<Hasher>) -> Self {
         let mut result = Self::new();
         result.set_label((&input.label).into());
         result.set_hash(hash_to_bytes!(input.hash));
@@ -96,9 +99,7 @@ where
     }
 }
 
-impl<H> TryFrom<&audit::Node> for crate::helper_structs::Node<H>
-where
-    H: winter_crypto::Hasher + Clone,
+impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher>
 {
     type Error = String;
 
@@ -106,18 +107,16 @@ where
         require!(input, has_label);
         require!(input, has_hash);
         let label: crate::NodeLabel = input.get_label().try_into()?;
-        Ok(crate::helper_structs::Node::<H> {
+        Ok(crate::helper_structs::Node::<Hasher> {
             label,
             hash: hash_from_bytes!(input.get_hash()),
         })
     }
 }
 
-impl<H> From<&crate::proof_structs::SingleAppendOnlyProof<H>> for audit::SingleAppendOnlyProof
-where
-    H: winter_crypto::Hasher + Clone,
+impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::SingleEncodedProof
 {
-    fn from(input: &crate::proof_structs::SingleAppendOnlyProof<H>) -> Self {
+    fn from(input: &crate::proof_structs::SingleAppendOnlyProof<Hasher>) -> Self {
         let mut result = Self::new();
         let inserted = input
             .inserted
@@ -136,13 +135,11 @@ where
     }
 }
 
-impl<H> TryFrom<&audit::SingleAppendOnlyProof> for crate::proof_structs::SingleAppendOnlyProof<H>
-where
-    H: winter_crypto::Hasher + Clone,
+impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOnlyProof<Hasher>
 {
     type Error = String;
 
-    fn try_from(input: &audit::SingleAppendOnlyProof) -> Result<Self, Self::Error> {
+    fn try_from(input: audit::SingleEncodedProof) -> Result<Self, Self::Error> {
         let mut inserted = vec![];
         let mut unchanged = vec![];
         for item in input.get_inserted() {
@@ -162,7 +159,8 @@ where
 
 const NAME_SEPARATOR: char = '/';
 
-/// The constructed blobs with naming
+/// The constructed blobs with naming encoding the
+/// blob name = "EPOCH/PREVIOUS_ROOT_HASH/CURRENT_ROOT_HASH"
 pub struct AuditBlob {
     /// The name of the blob, which can be decomposed into logical components (phash, chash, epoch)
     pub name: String,
@@ -176,9 +174,7 @@ impl AuditBlob {
     }
 
     /// Decompose the blob's name into the (previous_hash, current_hash, epoch) tuple
-    pub fn decompose_name<H>(name: &str) -> Result<(H::Digest, H::Digest, u64), String>
-    where
-        H: winter_crypto::Hasher + Clone,
+    pub fn decompose_name(name: &str) -> Result<(Digest, Digest, u64), String>
     {
         let parts = name.split(NAME_SEPARATOR).collect::<Vec<_>>();
         if parts.len() < 3 {
@@ -189,12 +185,12 @@ impl AuditBlob {
         let epoch: u64 = parts[0]
             .parse()
             .map_err(|_| format!("Failed to parse {} into an unsigned integer", parts[0]))?;
-        let previous_epoch = crate::serialization::to_digest::<H>(
+        let previous_epoch = crate::serialization::to_digest::<Hasher>(
             &hex::decode(parts[1])
                 .map_err(|_| format!("Failed to parse {} as a hex string into bytes", parts[1]))?,
         )
         .map_err(Self::convert_akd_err)?;
-        let current_epoch = crate::serialization::to_digest::<H>(
+        let current_epoch = crate::serialization::to_digest::<Hasher>(
             &hex::decode(parts[2])
                 .map_err(|_| format!("Failed to parse {} as a hex string into bytes", parts[2]))?,
         )
@@ -204,17 +200,15 @@ impl AuditBlob {
     }
 
     /// Construct a new AuditBlob from the internal structures, which is ready to be written to persistent storage
-    pub fn build<H>(
-        previous_hash: H::Digest,
-        current_hash: H::Digest,
+    pub fn build(
+        previous_hash: Digest,
+        current_hash: Digest,
         epoch: u64,
-        proof: &crate::proof_structs::SingleAppendOnlyProof<H>,
+        proof: &crate::proof_structs::SingleAppendOnlyProof<Hasher>,
     ) -> Result<AuditBlob, ProtobufError>
-    where
-        H: winter_crypto::Hasher + Clone,
     {
-        let phash_bytes = crate::serialization::from_digest::<H>(previous_hash);
-        let chash_bytes = crate::serialization::from_digest::<H>(current_hash);
+        let phash_bytes = crate::serialization::from_digest::<Hasher>(previous_hash);
+        let chash_bytes = crate::serialization::from_digest::<Hasher>(current_hash);
         let name = format!(
             "{}{}{}{}{}",
             epoch,
@@ -223,7 +217,7 @@ impl AuditBlob {
             NAME_SEPARATOR,
             hex::encode(chash_bytes)
         );
-        let proto: audit::SingleAppendOnlyProof = proof.into();
+        let proto: audit::SingleEncodedProof = proof.into();
 
         Ok(AuditBlob {
             name,
@@ -232,42 +226,38 @@ impl AuditBlob {
     }
 
     /// Decode a protobuf encoded AuditBlob into it's components (phash, chash, epoch, proof)
-    pub fn decode<H>(
+    pub fn decode(
         &self,
     ) -> Result<
         (
-            H::Digest,
-            H::Digest,
+            Digest,
+            Digest,
             u64,
-            crate::proof_structs::SingleAppendOnlyProof<H>,
+            crate::proof_structs::SingleAppendOnlyProof<Hasher>,
         ),
         String,
     >
-    where
-        H: winter_crypto::Hasher + Clone,
     {
-        let proof: audit::SingleAppendOnlyProof =
+        let proof: audit::SingleEncodedProof =
             protobuf::parse_from_bytes(&self.data).map_err(|pbuf| {
                 format!(
                     "Error deserializating protobuf encoded SingleAppendOnlyProof: {}",
                     pbuf
                 )
             })?;
-        let (phash, chash, epoch) = Self::decompose_name::<H>(&self.name)?;
-        let local_proof: crate::proof_structs::SingleAppendOnlyProof<H> = (&proof).try_into()?;
+        let (phash, chash, epoch) = Self::decompose_name(&self.name)?;
+        let local_proof: Result<crate::proof_structs::SingleAppendOnlyProof<Hasher>, String> = proof.try_into();
 
-        Ok((phash, chash, epoch, local_proof))
+        Ok((phash, chash, epoch, local_proof?))
     }
 }
 
 /// Convert an append-only proof to "Audit Blobs" which are to be stored in a publically readable storage medium
 /// suitable for public auditing
-pub fn generate_audit_blobs<H>(
-    hashes: Vec<H::Digest>,
-    proof: crate::proof_structs::AppendOnlyProof<H>,
+pub fn generate_audit_blobs(
+    hashes: Vec<Digest>,
+    proof: crate::proof_structs::AppendOnlyProof<Hasher>,
 ) -> Result<Vec<AuditBlob>, String>
-where
-    H: winter_crypto::Hasher + Clone,
 {
     if proof.epochs.len() + 1 != hashes.len() {
         return Err(format!(

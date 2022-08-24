@@ -7,12 +7,17 @@
 
 //! A tool to verify audit proofs from a public S3 bucket storage of all proofs
 
-pub mod auditor;
 mod console_log;
-pub mod s3;
+
+pub mod auditor;
+pub mod storage;
 
 use clap::{ArgEnum, Parser};
-use log::{debug, error, info};
+use log::{debug, error};
+use winter_crypto::hashers::Blake3_256;
+use winter_math::fields::f128::BaseElement;
+type Hasher = Blake3_256<BaseElement>;
+type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
 static LOGGER: console_log::ConsoleLogger = console_log::ConsoleLogger {
     level: log::Level::Debug,
@@ -39,7 +44,9 @@ impl PublicLogLevel {
     }
 }
 
+/// AKD audit proof verification utility
 #[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
 pub struct Arguments {
     /// The logging level to use for console output
     #[clap(long, short, arg_enum, ignore_case = true, default_value = "Info")]
@@ -48,6 +55,10 @@ pub struct Arguments {
     /// Show the verification QR code in the terminal
     #[clap(long)]
     qr: bool,
+
+    /// Storage configuration for audit proofs
+    #[clap(subcommand)]
+    storage: storage::StorageSubcommand,
 }
 
 // MAIN //
@@ -63,11 +74,13 @@ async fn main() {
         .expect("Failed to setup logging");
     debug!("Parsed args: {:?}", args);
 
-    // Generate the QR code
-    if args.qr {
-        info!("Generating QR code");
-        if let Err(error) = qr2term::print_qr("https://google.com/") {
-            error!("Error generating QR code {}", error);
+    let storage: Box<dyn storage::AuditProofStorage> = match &args.storage {
+        storage::StorageSubcommand::S3(s3_settings) => {
+            let imp: storage::s3::S3AuditStorage = s3_settings.into();
+            Box::new(imp)
         }
+    };
+    if let Err(error) = auditor::auditor_repl(&storage).await {
+        error!("Auditing REPL failed with error {}", error);
     }
 }

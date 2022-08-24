@@ -481,7 +481,7 @@ impl ::protobuf::reflect::ProtobufValue for Node {
 }
 
 #[derive(PartialEq,Clone,Default)]
-pub struct SingleAppendOnlyProof {
+pub struct SingleEncodedProof {
     // message fields
     inserted: ::protobuf::RepeatedField<Node>,
     unchanged: ::protobuf::RepeatedField<Node>,
@@ -490,14 +490,14 @@ pub struct SingleAppendOnlyProof {
     pub cached_size: ::protobuf::CachedSize,
 }
 
-impl<'a> ::std::default::Default for &'a SingleAppendOnlyProof {
-    fn default() -> &'a SingleAppendOnlyProof {
-        <SingleAppendOnlyProof as ::protobuf::Message>::default_instance()
+impl<'a> ::std::default::Default for &'a SingleEncodedProof {
+    fn default() -> &'a SingleEncodedProof {
+        <SingleEncodedProof as ::protobuf::Message>::default_instance()
     }
 }
 
-impl SingleAppendOnlyProof {
-    pub fn new() -> SingleAppendOnlyProof {
+impl SingleEncodedProof {
+    pub fn new() -> SingleEncodedProof {
         ::std::default::Default::default()
     }
 
@@ -552,7 +552,7 @@ impl SingleAppendOnlyProof {
     }
 }
 
-impl ::protobuf::Message for SingleAppendOnlyProof {
+impl ::protobuf::Message for SingleEncodedProof {
     fn is_initialized(&self) -> bool {
         for v in &self.inserted {
             if !v.is_initialized() {
@@ -643,8 +643,8 @@ impl ::protobuf::Message for SingleAppendOnlyProof {
         Self::descriptor_static()
     }
 
-    fn new() -> SingleAppendOnlyProof {
-        SingleAppendOnlyProof::new()
+    fn new() -> SingleEncodedProof {
+        SingleEncodedProof::new()
     }
 
     fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
@@ -657,16 +657,16 @@ impl ::protobuf::Message for SingleAppendOnlyProof {
                 let mut fields = ::std::vec::Vec::new();
                 fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Node>>(
                     "inserted",
-                    |m: &SingleAppendOnlyProof| { &m.inserted },
-                    |m: &mut SingleAppendOnlyProof| { &mut m.inserted },
+                    |m: &SingleEncodedProof| { &m.inserted },
+                    |m: &mut SingleEncodedProof| { &mut m.inserted },
                 ));
                 fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Node>>(
                     "unchanged",
-                    |m: &SingleAppendOnlyProof| { &m.unchanged },
-                    |m: &mut SingleAppendOnlyProof| { &mut m.unchanged },
+                    |m: &SingleEncodedProof| { &m.unchanged },
+                    |m: &mut SingleEncodedProof| { &mut m.unchanged },
                 ));
-                ::protobuf::reflect::MessageDescriptor::new::<SingleAppendOnlyProof>(
-                    "SingleAppendOnlyProof",
+                ::protobuf::reflect::MessageDescriptor::new::<SingleEncodedProof>(
+                    "SingleEncodedProof",
                     fields,
                     file_descriptor_proto()
                 )
@@ -674,18 +674,18 @@ impl ::protobuf::Message for SingleAppendOnlyProof {
         }
     }
 
-    fn default_instance() -> &'static SingleAppendOnlyProof {
-        static mut instance: ::protobuf::lazy::Lazy<SingleAppendOnlyProof> = ::protobuf::lazy::Lazy {
+    fn default_instance() -> &'static SingleEncodedProof {
+        static mut instance: ::protobuf::lazy::Lazy<SingleEncodedProof> = ::protobuf::lazy::Lazy {
             lock: ::protobuf::lazy::ONCE_INIT,
-            ptr: 0 as *const SingleAppendOnlyProof,
+            ptr: 0 as *const SingleEncodedProof,
         };
         unsafe {
-            instance.get(SingleAppendOnlyProof::new)
+            instance.get(SingleEncodedProof::new)
         }
     }
 }
 
-impl ::protobuf::Clear for SingleAppendOnlyProof {
+impl ::protobuf::Clear for SingleEncodedProof {
     fn clear(&mut self) {
         self.inserted.clear();
         self.unchanged.clear();
@@ -693,13 +693,13 @@ impl ::protobuf::Clear for SingleAppendOnlyProof {
     }
 }
 
-impl ::std::fmt::Debug for SingleAppendOnlyProof {
+impl ::std::fmt::Debug for SingleEncodedProof {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         ::protobuf::text_format::fmt(self, f)
     }
 }
 
-impl ::protobuf::reflect::ProtobufValue for SingleAppendOnlyProof {
+impl ::protobuf::reflect::ProtobufValue for SingleEncodedProof {
     fn as_ref(&self) -> ::protobuf::reflect::ProtobufValueRef {
         ::protobuf::reflect::ProtobufValueRef::Message(self)
     }
@@ -709,9 +709,9 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \n\x15src/proto/audit.proto\"E\n\tNodeLabel\x12\x1b\n\tlabel_val\x18\x01\
     \x20\x01(\x0cR\x08labelVal\x12\x1b\n\tlabel_len\x18\x02\x20\x01(\rR\x08l\
     abelLen\"<\n\x04Node\x12\x20\n\x05label\x18\x01\x20\x01(\x0b2\n.NodeLabe\
-    lR\x05label\x12\x12\n\x04hash\x18\x02\x20\x01(\x0cR\x04hash\"_\n\x15Sing\
-    leAppendOnlyProof\x12!\n\x08inserted\x18\x01\x20\x03(\x0b2\x05.NodeR\x08\
-    inserted\x12#\n\tunchanged\x18\x02\x20\x03(\x0b2\x05.NodeR\tunchanged\
+    lR\x05label\x12\x12\n\x04hash\x18\x02\x20\x01(\x0cR\x04hash\"\\\n\x12Sin\
+    gleEncodedProof\x12!\n\x08inserted\x18\x01\x20\x03(\x0b2\x05.NodeR\x08in\
+    serted\x12#\n\tunchanged\x18\x02\x20\x03(\x0b2\x05.NodeR\tunchanged\
 ";
 
 static mut file_descriptor_proto_lazy: ::protobuf::lazy::Lazy<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::lazy::Lazy {
