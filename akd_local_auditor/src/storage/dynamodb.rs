@@ -13,8 +13,6 @@ use clap::Args;
 #[derive(Args, Debug, Clone)]
 pub struct DynamoDbClapSettings {
     /// The S3 bucket where the audit proofs are stored
-    #[clap(
-        long,
-    )]
+    #[clap(long)]
     test: String,
 }

@@ -21,7 +21,8 @@ use tokio::sync::RwLock;
 const MIN_BUCKET_CHARS: usize = 3;
 const MAX_BUCKET_CHARS: usize = 63;
 const ALLOWED_BUCKET_CHARS: [char; 38] = [
-    'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','.','-', '1','2','3','4','5','6','7','8','9','0'
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', '.', '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
 ];
 
 fn is_bucket_name_valid(s: &str) -> Result<String, String> {
@@ -34,7 +35,12 @@ fn is_bucket_name_valid(s: &str) -> Result<String, String> {
         }
         Ok(str)
     } else {
-        Err(format!("Bucket name must be between [{}, {}] characters in length. Gave {}", MIN_BUCKET_CHARS, MAX_BUCKET_CHARS, str.len()))
+        Err(format!(
+            "Bucket name must be between [{}, {}] characters in length. Gave {}",
+            MIN_BUCKET_CHARS,
+            MAX_BUCKET_CHARS,
+            str.len()
+        ))
     }
 }
 
@@ -47,7 +53,6 @@ pub struct S3ClapSettings {
     )]
     bucket: String,
 }
-
 
 pub struct S3AuditStorage {
     /// The bucket where the audit proofs are stored
@@ -70,7 +75,6 @@ impl From<&S3ClapSettings> for S3AuditStorage {
 }
 
 impl S3AuditStorage {
-
     async fn get_config(&self) -> s3::Config {
         let mut lock = self.config.write().await;
         let shared_config = if let Some(config) = &*lock {
@@ -160,7 +164,7 @@ impl super::AuditProofStorage for S3AuditStorage {
                         let bytes = result.body.collect().await?.into_bytes();
                         Ok(akd::proto::AuditBlob {
                             data: bytes.into_iter().collect::<Vec<u8>>(),
-                            name: found_key.key.clone()
+                            name: found_key.key.clone(),
                         })
                     }
                 }
@@ -168,7 +172,9 @@ impl super::AuditProofStorage for S3AuditStorage {
                 bail!("Failed to find epoch {} in keys retrieved from S3", epoch);
             }
         } else {
-            bail!("Object keys first need to be enumerated from S3 before we can retrieve an epoch");
+            bail!(
+                "Object keys first need to be enumerated from S3 before we can retrieve an epoch"
+            );
         }
     }
 }

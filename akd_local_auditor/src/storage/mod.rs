@@ -10,13 +10,13 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use clap::{Subcommand};
+use clap::Subcommand;
 use std::convert::TryFrom;
 
 // ************************************ Implementations ************************************ //
 
-pub mod s3;
 pub mod dynamodb;
+pub mod s3;
 
 /// Storage options for retrieving audit proofs
 #[derive(Subcommand, Clone, Debug)]
@@ -56,7 +56,6 @@ impl TryFrom<&str> for EpochSummary {
         })
     }
 }
-
 
 /// Represents a storage of audit proofs and READ ONLY interaction to retrieve the proof objects
 #[async_trait]

@@ -38,9 +38,7 @@ pub async fn audit_epoch<H>(blob: akd::proto::AuditBlob, qr: bool) -> Result<()>
 where
     H: winter_crypto::Hasher + Sync + Send,
 {
-    let (p_hash, c_hash, epoch, proof) = blob
-    .decode()
-    .map_err(|err| anyhow!("{}", err))?;
+    let (p_hash, c_hash, epoch, proof) = blob.decode().map_err(|err| anyhow!("{}", err))?;
 
     // DO THE FREAKING VERIFICATION ALREADY
     if let Err(akd_error) = akd::auditor::audit_verify(
@@ -80,7 +78,7 @@ pub enum AuditCommand {
         epoch: u64,
         /// Show a QR code of the audit
         #[clap(long)]
-        qr: bool
+        qr: bool,
     },
     /// Show the available epochs to audit
     ShowEpochs,
@@ -94,37 +92,45 @@ pub struct AuditArgs {
 }
 
 fn display_audit_proofs_info(info: &mut Vec<crate::storage::EpochSummary>) -> Result<()> {
-    info.sort_by(|a,b| a.epoch.cmp(&b.epoch));
+    info.sort_by(|a, b| a.epoch.cmp(&b.epoch));
     if info.is_empty() {
         bail!("There are no epochs present in the storage repository");
     }
 
     let min = info.first().unwrap().clone();
     let max = info.last().unwrap().clone();
-    let (maybe_broken_epoch, is_contiguous) = info.iter().skip(1).fold((min.clone(), true), |(previous_item, cont), item| {
-        if !cont {
-            (previous_item, cont)
-        } else {
-            (item.clone(), item.epoch == previous_item.epoch + 1)
-        }
-    });
+    let (maybe_broken_epoch, is_contiguous) =
+        info.iter()
+            .skip(1)
+            .fold((min.clone(), true), |(previous_item, cont), item| {
+                if !cont {
+                    (previous_item, cont)
+                } else {
+                    (item.clone(), item.epoch == previous_item.epoch + 1)
+                }
+            });
 
     if !is_contiguous {
         bail!("The audit proofs appear to not be continguous. There's a break in the linear history at epoch {}", maybe_broken_epoch.epoch);
     }
 
-    info!("Audit history is available between epochs ({}) and ({}), inclusively.", min.epoch, max.epoch);
+    info!(
+        "Audit history is available between epochs ({}) and ({}), inclusively.",
+        min.epoch, max.epoch
+    );
 
     Ok(())
-
 }
 
-async fn process_command(storage: &Box<dyn crate::storage::AuditProofStorage>, cmd: &AuditArgs) -> Result<()> {
+async fn process_command(
+    storage: &Box<dyn crate::storage::AuditProofStorage>,
+    cmd: &AuditArgs,
+) -> Result<()> {
     match &cmd.command {
-        AuditCommand::Audit{epoch, qr} => {
+        AuditCommand::Audit { epoch, qr } => {
             let proof = storage.get_proof(*epoch).await?;
             audit_epoch::<crate::Hasher>(proof, *qr).await?;
-        },
+        }
         AuditCommand::ShowEpochs => {
             let mut proofs = storage.list_proofs().await?;
             display_audit_proofs_info(&mut proofs)?;

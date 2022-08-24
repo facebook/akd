@@ -89,8 +89,7 @@ impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
 // Node
 // ==============================================================
 
-impl From<&crate::helper_structs::Node<Hasher>> for audit::Node
-{
+impl From<&crate::helper_structs::Node<Hasher>> for audit::Node {
     fn from(input: &crate::helper_structs::Node<Hasher>) -> Self {
         let mut result = Self::new();
         result.set_label((&input.label).into());
@@ -99,8 +98,7 @@ impl From<&crate::helper_structs::Node<Hasher>> for audit::Node
     }
 }
 
-impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher>
-{
+impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher> {
     type Error = String;
 
     fn try_from(input: &audit::Node) -> Result<Self, Self::Error> {
@@ -114,8 +112,7 @@ impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher>
     }
 }
 
-impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::SingleEncodedProof
-{
+impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::SingleEncodedProof {
     fn from(input: &crate::proof_structs::SingleAppendOnlyProof<Hasher>) -> Self {
         let mut result = Self::new();
         let inserted = input
@@ -135,8 +132,7 @@ impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::Singl
     }
 }
 
-impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOnlyProof<Hasher>
-{
+impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOnlyProof<Hasher> {
     type Error = String;
 
     fn try_from(input: audit::SingleEncodedProof) -> Result<Self, Self::Error> {
@@ -174,8 +170,7 @@ impl AuditBlob {
     }
 
     /// Decompose the blob's name into the (previous_hash, current_hash, epoch) tuple
-    pub fn decompose_name(name: &str) -> Result<(Digest, Digest, u64), String>
-    {
+    pub fn decompose_name(name: &str) -> Result<(Digest, Digest, u64), String> {
         let parts = name.split(NAME_SEPARATOR).collect::<Vec<_>>();
         if parts.len() < 3 {
             return Err(String::from(
@@ -205,8 +200,7 @@ impl AuditBlob {
         current_hash: Digest,
         epoch: u64,
         proof: &crate::proof_structs::SingleAppendOnlyProof<Hasher>,
-    ) -> Result<AuditBlob, ProtobufError>
-    {
+    ) -> Result<AuditBlob, ProtobufError> {
         let phash_bytes = crate::serialization::from_digest::<Hasher>(previous_hash);
         let chash_bytes = crate::serialization::from_digest::<Hasher>(current_hash);
         let name = format!(
@@ -236,8 +230,7 @@ impl AuditBlob {
             crate::proof_structs::SingleAppendOnlyProof<Hasher>,
         ),
         String,
-    >
-    {
+    > {
         let proof: audit::SingleEncodedProof =
             protobuf::parse_from_bytes(&self.data).map_err(|pbuf| {
                 format!(
@@ -246,7 +239,8 @@ impl AuditBlob {
                 )
             })?;
         let (phash, chash, epoch) = Self::decompose_name(&self.name)?;
-        let local_proof: Result<crate::proof_structs::SingleAppendOnlyProof<Hasher>, String> = proof.try_into();
+        let local_proof: Result<crate::proof_structs::SingleAppendOnlyProof<Hasher>, String> =
+            proof.try_into();
 
         Ok((phash, chash, epoch, local_proof?))
     }
@@ -257,8 +251,7 @@ impl AuditBlob {
 pub fn generate_audit_blobs(
     hashes: Vec<Digest>,
     proof: crate::proof_structs::AppendOnlyProof<Hasher>,
-) -> Result<Vec<AuditBlob>, String>
-{
+) -> Result<Vec<AuditBlob>, String> {
     if proof.epochs.len() + 1 != hashes.len() {
         return Err(format!(
             "The proof has a different number of epochs than needed for hashes.
