@@ -6,7 +6,8 @@
 // of this source tree.
 
 //! This module comprises AWS DynamoDb bucket READ ONLY access to download and parse
-//! Audit Proofs
+//! Audit Proofs. THIS IS JUST A SAMPLE AND IS NOT IMPLEMENTED. This will be rounded
+//! out later if support is to be added for dynamo db
 
 use clap::Args;
 

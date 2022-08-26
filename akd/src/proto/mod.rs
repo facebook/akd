@@ -13,6 +13,7 @@ use protobuf::Message;
 use protobuf::ProtobufError;
 use protobuf::RepeatedField;
 use std::convert::{TryFrom, TryInto};
+use thiserror::Error;
 
 pub mod audit;
 // Forget the generics, we're hardcoding to blake3
@@ -21,18 +22,34 @@ use winter_math::fields::f128::BaseElement;
 type Hasher = Blake3_256<BaseElement>;
 type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
+/// Local audit processing errors
+#[derive(Error, Debug)]
+pub enum LocalAuditorError {
+    /// An error parsing the blob name to/from a string
+    #[error("Audit blob name parse error {0}")]
+    NameParseError(String),
+    /// An AKD error occurred converting bytes to digest's
+    #[error("Serialization error {0:?}")]
+    Serialization(#[from] AkdError),
+    /// A protobuf error decoding the audit proof
+    #[error("Protobuf conversion error {0:?}")]
+    Protobuf(#[from] ProtobufError),
+    /// A required protobuf field was missing
+    #[error("Condition {0}.{0}() failed.")]
+    RequiredFieldMissing(String, String),
+}
+
 // ************************ Converters ************************ //
 
 // Protobuf best practice says everything should be `optional` to ensure
-// maximum back-compatibility. This helper function ensures an optional
+// maximum backwards compatibility. This helper function ensures an optional
 // field is present in a particular interface version.
 macro_rules! require {
     ($obj:ident, $has_field:ident) => {
         if !$obj.$has_field() {
-            return Err(format!(
-                "Condition {}.{}() failed.",
-                stringify!($obj),
-                stringify!($has_field)
+            return Err(LocalAuditorError::RequiredFieldMissing(
+                stringify!($obj).to_string(),
+                stringify!($has_field).to_string(),
             ));
         }
     };
@@ -40,14 +57,13 @@ macro_rules! require {
 
 macro_rules! hash_to_bytes {
     ($obj:expr) => {
-        crate::serialization::from_digest::<Hasher>($obj).to_vec()
+        crate::serialization::from_digest::<Hasher>($obj)
     };
 }
 
 macro_rules! hash_from_bytes {
     ($obj:expr) => {
-        crate::serialization::to_digest::<Hasher>($obj)
-            .map_err(|_| "Failed to convert bytes to digest".to_string())?
+        crate::serialization::to_digest::<Hasher>($obj).map_err(LocalAuditorError::Serialization)?
     };
 }
 
@@ -65,7 +81,7 @@ impl From<&crate::NodeLabel> for audit::NodeLabel {
 }
 
 impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
-    type Error = String;
+    type Error = LocalAuditorError;
 
     fn try_from(input: &audit::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_label_len);
@@ -93,13 +109,13 @@ impl From<&crate::helper_structs::Node<Hasher>> for audit::Node {
     fn from(input: &crate::helper_structs::Node<Hasher>) -> Self {
         let mut result = Self::new();
         result.set_label((&input.label).into());
-        result.set_hash(hash_to_bytes!(input.hash));
+        result.set_hash(hash_to_bytes!(input.hash).to_vec());
         result
     }
 }
 
 impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher> {
-    type Error = String;
+    type Error = LocalAuditorError;
 
     fn try_from(input: &audit::Node) -> Result<Self, Self::Error> {
         require!(input, has_label);
@@ -133,7 +149,7 @@ impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::Singl
 }
 
 impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOnlyProof<Hasher> {
-    type Error = String;
+    type Error = LocalAuditorError;
 
     fn try_from(input: audit::SingleEncodedProof) -> Result<Self, Self::Error> {
         let mut inserted = vec![];
@@ -155,62 +171,92 @@ impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOn
 
 const NAME_SEPARATOR: char = '/';
 
+/// Represents the NAME of an audit blob and can be
+/// flatted to/from a string
+#[derive(Clone, Debug)]
+pub struct AuditBlobName {
+    /// The epoch this audit proof is related to
+    pub epoch: u64,
+    /// The previous root hash from `&self.epoch - 1`
+    pub previous_hash: [u8; 32],
+    /// The current updated root hash
+    pub current_hash: [u8; 32],
+}
+
+impl std::string::ToString for AuditBlobName {
+    fn to_string(&self) -> String {
+        let previous_hash = hex::encode(self.previous_hash);
+        let current_hash = hex::encode(self.current_hash);
+        format!(
+            "{}{}{}{}{}",
+            self.epoch, NAME_SEPARATOR, previous_hash, NAME_SEPARATOR, current_hash
+        )
+    }
+}
+
+impl TryFrom<String> for AuditBlobName {
+    type Error = LocalAuditorError;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        let parts = name.split(NAME_SEPARATOR).collect::<Vec<_>>();
+        if parts.len() < 3 {
+            return Err(LocalAuditorError::NameParseError(
+                "Name is malformed, there are not enough components to reconstruct!".to_string(),
+            ));
+        }
+        // PART[0] = EPOCH
+        let epoch: u64 = parts[0].parse().map_err(|_| {
+            LocalAuditorError::NameParseError(format!("Failed to parse '{}' into an u64", parts[0]))
+        })?;
+
+        // PART[1] = PREVIOUS_HASH
+        let previous_hash_bytes = hex::decode(parts[1]).map_err(|hex_err| {
+            LocalAuditorError::NameParseError(format!(
+                "Failed to decode previous hash from hex string: {}",
+                hex_err
+            ))
+        })?;
+        let previous_hash = hash_from_bytes!(&previous_hash_bytes);
+
+        // PART[2] = CURRENT_HASH
+        let current_hash_bytes = hex::decode(parts[2]).map_err(|hex_err| {
+            LocalAuditorError::NameParseError(format!(
+                "Failed to decode current hash from hex string: {}",
+                hex_err
+            ))
+        })?;
+        let current_hash = hash_from_bytes!(&current_hash_bytes);
+
+        Ok(AuditBlobName {
+            epoch,
+            current_hash: hash_to_bytes!(current_hash),
+            previous_hash: hash_to_bytes!(previous_hash),
+        })
+    }
+}
+
 /// The constructed blobs with naming encoding the
 /// blob name = "EPOCH/PREVIOUS_ROOT_HASH/CURRENT_ROOT_HASH"
 pub struct AuditBlob {
     /// The name of the blob, which can be decomposed into logical components (phash, chash, epoch)
-    pub name: String,
+    pub name: AuditBlobName,
     /// The binary data comprising the blob contents
     pub data: Vec<u8>,
 }
 
 impl AuditBlob {
-    fn convert_akd_err(err: AkdError) -> String {
-        err.to_string()
-    }
-
-    /// Decompose the blob's name into the (previous_hash, current_hash, epoch) tuple
-    pub fn decompose_name(name: &str) -> Result<(Digest, Digest, u64), String> {
-        let parts = name.split(NAME_SEPARATOR).collect::<Vec<_>>();
-        if parts.len() < 3 {
-            return Err(String::from(
-                "Name is malformed, there are not enough components to reconstruct!",
-            ));
-        }
-        let epoch: u64 = parts[0]
-            .parse()
-            .map_err(|_| format!("Failed to parse {} into an unsigned integer", parts[0]))?;
-        let previous_epoch = crate::serialization::to_digest::<Hasher>(
-            &hex::decode(parts[1])
-                .map_err(|_| format!("Failed to parse {} as a hex string into bytes", parts[1]))?,
-        )
-        .map_err(Self::convert_akd_err)?;
-        let current_epoch = crate::serialization::to_digest::<Hasher>(
-            &hex::decode(parts[2])
-                .map_err(|_| format!("Failed to parse {} as a hex string into bytes", parts[2]))?,
-        )
-        .map_err(Self::convert_akd_err)?;
-
-        Ok((previous_epoch, current_epoch, epoch))
-    }
-
     /// Construct a new AuditBlob from the internal structures, which is ready to be written to persistent storage
-    pub fn build(
+    pub fn new(
         previous_hash: Digest,
         current_hash: Digest,
         epoch: u64,
         proof: &crate::proof_structs::SingleAppendOnlyProof<Hasher>,
     ) -> Result<AuditBlob, ProtobufError> {
-        let phash_bytes = crate::serialization::from_digest::<Hasher>(previous_hash);
-        let chash_bytes = crate::serialization::from_digest::<Hasher>(current_hash);
-        let name = format!(
-            "{}{}{}{}{}",
+        let name = AuditBlobName {
             epoch,
-            NAME_SEPARATOR,
-            hex::encode(phash_bytes),
-            NAME_SEPARATOR,
-            hex::encode(chash_bytes)
-        );
+            previous_hash: hash_to_bytes!(previous_hash),
+            current_hash: hash_to_bytes!(current_hash),
+        };
         let proto: audit::SingleEncodedProof = proof.into();
 
         Ok(AuditBlob {
@@ -224,29 +270,30 @@ impl AuditBlob {
         &self,
     ) -> Result<
         (
-            Digest,
-            Digest,
             u64,
+            Digest,
+            Digest,
             crate::proof_structs::SingleAppendOnlyProof<Hasher>,
         ),
-        String,
+        LocalAuditorError,
     > {
-        let proof: audit::SingleEncodedProof =
-            protobuf::parse_from_bytes(&self.data).map_err(|pbuf| {
-                format!(
-                    "Error deserializating protobuf encoded SingleAppendOnlyProof: {}",
-                    pbuf
-                )
-            })?;
-        let (phash, chash, epoch) = Self::decompose_name(&self.name)?;
-        let local_proof: Result<crate::proof_structs::SingleAppendOnlyProof<Hasher>, String> =
-            proof.try_into();
+        let proof: audit::SingleEncodedProof = protobuf::parse_from_bytes(&self.data)?;
 
-        Ok((phash, chash, epoch, local_proof?))
+        let local_proof: Result<
+            crate::proof_structs::SingleAppendOnlyProof<Hasher>,
+            LocalAuditorError,
+        > = proof.try_into();
+
+        Ok((
+            self.name.epoch,
+            hash_from_bytes!(&self.name.previous_hash),
+            hash_from_bytes!(&self.name.current_hash),
+            local_proof?,
+        ))
     }
 }
 
-/// Convert an append-only proof to "Audit Blobs" which are to be stored in a publically readable storage medium
+/// Convert an append-only proof to "Audit Blobs" which are to be stored in a publicly readable storage medium
 /// suitable for public auditing
 pub fn generate_audit_blobs(
     hashes: Vec<Digest>,
@@ -278,7 +325,7 @@ pub fn generate_audit_blobs(
         // use the destination epoch, so each proof validates the period (T-1, T)
         let epoch = proof.epochs[i] + 1;
 
-        let blob = AuditBlob::build(previous_hash, current_hash, epoch, &proof.proofs[i])
+        let blob = AuditBlob::new(previous_hash, current_hash, epoch, &proof.proofs[i])
             .map_err(|pbuf| format!("Protobuf error serializing AuditBlob {}", pbuf))?;
         results.push(blob);
     }

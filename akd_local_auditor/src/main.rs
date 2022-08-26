@@ -17,7 +17,6 @@ use log::{debug, error};
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 type Hasher = Blake3_256<BaseElement>;
-type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
 static LOGGER: console_log::ConsoleLogger = console_log::ConsoleLogger {
     level: log::Level::Debug,
@@ -32,9 +31,9 @@ enum PublicLogLevel {
     Trace,
 }
 
-impl PublicLogLevel {
-    pub(crate) fn to_log_level(&self) -> log::Level {
-        match &self {
+impl From<&PublicLogLevel> for log::Level {
+    fn from(level: &PublicLogLevel) -> Self {
+        match &level {
             PublicLogLevel::Error => log::Level::Error,
             PublicLogLevel::Warn => log::Level::Warn,
             PublicLogLevel::Info => log::Level::Info,
@@ -43,6 +42,18 @@ impl PublicLogLevel {
         }
     }
 }
+
+// impl PublicLogLevel {
+//     pub(crate) fn to_log_level(&self) -> log::Level {
+//         match &self {
+//             PublicLogLevel::Error => log::Level::Error,
+//             PublicLogLevel::Warn => log::Level::Warn,
+//             PublicLogLevel::Info => log::Level::Info,
+//             PublicLogLevel::Debug => log::Level::Debug,
+//             PublicLogLevel::Trace => log::Level::Trace,
+//         }
+//     }
+// }
 
 /// AKD audit proof verification utility
 #[derive(Parser, Debug)]
@@ -69,8 +80,10 @@ async fn main() {
     let args = Arguments::parse();
 
     // initialize the logger
+    let log_level: log::Level = (&args.log_level).into();
+
     log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(args.log_level.to_log_level().to_level_filter()))
+        .map(|()| log::set_max_level(log_level.to_level_filter()))
         .expect("Failed to setup logging");
     debug!("Parsed args: {:?}", args);
 

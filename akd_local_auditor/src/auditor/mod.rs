@@ -23,7 +23,7 @@ where
 {
     let p_bytes = akd::serialization::from_digest::<H>(p_hash);
     let c_bytes = akd::serialization::from_digest::<H>(c_hash);
-    let epoch_bytes = epoch.to_ne_bytes();
+    let epoch_bytes = epoch.to_le_bytes();
     let header = "WA_AKD_VERIFY".as_bytes();
 
     let mut result = vec![];
@@ -38,9 +38,10 @@ pub async fn audit_epoch<H>(blob: akd::proto::AuditBlob, qr: bool) -> Result<()>
 where
     H: winter_crypto::Hasher + Sync + Send,
 {
-    let (p_hash, c_hash, epoch, proof) = blob.decode().map_err(|err| anyhow!("{}", err))?;
+    // decode the proof
+    let (epoch, p_hash, c_hash, proof) = blob.decode().map_err(|err| anyhow!("{}", err))?;
 
-    // DO THE FREAKING VERIFICATION ALREADY
+    // verify it
     if let Err(akd_error) = akd::auditor::audit_verify(
         vec![p_hash, c_hash],
         akd::proof_structs::AppendOnlyProof::<crate::Hasher> {
@@ -55,6 +56,7 @@ where
             epoch, akd_error
         );
     } else {
+        // verification passed, generate the appropriate QR code
         info!("Audit proof for epoch {} has verified!", epoch);
         if qr {
             info!("Generating scan-able QR code for the verification on device");
@@ -92,7 +94,7 @@ pub struct AuditArgs {
 }
 
 fn display_audit_proofs_info(info: &mut Vec<crate::storage::EpochSummary>) -> Result<()> {
-    info.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+    info.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
     if info.is_empty() {
         bail!("There are no epochs present in the storage repository");
     }
@@ -106,24 +108,27 @@ fn display_audit_proofs_info(info: &mut Vec<crate::storage::EpochSummary>) -> Re
                 if !cont {
                     (previous_item, cont)
                 } else {
-                    (item.clone(), item.epoch == previous_item.epoch + 1)
+                    (
+                        item.clone(),
+                        item.name.epoch == previous_item.name.epoch + 1,
+                    )
                 }
             });
 
     if !is_contiguous {
-        bail!("The audit proofs appear to not be continguous. There's a break in the linear history at epoch {}", maybe_broken_epoch.epoch);
+        bail!("The audit proofs appear to not be continguous. There's a break in the linear history at epoch {}", maybe_broken_epoch.name.epoch);
     }
 
     info!(
         "Audit history is available between epochs ({}) and ({}), inclusively.",
-        min.epoch, max.epoch
+        min.name.epoch, max.name.epoch
     );
 
     Ok(())
 }
 
 async fn process_command(
-    storage: &Box<dyn crate::storage::AuditProofStorage>,
+    storage: &dyn crate::storage::AuditProofStorage,
     cmd: &AuditArgs,
 ) -> Result<()> {
     match &cmd.command {
@@ -139,7 +144,7 @@ async fn process_command(
     Ok(())
 }
 
-pub async fn auditor_repl(storage: &Box<dyn crate::storage::AuditProofStorage>) -> Result<()> {
+pub async fn auditor_repl(storage: &dyn crate::storage::AuditProofStorage) -> Result<()> {
     info!("Starting auditing REPL. Enter [exit] or [x] to exit.");
     let history_file = dirs::home_dir().map(|mut home_dir| {
         home_dir.push(HISTORY_FILE);

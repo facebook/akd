@@ -106,7 +106,7 @@ impl S3AuditStorage {
         s3::Client::from_conf(config)
             .get_object()
             .bucket(self.bucket.clone())
-            .key(key.clone())
+            .key(key.to_string())
             .checksum_mode(s3::model::ChecksumMode::Enabled)
     }
 }
@@ -153,7 +153,7 @@ impl super::AuditProofStorage for S3AuditStorage {
 
     async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob> {
         if let Some(cache) = &*(self.cache.read().await) {
-            if let Some(found_key) = cache.iter().find(|item| item.epoch == epoch) {
+            if let Some(found_key) = cache.iter().find(|item| item.name.epoch == epoch) {
                 let client = self.get_object(&found_key.key).await;
                 match client.send().await {
                     Err(some_err) => {
@@ -164,7 +164,7 @@ impl super::AuditProofStorage for S3AuditStorage {
                         let bytes = result.body.collect().await?.into_bytes();
                         Ok(akd::proto::AuditBlob {
                             data: bytes.into_iter().collect::<Vec<u8>>(),
-                            name: found_key.key.clone(),
+                            name: found_key.name.clone(),
                         })
                     }
                 }

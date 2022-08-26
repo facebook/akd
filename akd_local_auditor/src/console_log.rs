@@ -25,7 +25,7 @@ impl ConsoleLogger {
         EPOCH.get_or_init(Instant::now);
     }
 
-    pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record, no_color: bool) {
+    pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record, colored: bool) {
         let target = {
             if let Some(target_str) = record.target().split(':').last() {
                 if let Some(line) = record.line() {
@@ -48,27 +48,27 @@ impl ConsoleLogger {
         let hours = seconds / 3600;
         let minutes = (seconds / 60) % 60;
         let seconds = seconds % 60;
-        let miliseconds = toc.subsec_millis();
+        let milliseconds = toc.subsec_millis();
 
         let msg = format!(
             "[{:02}:{:02}:{:02}.{:03}] {:6} {}{}",
             hours,
             minutes,
             seconds,
-            miliseconds,
+            milliseconds,
             record.level(),
             record.args(),
             target
         );
-        if no_color {
-            let _ = writeln!(io, "{}", msg);
-        } else {
+        if colored {
             let msg = match record.level() {
                 Level::Trace | Level::Debug => msg.white(),
                 Level::Info => msg.green(),
                 Level::Warn => msg.yellow().bold(),
                 Level::Error => msg.red().bold(),
             };
+            let _ = writeln!(io, "{}", msg);
+        } else {
             let _ = writeln!(io, "{}", msg);
         }
     }
@@ -84,7 +84,7 @@ impl log::Log for ConsoleLogger {
             return;
         }
         let mut io = std::io::stdout();
-        ConsoleLogger::format_log_record(&mut io, record, false);
+        ConsoleLogger::format_log_record(&mut io, record, true);
     }
 
     fn flush(&self) {

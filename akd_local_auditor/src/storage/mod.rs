@@ -32,12 +32,8 @@ pub enum StorageSubcommand {
 /// Represents the summary of an epoch, and a unique key referring to the raw object in native storage (if needed)
 #[derive(Clone)]
 pub struct EpochSummary {
-    /// The _current_ epoch for the proof (i.e. the proof is from `EpochSummary.epoch - 1` -> `EpochSummary.epoch`)
-    pub epoch: u64,
-    /// The root hash of the AKD prior to the changes in this encoded proof being applied
-    pub previous_hash: crate::Digest,
-    /// The root hash of the AKD after the changes in this encoded proof are applied
-    pub current_hash: crate::Digest,
+    /// The name of the audit-blob decomposed into parts
+    pub name: akd::proto::AuditBlobName,
     /// Unique idenfier for the blob in question
     pub key: String,
 }
@@ -46,12 +42,11 @@ impl TryFrom<&str> for EpochSummary {
     type Error = anyhow::Error;
 
     fn try_from(potential_key: &str) -> Result<Self, Self::Error> {
-        let (p_hash, c_hash, epoch) = akd::proto::AuditBlob::decompose_name(potential_key)
-            .map_err(|err_str| anyhow!("{}", err_str))?;
+        let name = akd::proto::AuditBlobName::try_from(potential_key.to_string())
+            .map_err(|err| anyhow!("{}", err))?;
+
         Ok(Self {
-            epoch,
-            previous_hash: p_hash,
-            current_hash: c_hash,
+            name,
             key: potential_key.to_string(),
         })
     }
@@ -59,7 +54,7 @@ impl TryFrom<&str> for EpochSummary {
 
 /// Represents a storage of audit proofs and READ ONLY interaction to retrieve the proof objects
 #[async_trait]
-pub trait AuditProofStorage {
+pub trait AuditProofStorage: Sync + Send {
     /// List the proofs in the storage medium.
     async fn list_proofs(&self) -> Result<Vec<EpochSummary>>;
 
@@ -67,4 +62,27 @@ pub trait AuditProofStorage {
     /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
     /// implementation to cache the information. Example: See the AWS S3 implementation
     async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob>;
+}
+
+// We need to implement the trait for a Box<dyn Trait> in order to utilize a box further downstream
+// which allows us to have multiple implementations of the AuditProofStorage without a separate logic/code
+// path for each implementation
+//
+// See the discussion here: https://stackoverflow.com/questions/71933895/why-cant-boxdyn-trait-be-pased-to-a-function-with-mut-trait-as-parameter
+#[async_trait]
+impl<APS: ?Sized> AuditProofStorage for Box<APS>
+where
+    APS: AuditProofStorage,
+{
+    /// List the proofs in the storage medium.
+    async fn list_proofs(&self) -> Result<Vec<EpochSummary>> {
+        self.list_proofs().await
+    }
+
+    /// Retrieve an audit proof from the storage medium. If the underlying storage implementation
+    /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
+    /// implementation to cache the information. Example: See the AWS S3 implementation
+    async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob> {
+        self.get_proof(epoch).await
+    }
 }
