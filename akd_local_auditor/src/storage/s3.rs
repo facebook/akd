@@ -14,6 +14,7 @@ use aws_config::RetryConfig;
 use aws_sdk_s3 as s3;
 use clap::Args;
 use log::{debug, error};
+use s3::output::ListObjectsV2Output;
 use std::convert::TryInto;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -27,21 +28,21 @@ const ALLOWED_BUCKET_CHARS: [char; 38] = [
 
 fn is_bucket_name_valid(s: &str) -> Result<String, String> {
     let str = s.to_string();
-    if str.len() >= MIN_BUCKET_CHARS && str.len() <= MAX_BUCKET_CHARS {
-        for c in str.chars() {
-            if !ALLOWED_BUCKET_CHARS.iter().any(|v| c == *v) {
-                return Err(format!("Character '{}' is not allowed in bucket name. Bucket names must contain lower-case letters, numbers, '-', and '.' only.", c));
-            }
-        }
-        Ok(str)
-    } else {
-        Err(format!(
+    if str.len() < MIN_BUCKET_CHARS || str.len() > MAX_BUCKET_CHARS {
+        return Err(format!(
             "Bucket name must be between [{}, {}] characters in length. Gave {}",
             MIN_BUCKET_CHARS,
             MAX_BUCKET_CHARS,
             str.len()
-        ))
+        ));
     }
+
+    for c in str.chars() {
+        if !ALLOWED_BUCKET_CHARS.iter().any(|v| c == *v) {
+            return Err(format!("Character '{}' is not allowed in bucket name. Bucket names must contain lower-case letters, numbers, '-', and '.' only.", c));
+        }
+    }
+    Ok(str)
 }
 
 #[derive(Args, Debug, Clone)]
@@ -109,6 +110,36 @@ impl S3AuditStorage {
             .key(key.to_string())
             .checksum_mode(s3::model::ChecksumMode::Enabled)
     }
+
+    fn process_streamed_response(
+        part: Result<ListObjectsV2Output, s3::types::SdkError<s3::error::ListObjectsV2Error>>,
+    ) -> Result<Vec<super::EpochSummary>> {
+        let mut partials = vec![];
+        match part {
+            Err(sdk_err) => {
+                return Err(anyhow::anyhow!(
+                    "Error executing list_objects_v2 in S3: {}",
+                    sdk_err
+                ));
+            }
+            Ok(list_objects_v2_output) => {
+                if let Some(contents) = list_objects_v2_output.contents() {
+                    for object_ref in contents {
+                        let key = object_ref.key().unwrap_or("MISSING_KEY");
+                        let epoch_summary: Result<super::EpochSummary> = key.try_into();
+                        match epoch_summary {
+                            Err(parse_err) => debug!(
+                                "Failed to parse {} into an EpochSummary: {}. Skipping...",
+                                key, parse_err
+                            ),
+                            Ok(summary) => partials.push(summary),
+                        }
+                    }
+                }
+            }
+        }
+        Ok(partials)
+    }
 }
 
 #[async_trait]
@@ -120,27 +151,8 @@ impl super::AuditProofStorage for S3AuditStorage {
         let client = self.list_objects_v2().await;
         let mut stream = client.page_size(1000).send();
         while let Some(result) = stream.next().await {
-            match result {
-                Err(some_error) => {
-                    error!("Error executing list_objects_v2 in S3 {}", some_error);
-                    bail!("Error executing list_objects_v2 in S3 {}", some_error);
-                }
-                Ok(objects) => {
-                    if let Some(contents) = objects.contents() {
-                        for obj in contents {
-                            if let Some(key) = obj.key() {
-                                let summary: Result<super::EpochSummary> = key.try_into();
-                                match summary {
-                                    Ok(dbi) => results.push(dbi),
-                                    Err(error) => {
-                                        debug!("Error parsing blob key into DecomposedBlobItem ({}). Skipping.", error);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            let mut maybe_item = Self::process_streamed_response(result)?;
+            results.append(&mut maybe_item);
         }
 
         if !results.is_empty() {
