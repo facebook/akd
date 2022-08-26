@@ -365,9 +365,9 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     }
 
     let tic = Instant::now();
-    assert!(storage.begin_transaction().await);
+    assert!(storage.begin_transaction(1).await);
     assert_eq!(Ok(()), storage.batch_set(new_data).await);
-    assert_eq!(Ok(()), storage.commit_transaction().await);
+    assert_eq!(Ok(()), storage.commit_transaction(1).await);
     let toc: Duration = Instant::now() - tic;
     println!("Transactional storage batch op: {} ms", toc.as_millis());
 

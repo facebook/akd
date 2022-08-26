@@ -86,10 +86,10 @@ pub trait Storage: Clone {
     async fn log_metrics(&self, level: log::Level);
 
     /// Start a transaction in the storage layer
-    async fn begin_transaction(&self) -> bool;
+    async fn begin_transaction(&self, epoch: u64) -> bool;
 
     /// Commit a transaction in the storage layer
-    async fn commit_transaction(&self) -> Result<(), StorageError>;
+    async fn commit_transaction(&self, epoch: u64) -> Result<(), StorageError>;
 
     /// Rollback a transaction
     async fn rollback_transaction(&self) -> Result<(), StorageError>;

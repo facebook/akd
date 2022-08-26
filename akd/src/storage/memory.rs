@@ -80,11 +80,11 @@ impl Storage for AsyncInMemoryDatabase {
         }
     }
 
-    async fn begin_transaction(&self) -> bool {
+    async fn begin_transaction(&self, _epoch: u64) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self, _epoch: u64) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await
@@ -506,11 +506,11 @@ impl Storage for AsyncInMemoryDbWithCache {
         }
     }
 
-    async fn begin_transaction(&self) -> bool {
+    async fn begin_transaction(&self, _epoch: u64) -> bool {
         self.trans.begin_transaction().await
     }
 
-    async fn commit_transaction(&self) -> Result<(), StorageError> {
+    async fn commit_transaction(&self, _epoch: u64) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
         self.batch_set(ops).await

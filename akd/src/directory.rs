@@ -191,7 +191,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction().await {
+        if let false = self.storage.begin_transaction(next_epoch).await {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),
@@ -212,7 +212,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         // now commit the transaction
         debug!("Committing transaction");
-        if let Err(err) = self.storage.commit_transaction().await {
+        if let Err(err) = self.storage.commit_transaction(next_epoch).await {
             // ignore any rollback error(s)
             let _ = self.storage.rollback_transaction().await;
             return Err(AkdError::Storage(err));
