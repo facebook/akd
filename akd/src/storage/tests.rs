@@ -341,7 +341,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
 
     data.push(DbRecord::Azks(Azks {
         latest_epoch: 1,
-        num_nodes: 34
+        num_nodes: 34,
     }));
 
     let new_data = data
@@ -354,13 +354,11 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
                     copied_state.epoch += 10000;
                     DbRecord::ValueState(copied_state)
                 }
-                DbRecord::Azks(azks) => {
-                    DbRecord::Azks(Azks {
-                        latest_epoch: azks.latest_epoch + 10000,
-                        num_nodes: azks.num_nodes,
-                    })
-                }
-                _ => new_item
+                DbRecord::Azks(azks) => DbRecord::Azks(Azks {
+                    latest_epoch: azks.latest_epoch + 10000,
+                    num_nodes: azks.num_nodes,
+                }),
+                _ => new_item,
             }
         })
         .collect();
