@@ -339,16 +339,26 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
         epoch += 1;
     }
 
+    data.push(DbRecord::Azks(Azks {
+        latest_epoch: 1,
+        num_nodes: 34,
+    }));
+
     let new_data = data
         .iter()
         .map(|item| {
             let new_item = item.clone();
-            if let DbRecord::ValueState(new_state) = &item {
-                let mut copied_state = new_state.clone();
-                copied_state.epoch += 10000;
-                DbRecord::ValueState(copied_state)
-            } else {
-                new_item
+            match &item {
+                DbRecord::ValueState(new_state) => {
+                    let mut copied_state = new_state.clone();
+                    copied_state.epoch += 10000;
+                    DbRecord::ValueState(copied_state)
+                }
+                DbRecord::Azks(azks) => DbRecord::Azks(Azks {
+                    latest_epoch: azks.latest_epoch + 10000,
+                    num_nodes: azks.num_nodes,
+                }),
+                _ => new_item,
             }
         })
         .collect();

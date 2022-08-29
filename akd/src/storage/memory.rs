@@ -87,6 +87,14 @@ impl Storage for AsyncInMemoryDatabase {
     async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
+
+        let _epoch = match ops.last() {
+            Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
+            other => Err(StorageError::Transaction(format!(
+                "The last record in the transaction log is NOT an Azks record {:?}",
+                other
+            ))),
+        }?;
         self.batch_set(ops).await
     }
 
@@ -128,6 +136,18 @@ impl Storage for AsyncInMemoryDatabase {
     }
 
     async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
+        if records.is_empty() {
+            // nothing to do, save the cycles
+            return Ok(());
+        }
+
+        if self.is_transaction_active().await {
+            for record in records {
+                self.trans.set(&record).await;
+            }
+            return Ok(());
+        }
+
         let mut u_guard = self.user_info.write().await;
         let mut guard = self.db.write().await;
 
@@ -513,6 +533,13 @@ impl Storage for AsyncInMemoryDbWithCache {
     async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
+        let _epoch = match ops.last() {
+            Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
+            other => Err(StorageError::Transaction(format!(
+                "The last record in the transaction log is NOT an Azks record {:?}",
+                other
+            ))),
+        }?;
         self.batch_set(ops).await
     }
 
@@ -558,6 +585,18 @@ impl Storage for AsyncInMemoryDbWithCache {
     }
 
     async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
+        if records.is_empty() {
+            // nothing to do, save the cycles
+            return Ok(());
+        }
+
+        if self.is_transaction_active().await {
+            for record in records {
+                self.trans.set(&record).await;
+            }
+            return Ok(());
+        }
+
         let mut u_guard = self.user_info.write().await;
         let mut stats = self.stats.write().await;
         let mut guard = self.cache.write().await;

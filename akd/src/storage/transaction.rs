@@ -15,6 +15,7 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Default)]
 struct TransactionState {
     mods: HashMap<Vec<u8>, DbRecord>,
     active: bool,
@@ -24,6 +25,7 @@ struct TransactionState {
 /// of the changes. When you "commit" this transaction, you return the
 /// collection of values which need to be written to the storage layer
 /// including all mutations. Rollback simply empties the transaction state.
+#[derive(Default)]
 pub struct Transaction {
     state: Arc<tokio::sync::RwLock<TransactionState>>,
 
@@ -53,15 +55,7 @@ impl Transaction {
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
-}
 
-impl Default for Transaction {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Transaction {
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
         let mut r = self.num_reads.write().await;
