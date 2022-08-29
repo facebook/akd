@@ -176,7 +176,7 @@ const NAME_SEPARATOR: char = '/';
 
 /// Represents the NAME of an audit blob and can be
 /// flatted to/from a string
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub struct AuditBlobName {
     /// The epoch this audit proof is related to
     pub epoch: u64,

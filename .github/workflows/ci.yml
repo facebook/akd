@@ -34,7 +34,7 @@ jobs:
           echo "MySQL container is up"
       - name: Check container akd-test-db logs
         run: docker logs akd-test-db
-      - name: Setup protoc
+      - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
       - name: Test general profile
         uses: actions-rs/cargo@v1
@@ -82,7 +82,7 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-      - name: Setup protoc
+      - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
       - name: Clippy
         uses: actions-rs/cargo@v1

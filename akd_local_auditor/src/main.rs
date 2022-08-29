@@ -43,17 +43,6 @@ impl From<&PublicLogLevel> for log::Level {
     }
 }
 
-// impl PublicLogLevel {
-//     pub(crate) fn to_log_level(&self) -> log::Level {
-//         match &self {
-//             PublicLogLevel::Error => log::Level::Error,
-//             PublicLogLevel::Warn => log::Level::Warn,
-//             PublicLogLevel::Info => log::Level::Info,
-//             PublicLogLevel::Debug => log::Level::Debug,
-//             PublicLogLevel::Trace => log::Level::Trace,
-//         }
-//     }
-// }
 
 /// AKD audit proof verification utility
 #[derive(Parser, Debug)]
@@ -84,7 +73,7 @@ async fn main() {
 
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(log_level.to_level_filter()))
-        .expect("Failed to setup logging");
+        .expect("Failed to set up logging");
     debug!("Parsed args: {:?}", args);
 
     let storage: Box<dyn storage::AuditProofStorage> = match &args.storage {

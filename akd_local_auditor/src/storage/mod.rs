@@ -30,7 +30,7 @@ pub enum StorageSubcommand {
 // ************************************ Trait and Type Definitions ************************************ //
 
 /// Represents the summary of an epoch, and a unique key referring to the raw object in native storage (if needed)
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub struct EpochSummary {
     /// The name of the audit-blob decomposed into parts
     pub name: akd::proto::AuditBlobName,
