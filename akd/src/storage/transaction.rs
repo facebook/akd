@@ -40,6 +40,12 @@ impl std::fmt::Debug for Transaction {
     }
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Transaction {
     /// Instantiate a new transaction instance
     pub fn new() -> Self {
@@ -53,15 +59,7 @@ impl Transaction {
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
-}
 
-impl Default for Transaction {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Transaction {
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
         let mut r = self.num_reads.write().await;

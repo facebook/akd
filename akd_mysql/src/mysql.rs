@@ -740,6 +740,15 @@ impl Storage for AsyncMySqlDatabase {
 
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
+
+        let _epoch = match ops.last() {
+            Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
+            other => Err(StorageError::Other(format!(
+                "The last record in the transaction log is NOT an Azks record {:?}",
+                other
+            ))),
+        }?;
+
         self.batch_set(ops).await
     }
 
@@ -788,8 +797,8 @@ impl Storage for AsyncMySqlDatabase {
 
         // we're in a transaction, set the items in the transaction
         if self.is_transaction_active().await {
-            for record in records.into_iter() {
-                self.trans.set(&record).await;
+            for record in records.iter() {
+                self.trans.set(record).await;
             }
             return Ok(());
         }
