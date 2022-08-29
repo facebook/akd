@@ -400,7 +400,7 @@ mod tests {
             let mut node = match i % 3 {
                 0 => node_1.clone(),
                 1 => node_2.clone(),
-                _ => node_3.clone()
+                _ => node_3.clone(),
             };
 
             node.label.label_len = i;
