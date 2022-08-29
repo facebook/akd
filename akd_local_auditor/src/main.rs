@@ -43,7 +43,6 @@ impl From<&PublicLogLevel> for log::Level {
     }
 }
 
-
 /// AKD audit proof verification utility
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
