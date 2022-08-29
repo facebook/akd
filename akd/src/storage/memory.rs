@@ -87,9 +87,10 @@ impl Storage for AsyncInMemoryDatabase {
     async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
+
         let _epoch = match ops.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
-            other => Err(StorageError::Other(format!(
+            other => Err(StorageError::Transaction(format!(
                 "The last record in the transaction log is NOT an Azks record {:?}",
                 other
             ))),
@@ -534,7 +535,7 @@ impl Storage for AsyncInMemoryDbWithCache {
         let ops = self.trans.commit_transaction().await?;
         let _epoch = match ops.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
-            other => Err(StorageError::Other(format!(
+            other => Err(StorageError::Transaction(format!(
                 "The last record in the transaction log is NOT an Azks record {:?}",
                 other
             ))),

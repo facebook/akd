@@ -743,7 +743,7 @@ impl Storage for AsyncMySqlDatabase {
 
         let _epoch = match ops.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
-            other => Err(StorageError::Other(format!(
+            other => Err(StorageError::Transaction(format!(
                 "The last record in the transaction log is NOT an Azks record {:?}",
                 other
             ))),
