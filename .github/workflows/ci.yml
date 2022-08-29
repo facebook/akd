@@ -54,6 +54,11 @@ jobs:
         with:
           command: test
           args: --package akd --no-default-features --features public-tests
+      - name: Test AKD with protobuf serialization of the audit proofs
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd --features public_auditing
       - name: Test the lean client for wasm and BLAKE3 hashing
         uses: actions-rs/cargo@v1
         with:

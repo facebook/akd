@@ -42,7 +42,7 @@ impl TryFrom<&str> for EpochSummary {
     type Error = anyhow::Error;
 
     fn try_from(potential_key: &str) -> Result<Self, Self::Error> {
-        let name = akd::proto::AuditBlobName::try_from(potential_key.to_string())
+        let name = akd::proto::AuditBlobName::try_from(potential_key)
             .map_err(|err| anyhow!("{}", err))?;
 
         Ok(Self {

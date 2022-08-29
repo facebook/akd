@@ -37,6 +37,9 @@ pub enum LocalAuditorError {
     /// A required protobuf field was missing
     #[error("Condition {0}.{0}() failed.")]
     RequiredFieldMissing(String, String),
+    /// An error between the lengths of hashes + proofs
+    #[error("Mismatched lengths error")]
+    MisMatchedLengths(String),
 }
 
 // ************************ Converters ************************ //
@@ -173,7 +176,7 @@ const NAME_SEPARATOR: char = '/';
 
 /// Represents the NAME of an audit blob and can be
 /// flatted to/from a string
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuditBlobName {
     /// The epoch this audit proof is related to
     pub epoch: u64,
@@ -194,10 +197,10 @@ impl std::string::ToString for AuditBlobName {
     }
 }
 
-impl TryFrom<String> for AuditBlobName {
+impl TryFrom<&str> for AuditBlobName {
     type Error = LocalAuditorError;
 
-    fn try_from(name: String) -> Result<Self, Self::Error> {
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
         let parts = name.split(NAME_SEPARATOR).collect::<Vec<_>>();
         if parts.len() < 3 {
             return Err(LocalAuditorError::NameParseError(
@@ -237,6 +240,7 @@ impl TryFrom<String> for AuditBlobName {
 
 /// The constructed blobs with naming encoding the
 /// blob name = "EPOCH/PREVIOUS_ROOT_HASH/CURRENT_ROOT_HASH"
+#[derive(Clone)]
 pub struct AuditBlob {
     /// The name of the blob, which can be decomposed into logical components (phash, chash, epoch)
     pub name: AuditBlobName,
@@ -298,23 +302,23 @@ impl AuditBlob {
 pub fn generate_audit_blobs(
     hashes: Vec<Digest>,
     proof: crate::proof_structs::AppendOnlyProof<Hasher>,
-) -> Result<Vec<AuditBlob>, String> {
+) -> Result<Vec<AuditBlob>, LocalAuditorError> {
     if proof.epochs.len() + 1 != hashes.len() {
-        return Err(format!(
+        return Err(LocalAuditorError::MisMatchedLengths(format!(
             "The proof has a different number of epochs than needed for hashes.
             The number of hashes you provide should be one more than the number of epochs!
             Number of epochs = {}, number of hashes = {}",
             proof.epochs.len(),
             hashes.len()
-        ));
+        )));
     }
 
     if proof.epochs.len() != proof.proofs.len() {
-        return Err(format!(
+        return Err(LocalAuditorError::MisMatchedLengths(format!(
             "The proof has {} epochs and {} proofs. These should be equal!",
             proof.epochs.len(),
             proof.proofs.len()
-        ));
+        )));
     }
 
     let mut results = Vec::with_capacity(proof.proofs.len());
@@ -322,13 +326,126 @@ pub fn generate_audit_blobs(
     for i in 0..hashes.len() - 1 {
         let previous_hash = hashes[i];
         let current_hash = hashes[i + 1];
-        // use the destination epoch, so each proof validates the period (T-1, T)
-        let epoch = proof.epochs[i] + 1;
+        // The epoch provided is the destination epoch, i.e. the proof is validating from (T-1, T)
+        let epoch = proof.epochs[i];
 
-        let blob = AuditBlob::new(previous_hash, current_hash, epoch, &proof.proofs[i])
-            .map_err(|pbuf| format!("Protobuf error serializing AuditBlob {}", pbuf))?;
+        let blob = AuditBlob::new(previous_hash, current_hash, epoch, &proof.proofs[i])?;
         results.push(blob);
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AuditBlob, AuditBlobName, LocalAuditorError};
+    use std::convert::TryInto;
+    use winter_crypto::hashers::Blake3_256;
+    use winter_crypto::Hasher;
+    use winter_math::fields::f128::BaseElement;
+    type TestHasher = Blake3_256<BaseElement>;
+
+    #[test]
+    fn test_audit_proof_naming_conventions() -> Result<(), LocalAuditorError> {
+        let expected_name = "54/0101010101010101010101010101010101010101010101010101010101010101/0000000000000000000000000000000000000000000000000000000000000000";
+
+        let blob_name = AuditBlobName {
+            current_hash: [0u8; 32],
+            previous_hash: [1u8; 32],
+            epoch: 54,
+        };
+
+        let name = blob_name.to_string();
+        assert_ne!(String::new(), name);
+
+        assert_eq!(expected_name.to_string(), blob_name.to_string());
+
+        let blob_name_ref: &str = name.as_ref();
+        let decomposed: AuditBlobName = blob_name_ref.try_into()?;
+        assert_eq!(blob_name, decomposed);
+        Ok(())
+    }
+
+    #[test]
+    fn test_audit_proof_conversions() -> Result<(), LocalAuditorError> {
+        let digest = TestHasher::hash(b"hello, world!");
+        let digest_2 = TestHasher::hash(b"hello, worlds!");
+        let digest_3 = TestHasher::hash(b"a'hoy, world!");
+
+        let node_1 = crate::helper_structs::Node::<TestHasher> {
+            label: crate::node_label::NodeLabel {
+                label_val: crate::serialization::from_digest::<TestHasher>(digest.clone()),
+                label_len: 1,
+            },
+            hash: digest.clone(),
+        };
+        let node_2 = crate::helper_structs::Node::<TestHasher> {
+            label: crate::node_label::NodeLabel {
+                label_val: crate::serialization::from_digest::<TestHasher>(digest_2.clone()),
+                label_len: 2,
+            },
+            hash: digest_2.clone(),
+        };
+        let node_3 = crate::helper_structs::Node::<TestHasher> {
+            label: crate::node_label::NodeLabel {
+                label_val: crate::serialization::from_digest::<TestHasher>(digest_3.clone()),
+                label_len: 2,
+            },
+            hash: digest_3.clone(),
+        };
+
+        let mut inodes: Vec<_> = vec![];
+        let mut unodes: Vec<_> = vec![];
+        for i in 4..10 {
+            let mut node = match i % 3 {
+                0 => node_1.clone(),
+                1 => node_2.clone(),
+                _ => node_3.clone()
+            };
+
+            node.label.label_len = i;
+            inodes.push(node.clone());
+
+            node.label.label_len = i + 10;
+            unodes.push(node);
+        }
+
+        let proof_1 = crate::proof_structs::SingleAppendOnlyProof::<TestHasher> {
+            inserted: inodes.clone(),
+            unchanged_nodes: unodes.clone(),
+        };
+
+        let mut full_nodes = inodes.clone();
+        full_nodes.append(&mut unodes);
+        let proof_2 = crate::proof_structs::SingleAppendOnlyProof::<TestHasher> {
+            inserted: inodes,
+            unchanged_nodes: full_nodes,
+        };
+
+        let full_proof = crate::proof_structs::AppendOnlyProof {
+            proofs: vec![proof_1.clone(), proof_2.clone()],
+            epochs: vec![1, 2],
+        };
+
+        let blobs = super::generate_audit_blobs(vec![digest, digest_2, digest_3], full_proof)?;
+        assert_eq!(2, blobs.len());
+
+        let first_blob: AuditBlob = blobs.first().unwrap().clone();
+        let (epoch, phash, chash, proof) = first_blob.decode()?;
+
+        assert_eq!(1, epoch);
+        assert_eq!(digest, phash);
+        assert_eq!(digest_2, chash);
+        assert_eq!(proof_1, proof);
+
+        let second_blob: AuditBlob = blobs[1..].first().unwrap().clone();
+        let (epoch, phash, chash, proof) = second_blob.decode()?;
+
+        assert_eq!(2, epoch);
+        assert_eq!(digest_2, phash);
+        assert_eq!(digest_3, chash);
+        assert_eq!(proof_2, proof);
+
+        Ok(())
+    }
 }
