@@ -8,6 +8,7 @@ edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
+build = "src/build.rs"
 
 [features]
 bench = ["public-tests"]
@@ -15,6 +16,7 @@ public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization"
 # In the event that VRF's are enabled, AND builder has requested serde support
 # Add the serde flag to the dalek crate with --features "ed25519-dalek/serde"
 vrf = ["curve25519-dalek", "ed25519-dalek"]
+public_auditing = ["protobuf", "thiserror"]
 default = ["vrf"]
 serde_serialization = ["serde", "ed25519-dalek/serde"]
 
@@ -38,6 +40,8 @@ curve25519-dalek = { version = "3", optional = true }
 ed25519-dalek = { version = "1", optional = true }
 colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
+protobuf = { version = "=2.8.1", optional = true }
+thiserror = { version = "1.0.30", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -49,6 +53,10 @@ once_cell = { version = "1" }
 ctor = "0.1"
 
 akd = { path =".", features = ["vrf", "public-tests"] }
+
+[build-dependencies]
+protoc = "=2.8.1"
+protoc-rust = "=2.8.1"
 
 [[bench]]
 name = "azks"
