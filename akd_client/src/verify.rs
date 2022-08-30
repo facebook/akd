@@ -17,6 +17,7 @@ use core::convert::TryFrom;
 use crate::hash::*;
 use crate::types::*;
 use crate::{verify_error, VerificationError, VerificationErrorType, ARITY};
+use serde_json;
 
 /// Verify the membership proof
 fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), VerificationError> {
@@ -135,6 +136,23 @@ fn verify_vrf(
     vrf_pk.verify_label(uname, stale, version, pi, label)
 }
 
+/// Verifies a serialized JSON lookup proof after deserializing it first.
+pub fn serialized_lookup_verify(
+    _vrf_public_key: &[u8],
+    root_hash: Digest,
+    _akd_key: AkdLabel,
+    serialized_json_proof: &str,
+) -> Result<(), VerificationError> {
+    if let Ok(proof) = serde_json::from_str(serialized_json_proof) {
+        lookup_verify(_vrf_public_key, root_hash, _akd_key, proof)
+    } else {
+        Err(VerificationError::build(
+            Some(VerificationErrorType::ProofDeserializationFailed),
+            Some("JSON lookup proof deserialization failed.".to_string()),
+        ))
+    }
+}
+
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify(
     _vrf_public_key: &[u8],
@@ -211,6 +229,32 @@ pub fn lookup_verify(
     Ok(())
 }
 
+/// Verifies a serialized JSON key history proof after deserializing it first.
+pub fn serialized_key_history_verify(
+    vrf_public_key: &[u8],
+    root_hash: Digest,
+    current_epoch: u64,
+    akd_key: AkdLabel,
+    serialized_json_proof: &str,
+    allow_tombstones: bool,
+) -> Result<Vec<bool>, VerificationError> {
+    if let Ok(proof) = serde_json::from_str(serialized_json_proof) {
+        key_history_verify(
+            vrf_public_key,
+            root_hash,
+            current_epoch,
+            akd_key,
+            proof,
+            allow_tombstones,
+        )
+    } else {
+        Err(VerificationError::build(
+            Some(VerificationErrorType::ProofDeserializationFailed),
+            Some("JSON lookup proof deserialization failed.".to_string()),
+        ))
+    }
+}
+
 /// Verifies a key history proof, given the corresponding sequence of hashes.
 /// Returns a vector of whether the validity of a hash could be verified.
 /// When false, the value <=> hash validity at the position could not be
@@ -246,7 +290,7 @@ pub fn key_history_verify(
             if proof.update_proofs[count].version + 1 != proof.update_proofs[count - 1].version {
                 return Err(VerificationError {
                     error_message:
-                        format!("Why did you give me consecutive update proofs without version numbers decrememting by 1? Version {} = {}; version {} = {}",
+                        format!("Why did you give me consecutive update proofs without version numbers decrementing by 1? Version {} = {}; version {} = {}",
                         count, proof.update_proofs[count].version,
                         count-1, proof.update_proofs[count-1].version
                         ),

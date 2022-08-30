@@ -130,6 +130,9 @@ pub enum VerificationErrorType {
     /// An error occurred verifying a VRF label
     Vrf,
 
+    /// Deserialization of the proof failed
+    ProofDeserializationFailed,
+
     /// An unknown verification error occurred
     Unknown,
 }
@@ -161,6 +164,7 @@ impl Display for VerificationError {
             VerificationErrorType::LookupProof => "Lookup Proof",
             VerificationErrorType::HistoryProof => "History Proof",
             VerificationErrorType::Vrf => "VRF",
+            VerificationErrorType::ProofDeserializationFailed => "Proof Deserialization",
             VerificationErrorType::Unknown => "Unknown",
         };
         write!(f, "Verification error ({}) - {}", code, self.error_message)
