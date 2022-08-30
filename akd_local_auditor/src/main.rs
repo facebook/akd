@@ -12,8 +12,9 @@ mod console_log;
 pub mod auditor;
 pub mod storage;
 
+use anyhow::Result;
 use clap::{ArgEnum, Parser};
-use log::{debug, error};
+use log::debug;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
 type Hasher = Blake3_256<BaseElement>;
@@ -62,7 +63,7 @@ pub struct Arguments {
 
 // MAIN //
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     console_log::ConsoleLogger::touch();
 
     let args = Arguments::parse();
@@ -81,7 +82,14 @@ async fn main() {
             Box::new(imp)
         }
     };
-    if let Err(error) = auditor::auditor_repl(&storage).await {
-        error!("Auditing REPL failed with error {}", error);
-    }
+
+    let command_processor: Box<dyn rustyrepl::ReplCommandProcessor<auditor::AuditArgs>> =
+        Box::new(crate::auditor::AuditProcessor { storage });
+
+    let mut repl = rustyrepl::Repl::<auditor::AuditArgs>::new(
+        command_processor,
+        Some(auditor::HISTORY_FILE.to_string()),
+        Some("$ ".to_string()),
+    )?;
+    repl.process().await
 }

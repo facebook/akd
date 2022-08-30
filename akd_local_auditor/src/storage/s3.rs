@@ -55,6 +55,7 @@ pub struct S3ClapSettings {
     bucket: String,
 }
 
+#[derive(Debug)]
 pub struct S3AuditStorage {
     /// The bucket where the audit proofs are stored
     bucket: String,
