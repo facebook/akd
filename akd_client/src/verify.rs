@@ -250,7 +250,7 @@ pub fn serialized_key_history_verify(
     } else {
         Err(VerificationError::build(
             Some(VerificationErrorType::ProofDeserializationFailed),
-            Some("JSON lookup proof deserialization failed.".to_string()),
+            Some("JSON history proof deserialization failed.".to_string()),
         ))
     }
 }
