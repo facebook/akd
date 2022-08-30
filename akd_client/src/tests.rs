@@ -258,10 +258,9 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         to_digest::<Hash>(root_hash),
         target_label_bytes.clone(),
         &serialized_internal_lookup_proof,
-    )
-    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
+    );
     assert!(
-        matches!(serialized_lean_result, Ok(())),
+        serialized_lean_result.is_ok(),
         "Lean serialized result was {:?}",
         serialized_lean_result
     );
