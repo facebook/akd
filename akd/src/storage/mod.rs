@@ -58,14 +58,14 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 #[cfg(not(feature = "serde_serialization"))]
 pub trait Storable: Clone + Sync {
     /// This particular storage will have a key type
-    type Key: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
+    type StorageKey: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
 
     /// Must return a valid storage type
     fn data_type() -> StorageType;
 
     /// Retrieve an instance of the id of this storable. The combination of the
     /// storable's StorageType and this id are _globally_ unique
-    fn get_id(&self) -> Self::Key;
+    fn get_id(&self) -> Self::StorageKey;
 
     /// Retrieve the full binary version of a key (for comparisons)
     fn get_full_binary_id(&self) -> Vec<u8> {
@@ -73,10 +73,10 @@ pub trait Storable: Clone + Sync {
     }
 
     /// Retrieve the full binary version of a key (for comparisons)
-    fn get_full_binary_key_id(key: &Self::Key) -> Vec<u8>;
+    fn get_full_binary_key_id(key: &Self::StorageKey) -> Vec<u8>;
 
     /// Reformat a key from the full-binary specification
-    fn key_from_full_binary(bin: &[u8]) -> Result<Self::Key, String>;
+    fn key_from_full_binary(bin: &[u8]) -> Result<Self::StorageKey, String>;
 }
 
 /// Storage layer with support for asynchronous work and batched operations
