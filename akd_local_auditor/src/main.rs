@@ -17,11 +17,10 @@ use clap::{ArgEnum, Parser};
 use log::debug;
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
-type Hasher = Blake3_256<BaseElement>;
-
-static LOGGER: console_log::ConsoleLogger = console_log::ConsoleLogger {
-    level: log::Level::Debug,
-};
+/// The hashing type (currently Blake3 256)
+pub type Hasher = Blake3_256<BaseElement>;
+/// The hash digest format (currently 32-byte digests)
+pub type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
 #[derive(ArgEnum, Clone, Debug)]
 enum PublicLogLevel {
@@ -64,16 +63,12 @@ pub struct Arguments {
 // MAIN //
 #[tokio::main]
 async fn main() -> Result<()> {
-    console_log::ConsoleLogger::touch();
-
     let args = Arguments::parse();
 
     // initialize the logger
     let log_level: log::Level = (&args.log_level).into();
+    console_log::init_logger(log_level);
 
-    log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(log_level.to_level_filter()))
-        .expect("Failed to set up logging");
     debug!("Parsed args: {:?}", args);
 
     let storage: Box<dyn storage::AuditProofStorage> = match &args.storage {

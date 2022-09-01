@@ -328,7 +328,7 @@ pub fn generate_audit_blobs(
     for i in 0..hashes.len() - 1 {
         let previous_hash = hashes[i];
         let current_hash = hashes[i + 1];
-        // The epoch provided is the destination epoch, i.e. the proof is validating from (T-1, T)
+        // The epoch provided is the source epoch, i.e. the proof is validating from (T, T+1)
         let epoch = proof.epochs[i];
 
         let blob = AuditBlob::new(previous_hash, current_hash, epoch, &proof.proofs[i])?;
@@ -426,7 +426,7 @@ mod tests {
 
         let full_proof = crate::proof_structs::AppendOnlyProof {
             proofs: vec![proof_1.clone(), proof_2.clone()],
-            epochs: vec![1, 2],
+            epochs: vec![0, 1],
         };
 
         let blobs = super::generate_audit_blobs(vec![digest, digest_2, digest_3], full_proof)?;
@@ -435,7 +435,7 @@ mod tests {
         let first_blob: AuditBlob = blobs.first().unwrap().clone();
         let (epoch, phash, chash, proof) = first_blob.decode()?;
 
-        assert_eq!(1, epoch);
+        assert_eq!(0, epoch);
         assert_eq!(digest, phash);
         assert_eq!(digest_2, chash);
         assert_eq!(proof_1, proof);
@@ -443,7 +443,7 @@ mod tests {
         let second_blob: AuditBlob = blobs[1..].first().unwrap().clone();
         let (epoch, phash, chash, proof) = second_blob.decode()?;
 
-        assert_eq!(2, epoch);
+        assert_eq!(1, epoch);
         assert_eq!(digest_2, phash);
         assert_eq!(digest_3, chash);
         assert_eq!(proof_2, proof);

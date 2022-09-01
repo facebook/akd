@@ -1,0 +1,58 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'akd_local_auditor/'
+  pull_request:
+    types: [opened, repoened, synchronize]
+    paths:
+      - 'akd_local_auditor/'
+
+jobs:
+  test-auditor:
+    name: Test Rust ${{matrix.toolchain}} on ${{matrix.os}}
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable]
+        os: [ubuntu]
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{matrix.toolchain}}
+          override: true
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      # Borrowed from: https://github.com/engula/engula/pull/124/files
+      - name: Setup minio
+        run: |
+          docker run --detach \
+            -p 9000:9000 \
+            -p 9001:9001 \
+            -v "$(mktemp -d)":/data \
+            -e "MINIO_ROOT_USER=test" \
+            -e "MINIO_ROOT_PASSWORD=someLongAccessKey" \
+            -e "MINIO_REGION_NAME=us-east-2" \
+            quay.io/minio/minio server /data --console-address ":9001"
+      - name: Liveness probe
+        timeout-minutes: 1
+        run: |
+          until curl http://127.0.0.1:9000/minio/health/live; do
+              sleep 1
+          done
+
+      - name: Cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path Cargo.toml -p akd_local_auditor integration_test_ -- --ignored
