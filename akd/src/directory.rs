@@ -68,7 +68,10 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         if read_only && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                "Cannot start directory in read-only mode when AZKS is missing".to_string(),
+                format!(
+                    "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
+                    azks.err().take()
+                ),
             )));
         } else if azks.is_err() {
             // generate a new azks if one is not found
