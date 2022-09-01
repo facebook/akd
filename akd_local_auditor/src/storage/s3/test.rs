@@ -47,8 +47,13 @@ macro_rules! bucket_name {
             std::any::type_name::<T>()
         }
         let name = type_name_of(f);
-        name[..name.len() - 3].trim_end_matches("::{{closure}}").split("::").last().unwrap().replace("_", "")
-    }}
+        name[..name.len() - 3]
+            .trim_end_matches("::{{closure}}")
+            .split("::")
+            .last()
+            .unwrap()
+            .replace("_", "")
+    }};
 }
 
 struct AuditInformation {
@@ -58,9 +63,7 @@ struct AuditInformation {
 }
 
 /// Generate N audit proofs from a new tree
-async fn generate_audit_proofs(
-    n: usize,
-) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
+async fn generate_audit_proofs(n: usize) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new::<Hasher>(&db, &vrf, false).await?;
@@ -239,7 +242,10 @@ async fn integration_test_bucket_listing() -> Result<()> {
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 10 proofs in the storage layer
-    log::info!("There are {} epochs in the storage layer", epoch_summaries.len());
+    log::info!(
+        "There are {} epochs in the storage layer",
+        epoch_summaries.len()
+    );
     assert_eq!(10, epoch_summaries.len());
 
     // check the linear history of the proofs
@@ -276,13 +282,16 @@ async fn integration_test_audit_verification() -> Result<()> {
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 3 proofs in the storage layer
-    log::info!("There are {} epochs in the storage layer", epoch_summaries.len());
+    log::info!(
+        "There are {} epochs in the storage layer",
+        epoch_summaries.len()
+    );
     assert_eq!(3, epoch_summaries.len());
 
     // verify all fo the audit proofs
     for epoch in 0..=2 {
         let proof_blob = storage.get_proof(epoch).await?;
-        log::info!("Verification epoch {} -> {}", epoch, epoch+1);
+        log::info!("Verification epoch {} -> {}", epoch, epoch + 1);
         crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false).await?;
         crate::auditor::audit_epoch::<Hasher>(proof_blob, true).await?;
     }
@@ -333,7 +342,6 @@ fn test_bucket_name_parsing() -> Result<()> {
     assert!(matches!(super::is_bucket_name_valid(ok_2), Ok(_)));
     assert!(matches!(super::is_bucket_name_valid(ok_3), Ok(_)));
 
-
     Ok(())
 }
 
@@ -347,8 +355,14 @@ fn test_uri_parsing() -> Result<()> {
 
     assert!(matches!(super::is_uri_valid("www.ok.com"), Ok(_)));
     assert!(matches!(super::is_uri_valid("http://ok.com"), Ok(_)));
-    assert!(matches!(super::is_uri_valid("http://127.0.0.1:9000"), Ok(_)));
-    assert!(matches!(super::is_uri_valid("http://east-us-2.aws.com:123"), Ok(_)));
+    assert!(matches!(
+        super::is_uri_valid("http://127.0.0.1:9000"),
+        Ok(_)
+    ));
+    assert!(matches!(
+        super::is_uri_valid("http://east-us-2.aws.com:123"),
+        Ok(_)
+    ));
 
     Ok(())
 }

@@ -10,8 +10,10 @@
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
+use aws_config::meta::region::RegionProviderChain;
 use aws_config::RetryConfig;
 use aws_sdk_s3 as s3;
+use aws_smithy_http::endpoint::Endpoint;
 use clap::Args;
 use log::{debug, error};
 use s3::output::ListObjectsV2Output;
@@ -19,8 +21,6 @@ use s3::Region;
 use std::convert::TryInto;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use aws_config::meta::region::RegionProviderChain;
-use aws_smithy_http::endpoint::Endpoint;
 
 const MIN_BUCKET_CHARS: usize = 3;
 const MAX_BUCKET_CHARS: usize = 63;
@@ -106,9 +106,9 @@ impl From<&S3ClapSettings> for S3AuditStorage {
         Self {
             bucket: clap.bucket.clone(),
             region: clap.region.clone(),
-            endpoint: clap.endpoint.as_ref().map(|a| a.clone()),
-            access_key: clap.access_key.as_ref().map(|a| a.clone()),
-            secret_key: clap.secret_key.as_ref().map(|a| a.clone()),
+            endpoint: clap.endpoint.as_ref().cloned(),
+            access_key: clap.access_key.as_ref().cloned(),
+            secret_key: clap.secret_key.as_ref().cloned(),
             config: Arc::new(RwLock::new(None)),
             cache: Arc::new(RwLock::new(None)),
         }
@@ -124,8 +124,7 @@ impl S3AuditStorage {
             // Get the shared AWS config
             let region_provider = RegionProviderChain::first_try(Region::new(self.region.clone()));
 
-            let mut shared_config_loader = aws_config::from_env()
-                .region(region_provider);
+            let mut shared_config_loader = aws_config::from_env().region(region_provider);
 
             if let (Some(access_key), Some(secret_key)) = (&self.access_key, &self.secret_key) {
                 let credentials = aws_types::Credentials::from_keys(access_key, secret_key, None);
@@ -134,13 +133,11 @@ impl S3AuditStorage {
 
             if let Some(endpoint) = &self.endpoint {
                 // THE URI IS ALREADY VALIDATED BY CLAP ARGS, hence the expect here
-                let endpoint_resolver =
-                    Endpoint::immutable(endpoint.parse().expect("valid URI"));
+                let endpoint_resolver = Endpoint::immutable(endpoint.parse().expect("valid URI"));
                 shared_config_loader = shared_config_loader.endpoint_resolver(endpoint_resolver);
             }
 
-            let shared_config = shared_config_loader.load()
-                .await;
+            let shared_config = shared_config_loader.load().await;
 
             *lock = Some(shared_config.clone());
             shared_config
