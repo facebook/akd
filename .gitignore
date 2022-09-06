@@ -14,3 +14,5 @@ Cargo.lock
 **/target
 
 **/*.log
+
+.idea/**
