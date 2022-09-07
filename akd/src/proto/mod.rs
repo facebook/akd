@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
