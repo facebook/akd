@@ -32,7 +32,7 @@ const ALLOWED_BUCKET_CHARS: [char; 38] = [
 #[cfg(test)]
 mod test;
 
-fn is_bucket_name_valid(s: &str) -> Result<String, String> {
+fn validate_bucket_name(s: &str) -> Result<String, String> {
     let str = s.to_string();
     if str.len() < MIN_BUCKET_CHARS || str.len() > MAX_BUCKET_CHARS {
         return Err(format!(
@@ -51,9 +51,13 @@ fn is_bucket_name_valid(s: &str) -> Result<String, String> {
     Ok(str)
 }
 
-fn is_uri_valid(s: &str) -> Result<String, String> {
-    let _uri: http::Uri = s.parse::<http::Uri>().map_err(|err| err.to_string())?;
-    Ok(s.to_string())
+fn validate_uri(s: &str) -> Result<String, String> {
+    let uri: http::Uri = s.parse::<http::Uri>().map_err(|err| err.to_string())?;
+    match (uri.scheme(), uri.authority()) {
+        (None, None) => Err("URI has no scheme or authority. Relative URIs not supported".to_string()),
+        // if there's at least a scheme (http[s]://) or authority (www.test.com) we can construct what we need
+        _ => Ok(s.to_string())
+    }
 }
 
 #[derive(Args, Debug, Clone)]
@@ -61,7 +65,7 @@ pub struct S3ClapSettings {
     /// The S3 bucket where the audit proofs are stored
     #[clap(
         long,
-        value_parser = is_bucket_name_valid
+        value_parser = validate_bucket_name
     )]
     bucket: String,
 
@@ -70,7 +74,7 @@ pub struct S3ClapSettings {
     region: String,
 
     /// [OPTIONAL] An custom URI for the AWS endpoint
-    #[clap(long, value_parser = is_uri_valid)]
+    #[clap(long, value_parser = validate_uri)]
     endpoint: Option<String>,
 
     /// [OPTIONAL] AWS Access key for the session

@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -84,7 +84,7 @@ async fn generate_audit_proofs(n: usize) -> Result<Vec<AuditInformation>, akd::e
         let proof = akd
             .audit::<Hasher>((_epoch - 1) as u64, _epoch as u64)
             .await?;
-        // update the azks + retrieve the "next" hash
+        // update the azks + retrieve the updated hash
         azks = akd.retrieve_current_azks().await?;
         let chash = akd.get_root_hash::<Hasher>(&azks).await?;
 
@@ -116,37 +116,42 @@ async fn maybe_flush_storage(shared_config: &SdkConfig, bucket_name: &str) -> Re
     if let Some(bucket_names) = buckets.buckets() {
         log::info!("Found {} buckets in the test storage", bucket_names.len());
 
-        for bucket in bucket_names {
-            if let Some(maybe_name) = bucket.name() {
-                if maybe_name == bucket_name {
-                    log::info!("Found target bucket {}, deleting.", bucket_name);
-
-                    // From: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/rust_s3_code_examples.html
-                    let objects = client.list_objects_v2().bucket(bucket_name).send().await?;
-                    let mut delete_objects: Vec<ObjectIdentifier> = vec![];
-                    for obj in objects.contents().unwrap_or_default() {
-                        let obj_id = ObjectIdentifier::builder()
-                            .set_key(Some(obj.key().unwrap().to_string()))
-                            .build();
-                        delete_objects.push(obj_id);
-                    }
-                    if !delete_objects.is_empty() {
-                        log::info!(
-                            "Bucket {} has {} objects in it which must be delete first",
-                            bucket_name,
-                            delete_objects.len()
-                        );
-                        client
-                            .delete_objects()
-                            .bucket(bucket_name)
-                            .delete(Delete::builder().set_objects(Some(delete_objects)).build())
-                            .send()
-                            .await?;
-                    }
-                    client.delete_bucket().bucket(bucket_name).send().await?;
-                    break;
-                }
+        if let Some(_) = bucket_names.iter().find(|bucket| {
+            if let Some(maybe_bucket) = bucket.name() {
+                return maybe_bucket == bucket_name;
             }
+            false
+        }) {
+            log::info!("Found target bucket {}, deleting.", bucket_name);
+
+            // From: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/rust_s3_code_examples.html
+            let objects = client.list_objects_v2().bucket(bucket_name).send().await?;
+            // let mut delete_objects: Vec<ObjectIdentifier> = vec![];
+            let delete_objects = objects
+                .contents()
+                .unwrap_or_default()
+                .iter()
+                .map(|obj| {
+                    ObjectIdentifier::builder()
+                        .set_key(Some(obj.key().unwrap().to_string()))
+                        .build()
+                })
+                .collect::<Vec<_>>();
+
+            if !delete_objects.is_empty() {
+                log::info!(
+                    "Bucket {} has {} objects in it which must be delete first",
+                    bucket_name,
+                    delete_objects.len()
+                );
+                client
+                    .delete_objects()
+                    .bucket(bucket_name)
+                    .delete(Delete::builder().set_objects(Some(delete_objects)).build())
+                    .send()
+                    .await?;
+            }
+            client.delete_bucket().bucket(bucket_name).send().await?;
         }
     }
     Ok(())
@@ -216,8 +221,7 @@ fn get_s3_storage(bucket: &str) -> S3AuditStorage {
         access_key: Some(ACCESS_KEY.to_string()),
         secret_key: Some(SECRET_KEY.to_string()),
     };
-    let storage: S3AuditStorage = (&clap_args).into();
-    storage
+    (&clap_args).into()
 }
 
 // =========================== Test Cases =========================== //
@@ -228,7 +232,7 @@ async fn integration_test_bucket_listing() -> Result<()> {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = bucket_name!();
     log::debug!("Test bucket name is {}", bucket);
-    assert!(matches!(is_bucket_name_valid(&bucket), Ok(_)));
+    assert!(matches!(validate_bucket_name(&bucket), Ok(_)));
 
     // Get the storage reader
     let storage = get_s3_storage(&bucket);
@@ -250,10 +254,8 @@ async fn integration_test_bucket_listing() -> Result<()> {
 
     // check the linear history of the proofs
     log::info!("Checking linear history of audit proofs");
-    let mut i = 0u64;
-    for summary in epoch_summaries {
-        assert_eq!(i, summary.name.epoch);
-        i += 1;
+    for (i, summary) in epoch_summaries.into_iter().enumerate() {
+        assert_eq!(i as u64, summary.name.epoch);
     }
 
     // if the test is successful, try a cleanup of the storage now
@@ -268,7 +270,7 @@ async fn integration_test_audit_verification() -> Result<()> {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = bucket_name!();
     log::debug!("Test bucket name is {}", bucket);
-    assert!(matches!(is_bucket_name_valid(&bucket), Ok(_)));
+    assert!(matches!(validate_bucket_name(&bucket), Ok(_)));
 
     // Get the storage reader
     let storage = get_s3_storage(&bucket);
@@ -311,7 +313,7 @@ async fn populate_test_bucket() -> Result<()> {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = bucket_name!();
     log::debug!("Test bucket name is {}", bucket);
-    assert!(matches!(is_bucket_name_valid(&bucket), Ok(_)));
+    assert!(matches!(validate_bucket_name(&bucket), Ok(_)));
 
     // Get the storage reader
     let storage = get_s3_storage(&bucket);
@@ -326,21 +328,21 @@ async fn populate_test_bucket() -> Result<()> {
 #[test]
 fn test_bucket_name_parsing() -> Result<()> {
     let too_short = "a";
-    assert!(matches!(super::is_bucket_name_valid(too_short), Err(_)));
+    assert!(matches!(super::validate_bucket_name(too_short), Err(_)));
 
     let too_long = "1234567890123456789012345678901234567890123456789012345678901234567890";
-    assert!(matches!(super::is_bucket_name_valid(too_long), Err(_)));
+    assert!(matches!(super::validate_bucket_name(too_long), Err(_)));
 
     let bad_chars = "!@#$%^&*()_+";
-    assert!(matches!(super::is_bucket_name_valid(bad_chars), Err(_)));
+    assert!(matches!(super::validate_bucket_name(bad_chars), Err(_)));
 
     let ok_1 = "12345";
     let ok_2 = "some-bucket-name";
     let ok_3 = "some.bucket.name";
 
-    assert!(matches!(super::is_bucket_name_valid(ok_1), Ok(_)));
-    assert!(matches!(super::is_bucket_name_valid(ok_2), Ok(_)));
-    assert!(matches!(super::is_bucket_name_valid(ok_3), Ok(_)));
+    assert!(matches!(super::validate_bucket_name(ok_1), Ok(_)));
+    assert!(matches!(super::validate_bucket_name(ok_2), Ok(_)));
+    assert!(matches!(super::validate_bucket_name(ok_3), Ok(_)));
 
     Ok(())
 }
@@ -350,17 +352,18 @@ fn test_uri_parsing() -> Result<()> {
     let non_uri = "hasdf!@#";
     let bad_port = "http://localhost:1234%567891230";
 
-    assert!(matches!(super::is_uri_valid(non_uri), Err(_)));
-    assert!(matches!(super::is_uri_valid(bad_port), Err(_)));
+    assert!(matches!(super::validate_uri(non_uri), Err(_)));
+    assert!(matches!(super::validate_uri(bad_port), Err(_)));
+    assert!(matches!(super::validate_uri("/test/uri"), Err(_)));
 
-    assert!(matches!(super::is_uri_valid("www.ok.com"), Ok(_)));
-    assert!(matches!(super::is_uri_valid("http://ok.com"), Ok(_)));
+    assert!(matches!(super::validate_uri("www.ok.com"), Ok(_)));
+    assert!(matches!(super::validate_uri("http://ok.com"), Ok(_)));
     assert!(matches!(
-        super::is_uri_valid("http://127.0.0.1:9000"),
+        super::validate_uri("http://127.0.0.1:9000"),
         Ok(_)
     ));
     assert!(matches!(
-        super::is_uri_valid("http://east-us-2.aws.com:123"),
+        super::validate_uri("http://east-us-2.aws.com:123"),
         Ok(_)
     ));
 

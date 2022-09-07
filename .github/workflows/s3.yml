@@ -34,7 +34,7 @@ jobs:
           command: build
 
       # Borrowed from: https://github.com/engula/engula/pull/124/files
-      - name: Setup minio
+      - name: Set up minio
         run: |
           docker run --detach \
             -p 9000:9000 \
