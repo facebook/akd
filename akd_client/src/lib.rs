@@ -102,7 +102,7 @@ pub(crate) mod ecvrf;
 pub(crate) mod hash;
 pub(crate) mod utils;
 #[cfg(any(test, feature = "converters"))]
-pub(crate) mod converters;
+pub mod converters;
 
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
