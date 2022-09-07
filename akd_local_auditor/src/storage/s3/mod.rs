@@ -54,9 +54,11 @@ fn validate_bucket_name(s: &str) -> Result<String, String> {
 fn validate_uri(s: &str) -> Result<String, String> {
     let uri: http::Uri = s.parse::<http::Uri>().map_err(|err| err.to_string())?;
     match (uri.scheme(), uri.authority()) {
-        (None, None) => Err("URI has no scheme or authority. Relative URIs not supported".to_string()),
+        (None, None) => {
+            Err("URI has no scheme or authority. Relative URIs not supported".to_string())
+        }
         // if there's at least a scheme (http[s]://) or authority (www.test.com) we can construct what we need
-        _ => Ok(s.to_string())
+        _ => Ok(s.to_string()),
     }
 }
 

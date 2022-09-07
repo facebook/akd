@@ -116,12 +116,16 @@ async fn maybe_flush_storage(shared_config: &SdkConfig, bucket_name: &str) -> Re
     if let Some(bucket_names) = buckets.buckets() {
         log::info!("Found {} buckets in the test storage", bucket_names.len());
 
-        if let Some(_) = bucket_names.iter().find(|bucket| {
-            if let Some(maybe_bucket) = bucket.name() {
-                return maybe_bucket == bucket_name;
-            }
-            false
-        }) {
+        if bucket_names
+            .iter()
+            .find(|bucket| {
+                if let Some(maybe_bucket) = bucket.name() {
+                    return maybe_bucket == bucket_name;
+                }
+                false
+            })
+            .is_some()
+        {
             log::info!("Found target bucket {}, deleting.", bucket_name);
 
             // From: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/rust_s3_code_examples.html
