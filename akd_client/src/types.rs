@@ -53,8 +53,7 @@ pub const TOMBSTONE: &[u8] = &[];
 // ============================================
 
 /// Represents the label of a AKD node
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
     pub label_val: [u8; 32],
@@ -129,8 +128,7 @@ impl NodeLabel {
 }
 
 /// Represents a node (label + hash) in the AKD
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Node {
     /// The label of the node
     pub label: NodeLabel,
@@ -140,8 +138,7 @@ pub struct Node {
 
 /// Represents a specific level of the tree with the parental sibling and the direction
 /// of the parent for use in tree hash calculations
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct LayerProof {
     /// The parent's label
     pub label: NodeLabel,
@@ -153,8 +150,7 @@ pub struct LayerProof {
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash
 /// value in the tree at a given epoch
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MembershipProof {
     /// The node label
     pub label: NodeLabel,
@@ -166,8 +162,7 @@ pub struct MembershipProof {
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NonMembershipProof {
     /// The label in question
     pub label: NodeLabel,
@@ -185,8 +180,7 @@ pub struct NonMembershipProof {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct LookupProof {
     /// The epoch of this record
     pub epoch: u64,
@@ -217,8 +211,7 @@ pub struct LookupProof {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateProof {
     /// Epoch of this update
     pub epoch: u64,
@@ -239,8 +232,7 @@ pub struct UpdateProof {
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,
