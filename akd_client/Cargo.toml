@@ -33,6 +33,8 @@ ed25519-dalek = { version = "1", features = ["serde"], optional = true}
 
 [features]
 nostd = []
+# Enable converters API from akd to akd_client types
+converters = []
 # Optional hash functions
 sha512 = ["sha2"]
 sha256 = ["sha2"]
