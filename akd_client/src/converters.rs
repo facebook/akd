@@ -7,10 +7,9 @@
 
 //! Converters from akd types to akd_client types
 
+use crate::hash::DIGEST_BYTES;
 use akd;
 use winter_utils::Serializable;
-use crate::hash::DIGEST_BYTES;
-
 
 /// Converts a Digest type to a byte array of size DIGEST_BYTES.
 pub fn to_digest<H>(hash: H::Digest) -> crate::types::Digest
@@ -96,7 +95,9 @@ where
 }
 
 /// Converts and AKD lookup proof to AKD_CLIENT lookup proof.
-pub fn convert_lookup_proof<H>(proof: &akd::proof_structs::LookupProof<H>) -> crate::types::LookupProof
+pub fn convert_lookup_proof<H>(
+    proof: &akd::proof_structs::LookupProof<H>,
+) -> crate::types::LookupProof
 where
     H: winter_crypto::Hasher,
 {
