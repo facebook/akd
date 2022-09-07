@@ -1,0 +1,16 @@
+version: '3.3'
+
+services:
+  s3:
+    container_name: minio-s3-storage
+    platform: linux/x86_64
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: test
+      MINIO_ROOT_PASSWORD: someLongAccessKey
+      MINIO_REGION_NAME: us-east-2

@@ -54,7 +54,7 @@ impl TryFrom<&str> for EpochSummary {
 
 /// Represents a storage of audit proofs and READ ONLY interaction to retrieve the proof objects
 #[async_trait]
-pub trait AuditProofStorage: Sync + Send {
+pub trait AuditProofStorage: Sync + Send + std::fmt::Debug {
     /// List the proofs in the storage medium.
     async fn list_proofs(&self) -> Result<Vec<EpochSummary>>;
 

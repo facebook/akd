@@ -1,7 +1,7 @@
 [package]
 name = "akd_local_auditor"
 default-run = "akd_local_auditor"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
 publish = false
@@ -9,19 +9,21 @@ publish = false
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-aws-config = "0.47.0"
-aws-sdk-s3 = "0.17.0"
+aws-config = "0.47"
+aws-sdk-s3 = "0.17"
+aws-smithy-http = "0.47"
+aws-types = { version = "0.47", features = ["hardcoded-credentials"] }
 bytes = "1"
 clap = { version="3", features = ["derive"] }
 colored = "2.0.0"
 dirs = "4"
 hex = "0.4.3"
+http = "0.2"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-multi_log = "0.1"
 once_cell = "1"
 qr2term = "0.3"
 rand = "0.8"
-rustyline = "10"
+rustyrepl = { version = "0.1", features = ["async"] }
 thread-id = "3"
 tokio = { version = "1.10", features = ["full"] }
 tokio-stream = "0.1"
@@ -29,3 +31,6 @@ winter-crypto = "0.2"
 winter-math = "0.2"
 
 akd = { path = "../akd", features = ["public-tests", "public_auditing"] }
+
+[dev-dependencies]
+ctor = "0.1"
