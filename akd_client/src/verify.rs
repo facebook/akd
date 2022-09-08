@@ -374,6 +374,16 @@ pub fn key_history_verify(
     Ok(tombstones)
 }
 
+/// Serializes a LookupProof
+pub fn serialize_lookup_proof(proof: &LookupProof) -> Result<String, serde_json::Error> {
+    serde_json::to_string(proof)
+}
+
+/// Serializes a HistoryProof
+pub fn serialize_history_proof(proof: &HistoryProof) -> Result<String, serde_json::Error> {
+    serde_json::to_string(proof)
+}
+
 /// Verifies a single update proof
 fn verify_single_update_proof(
     root_hash: Digest,
