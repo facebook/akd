@@ -81,7 +81,8 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     // create the "lean" lookup proof version
     let internal_lookup_proof = converters::convert_lookup_proof::<Hash>(&lookup_proof);
     // Serialize the generated proof.
-    let serialized_internal_lookup_proof = crate::verify::serialize_lookup_proof(&internal_lookup_proof).unwrap();
+    let serialized_internal_lookup_proof =
+        crate::verify::serialize_lookup_proof(&internal_lookup_proof).unwrap();
     println!(
         "Serialized internal lookup proof: {:?}",
         serialized_internal_lookup_proof
@@ -232,7 +233,8 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
         akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
 
     // Serialize the generated proof.
-    let serialized_internal_history_proof = crate::verify::serialize_history_proof(&internal_proof).unwrap();
+    let serialized_internal_history_proof =
+        crate::verify::serialize_history_proof(&internal_proof).unwrap();
     println!(
         "Serialized internal history proof: {:?}",
         serialized_internal_history_proof
