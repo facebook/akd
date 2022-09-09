@@ -10,6 +10,7 @@ publish = false
 anyhow = "1"
 async-trait = "0.1"
 aws-config = "0.47"
+aws-sdk-dynamodb = "0.17"
 aws-sdk-s3 = "0.17"
 aws-smithy-http = "0.47"
 aws-types = { version = "0.47", features = ["hardcoded-credentials"] }

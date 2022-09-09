@@ -14,3 +14,12 @@ services:
       MINIO_ROOT_USER: test
       MINIO_ROOT_PASSWORD: someLongAccessKey
       MINIO_REGION_NAME: us-east-2
+
+  dynamo:
+    container_name: dynamo-storage
+    platform: linux/x86_64
+    image: amazon/dynamodb-local
+    command: -jar DynamoDBLocal.jar -inMemory -port 9002
+    restart: unless-stopped
+    ports:
+      - "9002:9002"

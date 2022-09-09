@@ -8,6 +8,7 @@
 //! This module comprises S3 bucket READ ONLY access to download and parse
 //! Audit Proofs
 
+use super::ProofIndexCacheOption;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use aws_config::meta::region::RegionProviderChain;
@@ -28,11 +29,13 @@ const ALLOWED_BUCKET_CHARS: [char; 38] = [
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
     't', 'u', 'v', 'w', 'x', 'y', 'z', '.', '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
 ];
+pub const DEFAULT_AWS_REGION: &str = "us-west-2";
 
+// These are crate-visible because the dynamo tests utilize the test functions for S3 buckets
 #[cfg(test)]
-mod test;
+pub(crate) mod test;
 
-fn validate_bucket_name(s: &str) -> Result<String, String> {
+pub(crate) fn validate_bucket_name(s: &str) -> Result<String, String> {
     let str = s.to_string();
     if str.len() < MIN_BUCKET_CHARS || str.len() > MAX_BUCKET_CHARS {
         return Err(format!(
@@ -51,7 +54,7 @@ fn validate_bucket_name(s: &str) -> Result<String, String> {
     Ok(str)
 }
 
-fn validate_uri(s: &str) -> Result<String, String> {
+pub(crate) fn validate_uri(s: &str) -> Result<String, String> {
     let uri: http::Uri = s.parse::<http::Uri>().map_err(|err| err.to_string())?;
     match (uri.scheme(), uri.authority()) {
         (None, None) => {
@@ -91,20 +94,19 @@ pub struct S3ClapSettings {
 #[derive(Debug)]
 pub struct S3AuditStorage {
     /// The bucket where the audit proofs are stored
-    bucket: String,
+    pub(crate) bucket: String,
     /// The AWS region
-    region: String,
+    pub(crate) region: String,
     /// Customize the endpoint (useful for testing)
-    endpoint: Option<String>,
+    pub(crate) endpoint: Option<String>,
     /// The access key
-    access_key: Option<String>,
+    pub(crate) access_key: Option<String>,
     /// The access secret
-    secret_key: Option<String>,
+    pub(crate) secret_key: Option<String>,
     /// The configuration, cached for subsequent accesses
-    config: Arc<RwLock<Option<aws_config::SdkConfig>>>,
-
+    pub(crate) config: Arc<RwLock<Option<aws_config::SdkConfig>>>,
     /// Cache of epoch summaries, populated with each call to list_blob_keys
-    cache: Arc<RwLock<Option<Vec<super::EpochSummary>>>>,
+    pub(crate) cache: Arc<RwLock<Option<Vec<super::EpochSummary>>>>,
 }
 
 impl From<&S3ClapSettings> for S3AuditStorage {
@@ -122,13 +124,21 @@ impl From<&S3ClapSettings> for S3AuditStorage {
 }
 
 impl S3AuditStorage {
+    // exposed for test functionality only
+    #[cfg(test)]
+    pub async fn get_shared_test_config(&self) -> aws_types::SdkConfig {
+        self.get_shared_config().await
+    }
+
     async fn get_shared_config(&self) -> aws_types::SdkConfig {
         let mut lock = self.config.write().await;
         if let Some(config) = &*lock {
             config.clone()
         } else {
             // Get the shared AWS config
-            let region_provider = RegionProviderChain::first_try(Region::new(self.region.clone()));
+            let region_provider = RegionProviderChain::first_try(Region::new(self.region.clone()))
+                .or_default_provider()
+                .or_else(Region::new(DEFAULT_AWS_REGION));
 
             let mut shared_config_loader = aws_config::from_env().region(region_provider);
 
@@ -211,8 +221,23 @@ impl S3AuditStorage {
 
 #[async_trait]
 impl super::AuditProofStorage for S3AuditStorage {
-    async fn list_proofs(&self) -> Result<Vec<super::EpochSummary>> {
+    fn default_cache_control(&self) -> ProofIndexCacheOption {
+        ProofIndexCacheOption::UseCache
+    }
+
+    async fn list_proofs(
+        &self,
+        cache_control: ProofIndexCacheOption,
+    ) -> Result<Vec<super::EpochSummary>> {
         use tokio_stream::StreamExt;
+
+        {
+            if let ProofIndexCacheOption::UseCache = &cache_control {
+                if let Some(cache) = &*self.cache.read().await {
+                    return Ok(cache.clone());
+                }
+            }
+        }
 
         let mut results = vec![];
         let client = self.list_objects_v2().await;
@@ -230,30 +255,20 @@ impl super::AuditProofStorage for S3AuditStorage {
         Ok(results)
     }
 
-    async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob> {
-        if let Some(cache) = &*(self.cache.read().await) {
-            if let Some(found_key) = cache.iter().find(|item| item.name.epoch == epoch) {
-                let client = self.get_object(&found_key.key).await;
-                match client.send().await {
-                    Err(some_err) => {
-                        error!("Error executing get_object in S3 {}", some_err);
-                        bail!("Error executing get_object in S3 {}", some_err);
-                    }
-                    Ok(result) => {
-                        let bytes = result.body.collect().await?.into_bytes();
-                        Ok(akd::proto::AuditBlob {
-                            data: bytes.into_iter().collect::<Vec<u8>>(),
-                            name: found_key.name.clone(),
-                        })
-                    }
-                }
-            } else {
-                bail!("Failed to find epoch {} in keys retrieved from S3", epoch);
+    async fn get_proof(&self, epoch: &super::EpochSummary) -> Result<akd::proto::AuditBlob> {
+        let client = self.get_object(&epoch.key).await;
+        match client.send().await {
+            Err(some_err) => {
+                error!("Error executing get_object in S3 {}", some_err);
+                bail!("Error executing get_object in S3 {}", some_err);
             }
-        } else {
-            bail!(
-                "Object keys first need to be enumerated from S3 before we can retrieve an epoch"
-            );
+            Ok(result) => {
+                let bytes = result.body.collect().await?.into_bytes();
+                Ok(akd::proto::AuditBlob {
+                    data: bytes.into_iter().collect::<Vec<u8>>(),
+                    name: epoch.name.clone(),
+                })
+            }
         }
     }
 }
