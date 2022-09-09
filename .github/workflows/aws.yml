@@ -1,4 +1,4 @@
-name: CI
+name: AWS CI
 on:
   push:
     branches:
@@ -32,6 +32,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
+
+      # Docs: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html
+      - name: Set up dynamodb-local from AWS
+        run: |
+          docker run --detach \
+            -p 9002:9002 \
+            amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -port 9002
 
       # Borrowed from: https://github.com/engula/engula/pull/124/files
       - name: Set up minio

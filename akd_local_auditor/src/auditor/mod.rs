@@ -7,12 +7,13 @@
 
 //! This module holds the auditor operations based on binary-encoded AuditProof blobs
 
+use super::storage::{EpochSummary, ProofIndexCacheOption};
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use log::{error, info, warn};
-use std::marker::{Send, Sync};
-
 use rustyrepl::ReplCommandProcessor;
+use std::marker::{Send, Sync};
+use std::sync::Arc;
 
 pub(crate) const HISTORY_FILE: &str = ".akd_local_auditor_history";
 
@@ -80,9 +81,16 @@ pub enum AuditCommand {
         /// Show a QR code of the audit
         #[clap(long)]
         qr: bool,
+        /// Force refreshing the index of proofs (i.e. don't use the cache)
+        #[clap(long)]
+        force_refresh: bool,
     },
     /// Show the available epochs to audit
-    ShowEpochs,
+    ShowEpochs {
+        /// Force refreshing the index of proofs (i.e. don't use the cache)
+        #[clap(long)]
+        force_refresh: bool,
+    },
 }
 
 /// Audit opertions supported by the client
@@ -95,7 +103,19 @@ pub struct AuditArgs {
 /// Audit processing crate
 #[derive(Debug)]
 pub struct AuditProcessor {
-    pub(crate) storage: Box<dyn crate::storage::AuditProofStorage>,
+    pub storage: Box<dyn crate::storage::AuditProofStorage>,
+    pub last_summaries: Arc<tokio::sync::RwLock<Option<Vec<EpochSummary>>>>,
+}
+
+impl AuditProcessor {
+    pub fn new_repl_processor(
+        storage: Box<dyn crate::storage::AuditProofStorage>,
+    ) -> Box<dyn rustyrepl::ReplCommandProcessor<AuditArgs>> {
+        Box::new(crate::auditor::AuditProcessor {
+            storage,
+            last_summaries: Arc::new(tokio::sync::RwLock::new(None)),
+        })
+    }
 }
 
 #[async_trait::async_trait]
@@ -105,13 +125,48 @@ impl ReplCommandProcessor<AuditArgs> for AuditProcessor {
     }
 
     async fn process_command(&self, cmd: AuditArgs) -> Result<()> {
+        let default_cache_control = self.storage.default_cache_control();
+
         match &cmd.command {
-            AuditCommand::Audit { epoch, qr } => {
-                let proof = self.storage.get_proof(*epoch).await?;
-                audit_epoch::<crate::Hasher>(proof, *qr).await?;
+            AuditCommand::Audit {
+                epoch,
+                qr,
+                force_refresh,
+            } => {
+                let cache_control = if *force_refresh {
+                    ProofIndexCacheOption::NoCache
+                } else {
+                    default_cache_control
+                };
+
+                // did they already call show-epochs below? If so, can we utilize the cached result to save
+                // another scan operation?
+                let proofs = if cache_control == ProofIndexCacheOption::UseCache {
+                    let summaries = &*(self.last_summaries.read().await);
+                    if let Some(cached_result) = summaries {
+                        cached_result.clone()
+                    } else {
+                        self.storage.list_proofs(cache_control).await?
+                    }
+                } else {
+                    self.storage.list_proofs(cache_control).await?
+                };
+
+                let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == *epoch);
+                if let Some(epoch_summary) = maybe_proof {
+                    let proof = self.storage.get_proof(epoch_summary).await?;
+                    audit_epoch::<crate::Hasher>(proof, *qr).await?;
+                }
             }
-            AuditCommand::ShowEpochs => {
-                let mut proofs = self.storage.list_proofs().await?;
+            AuditCommand::ShowEpochs { force_refresh } => {
+                let cache_control = if *force_refresh {
+                    ProofIndexCacheOption::NoCache
+                } else {
+                    default_cache_control
+                };
+
+                let mut proofs = self.storage.list_proofs(cache_control).await?;
+                *self.last_summaries.write().await = Some(proofs.clone());
                 display_audit_proofs_info(&mut proofs)?;
             }
         }

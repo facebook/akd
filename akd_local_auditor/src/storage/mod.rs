@@ -24,7 +24,7 @@ pub enum StorageSubcommand {
     /// Amazon S3 compatible storage
     S3(s3::S3ClapSettings),
     // /// DynamoDB
-    // DynamoDb(dynamodb::DynamoDbClapSettings),
+    DynamoDb(dynamodb::DynamoDbClapSettings),
 }
 
 // ************************************ Trait and Type Definitions ************************************ //
@@ -52,16 +52,28 @@ impl TryFrom<&str> for EpochSummary {
     }
 }
 
+/// Options for proof index lookup operations
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum ProofIndexCacheOption {
+    /// Don't utilize a cache
+    NoCache,
+    /// Utilize the underlying proof lookup cache
+    UseCache,
+}
+
 /// Represents a storage of audit proofs and READ ONLY interaction to retrieve the proof objects
 #[async_trait]
 pub trait AuditProofStorage: Sync + Send + std::fmt::Debug {
+    /// The default cache control option for proof listings for this storage implementation
+    fn default_cache_control(&self) -> ProofIndexCacheOption;
+
     /// List the proofs in the storage medium.
-    async fn list_proofs(&self) -> Result<Vec<EpochSummary>>;
+    async fn list_proofs(&self, cache_control: ProofIndexCacheOption) -> Result<Vec<EpochSummary>>;
 
     /// Retrieve an audit proof from the storage medium. If the underlying storage implementation
     /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
     /// implementation to cache the information. Example: See the AWS S3 implementation
-    async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob>;
+    async fn get_proof(&self, epoch: &EpochSummary) -> Result<akd::proto::AuditBlob>;
 }
 
 // We need to implement the trait for a Box<dyn Trait> in order to utilize a box further downstream
@@ -74,15 +86,21 @@ impl<APS: ?Sized> AuditProofStorage for Box<APS>
 where
     APS: AuditProofStorage,
 {
+    /// The default cache control option for proof listings for this storage implementation
+    #[allow(unconditional_recursion)]
+    fn default_cache_control(&self) -> ProofIndexCacheOption {
+        self.default_cache_control()
+    }
+
     /// List the proofs in the storage medium.
-    async fn list_proofs(&self) -> Result<Vec<EpochSummary>> {
-        self.list_proofs().await
+    async fn list_proofs(&self, cache_control: ProofIndexCacheOption) -> Result<Vec<EpochSummary>> {
+        self.list_proofs(cache_control).await
     }
 
     /// Retrieve an audit proof from the storage medium. If the underlying storage implementation
     /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
     /// implementation to cache the information. Example: See the AWS S3 implementation
-    async fn get_proof(&self, epoch: u64) -> Result<akd::proto::AuditBlob> {
+    async fn get_proof(&self, epoch: &EpochSummary) -> Result<akd::proto::AuditBlob> {
         self.get_proof(epoch).await
     }
 }

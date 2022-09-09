@@ -12,6 +12,9 @@ mod console_log;
 pub mod auditor;
 pub mod storage;
 
+#[cfg(test)]
+pub(crate) mod common_test;
+
 use anyhow::Result;
 use clap::{ArgEnum, Parser};
 use log::debug;
@@ -76,10 +79,13 @@ async fn main() -> Result<()> {
             let imp: storage::s3::S3AuditStorage = s3_settings.into();
             Box::new(imp)
         }
+        storage::StorageSubcommand::DynamoDb(dynamo_settings) => {
+            let imp: storage::dynamodb::DynamoDbAuditStorage = dynamo_settings.into();
+            Box::new(imp)
+        }
     };
 
-    let command_processor: Box<dyn rustyrepl::ReplCommandProcessor<auditor::AuditArgs>> =
-        Box::new(crate::auditor::AuditProcessor { storage });
+    let command_processor = crate::auditor::AuditProcessor::new_repl_processor(storage);
 
     let mut repl = rustyrepl::Repl::<auditor::AuditArgs>::new(
         command_processor,
