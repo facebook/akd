@@ -154,7 +154,7 @@ impl DynamoDbAuditStorage {
             // Get the shared AWS config
             let region_provider = RegionProviderChain::first_try(Region::new(self.region.clone()))
                 .or_default_provider()
-                .or_else(Region::new("us-west-2"));
+                .or_else(Region::new(super::s3::DEFAULT_AWS_REGION));
 
             let mut shared_config_loader = aws_config::from_env().region(region_provider);
 
@@ -165,7 +165,8 @@ impl DynamoDbAuditStorage {
 
             if let Some(endpoint) = &self.dynamo_endpoint {
                 // THE URI IS ALREADY VALIDATED BY CLAP ARGS, hence the expect here
-                let endpoint_resolver = Endpoint::immutable(endpoint.parse().expect("valid URI"));
+                let endpoint_resolver =
+                    Endpoint::immutable(endpoint.parse().expect("invalid S3 storage URI"));
                 shared_config_loader = shared_config_loader.endpoint_resolver(endpoint_resolver);
             }
 
@@ -176,17 +177,19 @@ impl DynamoDbAuditStorage {
         }
     }
 
-    fn parse_summary(row: &HashMap<String, AttributeValue>) -> Result<Option<EpochSummary>> {
+    fn parse_summary(
+        dynamo_attribute_values: &HashMap<String, AttributeValue>,
+    ) -> Result<Option<EpochSummary>> {
         if let (
             Some(AttributeValue::N(epoch)),
             Some(AttributeValue::B(phash)),
             Some(AttributeValue::B(chash)),
             Some(AttributeValue::S(blob_key)),
         ) = (
-            row.get("epoch"),
-            row.get("previous_hash"),
-            row.get("current_hash"),
-            row.get("blob"),
+            dynamo_attribute_values.get("epoch"),
+            dynamo_attribute_values.get("previous_hash"),
+            dynamo_attribute_values.get("current_hash"),
+            dynamo_attribute_values.get("blob"),
         ) {
             let phash_digest = akd::serialization::to_digest::<crate::Hasher>(phash.as_ref())
                 .map_err(|err| anyhow::anyhow!("Error converting digest {}", err))?;

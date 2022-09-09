@@ -14,6 +14,14 @@ use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::AkdLabel;
 use akd::AkdValue;
 
+/// Generate a aws-safe bucket/table name from the test function name
+///
+/// So these are for S3 storage bucket names.
+/// To guarantee parallel tests don't conflict with each other,
+/// each test uses a different bucket for its tests which is
+/// derived from the function name. However buckets cannot
+/// contain the "_" char and must be capped @ 63 chars.
+/// It's only for generating independent test cases
 macro_rules! alphanumeric_function_name {
     () => {{
         fn f() {}
@@ -43,6 +51,9 @@ pub struct AuditInformation {
 }
 
 /// Generate N audit proofs from a new tree
+///
+/// n: number of proofs to generate
+/// expensive: This flag denotes if we should have many or just a single update in each iteration. If true, makes the audit's very large (100K updates)
 pub async fn generate_audit_proofs(
     n: usize,
     expensive: bool,
@@ -56,8 +67,8 @@ pub async fn generate_audit_proofs(
     let mut phash = akd.get_root_hash::<Hasher>(&azks).await?;
 
     for _epoch in 1..=n {
-        // generate (n) epochs of updates on the same user
         if expensive {
+            // generate (n) epochs of updates on many users
             let data = (1..100000)
                 .map(|item| {
                     let user = format!("user{}", item);
@@ -70,6 +81,7 @@ pub async fn generate_audit_proofs(
                 .collect::<Vec<(AkdLabel, AkdValue)>>();
             akd.publish::<Hasher>(data).await?;
         } else {
+            // generate (n) epochs of updates on the same user
             let t_value = format!("certificate{}", _epoch);
             akd.publish::<Hasher>(vec![(
                 AkdLabel::from_utf8_str("user"),

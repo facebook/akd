@@ -29,6 +29,7 @@ const ALLOWED_BUCKET_CHARS: [char; 38] = [
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
     't', 'u', 'v', 'w', 'x', 'y', 'z', '.', '-', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
 ];
+pub const DEFAULT_AWS_REGION: &str = "us-west-2";
 
 // These are crate-visible because the dynamo tests utilize the test functions for S3 buckets
 #[cfg(test)]
@@ -137,7 +138,7 @@ impl S3AuditStorage {
             // Get the shared AWS config
             let region_provider = RegionProviderChain::first_try(Region::new(self.region.clone()))
                 .or_default_provider()
-                .or_else(Region::new("us-west-2"));
+                .or_else(Region::new(DEFAULT_AWS_REGION));
 
             let mut shared_config_loader = aws_config::from_env().region(region_provider);
 
