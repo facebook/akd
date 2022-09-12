@@ -34,7 +34,6 @@
 //!
 //! If you need to customize the connection to AWS, both data-layers support providing custom
 //! endpoints as well as a access key and secret key for authentication.
-//!
 
 pub mod auditor;
 mod console_log;
