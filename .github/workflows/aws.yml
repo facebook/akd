@@ -30,6 +30,9 @@ jobs:
           toolchain: ${{matrix.toolchain}}
           override: true
 
+      - name: Set up protoc
+        uses: arduino/setup-protoc@v1.1.2
+
       - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
