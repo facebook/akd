@@ -32,6 +32,8 @@ jobs:
 
       - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cargo build
         uses: actions-rs/cargo@v1

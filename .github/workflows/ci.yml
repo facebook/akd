@@ -36,6 +36,8 @@ jobs:
         run: docker logs akd-test-db
       - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Test general profile
         uses: actions-rs/cargo@v1
         with:
@@ -84,6 +86,8 @@ jobs:
           override: true
       - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
