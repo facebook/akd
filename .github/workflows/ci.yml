@@ -15,57 +15,63 @@ jobs:
       matrix:
         toolchain: [stable]
         os: [ubuntu]
+
     steps:
       - uses: actions/checkout@main
+
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{matrix.toolchain}}
           override: true
-      - name: Build the docker-compose stack
-        run: docker-compose -f docker-compose.yml up -d
-      - name: Check running containers
-        run: docker ps -a
-      - name: Verify MySQL db connection
-        run: |
-          while ! docker exec akd-test-db mysql --user=root --password=example -e "SHOW DATABASES" >/dev/null 2>&1; do
-            sleep 1
-          done
-          echo "MySQL container is up"
-      - name: Check container akd-test-db logs
-        run: docker logs akd-test-db
+
       - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Test general profile
+
+      - name: Test the base library, with default features
         uses: actions-rs/cargo@v1
         with:
           command: test
-      - name: Cleanup docker container
-        run: docker-compose -f docker-compose.yml down -v
-      - name: Copy integration test logs for review
-        run: cat integration_tests/integration_test.log
-      - name: Test the lean client for wasm and SHA3-256 hashing
+          args: --package akd
+
+      - name: Test the local auditor, with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_local_auditor
+
+      - name: Test the base client library, with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_client
+
+      - name: Test the client for wasm and SHA3-256 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd_client --no-default-features --features wasm,sha3_256,vrf
+
       - name: Test AKD with no-vrf support
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd --no-default-features --features public-tests
+
       - name: Test AKD with protobuf serialization of the audit proofs
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd --features public_auditing
+
       - name: Test the lean client for wasm and BLAKE3 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd_client --no-default-features --features wasm,blake3,vrf
+
       - name: Test the lean client for VRF verification
         uses: actions-rs/cargo@v1
         with:
@@ -84,11 +90,13 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
+
       - name: Set up protoc
         uses: arduino/setup-protoc@v1.1.2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Clippy
+
+      - name: Run Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
@@ -107,7 +115,7 @@ jobs:
           components: rustfmt
           override: true
 
-      - name: rustfmt
+      - name: Run rustfmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt

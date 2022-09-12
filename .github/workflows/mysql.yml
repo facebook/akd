@@ -1,0 +1,69 @@
+name: MySQL and Integration Tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, repoened, synchronize]
+
+jobs:
+  run-tests:
+    name: Run tests (Rust ${{matrix.toolchain}} on ${{matrix.os}})
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable]
+        os: [ubuntu]
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{matrix.toolchain}}
+          override: true
+
+      - name: Set up protoc
+        uses: arduino/setup-protoc@v1.1.2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cargo build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Build the docker-compose stack
+        run: docker-compose -f docker-compose.yml up -d
+
+      - name: Check running containers
+        run: docker ps -a
+
+      - name: Verify MySQL db connection
+        run: |
+          while ! docker exec akd-test-db mysql --user=root --password=example -e "SHOW DATABASES" >/dev/null 2>&1; do
+            sleep 1
+          done
+          echo "MySQL container is up"
+
+      - name: Check container akd-test-db logs
+        run: docker logs akd-test-db
+
+      - name: Run MySQL tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path Cargo.toml -p akd_mysql
+
+      - name: Run integration tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --manifest-path Cargo.toml -p integration_tests
+
+      - name: Cleanup docker container
+        run: docker-compose -f docker-compose.yml down -v
+
+      - name: Copy integration test logs for review
+        run: cat integration_tests/integration_test.log

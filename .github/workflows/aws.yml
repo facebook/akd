@@ -44,6 +44,7 @@ jobs:
       - name: Set up dynamodb-local from AWS
         run: |
           docker run --detach \
+            --name "dynamodb_test_env" \
             -p 9002:9002 \
             amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -port 9002
 
@@ -51,6 +52,7 @@ jobs:
       - name: Set up minio
         run: |
           docker run --detach \
+            --name "minio_test_env" \
             -p 9000:9000 \
             -p 9001:9001 \
             -v "$(mktemp -d)":/data \
@@ -70,3 +72,11 @@ jobs:
         with:
           command: test
           args: --manifest-path Cargo.toml -p akd_local_auditor integration_test_ -- --ignored
+
+      -name: Teardown dynamodb container
+        run: |
+          docker stop dynamodb_test_env
+
+      -name: Teardown minio container
+        run: |
+          docker stop minio_test_env
