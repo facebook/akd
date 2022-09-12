@@ -8,7 +8,7 @@ on:
   pull_request:
     branches:
       - main
-    types: [opened, repoened, synchronize]
+    types: [opened, reopened, synchronize]
     paths:
       - 'akd_local_auditor/**'
 
@@ -74,10 +74,10 @@ jobs:
           command: test
           args: --manifest-path Cargo.toml -p akd_local_auditor integration_test_ -- --ignored
 
-      -name: Teardown dynamodb container
+      - name: Teardown dynamodb container
         run: |
           docker stop dynamodb_test_env
 
-      -name: Teardown minio container
+      - name: Teardown minio container
         run: |
           docker stop minio_test_env
