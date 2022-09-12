@@ -4,11 +4,13 @@ on:
     branches:
       - main
     paths:
-      - 'akd_local_auditor/'
+      - 'akd_local_auditor/**'
   pull_request:
+    branches:
+      - main
     types: [opened, repoened, synchronize]
     paths:
-      - 'akd_local_auditor/'
+      - 'akd_local_auditor/**'
 
 jobs:
   test-auditor:
