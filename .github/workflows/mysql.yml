@@ -60,7 +60,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --manifest-path Cargo.toml -p integration_tests
+          args: --manifest-path Cargo.toml -p akd_integration_tests
 
       - name: Cleanup docker container
         run: docker-compose -f docker-compose.yml down -v

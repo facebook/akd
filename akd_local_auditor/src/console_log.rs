@@ -5,6 +5,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+//! This module provides a basic logger implementation to the console with
+//! some additional information (file, line number, thread, etc)
+
 use colored::*;
 use log::Level;
 use log::Metadata;
