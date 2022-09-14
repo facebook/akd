@@ -178,14 +178,67 @@ impl S3AuditStorage {
             .into_paginator()
     }
 
-    async fn get_object(&self, key: &str) -> s3::client::fluent_builders::GetObject {
-        let config = self.get_config().await;
+    async fn get_object(&self, key: &str) -> Result<s3::client::fluent_builders::GetObject> {
+        // We need to retrieve the minimum version of an object, to guarantee we see the ORIGINAL
+        // status of the blob. Future versions are not supported
+        let attributes = s3::Client::from_conf(self.get_config().await)
+            .list_object_versions()
+            .bucket(self.bucket.clone())
+            .key_marker(key.to_string())
+            .max_keys(1)
+            .send()
+            .await?;
 
-        s3::Client::from_conf(config)
+        let mut version_count = 0usize;
+        let mut min_time = std::time::SystemTime::now();
+        let mut min_version = String::new();
+        let mut etags = vec![];
+        if let Some(versions) = attributes.versions() {
+            for version in versions {
+                if let Some(potential_key) = version.key() {
+                    if potential_key == key {
+                        if let (Some(mod_time), Some(version_id)) =
+                            (version.last_modified(), version.version_id())
+                        {
+                            version_count = version_count + 1;
+                            etags.push(
+                                version
+                                    .e_tag()
+                                    .map(|tag| tag.to_string())
+                                    .unwrap_or("".to_string()),
+                            );
+
+                            let this_time: std::time::SystemTime = mod_time.clone().try_into()?;
+                            if this_time < min_time {
+                                min_version = version_id.to_string();
+                                min_time = this_time;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if version_count == 0 {
+            return Err(anyhow::anyhow!(
+                "Object not found with any version information"
+            ));
+        } else if version_count > 1 {
+            // TODO: check all the versions for their associated etags, and make sure they're all the same
+            let first = &etags[0];
+            for i in 1..etags.len() {
+                if first.cmp(&etags[i]) != std::cmp::Ordering::Equal {
+                    return Err(anyhow::anyhow!("There were duplicate objects with the same key that have different etags which indicates different values. This epoch cannot be trusted ({} != {})", first, etags[i]));
+                }
+            }
+        }
+
+        Ok(s3::Client::from_conf(self.get_config().await)
             .get_object()
             .bucket(self.bucket.clone())
+            .version_id(min_version)
             .key(key.to_string())
-            .checksum_mode(s3::model::ChecksumMode::Enabled)
+            .checksum_mode(s3::model::ChecksumMode::Enabled))
     }
 
     fn process_streamed_response(
@@ -256,7 +309,7 @@ impl super::AuditProofStorage for S3AuditStorage {
     }
 
     async fn get_proof(&self, epoch: &super::EpochSummary) -> Result<akd::proto::AuditBlob> {
-        let client = self.get_object(&epoch.key).await;
+        let client = self.get_object(&epoch.key).await?;
         match client.send().await {
             Err(some_err) => {
                 error!("Error executing get_object in S3 {}", some_err);
