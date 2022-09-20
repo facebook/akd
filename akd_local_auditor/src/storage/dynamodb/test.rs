@@ -31,7 +31,7 @@ const TEST_DYNAMO_ENDPOINT: &str = "http://127.0.0.1:9002";
 const TEST_S3_ENDPOINT: &str = "http://127.0.0.1:9000";
 
 #[test]
-fn test_dynamo_table_naming() -> Result<()> {
+fn test_dynamo_table_naming() {
     let too_short = "a";
     assert!(matches!(super::validate_table_name(too_short), Err(_)));
 
@@ -56,13 +56,11 @@ fn test_dynamo_table_naming() -> Result<()> {
         super::validate_table_name("some_table_name"),
         Ok(_)
     ));
-
-    Ok(())
 }
 
 #[tokio::test]
 #[ignore]
-async fn integration_test_dynamo_listing() -> Result<()> {
+async fn integration_test_dynamo_listing() {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let table = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket and table name is {}", table);
@@ -80,11 +78,15 @@ async fn integration_test_dynamo_listing() -> Result<()> {
     let s3_shared_config = s3_storage.get_shared_test_config().await;
 
     // Populate the test storage
-    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 10, false).await?;
+    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 10, false)
+        .await
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
-    let mut epoch_summaries: Vec<EpochSummary> =
-        storage.list_proofs(ProofIndexCacheOption::NoCache).await?;
+    let mut epoch_summaries: Vec<EpochSummary> = storage
+        .list_proofs(ProofIndexCacheOption::NoCache)
+        .await
+        .expect("Failed to list proofs");
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 10 proofs in the storage layer
@@ -101,14 +103,14 @@ async fn integration_test_dynamo_listing() -> Result<()> {
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table).await?;
-
-    Ok(())
+    maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table)
+        .await
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
 #[ignore]
-async fn integration_test_dynamo_audit_verification() -> Result<()> {
+async fn integration_test_dynamo_audit_verification() {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let table = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket and table name is {}", table);
@@ -126,11 +128,15 @@ async fn integration_test_dynamo_audit_verification() -> Result<()> {
     let s3_shared_config = s3_storage.get_shared_test_config().await;
 
     // Populate the test storage
-    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 3, false).await?;
+    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 3, false)
+        .await
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
-    let mut epoch_summaries: Vec<EpochSummary> =
-        storage.list_proofs(ProofIndexCacheOption::NoCache).await?;
+    let mut epoch_summaries: Vec<EpochSummary> = storage
+        .list_proofs(ProofIndexCacheOption::NoCache)
+        .await
+        .unwrap();
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 3 proofs in the storage layer
@@ -142,25 +148,29 @@ async fn integration_test_dynamo_audit_verification() -> Result<()> {
 
     // verify all fo the audit proofs
     for epoch in epoch_summaries.iter() {
-        let proof_blob = storage.get_proof(epoch).await?;
+        let proof_blob = storage.get_proof(epoch).await.unwrap();
         log::info!(
             "Verification epoch {} -> {}",
             epoch.name.epoch,
             epoch.name.epoch + 1
         );
-        crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false).await?;
-        crate::auditor::audit_epoch::<Hasher>(proof_blob, true).await?;
+        crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false)
+            .await
+            .unwrap();
+        crate::auditor::audit_epoch::<Hasher>(proof_blob, true)
+            .await
+            .unwrap();
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table).await?;
-
-    Ok(())
+    maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table)
+        .await
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
 #[ignore]
-async fn populate_test_dynamo() -> Result<()> {
+async fn populate_test_dynamo() {
     // Populates the test bucket for use with the command-line REPL via the command
     // cargo run -p akd_local_auditor -- dynamo-db --table populatetestdynamo --bucket populatetestdynamo --region us-east-2 --s3-endpoint http://127.0.0.1:9000 --dynamo-endpoint http://127.0.0.1:9002 --access-key test --secret-key someLongAccessKey
 
@@ -181,9 +191,9 @@ async fn populate_test_dynamo() -> Result<()> {
     let s3_shared_config = s3_storage.get_shared_test_config().await;
 
     // Populate the test storage
-    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 50, false).await?;
-
-    Ok(())
+    populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 50, false)
+        .await
+        .expect("Failed to populate test storage");
 }
 
 fn build_dynamo_table_properties(
