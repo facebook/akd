@@ -6,7 +6,7 @@ on:
     paths:
       - 'akd_local_auditor/'
   pull_request:
-    types: [opened, repoened, synchronize]
+    types: [opened, reopened, synchronize]
     paths:
       - 'akd_local_auditor/'
 

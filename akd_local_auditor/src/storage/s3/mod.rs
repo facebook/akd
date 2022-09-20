@@ -181,10 +181,11 @@ impl S3AuditStorage {
     async fn get_object(&self, key: &str) -> Result<s3::client::fluent_builders::GetObject> {
         // We need to retrieve the minimum version of an object, to guarantee we see the ORIGINAL
         // status of the blob. Future versions are not supported
+
         let attributes = s3::Client::from_conf(self.get_config().await)
             .list_object_versions()
             .bucket(self.bucket.clone())
-            .key_marker(key.to_string())
+            .prefix(key.to_string())
             .max_keys(1)
             .send()
             .await?;

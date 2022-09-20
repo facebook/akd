@@ -24,7 +24,7 @@ use anyhow::Result;
 use aws_config::SdkConfig;
 use aws_sdk_s3::{
     config::Builder as S3ConfigBuilder,
-    model::{Delete, ObjectIdentifier},
+    model::{BucketVersioningStatus, Delete, ObjectIdentifier, VersioningConfiguration},
     Client,
 };
 use aws_smithy_http::byte_stream::ByteStream;
@@ -60,7 +60,32 @@ pub async fn maybe_flush_storage(shared_config: &SdkConfig, bucket_name: &str) -
 
             // From: https://docs.aws.amazon.com/sdk-for-rust/latest/dg/rust_s3_code_examples.html
             let objects = client.list_objects_v2().bucket(bucket_name).send().await?;
-            // let mut delete_objects: Vec<ObjectIdentifier> = vec![];
+
+            let object_versions = client
+                .list_object_versions()
+                .bucket(bucket_name)
+                .max_keys(1000)
+                .send()
+                .await?;
+            let map = object_versions
+                .versions()
+                .unwrap()
+                .iter()
+                .map(|obj_ver| {
+                    (
+                        obj_ver.key().unwrap().to_string(),
+                        obj_ver.version_id().unwrap().to_string(),
+                    )
+                })
+                .collect::<std::collections::HashMap<String, String>>();
+            let get_version = |key: &str| {
+                let result = map.get(key).cloned();
+                if result.is_none() {
+                    panic!("Found no version for key {}", key);
+                }
+                result
+            };
+
             let delete_objects = objects
                 .contents()
                 .unwrap_or_default()
@@ -68,6 +93,7 @@ pub async fn maybe_flush_storage(shared_config: &SdkConfig, bucket_name: &str) -
                 .map(|obj| {
                     ObjectIdentifier::builder()
                         .set_key(Some(obj.key().unwrap().to_string()))
+                        .set_version_id(get_version(obj.key().unwrap()))
                         .build()
                 })
                 .collect::<Vec<_>>();
@@ -112,6 +138,18 @@ pub async fn populate_test_storage(
         .bucket(bucket.to_string())
         .send()
         .await?;
+
+    // enable versioning on the bucket
+    let versioning_config = VersioningConfiguration::builder()
+        .set_status(Some(BucketVersioningStatus::Enabled))
+        .build();
+    client
+        .put_bucket_versioning()
+        .bucket(bucket.to_string())
+        .versioning_configuration(versioning_config)
+        .send()
+        .await?;
+
     // Generate a block of real, verifiable audit proofs
     let proofs = crate::common_test::generate_audit_proofs(n_blobs, expensive)
         .await
@@ -160,7 +198,7 @@ pub fn get_s3_storage(bucket: &str) -> S3AuditStorage {
 
 #[tokio::test]
 #[ignore]
-async fn integration_test_s3_bucket_listing() -> Result<()> {
+async fn integration_test_s3_bucket_listing() {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket name is {}", bucket);
@@ -171,11 +209,15 @@ async fn integration_test_s3_bucket_listing() -> Result<()> {
     let shared_config = storage.get_shared_config().await;
 
     // Populate the test storage
-    populate_test_storage(&shared_config, &bucket, 10, false).await?;
+    populate_test_storage(&shared_config, &bucket, 10, false)
+        .await
+        .unwrap();
 
     // List the epochs found in the storage layer
-    let mut epoch_summaries: Vec<EpochSummary> =
-        storage.list_proofs(ProofIndexCacheOption::NoCache).await?;
+    let mut epoch_summaries: Vec<EpochSummary> = storage
+        .list_proofs(ProofIndexCacheOption::NoCache)
+        .await
+        .unwrap();
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 10 proofs in the storage layer
@@ -192,14 +234,12 @@ async fn integration_test_s3_bucket_listing() -> Result<()> {
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&shared_config, &bucket).await?;
-
-    Ok(())
+    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
 }
 
 #[tokio::test]
 #[ignore]
-async fn integration_test_s3_audit_verification() -> Result<()> {
+async fn integration_test_s3_audit_verification() {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket name is {}", bucket);
@@ -210,11 +250,15 @@ async fn integration_test_s3_audit_verification() -> Result<()> {
     let shared_config = storage.get_shared_config().await;
 
     // Populate the test storage
-    populate_test_storage(&shared_config, &bucket, 3, false).await?;
+    populate_test_storage(&shared_config, &bucket, 3, false)
+        .await
+        .unwrap();
 
     // List the epochs found in the storage layer
-    let mut epoch_summaries: Vec<EpochSummary> =
-        storage.list_proofs(ProofIndexCacheOption::NoCache).await?;
+    let mut epoch_summaries: Vec<EpochSummary> = storage
+        .list_proofs(ProofIndexCacheOption::NoCache)
+        .await
+        .unwrap();
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 3 proofs in the storage layer
@@ -226,20 +270,22 @@ async fn integration_test_s3_audit_verification() -> Result<()> {
 
     // verify all fo the audit proofs
     for epoch in epoch_summaries.iter() {
-        let proof_blob = storage.get_proof(epoch).await?;
+        let proof_blob = storage.get_proof(epoch).await.unwrap();
         log::info!(
             "Verification epoch {} -> {}",
             epoch.name.epoch,
             epoch.name.epoch + 1
         );
-        crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false).await?;
-        crate::auditor::audit_epoch::<Hasher>(proof_blob, true).await?;
+        crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false)
+            .await
+            .unwrap();
+        crate::auditor::audit_epoch::<Hasher>(proof_blob, true)
+            .await
+            .unwrap();
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&shared_config, &bucket).await?;
-
-    Ok(())
+    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
 }
 
 // ============================ IMPORTANT ============================ //
@@ -247,7 +293,7 @@ async fn integration_test_s3_audit_verification() -> Result<()> {
 // on reasonable hardware, and is only used for manual testing & timing information
 #[tokio::test]
 #[ignore]
-async fn expensive_audit_verification() -> Result<()> {
+async fn expensive_audit_verification() {
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket name is {}", bucket);
@@ -258,11 +304,15 @@ async fn expensive_audit_verification() -> Result<()> {
     let shared_config = storage.get_shared_config().await;
 
     // Populate the test storage
-    populate_test_storage(&shared_config, &bucket, 3, true).await?;
+    populate_test_storage(&shared_config, &bucket, 3, true)
+        .await
+        .unwrap();
 
     // List the epochs found in the storage layer
-    let mut epoch_summaries: Vec<EpochSummary> =
-        storage.list_proofs(ProofIndexCacheOption::NoCache).await?;
+    let mut epoch_summaries: Vec<EpochSummary> = storage
+        .list_proofs(ProofIndexCacheOption::NoCache)
+        .await
+        .unwrap();
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 3 proofs in the storage layer
@@ -276,14 +326,18 @@ async fn expensive_audit_verification() -> Result<()> {
     let now = std::time::Instant::now();
 
     let epoch = &epoch_summaries[3];
-    let proof_blob = storage.get_proof(epoch).await?;
+    let proof_blob = storage.get_proof(epoch).await.unwrap();
     log::info!(
         "Verification epoch {} -> {}",
         epoch.name.epoch,
         epoch.name.epoch + 1
     );
-    crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false).await?;
-    crate::auditor::audit_epoch::<Hasher>(proof_blob, true).await?;
+    crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false)
+        .await
+        .unwrap();
+    crate::auditor::audit_epoch::<Hasher>(proof_blob, true)
+        .await
+        .unwrap();
 
     // it prints '2'
     log::error!(
@@ -292,14 +346,12 @@ async fn expensive_audit_verification() -> Result<()> {
     );
 
     // if the test is successful, try a cleanup of the storage now
-    // maybe_flush_storage(&shared_config, &bucket).await?;
-
-    Ok(())
+    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
 }
 
 #[tokio::test]
 #[ignore]
-async fn populate_test_bucket() -> Result<()> {
+async fn populate_test_bucket() {
     // Populates the test bucket for use with the command-line REPL via the command
     // cargo run -p akd_local_auditor -- s3 --bucket populatetestbucket --region us-east-2 --endpoint http://127.0.0.1:9000 --access-key test --secret-key someLongAccessKey
 
@@ -313,13 +365,13 @@ async fn populate_test_bucket() -> Result<()> {
     let shared_config = storage.get_shared_config().await;
 
     // Populate the test storage
-    populate_test_storage(&shared_config, &bucket, 50, false).await?;
-
-    Ok(())
+    populate_test_storage(&shared_config, &bucket, 50, false)
+        .await
+        .unwrap();
 }
 
 #[test]
-fn test_bucket_name_parsing() -> Result<()> {
+fn test_bucket_name_parsing() {
     let too_short = "a";
     assert!(matches!(super::validate_bucket_name(too_short), Err(_)));
 
@@ -336,12 +388,10 @@ fn test_bucket_name_parsing() -> Result<()> {
     assert!(matches!(super::validate_bucket_name(ok_1), Ok(_)));
     assert!(matches!(super::validate_bucket_name(ok_2), Ok(_)));
     assert!(matches!(super::validate_bucket_name(ok_3), Ok(_)));
-
-    Ok(())
 }
 
 #[test]
-fn test_uri_parsing() -> Result<()> {
+fn test_uri_parsing() {
     let non_uri = "hasdf!@#";
     let bad_port = "http://localhost:1234%567891230";
 
@@ -359,6 +409,4 @@ fn test_uri_parsing() -> Result<()> {
         super::validate_uri("http://east-us-2.aws.com:123"),
         Ok(_)
     ));
-
-    Ok(())
 }
