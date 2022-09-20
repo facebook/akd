@@ -193,7 +193,7 @@ impl S3AuditStorage {
         let mut version_count = 0usize;
         let mut min_time = std::time::SystemTime::now();
         let mut min_version = String::new();
-        let mut etags = vec![];
+        let mut first_etag = None;
         if let Some(versions) = attributes.versions() {
             for version in versions {
                 if let Some(potential_key) = version.key() {
@@ -202,12 +202,23 @@ impl S3AuditStorage {
                             (version.last_modified(), version.version_id())
                         {
                             version_count += 1;
-                            etags.push(
-                                version
+                            if first_etag.is_none() {
+                                first_etag = Some(
+                                    version
+                                        .e_tag()
+                                        .map(|tag| tag.to_string())
+                                        .unwrap_or_else(|| "".to_string()),
+                                );
+                            } else {
+                                let next_etag = version
                                     .e_tag()
                                     .map(|tag| tag.to_string())
-                                    .unwrap_or_else(|| "".to_string()),
-                            );
+                                    .unwrap_or_else(|| "".to_string());
+                                if Some(next_etag.clone()) != first_etag {
+                                    // etag's don't match, return error
+                                    return Err(anyhow::anyhow!("There were duplicate objects with the same key that have different etags which indicates different values. This epoch cannot be trusted ({} != {})", first_etag.expect("Failed to unwrap a Some() which should be impossible here."), next_etag));
+                                }
+                            }
 
                             let this_time: std::time::SystemTime = (*mod_time).try_into()?;
                             if this_time < min_time {
@@ -224,14 +235,6 @@ impl S3AuditStorage {
             return Err(anyhow::anyhow!(
                 "Object not found with any version information"
             ));
-        } else if version_count > 1 {
-            // check all the versions for their associated etags, and make sure they're all the same
-            let first = &etags[0];
-            for etag in etags.iter().skip(1) {
-                if first.cmp(etag) != std::cmp::Ordering::Equal {
-                    return Err(anyhow::anyhow!("There were duplicate objects with the same key that have different etags which indicates different values. This epoch cannot be trusted ({} != {})", first, etag));
-                }
-            }
         }
 
         Ok(s3::Client::from_conf(self.get_config().await)

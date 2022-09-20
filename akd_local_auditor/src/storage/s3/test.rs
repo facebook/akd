@@ -211,7 +211,7 @@ async fn integration_test_s3_bucket_listing() {
     // Populate the test storage
     populate_test_storage(&shared_config, &bucket, 10, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
     let mut epoch_summaries: Vec<EpochSummary> = storage
@@ -234,7 +234,9 @@ async fn integration_test_s3_bucket_listing() {
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
+    maybe_flush_storage(&shared_config, &bucket)
+        .await
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
@@ -252,7 +254,7 @@ async fn integration_test_s3_audit_verification() {
     // Populate the test storage
     populate_test_storage(&shared_config, &bucket, 3, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
     let mut epoch_summaries: Vec<EpochSummary> = storage
@@ -285,7 +287,9 @@ async fn integration_test_s3_audit_verification() {
     }
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
+    maybe_flush_storage(&shared_config, &bucket)
+        .await
+        .expect("Failed to flush storage");
 }
 
 // ============================ IMPORTANT ============================ //
@@ -346,7 +350,9 @@ async fn expensive_audit_verification() {
     );
 
     // if the test is successful, try a cleanup of the storage now
-    maybe_flush_storage(&shared_config, &bucket).await.unwrap();
+    maybe_flush_storage(&shared_config, &bucket)
+        .await
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
@@ -367,7 +373,7 @@ async fn populate_test_bucket() {
     // Populate the test storage
     populate_test_storage(&shared_config, &bucket, 50, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 }
 
 #[test]

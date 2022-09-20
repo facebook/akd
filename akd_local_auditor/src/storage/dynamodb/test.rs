@@ -80,13 +80,13 @@ async fn integration_test_dynamo_listing() {
     // Populate the test storage
     populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 10, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
     let mut epoch_summaries: Vec<EpochSummary> = storage
         .list_proofs(ProofIndexCacheOption::NoCache)
         .await
-        .unwrap();
+        .expect("Failed to list proofs");
     epoch_summaries.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
 
     // There should be 10 proofs in the storage layer
@@ -105,7 +105,7 @@ async fn integration_test_dynamo_listing() {
     // if the test is successful, try a cleanup of the storage now
     maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table)
         .await
-        .unwrap();
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
@@ -130,7 +130,7 @@ async fn integration_test_dynamo_audit_verification() {
     // Populate the test storage
     populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 3, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 
     // List the epochs found in the storage layer
     let mut epoch_summaries: Vec<EpochSummary> = storage
@@ -165,7 +165,7 @@ async fn integration_test_dynamo_audit_verification() {
     // if the test is successful, try a cleanup of the storage now
     maybe_flush_storage(&dynamo_shared_config, &s3_shared_config, &table)
         .await
-        .unwrap();
+        .expect("Failed to flush storage");
 }
 
 #[tokio::test]
@@ -193,7 +193,7 @@ async fn populate_test_dynamo() {
     // Populate the test storage
     populate_test_storage(&dynamo_shared_config, &s3_shared_config, &table, 50, false)
         .await
-        .unwrap();
+        .expect("Failed to populate test storage");
 }
 
 fn build_dynamo_table_properties(
