@@ -200,7 +200,7 @@ impl S3AuditStorage {
                         if let (Some(mod_time), Some(version_id)) =
                             (version.last_modified(), version.version_id())
                         {
-                            version_count = version_count + 1;
+                            version_count += 1;
                             etags.push(
                                 version
                                     .e_tag()
@@ -208,7 +208,7 @@ impl S3AuditStorage {
                                     .unwrap_or("".to_string()),
                             );
 
-                            let this_time: std::time::SystemTime = mod_time.clone().try_into()?;
+                            let this_time: std::time::SystemTime = (*mod_time).try_into()?;
                             if this_time < min_time {
                                 min_version = version_id.to_string();
                                 min_time = this_time;
@@ -224,7 +224,7 @@ impl S3AuditStorage {
                 "Object not found with any version information"
             ));
         } else if version_count > 1 {
-            // TODO: check all the versions for their associated etags, and make sure they're all the same
+            // check all the versions for their associated etags, and make sure they're all the same
             let first = &etags[0];
             for i in 1..etags.len() {
                 if first.cmp(&etags[i]) != std::cmp::Ordering::Equal {
