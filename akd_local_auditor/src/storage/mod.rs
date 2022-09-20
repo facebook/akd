@@ -6,7 +6,9 @@
 // of this source tree.
 
 //! This module holds the generic storage interaction layer trait along with the underlying implemented
-//! storage interactions
+//! storage interactions. We need to implement the trait for a [Box] of the same trait in order to support
+//! passing the boxed implementations around. This is required for the async nature of the command and Rust's
+//! type inference engine
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -23,7 +25,7 @@ pub mod s3;
 pub enum StorageSubcommand {
     /// Amazon S3 compatible storage
     S3(s3::S3ClapSettings),
-    // /// DynamoDB
+    /// DynamoDB
     DynamoDb(dynamodb::DynamoDbClapSettings),
 }
 

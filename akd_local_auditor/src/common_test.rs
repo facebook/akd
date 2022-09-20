@@ -7,6 +7,7 @@
 
 //! This module implements some common test functionality (i.e. proof generation and whatnot)
 //! for use in test infra
+
 use crate::{Digest, Hasher};
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
