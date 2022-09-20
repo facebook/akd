@@ -205,7 +205,7 @@ impl S3AuditStorage {
                                 version
                                     .e_tag()
                                     .map(|tag| tag.to_string())
-                                    .unwrap_or("".to_string()),
+                                    .unwrap_or_else(|| "".to_string()),
                             );
 
                             let this_time: std::time::SystemTime = (*mod_time).try_into()?;
@@ -226,9 +226,9 @@ impl S3AuditStorage {
         } else if version_count > 1 {
             // check all the versions for their associated etags, and make sure they're all the same
             let first = &etags[0];
-            for i in 1..etags.len() {
-                if first.cmp(&etags[i]) != std::cmp::Ordering::Equal {
-                    return Err(anyhow::anyhow!("There were duplicate objects with the same key that have different etags which indicates different values. This epoch cannot be trusted ({} != {})", first, etags[i]));
+            for etag in etags.iter().skip(1) {
+                if first.cmp(etag) != std::cmp::Ordering::Equal {
+                    return Err(anyhow::anyhow!("There were duplicate objects with the same key that have different etags which indicates different values. This epoch cannot be trusted ({} != {})", first, etag));
                 }
             }
         }
