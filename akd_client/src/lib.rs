@@ -97,6 +97,9 @@ pub use types::*;
 // verify types are not re-exported, to not clutter the root path
 pub mod verify;
 
+#[cfg(feature = "protobuf")]
+pub mod proto;
+
 #[cfg(any(test, feature = "converters"))]
 pub mod converters;
 #[cfg(feature = "vrf")]

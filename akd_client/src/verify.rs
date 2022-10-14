@@ -13,11 +13,12 @@ use alloc::format;
 use alloc::string::ToString;
 #[cfg(feature = "vrf")]
 use core::convert::TryFrom;
+#[cfg(feature = "serde_serialization")]
+use serde_json;
 
 use crate::hash::*;
 use crate::types::*;
 use crate::{verify_error, VerificationError, VerificationErrorType, ARITY};
-use serde_json;
 
 /// Verify the membership proof
 fn verify_membership(root_hash: Digest, proof: &MembershipProof) -> Result<(), VerificationError> {
@@ -137,6 +138,7 @@ fn verify_vrf(
 }
 
 /// Verifies a serialized JSON lookup proof after deserializing it first.
+#[cfg(feature = "serde_serialization")]
 pub fn serialized_lookup_verify(
     _vrf_public_key: &[u8],
     root_hash: Digest,
@@ -230,6 +232,7 @@ pub fn lookup_verify(
 }
 
 /// Verifies a serialized JSON key history proof after deserializing it first.
+#[cfg(feature = "serde_serialization")]
 pub fn serialized_key_history_verify(
     vrf_public_key: &[u8],
     root_hash: Digest,
@@ -375,11 +378,13 @@ pub fn key_history_verify(
 }
 
 /// Serializes a LookupProof
+#[cfg(feature = "serde_serialization")]
 pub fn serialize_lookup_proof(proof: &LookupProof) -> Result<String, serde_json::Error> {
     serde_json::to_string(proof)
 }
 
 /// Serializes a HistoryProof
+#[cfg(feature = "serde_serialization")]
 pub fn serialize_history_proof(proof: &HistoryProof) -> Result<String, serde_json::Error> {
     serde_json::to_string(proof)
 }
