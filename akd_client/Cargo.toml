@@ -47,6 +47,7 @@ sha512 = ["sha2"]
 sha256 = ["sha2"]
 sha3_256 = ["sha3"]
 sha3_512 = ["sha3"]
+# TEMP Add default feature , "protobuf"
 default = ["blake3", "vrf"]
 
 # Enable web assembly compilation of the AKD client crate
@@ -67,6 +68,10 @@ hex = "0.4"
 rand = { version = "0.7" }
 
 akd_client = {path =".", features = ["serde_serialization"]}
+
+[build-dependencies]
+protoc = "=2.8.1"
+protoc-rust = "=2.8.1"
 
 [build-dependencies]
 protoc = "=2.8.1"
