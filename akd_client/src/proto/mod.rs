@@ -11,6 +11,9 @@ use std::convert::{TryFrom, TryInto};
 
 pub mod types;
 
+#[cfg(test)]
+mod tests;
+
 // ************************ Converter macros ************************ //
 
 // Protobuf best practice says everything should be `optional` to ensure
