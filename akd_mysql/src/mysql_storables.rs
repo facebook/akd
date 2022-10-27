@@ -364,7 +364,7 @@ impl MySqlStorable for DbRecord {
             }
             StorageType::TreeNode => {
                 format!(
-                    "SELECT a.`label_len`, a.`label_val`, a.`last_epoch`, a.`least_descendant_ep`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type`, a.`left_child_len`, a.`left_child_label_val`, a.`right_child_len`, a.`right_child_label_val`, a.`hash` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
+                    "SELECT a.`label_len`, a.`label_val`, a.`last_epoch`, a.`least_descendant_ep`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type`, a.`left_child_len`, a.`left_child_label_val`, a.`right_child_len`, a.`right_child_label_val`, a.`hash`, a.`p_last_epoch`, a.`p_least_descendant_ep`, a.`p_parent_label_len`, a.`p_parent_label_val`, a.`p_node_type`, a.`p_left_child_len`, a.`p_left_child_label_val`, a.`p_right_child_len`, a.`p_right_child_label_val`, a.`p_hash` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
                     TABLE_HISTORY_TREE_NODES,
                     TEMP_IDS_TABLE
                 )

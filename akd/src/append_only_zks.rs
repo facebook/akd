@@ -373,8 +373,17 @@ impl Azks {
         .await?;
 
         for ep in start_epoch..end_epoch {
-            self.gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
+
+            let tic = Instant::now();
+            let num_records = self.gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
                 .await?;
+            let toc = Instant::now() - tic;
+            info!(
+                "Preload of nodes for audit ({} objects loaded), took {} s",
+                num_records,
+                toc.as_secs_f64()
+            );
+            storage.log_metrics(log::Level::Info).await;
 
             let (unchanged, leaves) = self
                 .get_append_only_proof_helper::<_, H>(storage, node.clone(), ep, ep + 1)
@@ -421,25 +430,27 @@ impl Azks {
         storage: &S,
         start_epoch: u64,
         end_epoch: u64,
-    ) -> Result<(), AkdError> {
+    ) -> Result<u64, AkdError> {
         let children_to_fetch: Vec<NodeKey> = nodes
             .iter()
             .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
             .map(NodeKey)
             .collect();
         if children_to_fetch.is_empty() {
-            return Ok(());
+            return Ok(0u64);
         }
 
-        let got = TreeNodeWithPreviousValue::batch_get_appropriate_tree_node_from_storage(
+        let got = TreeNode::batch_get_from_storage(
             storage,
             &children_to_fetch,
             self.get_latest_epoch(),
         )
         .await?;
-        self.gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
+        let num_got = got.len() as u64;
+
+        let inner = self.gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
             .await?;
-        Ok(())
+        Ok(num_got + inner)
     }
 
     #[async_recursion]
