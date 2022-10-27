@@ -47,7 +47,7 @@ type Directory = akd::Directory<InMemoryDb, HardCodedAkdVRF>;
 
 /// Makes a JSON String unparsable by replacing "{"s with gibberish.
 fn make_unparsable_json(serialized_json: &str) -> String {
-    serialized_json.replace("{", "t3845")
+    serialized_json.replace('{', "t3845")
 }
 
 // ===================================
@@ -130,7 +130,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let serialized_lean_result = crate::verify::serialized_lookup_verify(
         &vrf_pk.to_bytes(),
         converters::to_digest::<Hash>(root_hash),
-        target_label_bytes.clone(),
+        target_label_bytes,
         &serialized_internal_lookup_proof,
     );
 

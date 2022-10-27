@@ -364,15 +364,20 @@ impl Azks {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
+
+        let node = TreeNode::get_from_storage(
+            storage,
+            &NodeKey(NodeLabel::root()),
+            self.get_latest_epoch(),
+        )
+        .await?;
+
         for ep in start_epoch..end_epoch {
-            let node = TreeNode::get_from_storage(
-                storage,
-                &NodeKey(NodeLabel::root()),
-                self.get_latest_epoch(),
-            )
-            .await?;
+            self.gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
+                .await?;
+
             let (unchanged, leaves) = self
-                .get_append_only_proof_helper::<_, H>(storage, node, ep, ep + 1)
+                .get_append_only_proof_helper::<_, H>(storage, node.clone(), ep, ep + 1)
                 .await?;
             proofs.push(SingleAppendOnlyProof {
                 inserted: leaves,
@@ -382,6 +387,59 @@ impl Azks {
         }
 
         Ok(AppendOnlyProof { proofs, epochs })
+    }
+
+    fn determine_retrieval_nodes(
+        node: &TreeNode,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Vec<NodeLabel> {
+        if node.is_leaf() {
+            return vec![];
+        }
+
+        if node.get_latest_epoch() <= start_epoch {
+            return vec![];
+        }
+
+        if node.least_descendant_ep > end_epoch {
+            return vec![];
+        }
+
+        match (node.left_child, node.right_child) {
+            (Some(lc), None) => vec![lc],
+            (None, Some(rc)) => vec![rc],
+            (Some(lc), Some(rc)) => vec![lc, rc],
+            _ => vec![],
+        }
+    }
+
+    #[async_recursion]
+    async fn gather_audit_proof_nodes<S: Storage + Sync + Send, H: Hasher>(
+        &self,
+        nodes: Vec<TreeNode>,
+        storage: &S,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<(), AkdError> {
+        let children_to_fetch: Vec<NodeKey> = nodes
+            .iter()
+            .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
+            .map(NodeKey)
+            .collect();
+        if children_to_fetch.is_empty() {
+            return Ok(());
+        }
+
+        let got = TreeNodeWithPreviousValue::batch_get_appropriate_tree_node_from_storage(
+            storage,
+            &children_to_fetch,
+            self.get_latest_epoch(),
+        )
+        .await?;
+        self.gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
+            .await?;
+        Ok(())
     }
 
     #[async_recursion]
@@ -430,7 +488,7 @@ impl Azks {
                             self.get_latest_epoch(),
                         )
                         .await?;
-                        let mut rec_output = self
+                        let (mut inner_unchanged, mut inner_leaf) = self
                             .get_append_only_proof_helper::<_, H>(
                                 storage,
                                 child_node,
@@ -438,8 +496,8 @@ impl Azks {
                                 end_epoch,
                             )
                             .await?;
-                        unchanged.append(&mut rec_output.0);
-                        leaves.append(&mut rec_output.1);
+                        unchanged.append(&mut inner_unchanged);
+                        leaves.append(&mut inner_leaf);
                     }
                 }
             }
