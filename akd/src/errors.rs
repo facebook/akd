@@ -174,7 +174,7 @@ impl fmt::Display for TreeNodeError {
 }
 
 /// An error thrown by the Azks data structure.
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AzksError {
     /// Membership proof did not verify
@@ -204,7 +204,7 @@ impl fmt::Display for AzksError {
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum DirectoryError {
     /// Lookup proof did not verify
@@ -275,7 +275,7 @@ impl fmt::Display for StorageError {
 
 /// Represents a VRF related error (key retrieval,
 /// parsing, verification of a VRF proof, etc)
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum VrfError {
     /// An error occurred when getting a key
@@ -305,7 +305,7 @@ impl fmt::Display for VrfError {
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AuditorError {
     /// A general auditor error

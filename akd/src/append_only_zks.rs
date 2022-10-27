@@ -775,7 +775,7 @@ mod tests {
 
         for i in 0..num_nodes {
             let mut label_arr = [0u8; 32];
-            label_arr[0] = u8::from(i);
+            label_arr[0] = i;
             let label = NodeLabel::new(label_arr, 256u32);
             let input = [0u8; 32];
             let hash = Blake3Digest::new(input);
@@ -830,8 +830,7 @@ mod tests {
             layer_proofs: proof.layer_proofs,
         };
         assert!(
-            !verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
-                .is_ok(),
+            verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof).is_err(),
             "Membership proof does verify, despite being wrong"
         );
 
@@ -884,10 +883,10 @@ mod tests {
 
         for i in 0..num_nodes {
             let mut label_arr = [0u8; 32];
-            label_arr[31] = u8::from(i);
+            label_arr[31] = i;
             let label = NodeLabel::new(label_arr, 256u32);
             let mut input = [0u8; 32];
-            input[31] = u8::from(i);
+            input[31] = i;
             let hash = Blake3Digest::new(input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);
