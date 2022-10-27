@@ -373,9 +373,9 @@ impl Azks {
         .await?;
 
         for ep in start_epoch..end_epoch {
-
             let tic = Instant::now();
-            let num_records = self.gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
+            let num_records = self
+                .gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
                 .await?;
             let toc = Instant::now() - tic;
             info!(
@@ -440,15 +440,13 @@ impl Azks {
             return Ok(0u64);
         }
 
-        let got = TreeNode::batch_get_from_storage(
-            storage,
-            &children_to_fetch,
-            self.get_latest_epoch(),
-        )
-        .await?;
+        let got =
+            TreeNode::batch_get_from_storage(storage, &children_to_fetch, self.get_latest_epoch())
+                .await?;
         let num_got = got.len() as u64;
 
-        let inner = self.gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
+        let inner = self
+            .gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
             .await?;
         Ok(num_got + inner)
     }
@@ -841,7 +839,8 @@ mod tests {
             layer_proofs: proof.layer_proofs,
         };
         assert!(
-            verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof).is_err(),
+            verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
+                .is_err(),
             "Membership proof does verify, despite being wrong"
         );
 

@@ -11,7 +11,7 @@ use core::fmt;
 use crate::node_label::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
