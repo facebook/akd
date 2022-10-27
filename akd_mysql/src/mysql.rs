@@ -434,11 +434,7 @@ impl<'a> AsyncMySqlDatabase {
             },
             None => {
                 let mut conn = self.get_connection().await?;
-                if let Err(err) = conn.exec_drop(statement_text, params).await {
-                    Err(err)
-                } else {
-                    Ok(())
-                }
+                conn.exec_drop(statement_text, params).await
             }
         };
         self.check_for_infra_error(out)?;
