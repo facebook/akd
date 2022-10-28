@@ -423,7 +423,6 @@ impl Azks {
         }
     }
 
-    #[async_recursion]
     async fn gather_audit_proof_nodes<S: Storage + Sync + Send, H: Hasher>(
         &self,
         nodes: Vec<TreeNode>,
@@ -431,24 +430,28 @@ impl Azks {
         start_epoch: u64,
         end_epoch: u64,
     ) -> Result<u64, AkdError> {
-        let children_to_fetch: Vec<NodeKey> = nodes
+        let mut children_to_fetch: Vec<NodeKey> = nodes
             .iter()
             .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
             .map(NodeKey)
             .collect();
-        if children_to_fetch.is_empty() {
-            return Ok(0u64);
-        }
 
-        let got =
-            TreeNode::batch_get_from_storage(storage, &children_to_fetch, self.get_latest_epoch())
-                .await?;
-        let num_got = got.len() as u64;
-
-        let inner = self
-            .gather_audit_proof_nodes::<S, H>(got, storage, start_epoch, end_epoch)
+        let mut element_count = 0u64;
+        while !children_to_fetch.is_empty() {
+            let got = TreeNode::batch_get_from_storage(
+                storage,
+                &children_to_fetch,
+                self.get_latest_epoch(),
+            )
             .await?;
-        Ok(num_got + inner)
+            element_count += got.len() as u64;
+            children_to_fetch = got
+                .iter()
+                .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
+                .map(NodeKey)
+                .collect();
+        }
+        Ok(element_count)
     }
 
     #[async_recursion]
