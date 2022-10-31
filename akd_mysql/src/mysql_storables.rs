@@ -62,8 +62,57 @@ pub(crate) trait MySqlStorable {
 impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
-            DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) ON DUPLICATE KEY UPDATE `epoch` = :epoch, `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({}) VALUES (:label_len, :label_val, :last_epoch, :least_descendant_ep, :parent_label_len, :parent_label_val, :node_type, :left_child_len, :left_child_label_val, :right_child_len, :right_child_label_val, :hash, :p_last_epoch, :p_least_descendant_ep, :p_parent_label_len, :p_parent_label_val, :p_node_type, :p_left_child_len, :p_left_child_label_val, :p_right_child_len, :p_right_child_label_val, :p_hash) ON DUPLICATE KEY UPDATE `label_len` = :label_len, `label_val` = :label_val, `last_epoch` = :last_epoch, `least_descendant_ep` = :least_descendant_ep, `parent_label_len` = :parent_label_len, `parent_label_val` = :parent_label_val, `node_type` = :node_type, `left_child_len` = :left_child_len, `left_child_label_val` = :left_child_label_val, `right_child_len` = :right_child_len, `right_child_label_val` = :right_child_label_val, `hash` = :hash, `p_last_epoch` = :p_last_epoch, `p_least_descendant_ep` = :p_least_descendant_ep, `p_parent_label_len` = :p_parent_label_len, `p_parent_label_val` = :p_parent_label_val, `p_node_type` = :p_node_type, `p_left_child_len` = :p_left_child_len, `p_left_child_label_val` = :p_left_child_label_val, `p_right_child_len` = :p_right_child_len, `p_right_child_label_val` = :p_right_child_label_val, `p_hash` = :p_hash", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
+            DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {})
+            VALUES (:key, :epoch, :num_nodes)
+            ON DUPLICATE KEY UPDATE
+                `epoch` = :epoch
+                , `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
+            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({})
+            VALUES (:label_len
+                , :label_val
+                , :last_epoch
+                , :least_descendant_ep
+                , :parent_label_len
+                , :parent_label_val
+                , :node_type
+                , :left_child_len
+                , :left_child_label_val
+                , :right_child_len
+                , :right_child_label_val
+                , :hash
+                , :p_last_epoch
+                , :p_least_descendant_ep
+                , :p_parent_label_len
+                , :p_parent_label_val
+                , :p_node_type
+                , :p_left_child_len
+                , :p_left_child_label_val
+                , :p_right_child_len
+                , :p_right_child_label_val
+                , :p_hash)
+            ON DUPLICATE KEY UPDATE
+                `label_len` = :label_len
+                , `label_val` = :label_val
+                , `last_epoch` = :last_epoch
+                , `least_descendant_ep` = :least_descendant_ep
+                , `parent_label_len` = :parent_label_len
+                , `parent_label_val` = :parent_label_val
+                , `node_type` = :node_type
+                , `left_child_len` = :left_child_len
+                , `left_child_label_val` = :left_child_label_val
+                , `right_child_len` = :right_child_len
+                , `right_child_label_val` = :right_child_label_val
+                , `hash` = :hash
+                , `p_last_epoch` = :p_last_epoch
+                , `p_least_descendant_ep` = :p_least_descendant_ep
+                , `p_parent_label_len` = :p_parent_label_len
+                , `p_parent_label_val` = :p_parent_label_val
+                , `p_node_type` = :p_node_type
+                , `p_left_child_len` = :p_left_child_len
+                , `p_left_child_label_val` = :p_left_child_label_val
+                , `p_right_child_len` = :p_right_child_len
+                , `p_right_child_label_val` = :p_right_child_label_val
+                , `p_hash` = :p_hash", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
             DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
         }
     }
@@ -111,7 +160,28 @@ impl MySqlStorable for DbRecord {
             match St::data_type() {
                 StorageType::TreeNode => {
                     parts = format!(
-                        "{}(:label_len{}, :label_val{}, :last_epoch{}, :least_descendant_ep{}, :parent_label_len{}, :parent_label_val{}, :node_type{}, :left_child_len{}, :left_child_label_val{}, :right_child_len{}, :right_child_label_val{}, :hash{}, :p_last_epoch{}, :p_least_descendant_ep{}, :p_parent_label_len{}, :p_parent_label_val{}, :p_node_type{}, :p_left_child_len{}, :p_left_child_label_val{}, :p_right_child_len{}, :p_right_child_label_val{}, :p_hash{})",
+                        "{}(:label_len{}
+                            , :label_val{}
+                            , :last_epoch{}
+                            , :least_descendant_ep{}
+                            , :parent_label_len{}
+                            , :parent_label_val{}
+                            , :node_type{}
+                            , :left_child_len{}
+                            , :left_child_label_val{}
+                            , :right_child_len{}
+                            , :right_child_label_val{}
+                            , :hash{}
+                            , :p_last_epoch{}
+                            , :p_least_descendant_ep{}
+                            , :p_parent_label_len{}
+                            , :p_parent_label_val{}
+                            , :p_node_type{}
+                            , :p_left_child_len{}
+                            , :p_left_child_label_val{}
+                            , :p_right_child_len{}
+                            , :p_right_child_label_val{}
+                            , :p_hash{})",
                         parts, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i
                     );
                 }
@@ -132,9 +202,50 @@ impl MySqlStorable for DbRecord {
         }
 
         match St::data_type() {
-            StorageType::Azks => format!("INSERT INTO `{}` (`key`, {}) VALUES (:key, :epoch, :num_nodes) as new ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            StorageType::TreeNode => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `label_len` = new.label_len, `label_val` = new.label_val, `least_descendant_ep` = new.least_descendant_ep, `last_epoch` = new.last_epoch, `parent_label_len` = new.parent_label_len, `parent_label_val` = new.parent_label_val, `node_type` = new.node_type, `left_child_len` = new.left_child_len, `left_child_label_val` = new.left_child_label_val, `right_child_len` = new.right_child_len, `right_child_label_val` = new.right_child_label_val, `hash` = new.hash, `p_last_epoch` = new.p_last_epoch, `p_least_descendant_ep` = new.p_least_descendant_ep, `p_parent_label_len` = new.p_parent_label_len, `p_parent_label_val` = new.p_parent_label_val, `p_node_type` = new.p_node_type, `p_left_child_len` = new.p_left_child_len, `p_left_child_label_val` = new.p_left_child_label_val, `p_right_child_len` = new.p_right_child_len, `p_right_child_label_val` = new.p_right_child_label_val, `p_hash` = new.p_hash", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts),
-            StorageType::ValueState => format!("INSERT INTO `{}` ({}) VALUES {} as new ON DUPLICATE KEY UPDATE `data` = new.data, `node_label_val` = new.node_label_val, `node_label_len` = new.node_label_len, `version` = new.version", TABLE_USER, SELECT_USER_DATA, parts),
+            StorageType::Azks => format!(
+                "INSERT INTO `{}` (`key`, {})
+            VALUES (:key, :epoch, :num_nodes) as new
+            ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes",
+                TABLE_AZKS, SELECT_AZKS_DATA
+            ),
+            StorageType::TreeNode => format!(
+                "INSERT INTO `{}` ({})
+            VALUES {} as new
+            ON DUPLICATE KEY UPDATE
+                `label_len` = new.label_len
+                , `label_val` = new.label_val
+                , `least_descendant_ep` = new.least_descendant_ep
+                , `last_epoch` = new.last_epoch
+                , `parent_label_len` = new.parent_label_len
+                , `parent_label_val` = new.parent_label_val
+                , `node_type` = new.node_type
+                , `left_child_len` = new.left_child_len
+                , `left_child_label_val` = new.left_child_label_val
+                , `right_child_len` = new.right_child_len
+                , `right_child_label_val` = new.right_child_label_val
+                , `hash` = new.hash
+                , `p_last_epoch` = new.p_last_epoch
+                , `p_least_descendant_ep` = new.p_least_descendant_ep
+                , `p_parent_label_len` = new.p_parent_label_len
+                , `p_parent_label_val` = new.p_parent_label_val
+                , `p_node_type` = new.p_node_type
+                , `p_left_child_len` = new.p_left_child_len
+                , `p_left_child_label_val` = new.p_left_child_label_val
+                , `p_right_child_len` = new.p_right_child_len
+                , `p_right_child_label_val` = new.p_right_child_label_val
+                , `p_hash` = new.p_hash",
+                TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts
+            ),
+            StorageType::ValueState => format!(
+                "INSERT INTO `{}` ({})
+            VALUES {} as new
+            ON DUPLICATE KEY UPDATE
+                `data` = new.data
+                , `node_label_val` = new.node_label_val
+                , `node_label_len` = new.node_label_len
+                , `version` = new.version",
+                TABLE_USER, SELECT_USER_DATA, parts
+            ),
         }
     }
 
@@ -364,16 +475,49 @@ impl MySqlStorable for DbRecord {
             }
             StorageType::TreeNode => {
                 format!(
-                    "SELECT a.`label_len`, a.`label_val`, a.`last_epoch`, a.`least_descendant_ep`, a.`parent_label_len`, a.`parent_label_val`, a.`node_type`, a.`left_child_len`, a.`left_child_label_val`, a.`right_child_len`, a.`right_child_label_val`, a.`hash`, a.`p_last_epoch`, a.`p_least_descendant_ep`, a.`p_parent_label_len`, a.`p_parent_label_val`, a.`p_node_type`, a.`p_left_child_len`, a.`p_left_child_label_val`, a.`p_right_child_len`, a.`p_right_child_label_val`, a.`p_hash` FROM `{}` a INNER JOIN {} ids ON ids.`label_len` = a.`label_len` AND ids.`label_val` = a.`label_val`",
-                    TABLE_HISTORY_TREE_NODES,
-                    TEMP_IDS_TABLE
+                    "SELECT
+                        a.`label_len`
+                        , a.`label_val`
+                        , a.`last_epoch`
+                        , a.`least_descendant_ep`
+                        , a.`parent_label_len`
+                        , a.`parent_label_val`
+                        , a.`node_type`
+                        , a.`left_child_len`
+                        , a.`left_child_label_val`
+                        , a.`right_child_len`
+                        , a.`right_child_label_val`
+                        , a.`hash`, a.`p_last_epoch`
+                        , a.`p_least_descendant_ep`
+                        , a.`p_parent_label_len`
+                        , a.`p_parent_label_val`
+                        , a.`p_node_type`
+                        , a.`p_left_child_len`
+                        , a.`p_left_child_label_val`
+                        , a.`p_right_child_len`
+                        , a.`p_right_child_label_val`
+                        , a.`p_hash`
+                    FROM `{}` a
+                    INNER JOIN {} ids
+                        ON ids.`label_len` = a.`label_len`
+                        AND ids.`label_val` = a.`label_val`",
+                    TABLE_HISTORY_TREE_NODES, TEMP_IDS_TABLE
                 )
             }
             StorageType::ValueState => {
                 format!(
-                    "SELECT a.`username`, a.`epoch`, a.`version`, a.`node_label_val`, a.`node_label_len`, a.`data` FROM `{}` a INNER JOIN {} ids ON ids.`username` = a.`username` AND ids.`epoch` = a.`epoch`",
-                    TABLE_USER,
-                    TEMP_IDS_TABLE
+                    "SELECT
+                        a.`username`
+                        , a.`epoch`
+                        , a.`version`
+                        , a.`node_label_val`
+                        , a.`node_label_len`
+                        , a.`data`
+                    FROM `{}` a
+                    INNER JOIN {} ids
+                        ON ids.`username` = a.`username`
+                        AND ids.`epoch` = a.`epoch`",
+                    TABLE_USER, TEMP_IDS_TABLE
                 )
             }
         }
@@ -513,11 +657,6 @@ impl MySqlStorable for DbRecord {
                 }
             }
             StorageType::TreeNode => {
-                // `label_len`, `label_val`, `last_epoch`, `least_descendant_ep`, `parent_label_len`, `parent_label_val`, `node_type`,
-                // `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`,
-                // `p_last_epoch`, `p_least_descendant_ep`, `p_parent_label_len`, `p_parent_label_val`, `p_node_type`,
-                // `p_left_child_len`, `p_left_child_label_val`, `p_right_child_len`, `p_right_child_label_val`, `p_hash`
-
                 // A NOTE ABOUT THE SYNTAX HERE: The outer-most Some(**) of the row.take(..) indicates the COLUMN EXISTS, not that it actually has a value.
                 // Therefore the signature of these fields you want is Some(Option<value>) for a nullable column. The inner option type is not necessary
                 // for types which have NOT NULL in the SQL definition
