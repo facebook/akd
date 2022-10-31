@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This is the pre-compilation build script for the crate akd. Mainly it's used to compile
+//! This is the pre-compilation build script for the crate `akd_client`. Mainly it's used to compile
 //! protobuf files into rust code prior to compilation.
 
 // NOTE: build.rs documentation = https://doc.rust-lang.org/cargo/reference/build-scripts.html
@@ -30,7 +30,7 @@ fn build_protobuf(file: &str) {
             ..Default::default()
         },
     })
-    .expect("protoc");
+    .expect("akd_client protobuf generation failed for proto file");
 }
 
 fn build_protobufs() {
@@ -40,8 +40,11 @@ fn build_protobufs() {
 }
 
 fn main() {
+    // If the feature is enabled, Cargo will set this env var prior to building
     match std::env::var("CARGO_FEATURE_PROTOBUF") {
-        Err(_) => {}
+        Err(err) => {
+            println!("Error getting environment variable 'CARGO_FEATURE_PROTOBUF' {}", err);
+        }
         _ => {
             // feature is present, compile the protobuf files
             build_protobufs();
