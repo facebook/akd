@@ -107,9 +107,15 @@ pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRF
             }
 
             // Perform an audit proof from 1u64 -> 2u64
+
+            mysql_db.log_metrics(log::Level::Info).await;
+            log::warn!("Beginning audit proof generation");
+            mysql_db.flush_cache().await;
             match dir.audit::<Blake3>(1u64, 2u64).await {
                 Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
                 Ok(proof) => {
+                    mysql_db.log_metrics(log::Level::Info).await;
+                    log::warn!("Done with audit proof generation");
                     let start_root_hash = root_hashes[0].as_ref();
                     let end_root_hash = root_hashes[1].as_ref();
                     match (start_root_hash, end_root_hash) {

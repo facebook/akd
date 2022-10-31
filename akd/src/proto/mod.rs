@@ -376,37 +376,37 @@ mod tests {
 
         let node_1 = crate::helper_structs::Node::<TestHasher> {
             label: crate::node_label::NodeLabel {
-                label_val: crate::serialization::from_digest::<TestHasher>(digest.clone()),
+                label_val: crate::serialization::from_digest::<TestHasher>(digest),
                 label_len: 1,
             },
-            hash: digest.clone(),
+            hash: digest,
         };
         let node_2 = crate::helper_structs::Node::<TestHasher> {
             label: crate::node_label::NodeLabel {
-                label_val: crate::serialization::from_digest::<TestHasher>(digest_2.clone()),
+                label_val: crate::serialization::from_digest::<TestHasher>(digest_2),
                 label_len: 2,
             },
-            hash: digest_2.clone(),
+            hash: digest_2,
         };
         let node_3 = crate::helper_structs::Node::<TestHasher> {
             label: crate::node_label::NodeLabel {
-                label_val: crate::serialization::from_digest::<TestHasher>(digest_3.clone()),
+                label_val: crate::serialization::from_digest::<TestHasher>(digest_3),
                 label_len: 2,
             },
-            hash: digest_3.clone(),
+            hash: digest_3,
         };
 
         let mut inodes: Vec<_> = vec![];
         let mut unodes: Vec<_> = vec![];
         for i in 4..10 {
             let mut node = match i % 3 {
-                0 => node_1.clone(),
-                1 => node_2.clone(),
-                _ => node_3.clone(),
+                0 => node_1,
+                1 => node_2,
+                _ => node_3,
             };
 
             node.label.label_len = i;
-            inodes.push(node.clone());
+            inodes.push(node);
 
             node.label.label_len = i + 10;
             unodes.push(node);
