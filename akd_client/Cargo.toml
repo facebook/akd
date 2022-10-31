@@ -66,8 +66,6 @@ wasm-bindgen-test = "0.3.13"
 hex = "0.4"
 rand = { version = "0.7" }
 
-akd_client = {path =".", features = ["serde_serialization"]}
-
 [build-dependencies]
 protoc = "=2.8.1"
 protoc-rust = "=2.8.1"
