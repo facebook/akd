@@ -192,7 +192,7 @@ fn test_expand_secret_key() {
 fn test_hash_to_curve() {
     for tv in TESTVECTORS.iter() {
         let pk = from_string!(VRFPublicKey, tv.PK);
-        let h_point = pk.hash_to_curve(&tv.alpha);
+        let h_point = pk.hash_to_curve(tv.alpha);
         assert_eq!(tv.H, to_string!(h_point.compress()));
     }
 }

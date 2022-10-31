@@ -1319,7 +1319,7 @@ mod tests {
         let mut leaves = Vec::<TreeNode>::new();
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
-            let leaf_u64 = i.clone() << 61;
+            let leaf_u64 = i << 61;
             let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
                 &db,
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
