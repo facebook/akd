@@ -43,7 +43,10 @@ fn main() {
     // If the feature is enabled, Cargo will set this env var prior to building
     match std::env::var("CARGO_FEATURE_PROTOBUF") {
         Err(err) => {
-            println!("Error getting environment variable 'CARGO_FEATURE_PROTOBUF' {}", err);
+            println!(
+                "Error getting environment variable 'CARGO_FEATURE_PROTOBUF' {}",
+                err
+            );
         }
         _ => {
             // feature is present, compile the protobuf files
