@@ -65,12 +65,7 @@ impl Ord for NodeLabel {
 
 impl fmt::Display for NodeLabel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "(0x{}, {})",
-            hex::encode(&self.label_val),
-            self.label_len
-        )
+        write!(f, "(0x{}, {})", hex::encode(self.label_val), self.label_len)
     }
 }
 

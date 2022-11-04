@@ -8,7 +8,12 @@ edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
-build = "src/build.rs"
+## Uncomment for automated building of the protobuf Rust sources. Necessary if the .proto specs change
+# build = "src/build.rs"
+#
+# [build-dependencies]
+# protoc = "=2.8.1"
+# protoc-rust = "=2.8.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -65,10 +70,6 @@ tokio = { version = "1.10", features = ["full"] }
 wasm-bindgen-test = "0.3.13"
 hex = "0.4"
 rand = { version = "0.7" }
-
-[build-dependencies]
-protoc = "=2.8.1"
-protoc-rust = "=2.8.1"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

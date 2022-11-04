@@ -195,10 +195,10 @@ impl VRFPublicKey {
 
         while wrapped_point.is_none() {
             let hash = Sha512::new()
-                .chain(&[SUITE, ONE])
+                .chain([SUITE, ONE])
                 .chain(self.0.as_bytes())
-                .chain(&alpha)
-                .chain(&[counter])
+                .chain(alpha)
+                .chain([counter])
                 .finalize();
             result.copy_from_slice(&hash[..32]);
             wrapped_point = CompressedEdwardsY::from_slice(&result).decompress();
@@ -357,7 +357,7 @@ impl<'a> From<&'a Proof> for Output {
         let mut output = [0u8; OUTPUT_LENGTH];
         output.copy_from_slice(
             &Sha512::new()
-                .chain(&[SUITE, THREE])
+                .chain([SUITE, THREE])
                 .chain(&proof.gamma.mul_by_cofactor().compress().to_bytes()[..])
                 .finalize()[..],
         );
@@ -378,7 +378,7 @@ pub(super) fn nonce_generation_bytes(nonce: [u8; 32], h_point: EdwardsPoint) -> 
 
 pub(super) fn hash_points(points: &[EdwardsPoint]) -> ed25519_Scalar {
     let mut result = [0u8; 32];
-    let mut hash = Sha512::new().chain(&[SUITE, TWO]);
+    let mut hash = Sha512::new().chain([SUITE, TWO]);
     for point in points.iter() {
         hash = hash.chain(point.compress().to_bytes());
     }
