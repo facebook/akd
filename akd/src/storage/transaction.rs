@@ -79,10 +79,10 @@ impl Transaction {
     pub async fn begin_transaction(&self) -> bool {
         debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
-        let out = if (*guard).active {
+        let out = if guard.active {
             false
         } else {
-            (*guard).active = true;
+            guard.active = true;
             true
         };
         debug!("END begin transaction");
@@ -94,7 +94,7 @@ impl Transaction {
         debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
-        if !(*guard).active {
+        if !guard.active {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
@@ -107,9 +107,9 @@ impl Transaction {
         records.sort_by_key(|r| r.transaction_priority());
 
         // flush the trans log
-        (*guard).mods.clear();
+        guard.mods.clear();
 
-        (*guard).active = false;
+        guard.active = false;
         debug!("END commit transaction");
         Ok(records)
     }
@@ -119,15 +119,15 @@ impl Transaction {
         debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
-        if !(*guard).active {
+        if !guard.active {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
         }
 
         // rollback
-        (*guard).mods.clear();
-        (*guard).active = false;
+        guard.mods.clear();
+        guard.active = false;
 
         debug!("END rollback transaction");
         Ok(())
@@ -147,7 +147,7 @@ impl Transaction {
         let bin_id = St::get_full_binary_key_id(key);
 
         let guard = self.state.read().await;
-        let out = (*guard).mods.get(&bin_id).cloned();
+        let out = guard.mods.get(&bin_id).cloned();
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
@@ -161,7 +161,7 @@ impl Transaction {
         let bin_id = record.get_full_binary_id();
 
         let mut guard = self.state.write().await;
-        (*guard).mods.insert(bin_id, record.clone());
+        guard.mods.insert(bin_id, record.clone());
 
         *(self.num_writes.write().await) += 1;
         debug!("END transaction set");

@@ -438,7 +438,7 @@ impl TreeNode {
             // Account for the new leaf in the tree. We want to account for it only once, so let's do it on the root.
             *num_nodes += 1;
             let child_state = self.get_child_state(storage, dir_leaf, epoch).await?;
-            if child_state == None {
+            if child_state.is_none() {
                 // This case is not entered very often, in fact it only happens
                 // when you are actually instantiating the tree. Initially the tree only
                 // consists of the root node. Then, a left child and a right child are inserted relatively soon.
