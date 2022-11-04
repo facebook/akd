@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use rand::{CryptoRng, RngCore};
 
-use ed25519_dalek::{self, PublicKey as ed25519_PublicKey, SecretKey as ed25519_PrivateKey};
+use ed25519_dalek::{self, SecretKey as ed25519_PrivateKey};
 
 use crate::ecvrf::ecvrf_impl::*;
 
@@ -141,25 +141,25 @@ const TESTVECTORS : [VRFTestVector; 3] = [
         alpha : b"",
         x : "307c83864f2833cb427a2ef1c00a013cfdff2768d980c0a3a520f006904de94f",
         // try_and_increment succeeded on ctr = 0
-        H : "91bbed02a99461df1ad4c6564a5f5d829d0b90cfc7903e7a5797bd658abf3318",
-        k : "7100f3d9eadb6dc4743b029736ff283f5be494128df128df2817106f345b8594b6d6da2d6fb0b4c0257eb337675d96eab49cf39e66cc2c9547c2bf8b2a6afae4",
-        U : "aef27c725be964c6a9bf4c45ca8e35df258c1878b838f37d9975523f09034071",
-        V : "5016572f71466c646c119443455d6cb9b952f07d060ec8286d678615d55f954f",
-        pi : "8657106690b5526245a92b003bb079ccd1a92130477671f6fc01ad16f26f723f26f8a57ccaed74ee1b190bed1f479d9727d2d0f9b005a6e456a35d4fb0daab1268a1b0db10836d9826a528ca76567805",
-        beta : "90cf1df3b703cce59e2a35b925d411164068269d7b2d29f3301c03dd757876ff66b71dda49d2de59d03450451af026798e8f81cd2e333de5cdf4f3e140fdd8ae",
+        H : "5b2c80db3ce2d79cc85b1bfb269f02f915c5f0e222036dc82123f640205d0d24",
+        k : "647ac2b3ca3f6a77e4c4f4f79c6c4c8ce1f421a9baaa294b0adf0244915130f7067640acb6fd9e7e84f8bc30d4e03a95e410b82f96a5ada97080e0f187758d38",
+        U : "a21c342b8704853ad10928e3db3e58ede289c798e3cdfd485fbbb8c1b620604f",
+        V : "426fe41752f0b27439eb3d0c342cb645174a720cae2d4e9bb37de034eefe27ad",
+        pi : "9275df67a68c8745c0ff97b48201ee6db447f7c93b23ae24cdc2400f52fdb08a1a6ac7ec71bf9c9c76e96ee4675ebff60625af28718501047bfd87b810c2d2139b73c23bd69de66360953a642c2a330a",
+        beta : "a64c292ec45f6b252828aff9a02a0fe88d2fcc7f5fc61bb328f03f4c6c0657a9d26efb23b87647ff54f71cd51a6fa4c4e31661d8f72b41ff00ac4d2eec2ea7b3",
     },
     VRFTestVector {
         SK : "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
         PK : "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
         alpha : b"\x72",
         x : "68bd9ed75882d52815a97585caf4790a7f6c6b3b7f821c5e259a24b02e502e51",
-        // try_and_increment succeeded on ctr = 1
-        H : "5b659fc3d4e9263fd9a4ed1d022d75eaacc20df5e09f9ea937502396598dc551",
-        k : "42589bbf0c485c3c91c1621bb4bfe04aed7be76ee48f9b00793b2342acb9c167cab856f9f9d4febc311330c20b0a8afd3743d05433e8be8d32522ecdc16cc5ce",
-        U : "1dcb0a4821a2c48bf53548228b7f170962988f6d12f5439f31987ef41f034ab3",
-        V : "fd03c0bf498c752161bae4719105a074630a2aa5f200ff7b3995f7bfb1513423",
-        pi : "f3141cd382dc42909d19ec5110469e4feae18300e94f304590abdced48aed5933bf0864a62558b3ed7f2fea45c92a465301b3bbf5e3e54ddf2d935be3b67926da3ef39226bbc355bdc9850112c8f4b02",
-        beta : "eb4440665d3891d668e7e0fcaf587f1b4bd7fbfe99d0eb2211ccec90496310eb5e33821bc613efb94db5e5b54c70a848a0bef4553a41befc57663b56373a5031",
+        // try_and_increment succeeded on ctr = 4
+        H : "08e18a34f3923db32e80834fb8ced4e878037cd0459c63ddd66e5004258cf76c",
+        k : "627237308294a8b344a09ad893997c630153ee514cd292eddd577a9068e2a6f24cbee0038beb0b1ee5df8be08215e9fc74608e6f9358b0e8d6383b1742a70628",
+        U : "18b5e500cb34690ced061a0d6995e2722623c105221eb91b08d90bf0491cf979",
+        V : "87e1f47346c86dbbd2c03eafc7271caa1f5307000a36d1f71e26400955f1f627",
+        pi : "84a63e74eca8fdd64e9972dcda1c6f33d03ce3cd4d333fd6cc789db12b5a7b9d03f1cb6b2bf7cd81a2a20bacf6e1c04e59f2fa16d9119c73a45a97194b504fb9a5c8cf37f6da85e03368d6882e511008",
+        beta : "cddaa399bb9c56d3be15792e43a6742fb72b1d248a7f24fd5cc585b232c26c934711393b4d97284b2bcca588775b72dc0b0f4b5a195bc41f8d2b80b6981c784e",
     },
     VRFTestVector {
         SK : "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
@@ -167,12 +167,12 @@ const TESTVECTORS : [VRFTestVector; 3] = [
         alpha : b"\xaf\x82",
         x : "909a8b755ed902849023a55b15c23d11ba4d7f4ec5c2f51b1325a181991ea95c",
         // try_and_increment succeeded on ctr = 0
-        H : "bf4339376f5542811de615e3313d2b36f6f53c0acfebb482159711201192576a",
-        k : "38b868c335ccda94a088428cbf3ec8bc7955bfaffe1f3bd2aa2c59fc31a0febc59d0e1af3715773ce11b3bbdd7aba8e3505d4b9de6f7e4a96e67e0d6bb6d6c3a",
-        U : "2bae73e15a64042fcebf062abe7e432b2eca6744f3e8265bc38e009cd577ecd5",
-        V : "88cba1cb0d4f9b649d9a86026b69de076724a93a65c349c988954f0961c5d506",
-        pi : "9bc0f79119cc5604bf02d23b4caede71393cedfbb191434dd016d30177ccbf8096bb474e53895c362d8628ee9f9ea3c0e52c7a5c691b6c18c9979866568add7a2d41b00b05081ed0f58ee5e31b3a970e",
-        beta : "645427e5d00c62a23fb703732fa5d892940935942101e456ecca7bb217c61c452118fec1219202a0edcf038bb6373241578be7217ba85a2687f7a0310b2df19f",
+        H : "e4581824b70badf0e57af789dd8cf85513d4b9814566de0e3f738439becfba33",
+        k : "a950f736af2e3ae2dbcb76795f9cbd57c671eee64ab17069f945509cd6c4a74852fe1bbc331e1bd573038ec703ca28601d861ad1e9684ec89d57bc22986acb0e",
+        U : "5114dc4e741b7c4a28844bc585350240a51348a05f337b5fd75046d2c2423f7a",
+        V : "a6d5780c472dea1ace78795208aaa05473e501ed4f53da57e1fb13b7e80d7f59",
+        pi : "aca8ade9b7f03e2b149637629f95654c94fc9053c225ec21e5838f193af2b727b84ad849b0039ad38b41513fe5a66cdd2367737a84b488d62486bd2fb110b4801a46bfca770af98e059158ac563b690f",
+        beta : "d938b2012f2551b0e13a49568612effcbdca2aed5d1d3a13f47e180e01218916e049837bd246f66d5058e56d3413dbbbad964f5e9f160a81c9a1355dcd99b453",
     },
 ];
 
@@ -222,8 +222,7 @@ fn test_hash_points() {
         assert_eq!(tv.U, to_string!(u.compress()));
         assert_eq!(tv.V, to_string!(v.compress()));
 
-        let pk = ed25519_PublicKey::from_bytes(&hex::decode(tv.PK).unwrap()).unwrap();
-        let c_scalar = hash_points(pk, &[h_point, gamma, u, v]);
+        let c_scalar = hash_points(&[h_point, gamma, u, v]);
 
         let s_scalar = k_scalar + c_scalar * sk.key;
         s_scalar.reduce();
