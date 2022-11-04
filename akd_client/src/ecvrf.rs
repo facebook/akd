@@ -11,7 +11,7 @@
 //! regeneratable without the secret key.
 //!
 //! This module implements an instantiation of a verifiable random function known as
-//! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-04).
+//! [ECVRF-ED25519-SHA512-TAI](https://tools.ietf.org/html/draft-irtf-cfrg-vrf-15).
 //!
 //! Adapted from Diem's NextGen Crypto module available [here](https://github.com/diem/diem/blob/502936fbd59e35276e2cf455532b143796d68a16/crypto/nextgen_crypto/src/vrf/ecvrf.rs)
 
@@ -42,6 +42,7 @@ use ed25519_dalek::PublicKey as ed25519_PublicKey;
 use ed25519_dalek::Sha512;
 
 const SUITE: u8 = 0x03;
+const ZERO: u8 = 0x00;
 const ONE: u8 = 0x01;
 const TWO: u8 = 0x02;
 const THREE: u8 = 0x03;
@@ -111,12 +112,15 @@ impl VRFPublicKey {
                 ))
             }
         };
-        let cprime = hash_points(&[
-            h_point,
-            proof.gamma,
-            ED25519_BASEPOINT_POINT * proof.s - pk_point * proof.c,
-            h_point * proof.s - proof.gamma * proof.c,
-        ]);
+        let cprime = hash_points(
+            self.0,
+            &[
+                h_point,
+                proof.gamma,
+                ED25519_BASEPOINT_POINT * proof.s - pk_point * proof.c,
+                h_point * proof.s - proof.gamma * proof.c,
+            ],
+        );
 
         if proof.c == cprime {
             Ok(())
@@ -138,7 +142,7 @@ impl VRFPublicKey {
                 .chain(&[SUITE, ONE])
                 .chain(self.0.as_bytes())
                 .chain(&alpha)
-                .chain(&[counter])
+                .chain(&[counter, ZERO])
                 .finalize();
             result.copy_from_slice(&hash[..32]);
             wrapped_point = CompressedEdwardsY::from_slice(&result).decompress();
@@ -246,18 +250,19 @@ impl<'a> From<&'a Proof> for Output {
             &Sha512::new()
                 .chain(&[SUITE, THREE])
                 .chain(&proof.gamma.mul_by_cofactor().compress().to_bytes()[..])
+                .chain(&[ZERO])
                 .finalize()[..],
         );
         Output(output)
     }
 }
 
-fn hash_points(points: &[EdwardsPoint]) -> ed25519_Scalar {
+fn hash_points(pk: ed25519_PublicKey, points: &[EdwardsPoint]) -> ed25519_Scalar {
     let mut result = [0u8; 32];
-    let mut hash = Sha512::new().chain(&[SUITE, TWO]);
+    let mut hash = Sha512::new().chain(&[SUITE, TWO]).chain(&pk.to_bytes());
     for point in points.iter() {
         hash = hash.chain(point.compress().to_bytes());
     }
-    result[..16].copy_from_slice(&hash.finalize()[..16]);
+    result[..16].copy_from_slice(&hash.chain(&[ZERO]).finalize()[..16]);
     ed25519_Scalar::from_bits(result)
 }
