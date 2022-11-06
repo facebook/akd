@@ -8,7 +8,12 @@ edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
-build = "src/build.rs"
+## Uncomment for automated building of the protobuf Rust sources. Necessary if the .proto specs change
+# build = "src/build.rs"
+#
+# [build-dependencies]
+# protoc = "=2.8.1"
+# protoc-rust = "=2.8.1"
 
 [features]
 bench = ["public-tests"]
@@ -53,10 +58,6 @@ once_cell = { version = "1" }
 ctor = "0.1"
 
 akd = { path =".", features = ["vrf", "public-tests"] }
-
-[build-dependencies]
-protoc = "=2.8.1"
-protoc-rust = "=2.8.1"
 
 [[bench]]
 name = "azks"
