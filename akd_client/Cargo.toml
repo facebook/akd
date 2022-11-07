@@ -49,7 +49,7 @@ sha256 = ["sha2"]
 sha3_256 = ["sha3"]
 sha3_512 = ["sha3"]
 # Enable web assembly compilation of the AKD client crate
-wasm = ["wasm-bindgen", "serde"]
+wasm = ["wasm-bindgen", "serde_serialization"]
 # Support serde-based serialization
 serde_serialization = ["serde", "serde_json", "ed25519-dalek/serde"]
 # Verify with Verifiable random functions (VRFs)
