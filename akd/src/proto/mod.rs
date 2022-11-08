@@ -11,8 +11,8 @@
 //! to the blob storage medium is left to the new application crate akd_local_auditor
 
 use crate::errors::AkdError;
-use protobuf::Message;
 use protobuf::Error as ProtobufError;
+use protobuf::Message;
 use protobuf::MessageField;
 use std::convert::{TryFrom, TryInto};
 use thiserror::Error;
@@ -290,7 +290,8 @@ impl AuditBlob {
         ),
         LocalAuditorError,
     > {
-        let proof: audit::SingleEncodedProof = audit::SingleEncodedProof::parse_from_bytes(&self.data)?;
+        let proof: audit::SingleEncodedProof =
+            audit::SingleEncodedProof::parse_from_bytes(&self.data)?;
 
         let local_proof: Result<
             crate::proof_structs::SingleAppendOnlyProof<Hasher>,

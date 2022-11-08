@@ -188,7 +188,11 @@ impl From<&crate::MembershipProof> for types::MembershipProof {
         Self {
             label: MessageField::some((&input.label).into()),
             hash_val: Some(input.hash_val.to_vec()),
-            layer_proofs: input.layer_proofs.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            layer_proofs: input
+                .layer_proofs
+                .iter()
+                .map(|proof| proof.into())
+                .collect::<Vec<_>>(),
             ..Default::default()
         }
     }
@@ -226,8 +230,14 @@ impl From<&crate::NonMembershipProof> for types::NonMembershipProof {
         Self {
             label: MessageField::some((&input.label).into()),
             longest_prefix: MessageField::some((&input.longest_prefix).into()),
-            longest_prefix_children: input.longest_prefix_children.iter().map(|child| child.into()).collect::<Vec<_>>(),
-            longest_prefix_membership_proof: MessageField::some((&input.longest_prefix_membership_proof).into()),
+            longest_prefix_children: input
+                .longest_prefix_children
+                .iter()
+                .map(|child| child.into())
+                .collect::<Vec<_>>(),
+            longest_prefix_membership_proof: MessageField::some(
+                (&input.longest_prefix_membership_proof).into(),
+            ),
             ..Default::default()
         }
     }
@@ -243,8 +253,11 @@ impl TryFrom<&types::NonMembershipProof> for crate::NonMembershipProof {
 
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
         let longest_prefix: crate::NodeLabel = input.longest_prefix.as_ref().unwrap().try_into()?;
-        let longest_prefix_membership_proof: crate::MembershipProof =
-            input.longest_prefix_membership_proof.as_ref().unwrap().try_into()?;
+        let longest_prefix_membership_proof: crate::MembershipProof = input
+            .longest_prefix_membership_proof
+            .as_ref()
+            .unwrap()
+            .try_into()?;
 
         let mut longest_prefix_children = vec![];
         for child in input.longest_prefix_children.iter() {
@@ -332,8 +345,16 @@ impl From<&crate::UpdateProof> for types::UpdateProof {
             version: Some(input.version),
             existence_vrf_proof: Some(input.existence_vrf_proof.clone()),
             existence_at_ep: MessageField::some((&input.existence_at_ep).into()),
-            previous_version_vrf_proof: input.previous_version_vrf_proof.as_ref().map(|p| p.clone()),
-            previous_version_stale_at_ep: MessageField::from_option(input.previous_version_stale_at_ep.as_ref().map(|p| p.into())),
+            previous_version_vrf_proof: input
+                .previous_version_vrf_proof
+                .as_ref()
+                .map(|p| p.clone()),
+            previous_version_stale_at_ep: MessageField::from_option(
+                input
+                    .previous_version_stale_at_ep
+                    .as_ref()
+                    .map(|p| p.into()),
+            ),
             commitment_proof: Some(input.commitment_proof.clone()),
             ..Default::default()
         }
@@ -350,7 +371,10 @@ impl TryFrom<&types::UpdateProof> for crate::UpdateProof {
         require!(input, has_existence_vrf_proof);
         require_messagefield!(input, existence_at_ep);
         require!(input, has_commitment_proof);
-        let previous_version_vrf_proof = input.previous_version_vrf_proof.as_ref().map(|item| item.to_vec());
+        let previous_version_vrf_proof = input
+            .previous_version_vrf_proof
+            .as_ref()
+            .map(|item| item.to_vec());
         let previous_version_stale_at_ep: Option<crate::MembershipProof> =
             if let Some(item) = input.previous_version_stale_at_ep.as_ref() {
                 Some(item.try_into()?)
@@ -378,11 +402,23 @@ impl TryFrom<&types::UpdateProof> for crate::UpdateProof {
 impl From<&crate::HistoryProof> for types::HistoryProof {
     fn from(input: &crate::HistoryProof) -> Self {
         Self {
-            update_proofs: input.update_proofs.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            update_proofs: input
+                .update_proofs
+                .iter()
+                .map(|proof| proof.into())
+                .collect::<Vec<_>>(),
             next_few_vrf_proofs: input.next_few_vrf_proofs.to_vec(),
-            non_existence_of_next_few: input.non_existence_of_next_few.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            non_existence_of_next_few: input
+                .non_existence_of_next_few
+                .iter()
+                .map(|proof| proof.into())
+                .collect::<Vec<_>>(),
             future_marker_vrf_proofs: input.future_marker_vrf_proofs.to_vec(),
-            non_existence_of_future_markers: input.non_existence_of_future_markers.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            non_existence_of_future_markers: input
+                .non_existence_of_future_markers
+                .iter()
+                .map(|proof| proof.into())
+                .collect::<Vec<_>>(),
             ..Default::default()
         }
     }
@@ -399,10 +435,8 @@ impl TryFrom<&types::HistoryProof> for crate::HistoryProof {
             .iter()
             .map(|item| item.to_vec())
             .collect::<Vec<_>>();
-        let non_existence_of_next_few = convert_from_vector!(
-            input.non_existence_of_next_few,
-            crate::NonMembershipProof
-        );
+        let non_existence_of_next_few =
+            convert_from_vector!(input.non_existence_of_next_few, crate::NonMembershipProof);
 
         let future_marker_vrf_proofs = input
             .future_marker_vrf_proofs
