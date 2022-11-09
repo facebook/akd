@@ -11,9 +11,9 @@
 //! to the blob storage medium is left to the new application crate akd_local_auditor
 
 use crate::errors::AkdError;
+use protobuf::Error as ProtobufError;
 use protobuf::Message;
-use protobuf::ProtobufError;
-use protobuf::RepeatedField;
+use protobuf::MessageField;
 use std::convert::{TryFrom, TryInto};
 use thiserror::Error;
 
@@ -60,6 +60,17 @@ macro_rules! require {
     };
 }
 
+macro_rules! require_messagefield {
+    ($obj:ident, $field:ident) => {
+        if $obj.$field.is_none() {
+            return Err(LocalAuditorError::RequiredFieldMissing(
+                stringify!($obj).to_string(),
+                stringify!($has_field).to_string(),
+            ));
+        }
+    };
+}
+
 macro_rules! hash_to_bytes {
     ($obj:expr) => {
         crate::serialization::from_digest::<Hasher>($obj)
@@ -78,10 +89,11 @@ macro_rules! hash_from_bytes {
 
 impl From<&crate::NodeLabel> for audit::NodeLabel {
     fn from(input: &crate::NodeLabel) -> Self {
-        let mut result = Self::new();
-        result.set_label_len(input.label_len);
-        result.set_label_val(input.label_val.to_vec());
-        result
+        Self {
+            label_len: Some(input.label_len),
+            label_val: Some(input.label_val.to_vec()),
+            ..Default::default()
+        }
     }
 }
 
@@ -92,7 +104,7 @@ impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
         require!(input, has_label_len);
         require!(input, has_label_val);
         // get the raw data & it's length, but at most 32 bytes
-        let raw = input.get_label_val();
+        let raw = input.label_val();
         let len = std::cmp::min(raw.len(), 32);
         // construct the output buffer
         let mut out_val = [0u8; 32];
@@ -100,7 +112,7 @@ impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
         out_val[..len].clone_from_slice(&raw[..len]);
 
         Ok(crate::NodeLabel {
-            label_len: input.get_label_len(),
+            label_len: input.label_len(),
             label_val: out_val,
         })
     }
@@ -112,10 +124,11 @@ impl TryFrom<&audit::NodeLabel> for crate::NodeLabel {
 
 impl From<&crate::helper_structs::Node<Hasher>> for audit::Node {
     fn from(input: &crate::helper_structs::Node<Hasher>) -> Self {
-        let mut result = Self::new();
-        result.set_label((&input.label).into());
-        result.set_hash(hash_to_bytes!(input.hash).to_vec());
-        result
+        Self {
+            label: MessageField::some((&input.label).into()),
+            hash: Some(hash_to_bytes!(input.hash).to_vec()),
+            ..Default::default()
+        }
     }
 }
 
@@ -123,12 +136,12 @@ impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher> {
     type Error = LocalAuditorError;
 
     fn try_from(input: &audit::Node) -> Result<Self, Self::Error> {
-        require!(input, has_label);
+        require_messagefield!(input, label);
         require!(input, has_hash);
-        let label: crate::NodeLabel = input.get_label().try_into()?;
+        let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
         Ok(crate::helper_structs::Node::<Hasher> {
             label,
-            hash: hash_from_bytes!(input.get_hash()),
+            hash: hash_from_bytes!(input.hash()),
         })
     }
 }
@@ -136,19 +149,13 @@ impl TryFrom<&audit::Node> for crate::helper_structs::Node<Hasher> {
 impl From<&crate::proof_structs::SingleAppendOnlyProof<Hasher>> for audit::SingleEncodedProof {
     fn from(input: &crate::proof_structs::SingleAppendOnlyProof<Hasher>) -> Self {
         let mut result = Self::new();
-        let inserted = input
-            .inserted
-            .iter()
-            .map(|item| item.into())
-            .collect::<Vec<_>>();
-        let unchanged = input
-            .unchanged_nodes
-            .iter()
-            .map(|item| item.into())
-            .collect::<Vec<_>>();
 
-        result.set_inserted(RepeatedField::from_vec(inserted));
-        result.set_unchanged(RepeatedField::from_vec(unchanged));
+        for item in input.inserted.iter() {
+            result.inserted.push(item.into());
+        }
+        for item in input.unchanged_nodes.iter() {
+            result.unchanged.push(item.into());
+        }
         result
     }
 }
@@ -159,10 +166,10 @@ impl TryFrom<audit::SingleEncodedProof> for crate::proof_structs::SingleAppendOn
     fn try_from(input: audit::SingleEncodedProof) -> Result<Self, Self::Error> {
         let mut inserted = vec![];
         let mut unchanged = vec![];
-        for item in input.get_inserted() {
+        for item in input.inserted.iter() {
             inserted.push(item.try_into()?);
         }
-        for item in input.get_unchanged() {
+        for item in input.unchanged.iter() {
             unchanged.push(item.try_into()?);
         }
         Ok(crate::proof_structs::SingleAppendOnlyProof {
@@ -283,7 +290,8 @@ impl AuditBlob {
         ),
         LocalAuditorError,
     > {
-        let proof: audit::SingleEncodedProof = protobuf::parse_from_bytes(&self.data)?;
+        let proof: audit::SingleEncodedProof =
+            audit::SingleEncodedProof::parse_from_bytes(&self.data)?;
 
         let local_proof: Result<
             crate::proof_structs::SingleAppendOnlyProof<Hasher>,
