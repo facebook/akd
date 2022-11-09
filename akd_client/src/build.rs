@@ -30,9 +30,8 @@ fn build_protobuf(file: &str) {
         // Inputs must reside in some of the include paths
         .input(&proto_file)
         // Specify output directory relative to Cargo output directory
-        .cargo_out_dir("proto")
-        .run()
-        .expect("failed akd_client protobuf generation");
+        .out_dir("src/proto")
+        .run_from_script();
 }
 
 fn build_protobufs() {

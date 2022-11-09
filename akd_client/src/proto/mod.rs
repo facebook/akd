@@ -36,7 +36,7 @@ macro_rules! require {
 
 macro_rules! require_messagefield {
     ($obj:ident, $field:ident) => {
-        if !$obj.$field.is_some() {
+        if $obj.$field.is_none() {
             return Err(crate::VerificationError::build(
                 Some(crate::VerificationErrorType::ProofDeserializationFailed),
                 Some(format!(
@@ -375,12 +375,11 @@ impl TryFrom<&types::UpdateProof> for crate::UpdateProof {
             .previous_version_vrf_proof
             .as_ref()
             .map(|item| item.to_vec());
-        let previous_version_stale_at_ep: Option<crate::MembershipProof> =
-            if let Some(item) = input.previous_version_stale_at_ep.as_ref() {
-                Some(item.try_into()?)
-            } else {
-                None
-            };
+        let previous_version_stale_at_ep: Option<crate::MembershipProof> = input
+            .previous_version_stale_at_ep
+            .as_ref()
+            .map(|item| item.try_into())
+            .transpose()?;
 
         Ok(Self {
             epoch: input.epoch(),

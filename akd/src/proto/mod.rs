@@ -62,7 +62,7 @@ macro_rules! require {
 
 macro_rules! require_messagefield {
     ($obj:ident, $field:ident) => {
-        if !$obj.$field.is_some() {
+        if $obj.$field.is_none() {
             return Err(LocalAuditorError::RequiredFieldMissing(
                 stringify!($obj).to_string(),
                 stringify!($has_field).to_string(),

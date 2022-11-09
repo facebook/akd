@@ -31,8 +31,7 @@ fn build_protobuf(file: &str) {
         .input(&proto_file)
         // Specify output directory relative to Cargo output directory
         .cargo_out_dir("proto")
-        .run()
-        .expect("protoc");
+        .run_from_script();
 }
 
 fn build_protobufs() {
