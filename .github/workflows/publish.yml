@@ -36,6 +36,9 @@ jobs:
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
 
+    - name: Run the script that waits for AKD to be published
+      run: bash ./.github/workflows/wait-for-akd-publish.sh
+
     - name: Dry run publish AKD_CLIENT
       run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_client
 
@@ -43,9 +46,6 @@ jobs:
       run: cargo publish --manifest-path Cargo.toml -p akd_client
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
-
-    - name: Run the script that waits for AKD to be published
-      run: bash ./.github/workflows/wait-for-akd-publish.sh
 
     - name: Dry run publish AKD_MYSQL
       run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_mysql
