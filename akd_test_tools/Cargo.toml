@@ -1,6 +1,6 @@
 [package]
 name = "akd_test_tools"
-version = "0.7.3"
+version = "0.7.5"
 authors = ["Evan Au <evanau@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Test utilities and tooling"
 license = "MIT OR Apache-2.0"
