@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -192,7 +192,7 @@ fn test_expand_secret_key() {
 fn test_hash_to_curve() {
     for tv in TESTVECTORS.iter() {
         let pk = from_string!(VRFPublicKey, tv.PK);
-        let h_point = pk.hash_to_curve(&tv.alpha);
+        let h_point = pk.hash_to_curve(tv.alpha);
         assert_eq!(tv.H, to_string!(h_point.compress()));
     }
 }

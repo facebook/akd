@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -201,7 +201,7 @@ pub enum ValueStateRetrievalFlag {
 
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)

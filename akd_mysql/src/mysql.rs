@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -434,11 +434,7 @@ impl<'a> AsyncMySqlDatabase {
             },
             None => {
                 let mut conn = self.get_connection().await?;
-                if let Err(err) = conn.exec_drop(statement_text, params).await {
-                    Err(err)
-                } else {
-                    Ok(())
-                }
+                conn.exec_drop(statement_text, params).await
             }
         };
         self.check_for_infra_error(out)?;
@@ -740,6 +736,15 @@ impl Storage for AsyncMySqlDatabase {
 
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let ops = self.trans.commit_transaction().await?;
+
+        let _epoch = match ops.last() {
+            Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
+            other => Err(StorageError::Transaction(format!(
+                "The last record in the transaction log is NOT an Azks record {:?}",
+                other
+            ))),
+        }?;
+
         self.batch_set(ops).await
     }
 
@@ -788,8 +793,8 @@ impl Storage for AsyncMySqlDatabase {
 
         // we're in a transaction, set the items in the transaction
         if self.is_transaction_active().await {
-            for record in records.into_iter() {
-                self.trans.set(&record).await;
+            for record in records.iter() {
+                self.trans.set(record).await;
             }
             return Ok(());
         }

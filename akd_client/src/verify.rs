@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -13,6 +13,8 @@ use alloc::format;
 use alloc::string::ToString;
 #[cfg(feature = "vrf")]
 use core::convert::TryFrom;
+#[cfg(feature = "serde_serialization")]
+use serde_json;
 
 use crate::hash::*;
 use crate::types::*;
@@ -135,6 +137,24 @@ fn verify_vrf(
     vrf_pk.verify_label(uname, stale, version, pi, label)
 }
 
+/// Verifies a serialized JSON lookup proof after deserializing it first.
+#[cfg(feature = "serde_serialization")]
+pub fn serialized_lookup_verify(
+    _vrf_public_key: &[u8],
+    root_hash: Digest,
+    _akd_key: AkdLabel,
+    serialized_json_proof: &str,
+) -> Result<(), VerificationError> {
+    if let Ok(proof) = serde_json::from_str(serialized_json_proof) {
+        lookup_verify(_vrf_public_key, root_hash, _akd_key, proof)
+    } else {
+        Err(VerificationError::build(
+            Some(VerificationErrorType::ProofDeserializationFailed),
+            Some("JSON lookup proof deserialization failed.".to_string()),
+        ))
+    }
+}
+
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify(
     _vrf_public_key: &[u8],
@@ -211,6 +231,33 @@ pub fn lookup_verify(
     Ok(())
 }
 
+/// Verifies a serialized JSON key history proof after deserializing it first.
+#[cfg(feature = "serde_serialization")]
+pub fn serialized_key_history_verify(
+    vrf_public_key: &[u8],
+    root_hash: Digest,
+    current_epoch: u64,
+    akd_key: AkdLabel,
+    serialized_json_proof: &str,
+    allow_tombstones: bool,
+) -> Result<Vec<bool>, VerificationError> {
+    if let Ok(proof) = serde_json::from_str(serialized_json_proof) {
+        key_history_verify(
+            vrf_public_key,
+            root_hash,
+            current_epoch,
+            akd_key,
+            proof,
+            allow_tombstones,
+        )
+    } else {
+        Err(VerificationError::build(
+            Some(VerificationErrorType::ProofDeserializationFailed),
+            Some("JSON history proof deserialization failed.".to_string()),
+        ))
+    }
+}
+
 /// Verifies a key history proof, given the corresponding sequence of hashes.
 /// Returns a vector of whether the validity of a hash could be verified.
 /// When false, the value <=> hash validity at the position could not be
@@ -246,7 +293,7 @@ pub fn key_history_verify(
             if proof.update_proofs[count].version + 1 != proof.update_proofs[count - 1].version {
                 return Err(VerificationError {
                     error_message:
-                        format!("Why did you give me consecutive update proofs without version numbers decrememting by 1? Version {} = {}; version {} = {}",
+                        format!("Why did you give me consecutive update proofs without version numbers decrementing by 1? Version {} = {}; version {} = {}",
                         count, proof.update_proofs[count].version,
                         count-1, proof.update_proofs[count-1].version
                         ),
@@ -330,6 +377,18 @@ pub fn key_history_verify(
     Ok(tombstones)
 }
 
+/// Serializes a LookupProof
+#[cfg(feature = "serde_serialization")]
+pub fn serialize_lookup_proof(proof: &LookupProof) -> Result<String, serde_json::Error> {
+    serde_json::to_string(proof)
+}
+
+/// Serializes a HistoryProof
+#[cfg(feature = "serde_serialization")]
+pub fn serialize_history_proof(proof: &HistoryProof) -> Result<String, serde_json::Error> {
+    serde_json::to_string(proof)
+}
+
 /// Verifies a single update proof
 fn verify_single_update_proof(
     root_hash: Digest,
@@ -344,7 +403,7 @@ fn verify_single_update_proof(
 
     let existence_at_ep = &proof.existence_at_ep;
 
-    let previous_val_stale_at_ep = &proof.previous_val_stale_at_ep;
+    let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let (is_tombstone, value_hash_valid) = match (allow_tombstone, &proof.plaintext_value) {
         (true, bytes) if bytes == crate::TOMBSTONE => {
@@ -398,6 +457,7 @@ fn verify_single_update_proof(
             error_message: err_str,
             error_type: VerificationErrorType::HistoryProof,
         };
+
         let previous_val_stale_at_ep =
             previous_val_stale_at_ep.as_ref().ok_or(previous_null_err)?;
         // Check that the correct value is included in the previous stale proof
@@ -415,6 +475,7 @@ fn verify_single_update_proof(
         }
         verify_membership(root_hash, previous_val_stale_at_ep)?;
 
+
         #[cfg(feature = "vrf")]
         {
             let vrf_err_str = format!(
@@ -429,8 +490,8 @@ fn verify_single_update_proof(
                 error_message: vrf_err_str,
                 error_type: VerificationErrorType::HistoryProof,
             };
-            let previous_val_vrf_proof = proof
-                .previous_val_vrf_proof
+            let previous_version_vrf_proof = proof
+                .previous_version_vrf_proof
                 .as_ref()
                 .ok_or(vrf_previous_null_err)?;
             verify_vrf(
@@ -438,8 +499,8 @@ fn verify_single_update_proof(
                 uname,
                 true,
                 version - 1,
-                previous_val_vrf_proof,
-                previous_val_stale_at_ep.label,
+                previous_version_vrf_proof,
+                previous_version_stale_at_ep.label,
             )?;
         }
     }

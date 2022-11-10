@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -97,6 +97,11 @@ pub use types::*;
 // verify types are not re-exported, to not clutter the root path
 pub mod verify;
 
+#[cfg(feature = "protobuf")]
+pub mod proto;
+
+#[cfg(any(test, feature = "converters"))]
+pub mod converters;
 #[cfg(feature = "vrf")]
 pub(crate) mod ecvrf;
 pub(crate) mod hash;
@@ -130,6 +135,9 @@ pub enum VerificationErrorType {
     /// An error occurred verifying a VRF label
     Vrf,
 
+    /// Deserialization of the proof failed
+    ProofDeserializationFailed,
+
     /// An unknown verification error occurred
     Unknown,
 }
@@ -161,6 +169,7 @@ impl Display for VerificationError {
             VerificationErrorType::LookupProof => "Lookup Proof",
             VerificationErrorType::HistoryProof => "History Proof",
             VerificationErrorType::Vrf => "VRF",
+            VerificationErrorType::ProofDeserializationFailed => "Proof Deserialization",
             VerificationErrorType::Unknown => "Unknown",
         };
         write!(f, "Verification error ({}) - {}", code, self.error_message)

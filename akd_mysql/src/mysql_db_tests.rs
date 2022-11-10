@@ -1,5 +1,5 @@
 #![cfg(test)]
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -17,6 +17,7 @@ use crate::mysql::*;
 // FIXME: Why is serial here??
 #[serial]
 async fn test_mysql_db() {
+    akd::test_utils::init_logger(log::Level::Info);
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(
             "localhost",

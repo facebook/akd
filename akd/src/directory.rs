@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -68,7 +68,10 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         if read_only && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                "Cannot start directory in read-only mode when AZKS is missing".to_string(),
+                format!(
+                    "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
+                    azks.err().take()
+                ),
             )));
         } else if azks.is_err() {
             // generate a new azks if one is not found
@@ -239,10 +242,9 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let lookup_info = self
             .get_lookup_info::<H>(uname.clone(), current_epoch)
             .await?;
-        let lookup_proof = self
-            .lookup_with_info::<H>(uname, &current_azks, current_epoch, lookup_info)
-            .await;
-        lookup_proof
+
+        self.lookup_with_info::<H>(uname, &current_azks, current_epoch, lookup_info)
+            .await
     }
 
     async fn lookup_with_info<H: Hasher>(
@@ -728,19 +730,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
-        let mut previous_val_stale_at_ep = Option::None;
-        let mut previous_val_vrf_proof = Option::None;
+        let mut previous_version_stale_at_ep = Option::None;
+        let mut previous_version_vrf_proof = Option::None;
         if version > 1 {
             let prev_label_at_ep = self
                 .vrf
                 .get_node_label::<H>(uname, true, version - 1)
                 .await?;
-            previous_val_stale_at_ep = Option::Some(
+            previous_version_stale_at_ep = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
                     .await?,
             );
-            previous_val_vrf_proof = Option::Some(
+            previous_version_vrf_proof = Option::Some(
                 self.vrf
                     .get_label_proof::<H>(uname, true, version - 1)
                     .await?
@@ -764,8 +766,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             plaintext_value: plaintext_value.clone(),
             existence_vrf_proof,
             existence_at_ep,
-            previous_version_vrf_proof: previous_val_vrf_proof,
-            previous_version_stale_at_ep: previous_val_stale_at_ep,
+            previous_version_vrf_proof,
+            previous_version_stale_at_ep,
             commitment_proof,
         })
     }

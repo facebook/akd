@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -31,7 +31,7 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -81,13 +81,11 @@ impl Clone for Azks {
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Storage + Sync + Send, H: Hasher>(storage: &S) -> Result<Self, AkdError> {
-        let root = get_empty_root::<H>(Option::Some(0), Option::Some(0));
+        create_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
             num_nodes: 1,
         };
-
-        root.write_to_storage(storage).await?;
 
         Ok(azks)
     }
@@ -104,7 +102,9 @@ impl Azks {
         // Calls insert_single_leaf on the root node and updates the root and tree_nodes
         // Since this function is only for testing batch_insert_leaves, which is one epoch
         // increment for the entire batch. Hence, we want to take care of epochs outside.
-        let new_leaf = get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), epoch);
+        let new_leaf =
+            create_leaf_node::<H, S>(storage, node.label, &node.hash, NodeLabel::root(), epoch)
+                .await?;
 
         let mut root_node = TreeNode::get_from_storage(
             storage,
@@ -113,7 +113,7 @@ impl Azks {
         )
         .await?;
         root_node
-            .insert_single_leaf_and_hash::<_, H>(
+            .insert_single_leaf_and_hash::<S, H>(
                 storage,
                 new_leaf,
                 epoch,
@@ -220,8 +220,14 @@ impl Azks {
         )
         .await?;
         for node in insertion_set {
-            let new_leaf =
-                get_leaf_node::<H>(node.label, &node.hash, NodeLabel::root(), self.latest_epoch);
+            let new_leaf = create_leaf_node::<H, S>(
+                storage,
+                node.label,
+                &node.hash,
+                NodeLabel::root(),
+                self.latest_epoch,
+            )
+            .await?;
             debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_, H>(
@@ -358,15 +364,29 @@ impl Azks {
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
+
+        let node = TreeNode::get_from_storage(
+            storage,
+            &NodeKey(NodeLabel::root()),
+            self.get_latest_epoch(),
+        )
+        .await?;
+
         for ep in start_epoch..end_epoch {
-            let node = TreeNode::get_from_storage(
-                storage,
-                &NodeKey(NodeLabel::root()),
-                self.get_latest_epoch(),
-            )
-            .await?;
+            let tic = Instant::now();
+            let num_records = self
+                .gather_audit_proof_nodes::<_, H>(vec![node.clone()], storage, ep, ep + 1)
+                .await?;
+            let toc = Instant::now() - tic;
+            info!(
+                "Preload of nodes for audit ({} objects loaded), took {} s",
+                num_records,
+                toc.as_secs_f64()
+            );
+            storage.log_metrics(log::Level::Info).await;
+
             let (unchanged, leaves) = self
-                .get_append_only_proof_helper::<_, H>(storage, node, ep, ep + 1)
+                .get_append_only_proof_helper::<_, H>(storage, node.clone(), ep, ep + 1)
                 .await?;
             proofs.push(SingleAppendOnlyProof {
                 inserted: leaves,
@@ -376,6 +396,62 @@ impl Azks {
         }
 
         Ok(AppendOnlyProof { proofs, epochs })
+    }
+
+    fn determine_retrieval_nodes(
+        node: &TreeNode,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Vec<NodeLabel> {
+        if node.is_leaf() {
+            return vec![];
+        }
+
+        if node.get_latest_epoch() <= start_epoch {
+            return vec![];
+        }
+
+        if node.least_descendant_ep > end_epoch {
+            return vec![];
+        }
+
+        match (node.left_child, node.right_child) {
+            (Some(lc), None) => vec![lc],
+            (None, Some(rc)) => vec![rc],
+            (Some(lc), Some(rc)) => vec![lc, rc],
+            _ => vec![],
+        }
+    }
+
+    async fn gather_audit_proof_nodes<S: Storage + Sync + Send, H: Hasher>(
+        &self,
+        nodes: Vec<TreeNode>,
+        storage: &S,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<u64, AkdError> {
+        let mut children_to_fetch: Vec<NodeKey> = nodes
+            .iter()
+            .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
+            .map(NodeKey)
+            .collect();
+
+        let mut element_count = 0u64;
+        while !children_to_fetch.is_empty() {
+            let got = TreeNode::batch_get_from_storage(
+                storage,
+                &children_to_fetch,
+                self.get_latest_epoch(),
+            )
+            .await?;
+            element_count += got.len() as u64;
+            children_to_fetch = got
+                .iter()
+                .flat_map(|node| Self::determine_retrieval_nodes(node, start_epoch, end_epoch))
+                .map(NodeKey)
+                .collect();
+        }
+        Ok(element_count)
     }
 
     #[async_recursion]
@@ -424,7 +500,7 @@ impl Azks {
                             self.get_latest_epoch(),
                         )
                         .await?;
-                        let mut rec_output = self
+                        let (mut inner_unchanged, mut inner_leaf) = self
                             .get_append_only_proof_helper::<_, H>(
                                 storage,
                                 child_node,
@@ -432,8 +508,8 @@ impl Azks {
                                 end_epoch,
                             )
                             .await?;
-                        unchanged.append(&mut rec_output.0);
-                        leaves.append(&mut rec_output.1);
+                        unchanged.append(&mut inner_unchanged);
+                        leaves.append(&mut inner_leaf);
                     }
                 }
             }
@@ -711,7 +787,7 @@ mod tests {
 
         for i in 0..num_nodes {
             let mut label_arr = [0u8; 32];
-            label_arr[0] = u8::from(i);
+            label_arr[0] = i;
             let label = NodeLabel::new(label_arr, 256u32);
             let input = [0u8; 32];
             let hash = Blake3Digest::new(input);
@@ -766,8 +842,8 @@ mod tests {
             layer_proofs: proof.layer_proofs,
         };
         assert!(
-            !verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
-                .is_ok(),
+            verify_membership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
+                .is_err(),
             "Membership proof does verify, despite being wrong"
         );
 
@@ -820,10 +896,10 @@ mod tests {
 
         for i in 0..num_nodes {
             let mut label_arr = [0u8; 32];
-            label_arr[31] = u8::from(i);
+            label_arr[31] = i;
             let label = NodeLabel::new(label_arr, 256u32);
             let mut input = [0u8; 32];
-            input[31] = u8::from(i);
+            input[31] = i;
             let hash = Blake3Digest::new(input);
             let node = Node::<Blake3> { label, hash };
             insertion_set.push(node);

@@ -1,11 +1,11 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::ecvrf::HardCodedAkdVRF;
+use akd::{ecvrf::HardCodedAkdVRF, storage::Storage};
 use akd_mysql::mysql::*;
 use log::{error, info, warn};
 
@@ -51,6 +51,8 @@ async fn test_directory_operations() {
             &mysql_db, 50, &vrf,
         )
         .await;
+
+        mysql_db.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {

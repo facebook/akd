@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -48,7 +48,6 @@ mod memory_storage_tests {
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
 pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
-    crate::test_utils::init_logger(log::Level::Info);
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -340,16 +339,26 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
         epoch += 1;
     }
 
+    data.push(DbRecord::Azks(Azks {
+        latest_epoch: 1,
+        num_nodes: 34,
+    }));
+
     let new_data = data
         .iter()
         .map(|item| {
             let new_item = item.clone();
-            if let DbRecord::ValueState(new_state) = &item {
-                let mut copied_state = new_state.clone();
-                copied_state.epoch += 10000;
-                DbRecord::ValueState(copied_state)
-            } else {
-                new_item
+            match &item {
+                DbRecord::ValueState(new_state) => {
+                    let mut copied_state = new_state.clone();
+                    copied_state.epoch += 10000;
+                    DbRecord::ValueState(copied_state)
+                }
+                DbRecord::Azks(azks) => DbRecord::Azks(Azks {
+                    latest_epoch: azks.latest_epoch + 10000,
+                    num_nodes: azks.num_nodes,
+                }),
+                _ => new_item,
             }
         })
         .collect();

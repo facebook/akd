@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -11,7 +11,7 @@ use core::fmt;
 use crate::node_label::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AkdError {
     /// Error propagation
@@ -174,7 +174,7 @@ impl fmt::Display for TreeNodeError {
 }
 
 /// An error thrown by the Azks data structure.
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AzksError {
     /// Membership proof did not verify
@@ -204,7 +204,7 @@ impl fmt::Display for AzksError {
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum DirectoryError {
     /// Lookup proof did not verify
@@ -275,7 +275,7 @@ impl fmt::Display for StorageError {
 
 /// Represents a VRF related error (key retrieval,
 /// parsing, verification of a VRF proof, etc)
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum VrfError {
     /// An error occurred when getting a key
@@ -305,7 +305,7 @@ impl fmt::Display for VrfError {
 }
 
 /// The errors thrown by various algorithms in [crate::directory::Directory]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum AuditorError {
     /// A general auditor error

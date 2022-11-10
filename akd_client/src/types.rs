@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -54,7 +54,10 @@ pub const TOMBSTONE: &[u8] = &[];
 
 /// Represents the label of a AKD node
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct NodeLabel {
     /// val stores a binary string as a u64
     pub label_val: [u8; 32],
@@ -129,8 +132,11 @@ impl NodeLabel {
 }
 
 /// Represents a node (label + hash) in the AKD
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Node {
     /// The label of the node
     pub label: NodeLabel,
@@ -140,8 +146,11 @@ pub struct Node {
 
 /// Represents a specific level of the tree with the parental sibling and the direction
 /// of the parent for use in tree hash calculations
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct LayerProof {
     /// The parent's label
     pub label: NodeLabel,
@@ -153,8 +162,11 @@ pub struct LayerProof {
 
 /// Merkle proof of membership of a [`NodeLabel`] with a particular hash
 /// value in the tree at a given epoch
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct MembershipProof {
     /// The node label
     pub label: NodeLabel,
@@ -166,8 +178,11 @@ pub struct MembershipProof {
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
 /// at a given epoch.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct NonMembershipProof {
     /// The label in question
     pub label: NodeLabel,
@@ -185,8 +200,11 @@ pub struct NonMembershipProof {
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
 /// This proof is sent in response to a lookup query for a particular key.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct LookupProof {
     /// The epoch of this record
     pub epoch: u64,
@@ -217,8 +235,11 @@ pub struct LookupProof {
 /// * the version did not exist prior to this epoch,
 /// * the next few versions (up until the next marker), did not exist at this epoch,
 /// * the future marker versions did  not exist at this epoch.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct UpdateProof {
     /// Epoch of this update
     pub epoch: u64,
@@ -231,16 +252,19 @@ pub struct UpdateProof {
     /// Membership proof to show that the key was included in this epoch
     pub existence_at_ep: MembershipProof,
     /// VRF proof for the label for the previous version which became stale
-    pub previous_val_vrf_proof: Option<Vec<u8>>,
+    pub previous_version_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
-    pub previous_val_stale_at_ep: Option<MembershipProof>,
+    pub previous_version_stale_at_ep: Option<MembershipProof>,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
-#[cfg_attr(feature = "wasm", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,

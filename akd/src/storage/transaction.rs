@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -15,6 +15,7 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Default)]
 struct TransactionState {
     mods: HashMap<Vec<u8>, DbRecord>,
     active: bool,
@@ -24,6 +25,7 @@ struct TransactionState {
 /// of the changes. When you "commit" this transaction, you return the
 /// collection of values which need to be written to the storage layer
 /// including all mutations. Rollback simply empties the transaction state.
+#[derive(Default)]
 pub struct Transaction {
     state: Arc<tokio::sync::RwLock<TransactionState>>,
 
@@ -53,15 +55,7 @@ impl Transaction {
             num_writes: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
-}
 
-impl Default for Transaction {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Transaction {
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
         let mut r = self.num_reads.write().await;
@@ -85,10 +79,10 @@ impl Transaction {
     pub async fn begin_transaction(&self) -> bool {
         debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
-        let out = if (*guard).active {
+        let out = if guard.active {
             false
         } else {
-            (*guard).active = true;
+            guard.active = true;
             true
         };
         debug!("END begin transaction");
@@ -100,7 +94,7 @@ impl Transaction {
         debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
-        if !(*guard).active {
+        if !guard.active {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
@@ -113,9 +107,9 @@ impl Transaction {
         records.sort_by_key(|r| r.transaction_priority());
 
         // flush the trans log
-        (*guard).mods.clear();
+        guard.mods.clear();
 
-        (*guard).active = false;
+        guard.active = false;
         debug!("END commit transaction");
         Ok(records)
     }
@@ -125,15 +119,15 @@ impl Transaction {
         debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
-        if !(*guard).active {
+        if !guard.active {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
         }
 
         // rollback
-        (*guard).mods.clear();
-        (*guard).active = false;
+        guard.mods.clear();
+        guard.active = false;
 
         debug!("END rollback transaction");
         Ok(())
@@ -153,7 +147,7 @@ impl Transaction {
         let bin_id = St::get_full_binary_key_id(key);
 
         let guard = self.state.read().await;
-        let out = (*guard).mods.get(&bin_id).cloned();
+        let out = guard.mods.get(&bin_id).cloned();
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
@@ -167,7 +161,7 @@ impl Transaction {
         let bin_id = record.get_full_binary_id();
 
         let mut guard = self.state.write().await;
-        (*guard).mods.insert(bin_id, record.clone());
+        guard.mods.insert(bin_id, record.clone());
 
         *(self.num_writes.write().await) += 1;
         debug!("END transaction set");

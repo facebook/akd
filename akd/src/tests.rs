@@ -1,5 +1,5 @@
 #![cfg(test)]
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -300,7 +300,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     )?;
 
     // history proof with updates of non-decreasing versions/epochs fail to verify
-    let mut borked_proof = key_history_proof.clone();
+    let mut borked_proof = key_history_proof;
     borked_proof.update_proofs = borked_proof.update_proofs.into_iter().rev().collect();
     let result = key_history_verify::<Blake3>(
         &vrf_pk,

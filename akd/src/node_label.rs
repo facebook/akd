@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -65,12 +65,7 @@ impl Ord for NodeLabel {
 
 impl fmt::Display for NodeLabel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "(0x{}, {})",
-            hex::encode(&self.label_val),
-            self.label_len
-        )
+        write!(f, "(0x{}, {})", hex::encode(self.label_val), self.label_len)
     }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
 // LICENSE-MIT file in the root directory of this source tree and the Apache
@@ -23,9 +23,12 @@ use akd::storage::Storage;
 use akd::{AkdLabel, AkdValue};
 use winter_crypto::Hasher;
 
-use crate::hash::DIGEST_BYTES;
+use crate::converters;
+#[cfg(feature = "serde_serialization")]
+use crate::VerificationError;
+#[cfg(feature = "serde_serialization")]
+use crate::VerificationErrorType;
 use winter_math::fields::f128::BaseElement;
-use winter_utils::Serializable;
 
 // Feature specific test imports
 #[cfg(feature = "blake3")]
@@ -44,144 +47,10 @@ type Directory = akd::Directory<InMemoryDb, HardCodedAkdVRF>;
 // Test helpers
 // ===================================
 
-fn to_digest<H>(hash: H::Digest) -> crate::types::Digest
-where
-    H: winter_crypto::Hasher,
-{
-    let digest = hash.to_bytes();
-    if digest.len() == DIGEST_BYTES {
-        // OK
-        let ptr = digest.as_ptr() as *const [u8; DIGEST_BYTES];
-        unsafe { *ptr }
-    } else {
-        panic!("Hash digest is not {} bytes", DIGEST_BYTES);
-    }
-}
-
-fn convert_label(proof: akd::node_label::NodeLabel) -> crate::types::NodeLabel {
-    crate::types::NodeLabel {
-        label_len: proof.label_len,
-        label_val: proof.label_val,
-    }
-}
-
-fn convert_node<H>(node: akd::Node<H>) -> crate::types::Node
-where
-    H: winter_crypto::Hasher,
-{
-    crate::types::Node {
-        label: convert_label(node.label),
-        hash: to_digest::<H>(node.hash),
-    }
-}
-
-fn convert_layer_proof<H>(
-    parent: akd::NodeLabel,
-    direction: akd::Direction,
-    sibling: akd::Node<H>,
-) -> crate::types::LayerProof
-where
-    H: winter_crypto::Hasher,
-{
-    crate::types::LayerProof {
-        direction,
-        label: convert_label(parent),
-        siblings: [convert_node(sibling)],
-    }
-}
-
-fn convert_membership_proof<H>(
-    proof: &akd::proof_structs::MembershipProof<H>,
-) -> crate::types::MembershipProof
-where
-    H: winter_crypto::Hasher,
-{
-    crate::types::MembershipProof {
-        hash_val: to_digest::<H>(proof.hash_val),
-        label: convert_label(proof.label),
-        layer_proofs: proof
-            .layer_proofs
-            .iter()
-            .map(|lp| convert_layer_proof(lp.label, lp.direction, lp.siblings[0]))
-            .collect::<Vec<_>>(),
-    }
-}
-
-fn convert_non_membership_proof<H>(
-    proof: &akd::proof_structs::NonMembershipProof<H>,
-) -> crate::types::NonMembershipProof
-where
-    H: winter_crypto::Hasher,
-{
-    crate::types::NonMembershipProof {
-        label: convert_label(proof.label),
-        longest_prefix: convert_label(proof.longest_prefix),
-        longest_prefix_children: [
-            convert_node::<H>(proof.longest_prefix_children[0]),
-            convert_node::<H>(proof.longest_prefix_children[1]),
-        ],
-        longest_prefix_membership_proof: convert_membership_proof(
-            &proof.longest_prefix_membership_proof,
-        ),
-    }
-}
-
-fn convert_lookup_proof<H>(proof: &akd::proof_structs::LookupProof<H>) -> crate::types::LookupProof
-where
-    H: winter_crypto::Hasher,
-{
-    crate::types::LookupProof {
-        epoch: proof.epoch,
-        version: proof.version,
-        plaintext_value: proof.plaintext_value.to_vec(),
-        existence_vrf_proof: proof.existence_vrf_proof.clone(),
-        existence_proof: convert_membership_proof(&proof.existence_proof),
-        marker_vrf_proof: proof.marker_vrf_proof.clone(),
-        marker_proof: convert_membership_proof(&proof.marker_proof),
-        freshness_vrf_proof: proof.freshness_vrf_proof.clone(),
-        freshness_proof: convert_non_membership_proof(&proof.freshness_proof),
-        commitment_proof: proof.commitment_proof.clone(),
-    }
-}
-
-fn convert_history_proof<H>(
-    history_proof: &akd::proof_structs::HistoryProof<H>,
-) -> crate::types::HistoryProof
-where
-    H: winter_crypto::Hasher,
-{
-    let mut res_update_proofs = Vec::<crate::types::UpdateProof>::new();
-    for proof in &history_proof.update_proofs {
-        let update_proof = crate::types::UpdateProof {
-            epoch: proof.epoch,
-            plaintext_value: proof.plaintext_value.to_vec(),
-            version: proof.version,
-            existence_vrf_proof: proof.existence_vrf_proof.clone(),
-            existence_at_ep: convert_membership_proof(&proof.existence_at_ep),
-            previous_val_vrf_proof: proof.previous_version_vrf_proof.clone(),
-            previous_val_stale_at_ep: proof
-                .previous_version_stale_at_ep
-                .clone()
-                .map(|val| convert_membership_proof(&val)),
-            commitment_proof: proof.commitment_proof.clone(),
-        };
-        res_update_proofs.push(update_proof);
-    }
-    crate::types::HistoryProof {
-        update_proofs: res_update_proofs,
-        next_few_vrf_proofs: history_proof.next_few_vrf_proofs.clone(),
-        non_existence_of_next_few: history_proof
-            .non_existence_of_next_few
-            .iter()
-            .map(|non_memb_proof| convert_non_membership_proof(non_memb_proof))
-            .collect(),
-        future_marker_vrf_proofs: history_proof.future_marker_vrf_proofs.clone(),
-        non_existence_of_future_markers: history_proof
-            .non_existence_of_future_markers
-            .iter()
-            .map(|non_exist_markers| convert_non_membership_proof(non_exist_markers))
-            .collect(),
-    }
+/// Makes a JSON String unparsable by replacing "{"s with gibberish.
+#[cfg(feature = "serde_serialization")]
+fn make_unparsable_json(serialized_json: &str) -> String {
+    serialized_json.replace('{', "t3845")
 }
 
 // ===================================
@@ -213,19 +82,27 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
     // create the "lean" lookup proof version
-    let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
+    let internal_lookup_proof = converters::convert_lookup_proof::<Hash>(&lookup_proof);
 
     // perform the "traditional" AKD verification
     let akd_result =
         akd::client::lookup_verify::<Hash>(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
     let target_label_bytes = target_label.to_vec();
-
+    #[cfg(not(feature = "serde_serialization"))]
     let lean_result = crate::verify::lookup_verify(
         &vrf_pk.to_bytes(),
-        to_digest::<Hash>(root_hash),
+        converters::to_digest::<Hash>(root_hash),
         target_label_bytes,
         internal_lookup_proof,
+    )
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
+    #[cfg(feature = "serde_serialization")]
+    let lean_result = crate::verify::lookup_verify(
+        &vrf_pk.to_bytes(),
+        converters::to_digest::<Hash>(root_hash),
+        target_label_bytes.clone(),
+        internal_lookup_proof.clone(),
     )
     .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
     // check the two results to make sure they both verify
@@ -239,6 +116,50 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         "Lean result was {:?}",
         lean_result
     );
+    #[cfg(feature = "serde_serialization")]
+    {
+        let serialized_internal_lookup_proof =
+            crate::verify::serialize_lookup_proof(&internal_lookup_proof).unwrap();
+        println!(
+            "Serialized internal lookup proof: {:?}",
+            serialized_internal_lookup_proof
+        );
+        // Check also the serialized proof verification result is the same.
+        let serialized_lean_result = crate::verify::serialized_lookup_verify(
+            &vrf_pk.to_bytes(),
+            converters::to_digest::<Hash>(root_hash),
+            target_label_bytes.clone(),
+            &serialized_internal_lookup_proof,
+        );
+        assert!(
+            serialized_lean_result.is_ok(),
+            "Lean serialized result was {:?}",
+            serialized_lean_result
+        );
+
+        // Fail parsing for a lookup proof.
+        let serialized_internal_lookup_proof =
+            make_unparsable_json(&serialized_internal_lookup_proof);
+        let serialized_lean_result = crate::verify::serialized_lookup_verify(
+            &vrf_pk.to_bytes(),
+            converters::to_digest::<Hash>(root_hash),
+            target_label_bytes,
+            &serialized_internal_lookup_proof,
+        );
+
+        // Check deserialization failure.
+        assert!(
+            matches!(
+                serialized_lean_result,
+                Err(VerificationError {
+                    error_message: _,
+                    error_type: VerificationErrorType::ProofDeserializationFailed
+                })
+            ),
+            "{:?}",
+            serialized_lean_result
+        );
+    }
 
     Ok(())
 }
@@ -268,7 +189,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
     let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
 
     // create the "lean" lookup proof version
-    let internal_lookup_proof = convert_lookup_proof::<Hash>(&lookup_proof);
+    let internal_lookup_proof = converters::convert_lookup_proof::<Hash>(&lookup_proof);
 
     let vrf_pk = akd.get_public_key().await.unwrap();
 
@@ -279,7 +200,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
     let target_label_bytes = target_label.to_vec();
     let lean_result = crate::verify::lookup_verify(
         &vrf_pk.to_bytes(),
-        to_digest::<Hash>(root_hash),
+        converters::to_digest::<Hash>(root_hash),
         target_label_bytes,
         internal_lookup_proof,
     )
@@ -321,11 +242,12 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
 
     // retrieves and verifies history proofs for the key
     let proof = akd.key_history::<Hash>(&key).await?;
-    let internal_proof = convert_history_proof::<Hash>(&proof);
+    let internal_proof = converters::convert_history_proof::<Hash>(&proof);
     let (mut root_hash, current_epoch) =
         akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
 
     // verifies both traditional and lean history verification passes
+    // in addition to the serialized history proof verification.
     {
         let akd_result = akd::client::key_history_verify::<Hash>(
             &vrf_pk,
@@ -343,8 +265,73 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             internal_proof.clone(),
             false,
         );
+
         assert!(matches!(akd_result, Ok(_)), "{:?}", akd_result);
         assert!(matches!(lean_result, Ok(_)), "{:?}", lean_result);
+
+        #[cfg(feature = "serde_serialization")]
+        {
+            let serialized_internal_history_proof =
+                crate::verify::serialize_history_proof(&internal_proof).unwrap();
+            println!(
+                "Serialized internal history proof: {:?}",
+                serialized_internal_history_proof
+            );
+
+            let serialized_lean_result = crate::verify::serialized_key_history_verify(
+                &vrf_pk.to_bytes(),
+                from_digest::<Hash>(root_hash),
+                current_epoch,
+                key_bytes.clone(),
+                &serialized_internal_history_proof,
+                false,
+            );
+            assert!(
+                matches!(serialized_lean_result, Ok(_)),
+                "{:?}",
+                serialized_lean_result
+            );
+
+            // Fail parsing for a history proof.
+            let serialized_internal_history_proof =
+                make_unparsable_json(&serialized_internal_history_proof);
+            let serialized_lean_result = crate::verify::serialized_key_history_verify(
+                &vrf_pk.to_bytes(),
+                from_digest::<Hash>(root_hash),
+                current_epoch,
+                key_bytes.clone(),
+                &serialized_internal_history_proof,
+                false,
+            );
+            // Check deserialization failure.
+            assert!(
+                matches!(
+                    serialized_lean_result,
+                    Err(VerificationError {
+                        error_message: _,
+                        error_type: VerificationErrorType::ProofDeserializationFailed
+                    })
+                ),
+                "{:?}",
+                serialized_lean_result
+            );
+
+            // performs "lean" serialized history verification
+            let serialized_lean_result = crate::verify::serialized_key_history_verify(
+                &vrf_pk.to_bytes(),
+                from_digest::<Hash>(root_hash),
+                current_epoch,
+                key_bytes.clone(),
+                &serialized_internal_history_proof,
+                false,
+            );
+
+            assert!(
+                serialized_lean_result.is_err(),
+                "{:?}",
+                serialized_lean_result
+            );
+        }
     }
 
     // corrupts the root hash and verifies both traditional and lean history verification fail
@@ -375,7 +362,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
     // history proof with updates of non-decreasing versions/epochs fail to verify
     let mut borked_proof = internal_proof.clone();
     borked_proof.update_proofs = borked_proof.update_proofs.into_iter().rev().collect();
-    let akd_result = crate::verify::key_history_verify(
+    let lean_result = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
         current_epoch,
@@ -383,7 +370,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
         borked_proof,
         false,
     );
-    assert!(matches!(akd_result, Err(_)), "{:?}", akd_result);
+    assert!(matches!(lean_result, Err(_)), "{:?}", lean_result);
 
     Ok(())
 }
@@ -403,7 +390,7 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
 
     // retrieves and verifies history proofs for the key
     let proof = akd.key_history::<Hash>(&key).await?;
-    let internal_proof = convert_history_proof::<Hash>(&proof);
+    let internal_proof = converters::convert_history_proof::<Hash>(&proof);
     let (root_hash, current_epoch) =
         akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
 
@@ -501,7 +488,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert!(matches!(tombstones, Err(_)));
 
     // check lean client output
-    let internal_proof = convert_history_proof::<Hash>(&history_proof);
+    let internal_proof = converters::convert_history_proof::<Hash>(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
@@ -530,7 +517,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(true, tombstones[4]);
 
     // check lean client output
-    let internal_proof = convert_history_proof::<Hash>(&history_proof);
+    let internal_proof = converters::convert_history_proof::<Hash>(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),

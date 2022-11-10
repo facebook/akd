@@ -1,6 +1,6 @@
 [package]
 name = "akd_test_tools"
-version = "0.7.0"
+version = "0.7.6"
 authors = ["Evan Au <evanau@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Test utilities and tooling"
 license = "MIT OR Apache-2.0"
@@ -13,6 +13,7 @@ readme = "../README.md"
 winter-crypto = "0.2"
 winter-math = "0.2"
 clap = { version="3", features = ["derive"]}
+log = { version = "0.4.8", features = ["kv_unstable"] }
 tokio = { version = "1.10", features = ["full"] }
 regex = "1.5"
 rand = "0.7"
