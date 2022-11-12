@@ -81,9 +81,7 @@ mod tests {
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};
-    use winter_crypto::hashers::Blake3_256;
-    use winter_math::fields::f128::BaseElement;
-    type Blake3 = Blake3_256<BaseElement>;
+    use crate::Blake3;
 
     #[derive(Serialize, Deserialize)]
     struct Wrapper<H: Hasher> {
@@ -114,10 +112,10 @@ mod tests {
         let db = AsyncInMemoryDatabase::new();
 
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
+        let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await
             .unwrap();
-        akd.publish::<Blake3_256<BaseElement>>(vec![
+        akd.publish(vec![
             (
                 AkdLabel::from_utf8_str("hello"),
                 AkdValue::from_utf8_str("world"),
@@ -130,10 +128,7 @@ mod tests {
         .await
         .unwrap();
         // Generate latest proof
-        let lookup_proof = akd
-            .lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello"))
-            .await
-            .unwrap();
+        let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await.unwrap();
 
         let serialized = bincode::serialize(&lookup_proof).unwrap();
         let deserialized: LookupProof<Blake3> = bincode::deserialize(&serialized).unwrap();
@@ -147,10 +142,10 @@ mod tests {
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
+        let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await
             .unwrap();
-        akd.publish::<Blake3_256<BaseElement>>(vec![
+        akd.publish(vec![
             (
                 AkdLabel::from_utf8_str("hello"),
                 AkdValue::from_utf8_str("world"),
@@ -164,7 +159,7 @@ mod tests {
         .unwrap();
         // Generate latest proof
         let history_proof = akd
-            .key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello"))
+            .key_history(&AkdLabel::from_utf8_str("hello"))
             .await
             .unwrap();
 
@@ -180,11 +175,11 @@ mod tests {
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
+        let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await
             .unwrap();
         // Commit to the first epoch
-        akd.publish::<Blake3_256<BaseElement>>(vec![
+        akd.publish(vec![
             (
                 AkdLabel::from_utf8_str("hello"),
                 AkdValue::from_utf8_str("world"),
@@ -197,7 +192,7 @@ mod tests {
         .await
         .unwrap();
         // Commit to the second epoch
-        akd.publish::<Blake3_256<BaseElement>>(vec![
+        akd.publish(vec![
             (
                 AkdLabel::from_utf8_str("hello3"),
                 AkdValue::from_utf8_str("world3"),
@@ -210,10 +205,7 @@ mod tests {
         .await
         .unwrap();
         // Generate audit proof for the evolution from epoch 1 to epoch 2.
-        let audit_proof = akd
-            .audit::<Blake3_256<BaseElement>>(1u64, 2u64)
-            .await
-            .unwrap();
+        let audit_proof = akd.audit(1u64, 2u64).await.unwrap();
 
         let serialized = bincode::serialize(&audit_proof).unwrap();
         let deserialized: AppendOnlyProof<Blake3> = bincode::deserialize(&serialized).unwrap();

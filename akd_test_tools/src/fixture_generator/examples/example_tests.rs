@@ -13,14 +13,11 @@ use akd::{
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     storage::{memory::AsyncInMemoryDatabase, Storage, StorageUtil},
+    Blake3,
 };
-use winter_crypto::hashers::Blake3_256;
-use winter_math::fields::f128::BaseElement;
 
 use crate::fixture_generator::reader::yaml::YamlFileReader;
 use crate::fixture_generator::reader::Reader;
-
-type Blake3 = Blake3_256<BaseElement>;
 
 // Contains two consecutive states and the delta between them
 const TEST_FILE: &str = "src/fixture_generator/examples/test.yaml";
@@ -37,13 +34,13 @@ async fn test_use_fixture() {
     let db = AsyncInMemoryDatabase::new();
     db.batch_set(initial_state.records).await.unwrap();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false)
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
         .await
         .unwrap();
 
     // publish delta updates
     let delta = reader.read_delta(epochs[1]).unwrap();
-    akd.publish::<Blake3>(delta.updates).await.unwrap();
+    akd.publish(delta.updates).await.unwrap();
 
     // assert final directory state
     let final_state = reader.read_state(epochs[1]).unwrap();

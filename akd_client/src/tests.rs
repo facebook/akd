@@ -30,20 +30,15 @@ use crate::VerificationError;
 use crate::VerificationErrorType;
 #[cfg(test)]
 use akd::directory::PublishCorruption;
-use winter_math::fields::f128::BaseElement;
 
 // Feature specific test imports
 #[cfg(feature = "blake3")]
-use winter_crypto::hashers::Blake3_256;
-#[cfg(feature = "blake3")]
-type Hash = Blake3_256<BaseElement>;
+type Hash = akd::Blake3;
 #[cfg(feature = "sha3_256")]
-use winter_crypto::hashers::Sha3_256;
-#[cfg(feature = "sha3_256")]
-type Hash = Sha3_256<BaseElement>;
+type Hash = akd::Sha3;
 
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
-type Directory = akd::Directory<InMemoryDb, HardCodedAkdVRF>;
+type Directory = akd::Directory<InMemoryDb, HardCodedAkdVRF, Hash>;
 
 // ===================================
 // Test helpers
@@ -63,7 +58,7 @@ fn make_unparsable_json(serialized_json: &str) -> String {
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
 
     let mut updates = vec![];
     for i in 0..15 {
@@ -73,7 +68,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         ));
     }
 
-    akd.publish::<Hash>(updates).await?;
+    akd.publish(updates).await?;
 
     let target_label = AkdLabel(format!("hello{}", 10).as_bytes().to_vec());
 
@@ -81,14 +76,14 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let lookup_proof = akd.lookup(target_label.clone()).await?;
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
     // create the "lean" lookup proof version
-    let internal_lookup_proof = converters::convert_lookup_proof::<Hash>(&lookup_proof);
+    let internal_lookup_proof = converters::convert_lookup_proof(&lookup_proof);
 
     // perform the "traditional" AKD verification
     let akd_result =
-        akd::client::lookup_verify::<Hash>(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
+        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
     let target_label_bytes = target_label.to_vec();
     #[cfg(not(feature = "serde_serialization"))]
@@ -170,7 +165,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
 async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
 
     let mut updates = vec![];
     for i in 0..1 {
@@ -180,7 +175,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
         ));
     }
 
-    akd.publish::<Hash>(updates).await?;
+    akd.publish(updates).await?;
 
     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
 
@@ -188,16 +183,16 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
     let lookup_proof = akd.lookup(target_label.clone()).await?;
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
 
     // create the "lean" lookup proof version
-    let internal_lookup_proof = converters::convert_lookup_proof::<Hash>(&lookup_proof);
+    let internal_lookup_proof = converters::convert_lookup_proof(&lookup_proof);
 
     let vrf_pk = akd.get_public_key().await.unwrap();
 
     // perform the "traditional" AKD verification
     let akd_result =
-        akd::client::lookup_verify::<Hash>(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
+        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
     let target_label_bytes = target_label.to_vec();
     let lean_result = crate::verify::lookup_verify(
@@ -227,7 +222,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
 async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
     let key = AkdLabel::from_utf8_str("label");
     let key_bytes = key.to_vec();
@@ -239,19 +234,19 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             key.clone(),
             AkdValue(format!("value{}", epoch).as_bytes().to_vec()),
         )];
-        akd.publish::<Hash>(data).await?;
+        akd.publish(data).await?;
     }
 
     // retrieves and verifies history proofs for the key
-    let proof = akd.key_history::<Hash>(&key).await?;
-    let internal_proof = converters::convert_history_proof::<Hash>(&proof);
+    let proof = akd.key_history(&key).await?;
+    let internal_proof = converters::convert_history_proof(&proof);
     let (mut root_hash, current_epoch) =
-        akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
+        akd::directory::get_directory_root_hash_and_ep(&akd).await?;
 
     // verifies both traditional and lean history verification passes
     // in addition to the serialized history proof verification.
     {
-        let akd_result = akd::client::key_history_verify::<Hash>(
+        let akd_result = akd::client::key_history_verify(
             &vrf_pk,
             root_hash,
             current_epoch,
@@ -340,7 +335,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
     {
         root_hash = Hash::hash(&[5u8; 32]);
         // performs traditional AKD verification
-        let akd_result = akd::client::key_history_verify::<Hash>(
+        let akd_result = akd::client::key_history_verify(
             &vrf_pk,
             root_hash,
             current_epoch,
@@ -381,30 +376,23 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
 async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
     let key = AkdLabel::from_utf8_str("label");
     let key_bytes = key.to_vec();
 
     // publishes single key-value
-    akd.publish::<Hash>(vec![(key.clone(), AkdValue::from_utf8_str("value"))])
+    akd.publish(vec![(key.clone(), AkdValue::from_utf8_str("value"))])
         .await?;
 
     // retrieves and verifies history proofs for the key
-    let proof = akd.key_history::<Hash>(&key).await?;
-    let internal_proof = converters::convert_history_proof::<Hash>(&proof);
-    let (root_hash, current_epoch) =
-        akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
+    let proof = akd.key_history(&key).await?;
+    let internal_proof = converters::convert_history_proof(&proof);
+    let (root_hash, current_epoch) = akd::directory::get_directory_root_hash_and_ep(&akd).await?;
 
     // verifies both traditional and lean history verification passes
-    let akd_result = akd::client::key_history_verify::<Hash>(
-        &vrf_pk,
-        root_hash,
-        current_epoch,
-        key,
-        proof,
-        false,
-    );
+    let akd_result =
+        akd::client::key_history_verify(&vrf_pk, root_hash, current_epoch, key, proof, false);
     let lean_result = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
@@ -423,38 +411,38 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
 
     // epoch 1
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world"),
     )])
     .await?;
 
     // epoch 2
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world2"),
     )])
     .await?;
 
     // epoch 3
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world3"),
     )])
     .await?;
 
     // epoch 4
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world4"),
     )])
     .await?;
 
     // epoch 5
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world5"),
     )])
@@ -470,16 +458,13 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     ];
     db.tombstone_value_states(&tombstones).await?;
 
-    let history_proof = akd
-        .key_history::<Hash>(&AkdLabel::from_utf8_str("hello"))
-        .await?;
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(5, history_proof.update_proofs.len());
-    let (root_hash, current_epoch) =
-        akd::directory::get_directory_root_hash_and_ep::<_, Hash, HardCodedAkdVRF>(&akd).await?;
+    let (root_hash, current_epoch) = akd::directory::get_directory_root_hash_and_ep(&akd).await?;
 
     // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
     // check main client output
-    let tombstones = akd::client::key_history_verify::<Hash>(
+    let tombstones = akd::client::key_history_verify(
         &vrf_pk,
         root_hash,
         current_epoch,
@@ -490,7 +475,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert!(matches!(tombstones, Err(_)));
 
     // check lean client output
-    let internal_proof = converters::convert_history_proof::<Hash>(&history_proof);
+    let internal_proof = converters::convert_history_proof(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
@@ -504,7 +489,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     // We should be able to verify tombstones assuming the client is accepting
     // of tombstoned states
     // check main client output
-    let tombstones = akd::client::key_history_verify::<Hash>(
+    let tombstones = akd::client::key_history_verify(
         &vrf_pk,
         root_hash,
         current_epoch,
@@ -519,7 +504,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(true, tombstones[4]);
 
     // check lean client output
-    let internal_proof = converters::convert_history_proof::<Hash>(&history_proof);
+    let internal_proof = converters::convert_history_proof(&history_proof);
     let tombstones = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
@@ -550,10 +535,10 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // be caught by key history verifications for "hello".
     let db = InMemoryDb::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    let akd = Directory::new(&db, &vrf, false).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
-    akd.publish::<Hash>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world"),
     )])
@@ -561,7 +546,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // Publish the second value for the label "hello" without marking the first value as stale
     // Epoch here will be 2
     let corruption_2 = PublishCorruption::UnmarkedStaleVersion(AkdLabel::from_utf8_str("hello"));
-    akd.publish_malicious_update::<Hash>(
+    akd.publish_malicious_update(
         vec![(
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world2"),
@@ -575,7 +560,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // check lean client output
@@ -594,7 +579,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // Mark the first value for the label "hello" as stale
     // Epoch here will be 3
     let corruption_3 = PublishCorruption::MarkVersionStale(AkdLabel::from_utf8_str("hello"), 1);
-    akd.publish_malicious_update::<Hash>(
+    akd.publish_malicious_update(
         vec![(
             AkdLabel::from_utf8_str("hello2"),
             AkdValue::from_utf8_str("world"),
@@ -608,7 +593,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // check lean client output

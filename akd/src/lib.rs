@@ -57,7 +57,7 @@
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::new::<Blake3>(&db, &vrf, false)
+//! let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -87,8 +87,8 @@
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash.as_bytes()));
 //! # });
@@ -119,10 +119,10 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! let lookup_proof = akd.lookup::<Blake3>(
+//! let lookup_proof = akd.lookup(
 //!     AkdLabel::from_utf8_str("first entry")
 //! ).await.expect("Could not generate proof");
 //! # });
@@ -150,16 +150,16 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! #     let lookup_proof = akd.lookup::<Blake3>(
+//! #     let lookup_proof = akd.lookup(
 //! #         AkdLabel::from_utf8_str("first entry")
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
 //! assert_eq!(lookup_proof.plaintext_value, AkdValue::from_utf8_str("first value"));
-//! let lookup_result = akd::client::lookup_verify::<Blake3>(
+//! let lookup_result = akd::client::lookup_verify(
 //!     &public_key,
 //!     root_hash,
 //!     AkdLabel::from_utf8_str("first entry"),
@@ -194,10 +194,10 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! let history_proof = akd.key_history::<Blake3>(
+//! let history_proof = akd.key_history(
 //!     &AkdLabel::from_utf8_str("first entry"),
 //! ).await.expect("Could not generate proof");
 //! # });
@@ -224,14 +224,14 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! #     let history_proof = akd.key_history::<Blake3>(
+//! #     let history_proof = akd.key_history(
 //! #         &AkdLabel::from_utf8_str("first entry"),
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
-//! let key_history_result = akd::client::key_history_verify::<Blake3>(
+//! let key_history_result = akd::client::key_history_verify(
 //!     &public_key,
 //!     root_hash,
 //!     epoch,
@@ -270,19 +270,19 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
 //! let entries = vec![
 //!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
 //!     (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
 //! ];
-//! let EpochHash(epoch2, root_hash2) = akd.publish::<Blake3>(entries)
+//! let EpochHash(epoch2, root_hash2) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //!
 //! // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//! let audit_proof = akd.audit::<Blake3>(epoch, epoch2)
+//! let audit_proof = akd.audit(epoch, epoch2)
 //!     .await.expect("Error with generating proof");
 //! # });
 //! ```
@@ -307,21 +307,21 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
-//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
 //! #     let new_entries = vec![
 //! #         (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
 //! #         (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
 //! #     ];
-//! #     let EpochHash(epoch2, root_hash2) = akd.publish::<Blake3>(new_entries)
+//! #     let EpochHash(epoch2, root_hash2) = akd.publish(new_entries)
 //! #         .await.expect("Error with publishing");
 //! #
 //! #     // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//! #     let audit_proof = akd.audit::<Blake3>(epoch, epoch2)
+//! #     let audit_proof = akd.audit(epoch, epoch2)
 //! #         .await.expect("Error with generating proof");
-//! let audit_result = akd::auditor::audit_verify::<Blake3>(
+//! let audit_result = akd::auditor::audit_verify(
 //!     vec![root_hash, root_hash2],
 //!     audit_proof,
 //! ).await;
@@ -396,6 +396,8 @@ pub use storage::types::{AkdLabel, AkdValue};
 pub use winter_crypto;
 /// The [Blake3](https://github.com/BLAKE3-team/BLAKE3) hash function
 pub type Blake3 = winter_crypto::hashers::Blake3_256<winter_math::fields::f128::BaseElement>;
+/// The [Sha3](https://en.wikipedia.org/wiki/SHA-3) hash function
+pub type Sha3 = winter_crypto::hashers::Sha3_256<winter_math::fields::f128::BaseElement>;
 
 // ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public-tests"))]

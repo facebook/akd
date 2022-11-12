@@ -34,7 +34,7 @@ pub enum DirectoryCommand {
 }
 
 async fn get_root_hash<S, H, V>(
-    directory: &mut Directory<S, V>,
+    directory: &mut Directory<S, V, H>,
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
@@ -44,15 +44,15 @@ where
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
         match o_epoch {
-            Some(epoch) => Some(directory.get_root_hash_at_epoch::<H>(&azks, epoch).await),
-            None => Some(directory.get_root_hash::<H>(&azks).await),
+            Some(epoch) => Some(directory.get_root_hash_at_epoch(&azks, epoch).await),
+            None => Some(directory.get_root_hash(&azks).await),
         }
     } else {
         None
     }
 }
 
-pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
+pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V, H>)
 where
     S: Storage + Sync + Send,
     H: Hasher,
@@ -68,7 +68,7 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish::<H>(vec![(
+                    .publish(vec![(
                         AkdLabel::from_utf8_str(&a),
                         AkdValue::from_utf8_str(&b),
                     )])
@@ -96,7 +96,7 @@ where
                 let tic = Instant::now();
                 let len = batches.len();
                 match directory
-                    .publish::<H>(
+                    .publish(
                         batches
                             .into_iter()
                             .map(|(key, value)| {
@@ -121,7 +121,7 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup::<H>(AkdLabel::from_utf8_str(&a)).await {
+                match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
                     Ok(proof) => {
                         let hash = get_root_hash::<_, H, V>(directory, None).await;
                         match hash {
@@ -157,10 +157,7 @@ where
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory
-                    .key_history::<H>(&AkdLabel::from_utf8_str(&a))
-                    .await
-                {
+                match directory.key_history(&AkdLabel::from_utf8_str(&a)).await {
                     Ok(_proof) => {
                         let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();
@@ -172,7 +169,7 @@ where
                 }
             }
             (DirectoryCommand::Audit(start, end), Some(response)) => {
-                match directory.audit::<H>(start, end).await {
+                match directory.audit(start, end).await {
                     Ok(_proof) => {
                         let msg = format!("GOT AUDIT PROOF BETWEEN ({}, {})", start, end);
                         response.send(Ok(msg)).unwrap();
