@@ -882,8 +882,6 @@ pub(crate) enum PublishCorruption {
     UnmarkedStaleVersion(AkdLabel),
     /// Indicates to the malicious publish to mark a certain version for a username as stale.
     MarkVersionStale(AkdLabel, u64),
-    /// No corruption
-    NoCorruption,
 }
 
 #[cfg(test)]
