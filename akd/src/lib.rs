@@ -5,306 +5,354 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! An implementation of an authenticated key directory (AKD), also known as a verifiable registery or auditable key directory.
+//! An implementation of an auditable key directory (AKD), also known as a verifiable registry.
 //!
 //! ⚠️ **Warning**: This implementation has not been audited and is not ready for use in a real system. Use at your own risk!
 //!
 //! # Overview
-//! An authenticated key directory (AKD) is an example of an authenticated
-//! data structure. An AKD lets a server commit to a key-value store as it evolves over a
-//! sequence of timesteps, also known as epochs.
+//! An auditable key directory (AKD) provides an interface to a data structure that stores key-value
+//! mappings in a database in a verifiable manner. The data structure is similar to that of a
+//! Python [dict](https://docs.python.org/3/tutorial/datastructures.html), where directory entries are indexed by
+//! _keys_, and allow for storing a _value_ with some key and then extracting the value given the key.
 //!
-//! The security of this protocol relies on the following two assumptions for all parties:
-//! * a small commitment is viewable by all users,
-//! * at any given epoch transition, there exists at least one honest auditor,
-//!   who audits the server's latest commitment, relative to the previous commitment.
+//! Keys can also be updated to be associated with different values. Each batch of updates to these key-value
+//! mappings are associated with an epoch along with a commitment to the database of entries at that point in time.
+//! The server that controls the database can use this library to generate proofs of inclusion to clients that wish
+//! to query entries in the database. These proofs can be _verified_ by a client against the corresponding
+//! commitment to the database. We can think of this data structure intuitively as a _verifiable dictionary_.
+//!
+//! ### Operations
+//!
+//! This library supports the following operations for the directory it maintains:
+//! - [Publishing](#publishing): Allows the directory server to insert and update new entries into the directory.
+//! - [Lookup Proofs](#lookup-proofs): Handles point queries to the directory, providing proofs of validity based on the server's
+//! public key and a root hash for an epoch.
+//! - [History Proofs](#history-proofs): For a given index in the directory, provides proofs for the history of updates to this
+//! entry, matched against the server's public key and a root hash for an epoch.
+//! - [Append-Only Proofs](#append-only-proofs): For a pair of epochs, provides a proof to an auditor that the database has evolved
+//! consistently and in an append-only manner. These append-only proofs use a verifiable random function (VRF)
+//! to avoid leaking any information about the labels and their corresponding values.
 //!
 //!
-//! ## Statelessness
-//! This library is meant to be stateless, in that it runs without storing a majority of the data
-//! locally, where the code is running, and instead, uses a [storage::Storable] trait for
-//! each type to be stored in an external database.
+//! ### Asynchronicity
+//!
+//! Note that all of the library functions must be called asynchronously (within
+//! `async { ... }` blocks) and the responses must be `await`ed. In the following examples,
+//! the necessary `async` blocks are omitted for simplicity.
 //!
 //! ## Setup
-//! A [directory::Directory] represents an AKD. To setup a [directory::Directory], we first need to decide on
-//! a database and a hash function. For this example, we use the [winter_crypto::hashers::Blake3_256] as the hash function,
-//! [storage::memory::AsyncInMemoryDatabase] as storage and [ecvrf::HardCodedAkdVRF].
+//! A [`Directory`] represents an AKD. To set up a [`Directory`], we first need to pick on
+//! a database, a hash function, and a VRF. For this example, we use [`Blake3`] as the hash function,
+//! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
+//! The [`Directory::new`] function also takes as input a third parameter indicating whether or not it is "read-only".
+//! Note that a read-only directory cannot be updated, and so we most likely will want to keep this variable set
+//! as `false`.
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
+//! use akd::Blake3;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! use akd::ecvrf::HardCodedAkdVRF;
-//! type Blake3 = Blake3_256<BaseElement>;
 //! use akd::directory::Directory;
 //!
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
 //! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//! };
+//! let vrf = HardCodedAkdVRF{};
+//!
+//! # tokio_test::block_on(async {
+//! let mut akd = Directory::new::<Blake3>(&db, &vrf, false)
+//!     .await
+//!     .expect("Could not create a new directory");
+//! # });
 //! ```
 //!
-//! ## Adding key-value pairs to the akd
-//! To add key-value pairs to the akd, we assume that the types of keys and the corresponding values are String.
-//! After adding key-value pairs to the akd's data structure, it also needs to be committed. To do this, after running the setup, as in the previous step,
-//! we use the `publish` function of an akd. The argument of publish is a vector of tuples of type (AkdLabel::from_utf8_str(String), AkdValue::from_utf8_str(String)). See below for example usage.
+//! ## Publishing
+//! To add label-value pairs (of type [`AkdLabel`] and [`AkdValue`]) to the directory, we can call [`Directory::publish`]
+//! with a list of the pairs. In the following example, we derive the labels and values from strings. After publishing,
+//! the new epoch number and root hash are returned.
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! use akd::directory::Directory;
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! use akd::EpochHash;
+//! use akd::storage::types::{AkdLabel, AkdValue};
+//! use akd::winter_crypto::Digest;
 //!
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     // commit the latest changes
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!          (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!       .await;
-//! };
+//! let entries = vec![
+//!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//!     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! ];
+//! # let db = AsyncInMemoryDatabase::new();
+//!
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//!     .await.expect("Error with publishing");
+//! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash.as_bytes()));
+//! # });
 //! ```
+//! This function can be called repeatedly to add entries to the directory, with each invocation
+//! producing a new epoch and root hash for the directory.
 //!
-//!
-//! ## Responding to a client lookup
-//! We can use the `lookup` API call of the [directory::Directory] to prove the correctness of a client lookup at a given epoch.
-//! If
+//! ## Lookup Proofs
+//! We can call [`Directory::lookup`] to generate a [`LookupProof`] that proves the correctness
+//! of a client lookup for an existing entry.
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::directory::Directory;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
-//!
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await;
-//! };
-//! ```
-//! ## Verifying a lookup proof
-//!  To verify the above proof, we call the client's verification algorithm, with respect to the latest commitment, as follows:
-//! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::directory::Directory;
-//! use akd::client;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
-//!
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Generate latest proof
-//!     let lookup_proof = akd.lookup::<Blake3_256<BaseElement>>(AkdLabel::from_utf8_str("hello")).await.unwrap();
-//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
-//!     // Get the latest commitment, i.e. azks root hash
-//!     let root_hash = akd.get_root_hash::<Blake3_256<BaseElement>>(&current_azks).await.unwrap();
-//!     // Get the VRF public key of the server
-//!     let vrf_pk = akd.get_public_key().await.unwrap();
-//!     client::lookup_verify::<Blake3_256<BaseElement>>(
-//!         &vrf_pk,
-//!         root_hash,
-//!         AkdLabel::from_utf8_str("hello"),
-//!         lookup_proof,
-//!     ).unwrap();
-//! };
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! let lookup_proof = akd.lookup::<Blake3>(
+//!     AkdLabel::from_utf8_str("first entry")
+//! ).await.expect("Could not generate proof");
+//! # });
 //! ```
 //!
-//! ## Responding to a client history query
+//! To verify a valid proof, we call [`client::lookup_verify`], with respect to the root hash and
+//! the server's public key.
+//! ```
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! #     let lookup_proof = akd.lookup::<Blake3>(
+//! #         AkdLabel::from_utf8_str("first entry")
+//! #     ).await.expect("Could not generate proof");
+//! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
+//!
+//! assert_eq!(lookup_proof.plaintext_value, AkdValue::from_utf8_str("first value"));
+//! let lookup_result = akd::client::lookup_verify::<Blake3>(
+//!     &public_key,
+//!     root_hash,
+//!     AkdLabel::from_utf8_str("first entry"),
+//!     lookup_proof,
+//! );
+//! assert!(lookup_result.is_ok());
+//! # });
+//! ```
+//!
+//! ## History Proofs
 //! As mentioned above, the security is defined by consistent views of the value for a key at any epoch.
 //! To this end, a server running an AKD needs to provide a way to check the history of a key. Note that in this case,
 //! the server is trusted for validating that a particular client is authorized to run a history check on a particular key.
-//! We can use the `key_history` API call of the [directory::Directory] to prove the history of a key's values at a given epoch, as follows.
+//! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch, as follows.
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::directory::Directory;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! let history_proof = akd.key_history::<Blake3>(
+//!     &AkdLabel::from_utf8_str("first entry"),
+//! ).await.expect("Could not generate proof");
+//! # });
+//! ```
+//! To verify the above proof, we call [`client::key_history_verify`],
+//! with respect to the latest root hash and public key, as follows:
+//! ```
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! #     let history_proof = akd.key_history::<Blake3>(
+//! #         &AkdLabel::from_utf8_str("first entry"),
+//! #     ).await.expect("Could not generate proof");
+//! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
+//! let key_history_result = akd::client::key_history_verify::<Blake3>(
+//!     &public_key,
+//!     root_hash,
+//!     epoch,
+//!     AkdLabel::from_utf8_str("first entry"),
+//!     history_proof.clone(),
+//!     false,
+//! );
+//! assert!(key_history_result.is_ok());
 //!
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await;
-//! };
-//! ```
-//! ## Verifying a key history proof
-//!  To verify the above proof, we again call the client's verification algorithm, defined in [client], with respect to the latest commitment, as follows:
-//! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::client::key_history_verify;
-//! use akd::directory::Directory;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Generate latest proof
-//!     let history_proof = akd.key_history::<Blake3_256<BaseElement>>(&AkdLabel::from_utf8_str("hello")).await.unwrap();
-//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
-//!     // Get the azks root hashes at the required epochs
-//!     let (root_hashes, previous_root_hashes) = akd::directory::get_key_history_hashes::<_, Blake3_256<BaseElement>, HardCodedAkdVRF>(&akd, &history_proof).await.unwrap();
-//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
-//!     let current_epoch = current_azks.get_latest_epoch();
-//!     let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await.unwrap();
-//!     let vrf_pk = akd.get_public_key().await.unwrap();
-//!     key_history_verify::<Blake3_256<BaseElement>>(
-//!         &vrf_pk,
-//!         root_hash,
-//!         current_epoch,
-//!         AkdLabel::from_utf8_str("hello"),
-//!         history_proof,
-//!         false,
-//!         ).unwrap();
-//!     };
+//! for entry in history_proof.update_proofs {
+//!     println!("({}, {}, {:?})", entry.epoch, entry.version, entry.plaintext_value);
+//! }
+//! # });
 //! ```
 //!
-//! ## Responding to an audit query
+//! ## Append-Only Proofs
 //! In addition to the client API calls, the AKD also provides proofs to auditors that its commitments evolved correctly.
 //! Below we illustrate how the server responds to an audit query between two epochs.
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::directory::Directory;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! // Publish new entries into a second epoch
+//! let entries = vec![
+//!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
+//!     (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
+//! ];
+//! let EpochHash(epoch2, root_hash2) = akd.publish::<Blake3>(entries)
+//!     .await.expect("Error with publishing");
 //!
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
-//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
-//!          .await.unwrap();
-//!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
-//! };
+//! // Generate audit proof for the evolution from epoch 1 to epoch 2.
+//! let audit_proof = akd.audit::<Blake3>(epoch, epoch2)
+//!     .await.expect("Error with generating proof");
+//! # });
 //! ```
-//! ## Verifying an audit proof
-//!  The auditor verifies the above proof and the code for this is in [auditor].
+//! The auditor then verifies the above [`AppendOnlyProof`] using [`auditor::audit_verify`].
 //! ```
-//! use winter_crypto::Hasher;
-//! use winter_crypto::hashers::Blake3_256;
-//! use winter_math::fields::f128::BaseElement;
-//! use akd::auditor;
-//! use akd::directory::Directory;
-//! type Blake3 = Blake3_256<BaseElement>;
-//! type Blake3Digest = <Blake3_256<winter_math::fields::f128::BaseElement> as Hasher>::Digest;
-//! use akd::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-//! use akd::storage::Storage;
-//! use akd::storage::memory::AsyncInMemoryDatabase;
-//! use akd::ecvrf::HardCodedAkdVRF;
-//!
-//! let db = AsyncInMemoryDatabase::new();
-//! async {
-//!     let vrf = HardCodedAkdVRF{};
-//!     let mut akd = Directory::<_, HardCodedAkdVRF>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await.unwrap();
-//!     // Commit to the first epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello"), AkdValue::from_utf8_str("world")),
-//!         (AkdLabel::from_utf8_str("hello2"), AkdValue::from_utf8_str("world2")),])
-//!          .await.unwrap();
-//!     // Commit to the second epoch
-//!     akd.publish::<Blake3_256<BaseElement>>(vec![(AkdLabel::from_utf8_str("hello3"), AkdValue::from_utf8_str("world3")),
-//!         (AkdLabel::from_utf8_str("hello4"), AkdValue::from_utf8_str("world4")),])
-//!          .await.unwrap();
-//!     // Generate audit proof for the evolution from epoch 1 to epoch 2.
-//!     let audit_proof = akd.audit::<Blake3_256<BaseElement>>(1u64, 2u64).await.unwrap();
-//!     let current_azks = akd.retrieve_current_azks().await.unwrap();
-//!     // Get the latest commitment, i.e. azks root hash
-//!     let start_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 1u64).await.unwrap();
-//!     let end_root_hash = akd.get_root_hash_at_epoch::<Blake3_256<BaseElement>>(&current_azks, 2u64).await.unwrap();
-//!     let hashes = vec![start_root_hash, end_root_hash];
-//!     auditor::audit_verify::<Blake3_256<BaseElement>>(
-//!         hashes,
-//!         audit_proof,
-//!     ).await.unwrap();
-//! };
+//! # use akd::Blake3;
+//! # use akd::storage::memory::AsyncInMemoryDatabase;
+//! # use akd::ecvrf::HardCodedAkdVRF;
+//! # use akd::directory::Directory;
+//! #
+//! # let db = AsyncInMemoryDatabase::new();
+//! # let vrf = HardCodedAkdVRF{};
+//! # use akd::EpochHash;
+//! # use akd::storage::types::{AkdLabel, AkdValue};
+//! # use akd::winter_crypto::Digest;
+//! #
+//! # let entries = vec![
+//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
+//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! # ];
+//! # let db = AsyncInMemoryDatabase::new();
+//! #
+//! # tokio_test::block_on(async {
+//! #     let vrf = HardCodedAkdVRF{};
+//! #     let mut akd = Directory::new::<Blake3>(&db, &vrf, false).await.unwrap();
+//! #     let EpochHash(epoch, root_hash) = akd.publish::<Blake3>(entries)
+//! #         .await.expect("Error with publishing");
+//! #     // Publish new entries into a second epoch
+//! #     let new_entries = vec![
+//! #         (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
+//! #         (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
+//! #     ];
+//! #     let EpochHash(epoch2, root_hash2) = akd.publish::<Blake3>(new_entries)
+//! #         .await.expect("Error with publishing");
+//! #
+//! #     // Generate audit proof for the evolution from epoch 1 to epoch 2.
+//! #     let audit_proof = akd.audit::<Blake3>(epoch, epoch2)
+//! #         .await.expect("Error with generating proof");
+//! let audit_result = akd::auditor::audit_verify::<Blake3>(
+//!     vec![root_hash, root_hash2],
+//!     audit_proof,
+//! ).await;
+//! assert!(audit_result.is_ok());
+//! # });
 //! ```
 //!
 //! # Compilation Features
 //!
-//! The _akd_ crate supports multiple compilation features
+//! The `akd` crate supports multiple compilation features:
 //!
-//! 1. _serde_: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
+//! 1. `serde`: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
 //! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
 //! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
 //!
-//! 2. _vrf_ (on by-default): Will enable support of verifiable random function (VRF) usage within the library. See [ecvrf] for documentation
+//! 2. `vrf` (on by-default): Will enable support of verifiable random function (VRF) usage within the library. See [ecvrf] for documentation
 //! about the VRF functionality being utilized within AKD. This functionality is added protection so auditors don't see user identifiers directly
 //! and applies a level of user-randomness (think hashing) in the node labels such that clients cannot trivially generate node labels themselves
 //! for given identifiers, however they _can_ verify that a label is valid for a given identitifier. Transitively will add dependencies on crates
 //! [`curve25519-dalek`] and [`ed25519-dalek`]. You can disable the VRF functionality by adding the no-default-features flags to your cargo
 //! dependencies.
 //!
-//! 3. _public-tests_: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
+//! 3. `public-tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
 //! unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
-//! used only in unit testing scenarios by altering your Cargo.toml as such
+//! used only in unit testing scenarios by altering your Cargo.toml as such:
 //! ```toml
 //! [dependencies]
-//! akd = { version = "0.5", features = ["vrf"] }
+//! akd = { version = "0.7", features = ["vrf"] }
 //!
 //! [dev-dependencies]
-//! akd = { version = "0.5", features = ["vrf", "public-tests"] }
+//! akd = { version = "0.7", features = ["vrf", "public-tests"] }
 //! ```
 //!
 
@@ -343,7 +391,11 @@ pub use append_only_zks::Azks;
 pub use directory::Directory;
 pub use helper_structs::{EpochHash, Node};
 pub use node_label::NodeLabel;
+pub use proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
 pub use storage::types::{AkdLabel, AkdValue};
+pub use winter_crypto;
+/// The [Blake3](https://github.com/BLAKE3-team/BLAKE3) hash function
+pub type Blake3 = winter_crypto::hashers::Blake3_256<winter_math::fields::f128::BaseElement>;
 
 // ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public-tests"))]

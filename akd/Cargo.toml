@@ -56,6 +56,7 @@ proptest-derive = "0.3"
 colored = { version = "2" }
 once_cell = { version = "1" }
 ctor = "0.1"
+tokio-test = "0.4"
 
 akd = { path =".", features = ["vrf", "public-tests"] }
 

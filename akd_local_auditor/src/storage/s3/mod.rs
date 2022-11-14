@@ -78,15 +78,15 @@ pub struct S3ClapSettings {
     #[clap(long)]
     region: String,
 
-    /// [OPTIONAL] An custom URI for the AWS endpoint
+    /// (OPTIONAL) An custom URI for the AWS endpoint
     #[clap(long, value_parser = validate_uri)]
     endpoint: Option<String>,
 
-    /// [OPTIONAL] AWS Access key for the session
+    /// (OPTIONAL) AWS Access key for the session
     #[clap(long)]
     access_key: Option<String>,
 
-    /// [OPTIONAL] AWS secret key for the session
+    /// (OPTIONAL) AWS secret key for the session
     #[clap(long)]
     secret_key: Option<String>,
 }
