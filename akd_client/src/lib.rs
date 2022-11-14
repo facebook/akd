@@ -35,7 +35,8 @@
 //!
 //! which dictate which hashing function is used by the verification components. Blake3 256-bit hashing is the default
 //! implementation and utilizes the [`blake3`] crate. Features sha256 and sha512 both utilize SHA2 cryptographic functions
-//! from the [`sha2`] crate. Lastly sha3_256 and sha3_512 features utilize the [`sha3`] crate for their hashing implementations.
+//! from the [`sha2`](https://crates.io/crates/sha2) crate. Lastly sha3_256 and sha3_512 features utilize the
+//! [`sha3`](https://crates.io/crates/sha3) crate for their hashing implementations.
 //! To utilize a hash implementation other than blake3, you should compile with
 //!
 //! ```bash

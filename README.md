@@ -23,7 +23,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-akd = "0.4"
+akd = "0.7"
 ```
 
 ### Minimum Supported Rust Version
@@ -33,7 +33,7 @@ Rust **1.51** or higher.
 Contributors
 ------------
 
-The authors of this code are
+The original authors of this code are
 Jasleen Malvai ([@jasleen1](https://github.com/jasleen1)),
 Kevin Lewi ([@kevinlewi](https://github.com/kevinlewi)), and
 Sean Lawlor ([@slawlor](https://github.com/slawlor)).
