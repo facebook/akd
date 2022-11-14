@@ -875,19 +875,18 @@ pub async fn get_directory_root_hash_and_ep<
 
 /// Helpers for testing
 
-#[cfg(test)]
+/// This enum is meant to insert corruptions into a malicious publish function.
 #[derive(Debug, Clone)]
-pub(crate) enum PublishCorruption {
+pub enum PublishCorruption {
     /// Indicates to the malicious publish function to not mark a stale version
     UnmarkedStaleVersion(AkdLabel),
     /// Indicates to the malicious publish to mark a certain version for a username as stale.
     MarkVersionStale(AkdLabel, u64),
 }
 
-#[cfg(test)]
 impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
-    pub(crate) async fn publish_malicious_update<H: Hasher>(
+    pub async fn publish_malicious_update<H: Hasher>(
         &self,
         updates: Vec<(AkdLabel, AkdValue)>,
         corruption: PublishCorruption,
