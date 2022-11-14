@@ -902,22 +902,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let mut update_set = Vec::<Node<H>>::new();
 
-        match corruption {
-            PublishCorruption::MarkVersionStale(ref uname, version_number) => {
-                // In the malicious case, sometimes the server may not mark the old version stale immediately.
-                // If this is the case, it may want to do this marking at a later time.
-                let stale_label = self
-                    .vrf
-                    .get_node_label::<H>(&uname, true, version_number)
-                    .await?;
-                let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
-                update_set.push(Node::<H> {
-                    label: stale_label,
-                    hash: stale_value_to_add,
-                })
-            }
-            _ => {}
-        }
+        if let PublishCorruption::MarkVersionStale(ref uname, version_number) = corruption {
+            // In the malicious case, sometimes the server may not mark the old version stale immediately.
+            // If this is the case, it may want to do this marking at a later time.
+            let stale_label = self
+                .vrf
+                .get_node_label::<H>(uname, true, version_number)
+                .await?;
+            let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
+            update_set.push(Node::<H> {
+                label: stale_label,
+                hash: stale_value_to_add,
+            })
+        };
 
         let mut user_data_update_set = Vec::<ValueState>::new();
 
