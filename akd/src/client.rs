@@ -15,7 +15,9 @@ use crate::{
     errors::TreeNodeError,
     errors::{AkdError, AzksError, DirectoryError},
     node_label::{hash_label, NodeLabel},
-    proof_structs::{HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof},
+    proof_structs::{
+        HistoryProof, LookupProof, MembershipProof, NonMembershipProof, UpdateProof, VerifyResult,
+    },
     storage::types::AkdLabel,
     Direction, ARITY, EMPTY_LABEL,
 };
@@ -61,7 +63,7 @@ pub fn verify_membership<H: Hasher>(
 pub fn verify_nonmembership<H: Hasher>(
     root_hash: H::Digest,
     proof: &NonMembershipProof<H>,
-) -> Result<bool, AkdError> {
+) -> Result<(), AkdError> {
     let mut verified = true;
 
     let mut lcp_real = proof.longest_prefix_children[0].label;
@@ -105,7 +107,7 @@ pub fn verify_nonmembership<H: Hasher>(
             "Intermediate membership proof failed to verify.".to_string(),
         )));
     }
-    Ok(verified)
+    Ok(())
 }
 
 /// Verifies a lookup with respect to the root_hash
@@ -114,7 +116,7 @@ pub fn lookup_verify<H: Hasher>(
     root_hash: H::Digest,
     akd_key: AkdLabel,
     proof: LookupProof<H>,
-) -> Result<(), AkdError> {
+) -> Result<VerifyResult, AkdError> {
     let version = proof.version;
 
     let marker_version = 1 << get_marker_version(version);
@@ -159,7 +161,29 @@ pub fn lookup_verify<H: Hasher>(
         stale_label,
     )?;
     verify_nonmembership::<H>(root_hash, &freshness_proof)?;
-    Ok(())
+
+    Ok(VerifyResult {
+        epoch: proof.epoch,
+        version: proof.version,
+        value: proof.plaintext_value,
+    })
+}
+
+/// Parameters for customizing how history proof verification proceeds
+#[derive(Copy, Clone)]
+pub enum HistoryVerificationParams {
+    /// No customization to the verification procedure
+    Default,
+    /// Allows for the encountering of missing (tombstoned) values
+    /// instead of attempting to check if their hash matches the leaf node
+    /// hash
+    AllowMissingValues,
+}
+
+impl Default for HistoryVerificationParams {
+    fn default() -> Self {
+        Self::Default
+    }
 }
 
 /// Verifies a key history proof, given the corresponding sequence of hashes.
@@ -172,9 +196,9 @@ pub fn key_history_verify<H: Hasher>(
     current_epoch: u64,
     akd_key: AkdLabel,
     proof: HistoryProof<H>,
-    allow_tombstones: bool,
-) -> Result<Vec<bool>, AkdError> {
-    let mut tombstones = vec![];
+    params: HistoryVerificationParams,
+) -> Result<Vec<VerifyResult>, AkdError> {
+    let mut results = vec![];
     let mut last_version = 0;
     let num_proofs = proof.update_proofs.len();
 
@@ -225,14 +249,9 @@ pub fn key_history_verify<H: Hasher>(
             }
         }
         maybe_previous_update_epoch = Some(update_proof.epoch);
-        let is_tombstone = verify_single_update_proof::<H>(
-            root_hash,
-            vrf_pk,
-            update_proof,
-            &akd_key,
-            allow_tombstones,
-        )?;
-        tombstones.push(is_tombstone);
+        let result =
+            verify_single_update_proof::<H>(root_hash, vrf_pk, update_proof, &akd_key, params)?;
+        results.push(result);
     }
 
     // Get the least and greatest marker entries for the current version
@@ -246,7 +265,7 @@ pub fn key_history_verify<H: Hasher>(
         let vrf_pf = &proof.next_few_vrf_proofs[i];
         let ver_label = pf.label;
         vrf_pk.verify_label::<H>(&akd_key, false, ver, vrf_pf, ver_label)?;
-        if !verify_nonmembership(root_hash, pf)? {
+        if verify_nonmembership(root_hash, pf).is_err() {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(
                     format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
@@ -261,14 +280,14 @@ pub fn key_history_verify<H: Hasher>(
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
         let ver_label = pf.label;
         vrf_pk.verify_label::<H>(&akd_key, false, ver, vrf_pf, ver_label)?;
-        if !verify_nonmembership(root_hash, pf)? {
+        if verify_nonmembership(root_hash, pf).is_err() {
             return Err(AkdError::Directory(
                 DirectoryError::VerifyKeyHistoryProof(
                     format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
                     akd_key, ver, current_epoch))));
         }
     }
-    Ok(tombstones)
+    Ok(results)
 }
 
 /// Verifies a single update proof
@@ -277,8 +296,8 @@ fn verify_single_update_proof<H: Hasher>(
     vrf_pk: &VRFPublicKey,
     proof: UpdateProof<H>,
     akd_key: &AkdLabel,
-    allow_tombstones: bool,
-) -> Result<bool, AkdError> {
+    params: HistoryVerificationParams,
+) -> Result<VerifyResult, AkdError> {
     let epoch = proof.epoch;
     let version = proof.version;
 
@@ -288,20 +307,17 @@ fn verify_single_update_proof<H: Hasher>(
 
     let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
-    let (is_tombstone, value_hash_valid) = match (allow_tombstones, &proof.plaintext_value) {
-        (true, bytes) if bytes.0 == crate::TOMBSTONE => {
+    let value_hash_valid = match (params, &proof.plaintext_value) {
+        (HistoryVerificationParams::AllowMissingValues, bytes) if bytes.0 == crate::TOMBSTONE => {
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
             // the real value available
-            (true, true)
+            true
         }
         (_, bytes) => {
             // No tombstone so hash the value found, and compare to the existence proof's value
-            (
-                false,
-                hash_leaf_with_value::<H>(bytes, proof.epoch, &proof.commitment_proof)
-                    == existence_at_ep.hash_val,
-            )
+            hash_leaf_with_value::<H>(bytes, proof.epoch, &proof.commitment_proof)
+                == existence_at_ep.hash_val
         }
     };
     if !value_hash_valid {
@@ -377,9 +393,11 @@ fn verify_single_update_proof<H: Hasher>(
         )?;
     }
 
-    // return indicator of if the value <=> hash mapping was verified
-    // or if the hash was simply taken at face-value. True = hash mapping verified
-    Ok(is_tombstone)
+    Ok(VerifyResult {
+        epoch: proof.epoch,
+        version: proof.version,
+        value: proof.plaintext_value,
+    })
 }
 
 /// Hashes all the children of a node, as well as their labels

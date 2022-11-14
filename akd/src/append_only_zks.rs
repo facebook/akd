@@ -881,7 +881,8 @@ mod tests {
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
         assert!(
-            verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)?,
+            verify_nonmembership::<Blake3>(azks.get_root_hash::<_, Blake3>(&db).await?, &proof)
+                .is_ok(),
             "Nonmembership proof does not verify"
         );
         Ok(())

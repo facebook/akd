@@ -9,6 +9,7 @@
 //! base AKD library and this "lean" client result in the same outputs
 
 use akd::ecvrf::HardCodedAkdVRF;
+use akd::HistoryParams;
 
 use akd::serialization::from_digest;
 #[cfg(feature = "nostd")]
@@ -71,6 +72,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     akd.publish(updates).await?;
 
     let target_label = AkdLabel(format!("hello{}", 10).as_bytes().to_vec());
+    let target_value = AkdValue(format!("hello{}", 10).as_bytes().to_vec());
 
     // retrieve the lookup proof
     let lookup_proof = akd.lookup(target_label.clone()).await?;
@@ -83,7 +85,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
 
     // perform the "traditional" AKD verification
     let akd_result =
-        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
+        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof)?;
 
     let target_label_bytes = target_label.to_vec();
     #[cfg(not(feature = "serde_serialization"))]
@@ -93,7 +95,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         target_label_bytes,
         internal_lookup_proof,
     )
-    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
     #[cfg(feature = "serde_serialization")]
     let lean_result = crate::verify::lookup_verify(
         &vrf_pk.to_bytes(),
@@ -101,15 +103,25 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
         target_label_bytes.clone(),
         internal_lookup_proof.clone(),
     )
-    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
     // check the two results to make sure they both verify
-    assert!(
-        matches!(akd_result, Ok(())),
+    assert_eq!(
+        akd_result,
+        akd::VerifyResult {
+            epoch: 1,
+            version: 1,
+            value: target_value.clone(),
+        },
         "AKD result was {:?}",
         akd_result
     );
-    assert!(
-        matches!(lean_result, Ok(())),
+    assert_eq!(
+        lean_result,
+        crate::VerifyResult {
+            epoch: 1,
+            version: 1,
+            value: target_value.to_vec(),
+        },
         "Lean result was {:?}",
         lean_result
     );
@@ -178,6 +190,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
     akd.publish(updates).await?;
 
     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
+    let target_value = AkdValue(format!("hello{}", 0).as_bytes().to_vec());
 
     // retrieve the lookup proof
     let lookup_proof = akd.lookup(target_label.clone()).await?;
@@ -192,7 +205,7 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
 
     // perform the "traditional" AKD verification
     let akd_result =
-        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
+        akd::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof)?;
 
     let target_label_bytes = target_label.to_vec();
     let lean_result = crate::verify::lookup_verify(
@@ -201,16 +214,26 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
         target_label_bytes,
         internal_lookup_proof,
     )
-    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))));
+    .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
 
     // check the two results to make sure they both verify
-    assert!(
-        matches!(akd_result, Ok(())),
+    assert_eq!(
+        akd_result,
+        akd::VerifyResult {
+            epoch: 1,
+            version: 1,
+            value: target_value.clone(),
+        },
         "AKD result was {:?}",
         akd_result
     );
-    assert!(
-        matches!(lean_result, Ok(())),
+    assert_eq!(
+        lean_result,
+        crate::VerifyResult {
+            epoch: 1,
+            version: 1,
+            value: target_value.to_vec(),
+        },
         "Lean result was {:?}",
         lean_result
     );
@@ -238,7 +261,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
     }
 
     // retrieves and verifies history proofs for the key
-    let proof = akd.key_history(&key).await?;
+    let proof = akd.key_history(&key, HistoryParams::default()).await?;
     let internal_proof = converters::convert_history_proof(&proof);
     let (mut root_hash, current_epoch) =
         akd::directory::get_directory_root_hash_and_ep(&akd).await?;
@@ -252,7 +275,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             current_epoch,
             key.clone(),
             proof.clone(),
-            false,
+            akd::HistoryVerificationParams::default(),
         );
         let lean_result = crate::verify::key_history_verify(
             &vrf_pk.to_bytes(),
@@ -260,7 +283,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             current_epoch,
             key_bytes.clone(),
             internal_proof.clone(),
-            false,
+            crate::verify::HistoryVerificationParams::default(),
         );
 
         assert!(matches!(akd_result, Ok(_)), "{:?}", akd_result);
@@ -281,7 +304,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
                 current_epoch,
                 key_bytes.clone(),
                 &serialized_internal_history_proof,
-                false,
+                crate::verify::HistoryVerificationParams::default(),
             );
             assert!(
                 matches!(serialized_lean_result, Ok(_)),
@@ -298,7 +321,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
                 current_epoch,
                 key_bytes.clone(),
                 &serialized_internal_history_proof,
-                false,
+                crate::verify::HistoryVerificationParams::default(),
             );
             // Check deserialization failure.
             assert!(
@@ -320,7 +343,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
                 current_epoch,
                 key_bytes.clone(),
                 &serialized_internal_history_proof,
-                false,
+                crate::verify::HistoryVerificationParams::default(),
             );
 
             assert!(
@@ -341,7 +364,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             current_epoch,
             key.clone(),
             proof.clone(),
-            false,
+            akd::HistoryVerificationParams::default(),
         );
         // performs "lean" history verification
         let lean_result = crate::verify::key_history_verify(
@@ -350,7 +373,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
             current_epoch,
             key_bytes.clone(),
             internal_proof.clone(),
-            false,
+            crate::verify::HistoryVerificationParams::default(),
         );
         assert!(akd_result.is_err(), "{:?}", akd_result);
         assert!(lean_result.is_err(), "{:?}", lean_result);
@@ -365,7 +388,7 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
         current_epoch,
         key_bytes,
         borked_proof,
-        false,
+        crate::verify::HistoryVerificationParams::default(),
     );
     assert!(matches!(lean_result, Err(_)), "{:?}", lean_result);
 
@@ -386,20 +409,26 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
         .await?;
 
     // retrieves and verifies history proofs for the key
-    let proof = akd.key_history(&key).await?;
+    let proof = akd.key_history(&key, HistoryParams::default()).await?;
     let internal_proof = converters::convert_history_proof(&proof);
     let (root_hash, current_epoch) = akd::directory::get_directory_root_hash_and_ep(&akd).await?;
 
     // verifies both traditional and lean history verification passes
-    let akd_result =
-        akd::client::key_history_verify(&vrf_pk, root_hash, current_epoch, key, proof, false);
+    let akd_result = akd::client::key_history_verify(
+        &vrf_pk,
+        root_hash,
+        current_epoch,
+        key,
+        proof,
+        akd::HistoryVerificationParams::default(),
+    );
     let lean_result = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
         current_epoch,
         key_bytes,
         internal_proof,
-        false,
+        crate::verify::HistoryVerificationParams::default(),
     );
     assert!(matches!(akd_result, Ok(_)), "{:?}", akd_result);
     assert!(matches!(lean_result, Ok(_)), "{:?}", lean_result);
@@ -458,7 +487,9 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     ];
     db.tombstone_value_states(&tombstones).await?;
 
-    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    let history_proof = akd
+        .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
+        .await?;
     assert_eq!(5, history_proof.update_proofs.len());
     let (root_hash, current_epoch) = akd::directory::get_directory_root_hash_and_ep(&akd).await?;
 
@@ -470,7 +501,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof.clone(),
-        false,
+        akd::HistoryVerificationParams::default(),
     );
     assert!(matches!(tombstones, Err(_)));
 
@@ -482,44 +513,44 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from_utf8_str("hello").to_vec(),
         internal_proof,
-        false,
+        crate::verify::HistoryVerificationParams::default(),
     );
     assert!(matches!(tombstones, Err(_)));
 
     // We should be able to verify tombstones assuming the client is accepting
     // of tombstoned states
     // check main client output
-    let tombstones = akd::client::key_history_verify(
+    let results = akd::client::key_history_verify(
         &vrf_pk,
         root_hash,
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof.clone(),
-        true,
+        akd::HistoryVerificationParams::AllowMissingValues,
     )?;
-    assert_eq!(false, tombstones[0]);
-    assert_eq!(false, tombstones[1]);
-    assert_eq!(false, tombstones[2]);
-    assert_eq!(true, tombstones[3]);
-    assert_eq!(true, tombstones[4]);
+    assert_eq!(false, results[0].value.0 == crate::TOMBSTONE);
+    assert_eq!(false, results[1].value.0 == crate::TOMBSTONE);
+    assert_eq!(false, results[2].value.0 == crate::TOMBSTONE);
+    assert_eq!(true, results[3].value.0 == crate::TOMBSTONE);
+    assert_eq!(true, results[4].value.0 == crate::TOMBSTONE);
 
     // check lean client output
     let internal_proof = converters::convert_history_proof(&history_proof);
-    let tombstones = crate::verify::key_history_verify(
+    let results = crate::verify::key_history_verify(
         &vrf_pk.to_bytes(),
         from_digest::<Hash>(root_hash),
         current_epoch,
         AkdLabel::from_utf8_str("hello").to_vec(),
         internal_proof,
-        true,
+        crate::verify::HistoryVerificationParams::AllowMissingValues,
     )
     .map_err(|i_err| AkdError::Storage(StorageError::Other(format!("Internal: {:?}", i_err))))?;
 
-    assert_eq!(false, tombstones[0]);
-    assert_eq!(false, tombstones[1]);
-    assert_eq!(false, tombstones[2]);
-    assert_eq!(true, tombstones[3]);
-    assert_eq!(true, tombstones[4]);
+    assert_eq!(false, results[0].value == crate::TOMBSTONE);
+    assert_eq!(false, results[1].value == crate::TOMBSTONE);
+    assert_eq!(false, results[2].value == crate::TOMBSTONE);
+    assert_eq!(true, results[3].value == crate::TOMBSTONE);
+    assert_eq!(true, results[4].value == crate::TOMBSTONE);
 
     Ok(())
 }
@@ -556,7 +587,9 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     .await?;
 
     // Get the key_history_proof for the label "hello"
-    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    let key_history_proof = akd
+        .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
+        .await?;
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
@@ -573,7 +606,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from_utf8_str("hello").to_vec(),
         internal_proof,
-        false,
+        crate::verify::HistoryVerificationParams::default(),
     ).expect_err("The key history proof should fail here since the previous value was not marked stale at all");
 
     // Mark the first value for the label "hello" as stale
@@ -589,7 +622,9 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     .await?;
 
     // Get the key_history_proof for the label "hello"
-    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    let key_history_proof = akd
+        .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
+        .await?;
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
@@ -605,7 +640,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from_utf8_str("hello").to_vec(),
         internal_proof,
-        false,
+        crate::verify::HistoryVerificationParams::default(),
     ).expect_err("The key history proof should fail here since the previous value was marked stale one epoch too late.");
 
     Ok(())
