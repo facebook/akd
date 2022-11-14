@@ -872,3 +872,190 @@ pub async fn get_directory_root_hash_and_ep<
     let root_hash = akd_dir.get_root_hash::<H>(&current_azks).await?;
     Ok((root_hash, latest_epoch))
 }
+
+/// Helpers for testing
+
+/// This enum is meant to insert corruptions into a malicious publish function.
+#[derive(Debug, Clone)]
+pub enum PublishCorruption {
+    /// Indicates to the malicious publish function to not mark a stale version
+    UnmarkedStaleVersion(AkdLabel),
+    /// Indicates to the malicious publish to mark a certain version for a username as stale.
+    MarkVersionStale(AkdLabel, u64),
+}
+
+impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+    /// Updates the directory to include the updated key-value pairs with possible issues.
+    pub async fn publish_malicious_update<H: Hasher>(
+        &self,
+        updates: Vec<(AkdLabel, AkdValue)>,
+        corruption: PublishCorruption,
+    ) -> Result<EpochHash<H>, AkdError> {
+        if self.read_only {
+            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
+                "Cannot publish while in read-only mode".to_string(),
+            )));
+        }
+
+        // The guard will be dropped at the end of the publish
+        let _guard = self.cache_lock.read().await;
+
+        let mut update_set = Vec::<Node<H>>::new();
+
+        if let PublishCorruption::MarkVersionStale(ref uname, version_number) = corruption {
+            // In the malicious case, sometimes the server may not mark the old version stale immediately.
+            // If this is the case, it may want to do this marking at a later time.
+            let stale_label = self
+                .vrf
+                .get_node_label::<H>(uname, true, version_number)
+                .await?;
+            let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
+            update_set.push(Node::<H> {
+                label: stale_label,
+                hash: stale_value_to_add,
+            })
+        };
+
+        let mut user_data_update_set = Vec::<ValueState>::new();
+
+        let mut current_azks = self.retrieve_current_azks().await?;
+        let current_epoch = current_azks.get_latest_epoch();
+        let next_epoch = current_epoch + 1;
+
+        let mut keys: Vec<AkdLabel> = updates.iter().map(|(uname, _val)| uname.clone()).collect();
+        // sort the keys, as inserting in primary-key order is more efficient for MySQL
+        keys.sort_by(|a, b| a.cmp(b));
+
+        // we're only using the maximum "version" of the user's state at the last epoch
+        // they were seen in the directory. Therefore we've minimized the call to only
+        // return a hashmap of AkdLabel => u64 and not retrieving the other data which is not
+        // read (i.e. the actual _data_ payload).
+        let all_user_versions_retrieved = self
+            .storage
+            .get_user_state_versions(&keys, ValueStateRetrievalFlag::LeqEpoch(current_epoch))
+            .await?;
+
+        info!(
+            "Retrieved {} previous user versions of {} requested",
+            all_user_versions_retrieved.len(),
+            keys.len()
+        );
+
+        let commitment_key = self.derive_commitment_key::<H>().await?;
+
+        for (uname, val) in updates {
+            match all_user_versions_retrieved.get(&uname) {
+                None => {
+                    // no data found for the user
+                    let latest_version = 1;
+                    let label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, false, latest_version)
+                        .await?;
+
+                    let value_to_add =
+                        crate::utils::commit_value::<H>(&commitment_key.as_bytes(), &label, &val);
+                    update_set.push(Node::<H> {
+                        label,
+                        hash: value_to_add,
+                    });
+                    let latest_state =
+                        ValueState::new(uname, val, latest_version, label, next_epoch);
+                    user_data_update_set.push(latest_state);
+                }
+                Some((_, previous_value)) if val == *previous_value => {
+                    // skip this version because the user is trying to re-publish the already most recent value
+                    // Issue #197: https://github.com/novifinancial/akd/issues/197
+                }
+                Some((previous_version, _)) => {
+                    // Data found for the given user
+                    let latest_version = *previous_version + 1;
+                    let stale_label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, true, *previous_version)
+                        .await?;
+                    let fresh_label = self
+                        .vrf
+                        .get_node_label::<H>(&uname, false, latest_version)
+                        .await?;
+                    let stale_value_to_add = H::hash(&crate::EMPTY_VALUE);
+                    let fresh_value_to_add = crate::utils::commit_value::<H>(
+                        &commitment_key.as_bytes(),
+                        &fresh_label,
+                        &val,
+                    );
+                    match &corruption {
+                        // Some malicious server might not want to mark an old and compromised key as stale.
+                        // Thus, you only push the key if either the corruption is for some other username,
+                        // or the corruption is not of the type that asks you to delay marking a stale value correctly.
+                        PublishCorruption::UnmarkedStaleVersion(target_uname) => {
+                            if *target_uname != uname {
+                                update_set.push(Node::<H> {
+                                    label: stale_label,
+                                    hash: stale_value_to_add,
+                                })
+                            }
+                        }
+                        _ => update_set.push(Node::<H> {
+                            label: stale_label,
+                            hash: stale_value_to_add,
+                        }),
+                    };
+
+                    update_set.push(Node::<H> {
+                        label: fresh_label,
+                        hash: fresh_value_to_add,
+                    });
+                    let new_state =
+                        ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
+                    user_data_update_set.push(new_state);
+                }
+            }
+        }
+        let insertion_set: Vec<Node<H>> = update_set.to_vec();
+
+        if insertion_set.is_empty() {
+            info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
+            // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
+            let root_hash = current_azks.get_root_hash::<_, H>(&self.storage).await?;
+            return Ok(EpochHash(current_epoch, root_hash));
+        }
+
+        if let false = self.storage.begin_transaction().await {
+            error!("Transaction is already active");
+            return Err(AkdError::Storage(StorageError::Transaction(
+                "Transaction is already active".to_string(),
+            )));
+        }
+        info!("Starting database insertion");
+
+        current_azks
+            .batch_insert_leaves::<_, H>(&self.storage, insertion_set)
+            .await?;
+
+        // batch all the inserts into a single transactional write to storage
+        let mut updates = vec![DbRecord::Azks(current_azks.clone())];
+        for update in user_data_update_set.into_iter() {
+            updates.push(DbRecord::ValueState(update));
+        }
+        self.storage.batch_set(updates).await?;
+
+        // now commit the transaction
+        debug!("Committing transaction");
+        if let Err(err) = self.storage.commit_transaction().await {
+            // ignore any rollback error(s)
+            let _ = self.storage.rollback_transaction().await;
+            return Err(AkdError::Storage(err));
+        } else {
+            debug!("Transaction committed");
+        }
+
+        let root_hash = current_azks
+            .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+            .await?;
+
+        Ok(EpochHash(next_epoch, root_hash))
+        // At the moment the tree root is not being written anywhere. Eventually we
+        // want to change this to call a write operation to post to a blockchain or some such thing
+    }
+}

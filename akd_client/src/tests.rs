@@ -28,6 +28,8 @@ use crate::converters;
 use crate::VerificationError;
 #[cfg(feature = "serde_serialization")]
 use crate::VerificationErrorType;
+#[cfg(test)]
+use akd::directory::PublishCorruption;
 use winter_math::fields::f128::BaseElement;
 
 // Feature specific test imports
@@ -533,6 +535,93 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(false, tombstones[2]);
     assert_eq!(true, tombstones[3]);
     assert_eq!(true, tombstones[4]);
+
+    Ok(())
+}
+
+// This test covers the tests for PR #224, addresses issue #222: That key history does fail on a small tree,
+// when malicious updates are made.
+// Other that it is just a simple check to see that a valid key history proof passes.
+#[tokio::test]
+async fn test_malicious_key_history() -> Result<(), AkdError> {
+    // This test has an akd with a single label: "hello", followed by an
+    // insertion of a new label "hello2". Meanwhile, the server has a one epoch
+    // delay in marking the first version for "hello" as stale, which should
+    // be caught by key history verifications for "hello".
+    let db = InMemoryDb::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::new::<Hash>(&db, &vrf, false).await?;
+    // Publish the first value for the label "hello"
+    // Epoch here will be 1
+    akd.publish::<Hash>(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world"),
+    )])
+    .await?;
+    // Publish the second value for the label "hello" without marking the first value as stale
+    // Epoch here will be 2
+    let corruption_2 = PublishCorruption::UnmarkedStaleVersion(AkdLabel::from_utf8_str("hello"));
+    akd.publish_malicious_update::<Hash>(
+        vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world2"),
+        )],
+        corruption_2,
+    )
+    .await?;
+
+    // Get the key_history_proof for the label "hello"
+    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    // Get the latest root hash
+    let current_azks = akd.retrieve_current_azks().await?;
+    let current_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await?;
+    // check lean client output
+    let internal_proof = converters::convert_history_proof::<Hash>(&key_history_proof);
+    // Verify the key history proof: This should fail since the server did not mark the version 1 for
+    // this username as stale, upon adding version 2.
+    crate::verify::key_history_verify(
+        &vrf_pk.to_bytes(),
+        from_digest::<Hash>(root_hash),
+        current_epoch,
+        AkdLabel::from_utf8_str("hello").to_vec(),
+        internal_proof,
+        false,
+    ).expect_err("The key history proof should fail here since the previous value was not marked stale at all");
+
+    // Mark the first value for the label "hello" as stale
+    // Epoch here will be 3
+    let corruption_3 = PublishCorruption::MarkVersionStale(AkdLabel::from_utf8_str("hello"), 1);
+    akd.publish_malicious_update::<Hash>(
+        vec![(
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world"),
+        )],
+        corruption_3,
+    )
+    .await?;
+
+    // Get the key_history_proof for the label "hello"
+    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    // Get the latest root hash
+    let current_azks = akd.retrieve_current_azks().await?;
+    let current_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd.get_root_hash::<Hash>(&current_azks).await?;
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await?;
+    // check lean client output
+    let internal_proof = converters::convert_history_proof::<Hash>(&key_history_proof);
+    // Verify the key history proof: This should still fail, since the server added the version number too late.
+    crate::verify::key_history_verify(
+        &vrf_pk.to_bytes(),
+        from_digest::<Hash>(root_hash),
+        current_epoch,
+        AkdLabel::from_utf8_str("hello").to_vec(),
+        internal_proof,
+        false,
+    ).expect_err("The key history proof should fail here since the previous value was marked stale one epoch too late.");
 
     Ok(())
 }

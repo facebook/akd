@@ -457,9 +457,24 @@ fn verify_single_update_proof(
             error_message: err_str,
             error_type: VerificationErrorType::HistoryProof,
         };
+
         let previous_version_stale_at_ep = previous_version_stale_at_ep
             .as_ref()
             .ok_or(previous_null_err)?;
+        // Check that the correct value is included in the previous stale proof
+        if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_stale_at_ep.hash_val
+        {
+            let former_err_str = format!(
+                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
+                uname,
+                (version - 1),
+                epoch
+            );
+            return Err(VerificationError {
+                error_message: former_err_str,
+                error_type: VerificationErrorType::HistoryProof,
+            });
+        }
         verify_membership(root_hash, previous_version_stale_at_ep)?;
 
         #[cfg(feature = "vrf")]
