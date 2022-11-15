@@ -24,7 +24,7 @@ use log::{debug, error, info};
 use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
 use std::collections::HashMap;
-use std::marker::{Send, Sync};
+use std::marker::{PhantomData, Send, Sync};
 use std::sync::Arc;
 use winter_crypto::{Digest, Hasher};
 
@@ -45,10 +45,10 @@ impl AkdLabel {
 }
 
 /// The representation of a auditable key directory
-#[derive(Clone)]
-pub struct Directory<S, V> {
+pub struct Directory<S, V, H> {
     storage: S,
     vrf: V,
+    hasher: PhantomData<H>,
     read_only: bool,
     /// The cache lock guarantees that the cache is not
     /// flushed mid-proof generation. We allow multiple proof generations
@@ -59,12 +59,25 @@ pub struct Directory<S, V> {
     cache_lock: Arc<tokio::sync::RwLock<()>>,
 }
 
-impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+// Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
+impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Clone for Directory<S, V, H> {
+    fn clone(&self) -> Self {
+        Self {
+            storage: self.storage.clone(),
+            vrf: self.vrf.clone(),
+            hasher: self.hasher,
+            read_only: self.read_only,
+            cache_lock: self.cache_lock.clone(),
+        }
+    }
+}
+
+impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new<H: Hasher>(storage: &S, vrf: &V, read_only: bool) -> Result<Self, AkdError> {
-        let azks = Directory::<S, V>::get_azks_from_storage(storage, false).await;
+    pub async fn new(storage: &S, vrf: &V, read_only: bool) -> Result<Self, AkdError> {
+        let azks = Directory::<S, V, H>::get_azks_from_storage(storage, false).await;
 
         if read_only && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
@@ -83,13 +96,14 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         Ok(Directory {
             storage: storage.clone(),
             read_only,
+            hasher: PhantomData,
             cache_lock: Arc::new(tokio::sync::RwLock::new(())),
             vrf: vrf.clone(),
         })
     }
 
     /// Updates the directory to include the updated key-value pairs.
-    pub async fn publish<H: Hasher>(
+    pub async fn publish(
         &self,
         updates: Vec<(AkdLabel, AkdValue)>,
     ) -> Result<EpochHash<H>, AkdError> {
@@ -128,7 +142,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             keys.len()
         );
 
-        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_key = self.derive_commitment_key().await?;
 
         for (uname, val) in updates {
             match all_user_versions_retrieved.get(&uname) {
@@ -233,21 +247,19 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Provides proof for correctness of latest version
-    pub async fn lookup<H: Hasher>(&self, uname: AkdLabel) -> Result<LookupProof<H>, AkdError> {
+    pub async fn lookup(&self, uname: AkdLabel) -> Result<LookupProof<H>, AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
-        let lookup_info = self
-            .get_lookup_info::<H>(uname.clone(), current_epoch)
-            .await?;
+        let lookup_info = self.get_lookup_info(uname.clone(), current_epoch).await?;
 
-        self.lookup_with_info::<H>(uname, &current_azks, current_epoch, lookup_info)
+        self.lookup_with_info(uname, &current_azks, current_epoch, lookup_info)
             .await
     }
 
-    async fn lookup_with_info<H: Hasher>(
+    async fn lookup_with_info(
         &self,
         uname: AkdLabel,
         current_azks: &Azks,
@@ -255,7 +267,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         lookup_info: LookupInfo,
     ) -> Result<LookupProof<H>, AkdError> {
         let current_version = lookup_info.value_state.version;
-        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_key = self.derive_commitment_key().await?;
         let plaintext_value = lookup_info.value_state.plaintext_val;
         let existence_vrf = self
             .vrf
@@ -305,10 +317,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     // TODO(eoz): Call proof generations async
     /// Allows efficient batch lookups by preloading necessary nodes for the lookups.
-    pub async fn batch_lookup<H: Hasher>(
-        &self,
-        unames: &[AkdLabel],
-    ) -> Result<Vec<LookupProof<H>>, AkdError> {
+    pub async fn batch_lookup(&self, unames: &[AkdLabel]) -> Result<Vec<LookupProof<H>>, AkdError> {
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
@@ -317,9 +326,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let mut lookup_infos = Vec::new();
         for uname in unames {
             // Save lookup info for later use.
-            let lookup_info = self
-                .get_lookup_info::<H>(uname.clone(), current_epoch)
-                .await?;
+            let lookup_info = self.get_lookup_info(uname.clone(), current_epoch).await?;
             lookup_infos.push(lookup_info.clone());
 
             // A lookup proofs consists of the proofs for the following labels.
@@ -342,7 +349,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let mut lookup_proofs = Vec::new();
         for i in 0..unames.len() {
             lookup_proofs.push(
-                self.lookup_with_info::<H>(
+                self.lookup_with_info(
                     unames[i].clone(),
                     &current_azks,
                     current_epoch,
@@ -355,11 +362,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         Ok(lookup_proofs)
     }
 
-    async fn get_lookup_info<H: Hasher>(
-        &self,
-        uname: AkdLabel,
-        epoch: u64,
-    ) -> Result<LookupInfo, AkdError> {
+    async fn get_lookup_info(&self, uname: AkdLabel, epoch: u64) -> Result<LookupInfo, AkdError> {
         match self
             .storage
             .get_user_state(&uname, ValueStateRetrievalFlag::LeqEpoch(epoch))
@@ -406,10 +409,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// this function returns all the values ever associated with it,
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
-    pub async fn key_history<H: Hasher>(
-        &self,
-        uname: &AkdLabel,
-    ) -> Result<HistoryProof<H>, AkdError> {
+    pub async fn key_history(&self, uname: &AkdLabel) -> Result<HistoryProof<H>, AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
@@ -503,7 +503,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// If the label is present in the current state,
     /// this function returns all the values & proof of validity
     /// up to `top_n_updates` results.
-    pub async fn limited_key_history<H: Hasher>(
+    pub async fn limited_key_history(
         &self,
         top_n_updates: usize,
         uname: &AkdLabel,
@@ -607,13 +607,13 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     ) -> Result<(), AkdError> {
         // Retrieve the same AZKS that all the other calls see (i.e. the version that could be cached
         // at this point). We'll compare this via an uncached call when a change is notified
-        let mut last = Directory::<S, V>::get_azks_from_storage(&self.storage, false).await?;
+        let mut last = Directory::<S, V, H>::get_azks_from_storage(&self.storage, false).await?;
 
         loop {
             // loop forever polling for changes
             tokio::time::sleep(period).await;
 
-            let latest = Directory::<S, V>::get_azks_from_storage(&self.storage, true).await?;
+            let latest = Directory::<S, V, H>::get_azks_from_storage(&self.storage, true).await?;
             if latest.latest_epoch > last.latest_epoch {
                 {
                     // acquire a singleton lock prior to flushing the cache to assert that no
@@ -623,7 +623,8 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     self.storage.flush_cache().await;
                     // re-fetch the azks to load it into cache so when we release the cache lock
                     // others will see the new AZKS loaded up and ready
-                    last = Directory::<S, V>::get_azks_from_storage(&self.storage, false).await?;
+                    last =
+                        Directory::<S, V, H>::get_azks_from_storage(&self.storage, false).await?;
 
                     // notify change occurred
                     if let Some(channel) = &change_detected {
@@ -645,7 +646,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     /// Returns an AppendOnlyProof for the leaves inserted into the underlying tree between
     /// the epochs audit_start_ep and audit_end_ep.
-    pub async fn audit<H: Hasher>(
+    pub async fn audit(
         &self,
         audit_start_ep: u64,
         audit_end_ep: u64,
@@ -675,7 +676,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     /// Retrieves the current azks
     pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
-        Directory::<S, V>::get_azks_from_storage(&self.storage, false).await
+        Directory::<S, V, H>::get_azks_from_storage(&self.storage, false).await
     }
 
     async fn get_azks_from_storage(
@@ -709,7 +710,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         Ok(self.vrf.get_vrf_public_key().await?)
     }
 
-    async fn create_single_update_proof<H: Hasher>(
+    async fn create_single_update_proof(
         &self,
         uname: &AkdLabel,
         user_state: &ValueState,
@@ -751,7 +752,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
         }
 
-        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_key = self.derive_commitment_key().await?;
         let commitment_proof = crate::utils::get_commitment_proof::<H>(
             &commitment_key.as_bytes(),
             &existence_label,
@@ -774,7 +775,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     /// Gets the azks root hash at the provided epoch. Note that the root hash should exist at any epoch
     /// that the azks existed, so as long as epoch >= 0, we should be fine.
-    pub async fn get_root_hash_at_epoch<H: Hasher>(
+    pub async fn get_root_hash_at_epoch(
         &self,
         current_azks: &Azks,
         epoch: u64,
@@ -788,17 +789,14 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash<H: Hasher>(
-        &self,
-        current_azks: &Azks,
-    ) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch::<H>(current_azks, current_azks.get_latest_epoch())
+    pub async fn get_root_hash(&self, current_azks: &Azks) -> Result<H::Digest, AkdError> {
+        self.get_root_hash_at_epoch(current_azks, current_azks.get_latest_epoch())
             .await
     }
 
     // FIXME (Issue #184): This should be derived properly. Instead of hashing the VRF private
     // key, we should derive this properly from a server secret.
-    async fn derive_commitment_key<H: Hasher>(&self) -> Result<H::Digest, AkdError> {
+    async fn derive_commitment_key(&self) -> Result<H::Digest, AkdError> {
         let raw_key = self.vrf.retrieve().await?;
         let commitment_key = H::hash(&raw_key);
         Ok(commitment_key)
@@ -823,7 +821,7 @@ type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
 pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFKeyStorage>(
-    akd_dir: &Directory<S, V>,
+    akd_dir: &Directory<S, V, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
     let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
@@ -833,7 +831,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
     let current_azks = akd_dir.retrieve_current_azks().await?;
     for proof in &history_proof.update_proofs {
         let hash = akd_dir
-            .get_root_hash_at_epoch::<H>(&current_azks, proof.epoch)
+            .get_root_hash_at_epoch(&current_azks, proof.epoch)
             .await?;
         epoch_hash_map.insert(proof.epoch, hash);
         root_hashes.push(hash);
@@ -850,7 +848,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
         } else {
             // cache miss, fetch it
             let hash = akd_dir
-                .get_root_hash_at_epoch::<H>(&current_azks, proof.epoch - 1)
+                .get_root_hash_at_epoch(&current_azks, proof.epoch - 1)
                 .await?;
             previous_root_hashes.push(Some(hash));
         }
@@ -865,11 +863,11 @@ pub async fn get_directory_root_hash_and_ep<
     H: Hasher,
     V: VRFKeyStorage,
 >(
-    akd_dir: &Directory<S, V>,
+    akd_dir: &Directory<S, V, H>,
 ) -> Result<(H::Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
     let latest_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd_dir.get_root_hash::<H>(&current_azks).await?;
+    let root_hash = akd_dir.get_root_hash(&current_azks).await?;
     Ok((root_hash, latest_epoch))
 }
 
@@ -884,9 +882,9 @@ pub enum PublishCorruption {
     MarkVersionStale(AkdLabel, u64),
 }
 
-impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
-    pub async fn publish_malicious_update<H: Hasher>(
+    pub async fn publish_malicious_update(
         &self,
         updates: Vec<(AkdLabel, AkdValue)>,
         corruption: PublishCorruption,
@@ -941,7 +939,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             keys.len()
         );
 
-        let commitment_key = self.derive_commitment_key::<H>().await?;
+        let commitment_key = self.derive_commitment_key().await?;
 
         for (uname, val) in updates {
             match all_user_versions_retrieved.get(&uname) {

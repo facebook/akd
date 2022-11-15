@@ -61,11 +61,11 @@ pub async fn generate_audit_proofs(
 ) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Hasher>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Hasher>::new(&db, &vrf, false).await?;
     let mut proofs = vec![];
     // gather the hash + azks for epoch "0" (init)
     let mut azks = akd.retrieve_current_azks().await?;
-    let mut phash = akd.get_root_hash::<Hasher>(&azks).await?;
+    let mut phash = akd.get_root_hash(&azks).await?;
 
     for _epoch in 1..=n {
         if expensive {
@@ -80,23 +80,21 @@ pub async fn generate_audit_proofs(
                     )
                 })
                 .collect::<Vec<(AkdLabel, AkdValue)>>();
-            akd.publish::<Hasher>(data).await?;
+            akd.publish(data).await?;
         } else {
             // generate (n) epochs of updates on the same user
             let t_value = format!("certificate{}", _epoch);
-            akd.publish::<Hasher>(vec![(
+            akd.publish(vec![(
                 AkdLabel::from_utf8_str("user"),
                 AkdValue::from_utf8_str(&t_value),
             )])
             .await?;
         }
         // generate the append-only proof
-        let proof = akd
-            .audit::<Hasher>((_epoch - 1) as u64, _epoch as u64)
-            .await?;
+        let proof = akd.audit((_epoch - 1) as u64, _epoch as u64).await?;
         // update the azks + retrieve the updated hash
         azks = akd.retrieve_current_azks().await?;
-        let chash = akd.get_root_hash::<Hasher>(&azks).await?;
+        let chash = akd.get_root_hash(&azks).await?;
 
         // we have everything we need, pass it along
         let info = AuditInformation {
