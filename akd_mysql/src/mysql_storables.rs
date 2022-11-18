@@ -620,7 +620,11 @@ impl MySqlStorable for DbRecord {
         Self: std::marker::Sized,
     {
         fn cast_err() -> MySqlError {
-            MySqlError::from("Failed to cast label:val into [u8; 32]".to_string())
+            MySqlError::from(mysql_async::ServerError {
+                state: "".to_string(),
+                code: 0,
+                message: "Failed to cast label:val into [u8; 32]".to_string(),
+            })
         }
 
         fn optional_child_label(
@@ -641,8 +645,16 @@ impl MySqlStorable for DbRecord {
                             val.try_into().map_err(|_| cast_err())?,
                             len,
                         ))),
-                        (Err(_len_err), _) => Err(Error::from("Error decoding length")),
-                        (_, Err(_val_err)) => Err(Error::from("Error decoding value")),
+                        (Err(_len_err), _) => Err(Error::from(mysql_async::ServerError {
+                            state: "".to_string(),
+                            code: 0,
+                            message: "Error decoding length".to_string(),
+                        })),
+                        (_, Err(_val_err)) => Err(Error::from(mysql_async::ServerError {
+                            state: "".to_string(),
+                            code: 0,
+                            message: "Error decoding value".to_string(),
+                        })),
                     }
                 }
             }
