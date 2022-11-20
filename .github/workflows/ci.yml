@@ -52,13 +52,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,sha3_256,vrf
-
-      - name: Test AKD with no-vrf support
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --package akd --no-default-features --features public-tests
+          args: --package akd_client --no-default-features --features wasm,sha3_256
 
       - name: Test AKD with protobuf serialization of the audit proofs
         uses: actions-rs/cargo@v1
@@ -70,13 +64,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,blake3,vrf
-
-      - name: Test the lean client for VRF verification
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --package akd_client --features vrf
+          args: --package akd_client --no-default-features --features wasm,blake3
 
       - name: Test the lean client with protobuf serialization
         uses: actions-rs/cargo@v1

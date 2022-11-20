@@ -22,22 +22,13 @@
 //!
 //! Adapted from Diem's NextGen Crypto module available [here](https://github.com/diem/diem/blob/502936fbd59e35276e2cf455532b143796d68a16/crypto/nextgen_crypto/src/vrf/ecvrf.rs)
 
-#[cfg(feature = "vrf")]
 mod ecvrf_impl;
-#[cfg(feature = "vrf")]
 mod traits;
 // export the functionality we want visible
-#[cfg(feature = "vrf")]
 pub use crate::ecvrf::ecvrf_impl::{Proof, VRFPrivateKey, VRFPublicKey};
-#[cfg(feature = "vrf")]
 pub use crate::ecvrf::traits::VRFKeyStorage;
 
-#[cfg(not(feature = "vrf"))]
-mod no_vrf;
-#[cfg(not(feature = "vrf"))]
-pub use crate::ecvrf::no_vrf::{Proof, VRFKeyStorage, VRFPrivateKey, VRFPublicKey};
-
-#[cfg(all(test, feature = "vrf"))]
+#[cfg(test)]
 mod tests;
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.

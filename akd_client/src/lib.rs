@@ -103,7 +103,6 @@ pub mod proto;
 
 #[cfg(any(test, feature = "converters"))]
 pub mod converters;
-#[cfg(feature = "vrf")]
 pub(crate) mod ecvrf;
 pub(crate) mod hash;
 pub(crate) mod utils;

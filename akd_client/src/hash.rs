@@ -80,7 +80,6 @@ pub(crate) fn merge(items: &[[u8; DIGEST_BYTES]]) -> PublicDigest {
 }
 
 /// Take a hash and merge it with an integer and hash the resulting bytes
-#[cfg(feature = "vrf")]
 pub(crate) fn merge_with_int(digest: PublicDigest, value: u64) -> PublicDigest {
     let mut data = [0; DIGEST_BYTES + 8];
     data[..DIGEST_BYTES].copy_from_slice(&digest);

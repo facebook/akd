@@ -19,10 +19,10 @@ readme = "../README.md"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-akd = { path = "../akd", version = "0.7.4", features = ["vrf", "public-tests"], optional = true }
+akd = { path = "../akd", version = "0.7.4", features = ["public-tests"], optional = true }
 blake3 = { version = "1.3.1", optional = true, default-features = false }
-curve25519-dalek = { version = "3", optional = true }
-ed25519-dalek = { version = "1", optional = true, default-features = false, features = ["u64_backend", "rand"] }
+curve25519-dalek = "3"
+ed25519-dalek = { version = "1", default-features = false, features = ["u64_backend", "rand"] }
 protobuf = { version = "=3.2.0", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"], default-features = false }
 serde_json = { version = "1", optional = true }
@@ -52,14 +52,12 @@ sha3_512 = ["sha3"]
 wasm = ["wasm-bindgen", "serde_serialization"]
 # Support serde-based serialization
 serde_serialization = ["serde", "serde_json", "ed25519-dalek/serde"]
-# Verify with Verifiable random functions (VRFs)
-vrf = ["curve25519-dalek", "ed25519-dalek"]
 
-# Default feature mix (blake3 + VRFs enabled)
-default = ["blake3", "vrf"]
+# Default feature mix (blake3)
+default = ["blake3"]
 
 [dev-dependencies]
-akd = { path = "../akd", features = ["vrf", "public-tests"] }
+akd = { path = "../akd", features = ["public-tests"] }
 winter-crypto = "0.2"
 winter-utils = "0.2"
 winter-math = "0.2"

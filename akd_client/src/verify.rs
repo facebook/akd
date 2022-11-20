@@ -11,7 +11,7 @@
 use alloc::format;
 #[cfg(feature = "nostd")]
 use alloc::string::ToString;
-#[cfg(feature = "vrf")]
+
 use core::convert::TryFrom;
 #[cfg(feature = "serde_serialization")]
 use serde_json;
@@ -124,7 +124,6 @@ fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Di
 /// This function is called to verify that a given NodeLabel is indeed
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
-#[cfg(feature = "vrf")]
 fn verify_vrf(
     vrf_public_key: &[u8],
     uname: &AkdLabel,
@@ -157,17 +156,13 @@ pub fn serialized_lookup_verify(
 
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify(
-    _vrf_public_key: &[u8],
+    vrf_public_key: &[u8],
     root_hash: Digest,
-    _akd_key: AkdLabel,
+    akd_key: AkdLabel,
     proof: LookupProof,
 ) -> Result<(), VerificationError> {
-    let _epoch = proof.epoch;
-
-    #[cfg(feature = "vrf")]
     let version = proof.version;
 
-    #[cfg(feature = "vrf")]
     let marker_version = 1 << crate::utils::get_marker_version(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
@@ -185,46 +180,37 @@ pub fn lookup_verify(
         ));
     }
 
-    #[cfg(feature = "vrf")]
-    {
-        verify_vrf(
-            _vrf_public_key,
-            &_akd_key,
-            false,
-            version,
-            &proof.existence_vrf_proof,
-            fresh_label,
-        )?;
-    }
+    verify_vrf(
+        vrf_public_key,
+        &akd_key,
+        false,
+        version,
+        &proof.existence_vrf_proof,
+        fresh_label,
+    )?;
     verify_membership(root_hash, &existence_proof)?;
 
-    #[cfg(feature = "vrf")]
-    {
-        let marker_label = marker_proof.label;
-        verify_vrf(
-            _vrf_public_key,
-            &_akd_key,
-            false,
-            marker_version,
-            &proof.marker_vrf_proof,
-            marker_label,
-        )?;
-    }
+    let marker_label = marker_proof.label;
+    verify_vrf(
+        vrf_public_key,
+        &akd_key,
+        false,
+        marker_version,
+        &proof.marker_vrf_proof,
+        marker_label,
+    )?;
 
     verify_membership(root_hash, &marker_proof)?;
 
-    #[cfg(feature = "vrf")]
-    {
-        let stale_label = freshness_proof.label;
-        verify_vrf(
-            _vrf_public_key,
-            &_akd_key,
-            true,
-            version,
-            &proof.freshness_vrf_proof,
-            stale_label,
-        )?;
-    }
+    let stale_label = freshness_proof.label;
+    verify_vrf(
+        vrf_public_key,
+        &akd_key,
+        true,
+        version,
+        &proof.freshness_vrf_proof,
+        stale_label,
+    )?;
 
     verify_nonmembership(root_hash, &freshness_proof)?;
 
@@ -344,12 +330,9 @@ pub fn key_history_verify(
     // Verify the VRFs and non-membership of future entries, up to the next marker
     for (i, ver) in (last_version + 1..(1 << next_marker)).enumerate() {
         let pf = &proof.non_existence_of_next_few[i];
-        #[cfg(feature = "vrf")]
-        {
-            let vrf_pf = &proof.next_few_vrf_proofs[i];
-            let ver_label = pf.label;
-            verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
-        }
+        let vrf_pf = &proof.next_few_vrf_proofs[i];
+        let ver_label = pf.label;
+        verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(VerificationError {error_message:
                     format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
@@ -361,12 +344,9 @@ pub fn key_history_verify(
     for (i, pow) in (next_marker + 1..final_marker).enumerate() {
         let ver = 1 << pow;
         let pf = &proof.non_existence_of_future_markers[i];
-        #[cfg(feature = "vrf")]
-        {
-            let vrf_pf = &proof.future_marker_vrf_proofs[i];
-            let ver_label = pf.label;
-            verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
-        }
+        let vrf_pf = &proof.future_marker_vrf_proofs[i];
+        let ver_label = pf.label;
+        verify_vrf(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
         if !verify_nonmembership(root_hash, pf)? {
             return Err(VerificationError {error_message:
                     format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
@@ -431,17 +411,14 @@ fn verify_single_update_proof(
 
     // ***** PART 1 ***************************
     // Verify the VRF and membership proof for the corresponding label for the version being updated to.
-    #[cfg(feature = "vrf")]
-    {
-        verify_vrf(
-            vrf_public_key,
-            uname,
-            false,
-            version,
-            &proof.existence_vrf_proof,
-            existence_at_ep.label,
-        )?;
-    }
+    verify_vrf(
+        vrf_public_key,
+        uname,
+        false,
+        version,
+        &proof.existence_vrf_proof,
+        existence_at_ep.label,
+    )?;
     verify_membership(root_hash, existence_at_ep)?;
     // ***** PART 2 ***************************
     // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
@@ -477,33 +454,30 @@ fn verify_single_update_proof(
         }
         verify_membership(root_hash, previous_version_stale_at_ep)?;
 
-        #[cfg(feature = "vrf")]
-        {
-            let vrf_err_str = format!(
-                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-                uname,
-                (version - 1),
-                epoch
-            );
+        let vrf_err_str = format!(
+            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+            uname,
+            (version - 1),
+            epoch
+        );
 
-            // Verify the VRF for the stale label corresponding to the previous version for this username
-            let vrf_previous_null_err = VerificationError {
-                error_message: vrf_err_str,
-                error_type: VerificationErrorType::HistoryProof,
-            };
-            let previous_version_vrf_proof = proof
-                .previous_version_vrf_proof
-                .as_ref()
-                .ok_or(vrf_previous_null_err)?;
-            verify_vrf(
-                vrf_public_key,
-                uname,
-                true,
-                version - 1,
-                previous_version_vrf_proof,
-                previous_version_stale_at_ep.label,
-            )?;
-        }
+        // Verify the VRF for the stale label corresponding to the previous version for this username
+        let vrf_previous_null_err = VerificationError {
+            error_message: vrf_err_str,
+            error_type: VerificationErrorType::HistoryProof,
+        };
+        let previous_version_vrf_proof = proof
+            .previous_version_vrf_proof
+            .as_ref()
+            .ok_or(vrf_previous_null_err)?;
+        verify_vrf(
+            vrf_public_key,
+            uname,
+            true,
+            version - 1,
+            previous_version_vrf_proof,
+            previous_version_stale_at_ep.label,
+        )?;
     }
 
     // return indicator of if the value <=> hash mapping was verified
