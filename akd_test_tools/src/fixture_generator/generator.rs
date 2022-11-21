@@ -16,17 +16,14 @@ use std::io::Write;
 use akd::directory::Directory;
 use akd::storage::types::{AkdLabel, AkdValue, DbRecord};
 use akd::storage::StorageUtil;
+use akd::Blake3;
 use clap::Parser;
 use rand::{rngs::OsRng, Rng};
 use serde::{Deserialize, Serialize};
-use winter_crypto::hashers::Blake3_256;
-use winter_math::fields::f128::BaseElement;
 
 use crate::fixture_generator::parser::Args;
 use crate::fixture_generator::writer::yaml::YamlWriter;
 use crate::fixture_generator::writer::Writer;
-
-type Blake3 = Blake3_256<BaseElement>;
 
 /// Directory state comprises all database records at a particular epoch.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,7 +121,7 @@ pub(crate) async fn generate(args: Args) {
     // initialize directory
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false)
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
         .await
         .unwrap();
 
@@ -163,7 +160,7 @@ pub(crate) async fn generate(args: Args) {
         }
 
         // perform publish
-        akd.publish::<Blake3>(updates.clone()).await.unwrap();
+        akd.publish(updates.clone()).await.unwrap();
 
         // write state if required
         if let Some(ref states) = args.capture_states {

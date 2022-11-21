@@ -153,7 +153,7 @@ pub(crate) async fn directory_test_suite<
     let mut root_hashes = vec![];
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
+    let maybe_dir = Directory::<_, _, Blake3>::new(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -169,27 +169,27 @@ pub(crate) async fn directory_test_suite<
                     ));
                 }
 
-                if let Err(error) = dir.publish::<Blake3>(data).await {
+                if let Err(error) = dir.publish(data).await {
                     panic!("Error publishing batch {:?}", error);
                 } else {
                     info!("Published epoch {}", i);
                 }
                 let azks = dir.retrieve_current_azks().await.unwrap();
-                root_hashes.push(dir.get_root_hash::<Blake3>(&azks).await);
+                root_hashes.push(dir.get_root_hash(&azks).await);
             }
 
             // Perform 10 random lookup proofs on the published users
             let azks = dir.retrieve_current_azks().await.unwrap();
-            let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
+            let root_hash = dir.get_root_hash(&azks).await.unwrap();
 
             for user in users.iter().choose_multiple(&mut rng, 10) {
                 let key = AkdLabel::from_utf8_str(user);
-                match dir.lookup::<Blake3>(key.clone()).await {
+                match dir.lookup(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, key, proof)
+                            akd::client::lookup_verify(&vrf_pk, root_hash, key, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -201,7 +201,7 @@ pub(crate) async fn directory_test_suite<
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
                 let key = AkdLabel::from_utf8_str(user);
-                match dir.key_history::<Blake3>(&key).await {
+                match dir.key_history(&key).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
                         let (root_hash, current_epoch) =
@@ -209,7 +209,7 @@ pub(crate) async fn directory_test_suite<
                                 .await
                                 .unwrap();
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) = akd::client::key_history_verify::<Blake3>(
+                        if let Err(error) = akd::client::key_history_verify(
                             &vrf_pk,
                             root_hash,
                             current_epoch,
@@ -226,7 +226,7 @@ pub(crate) async fn directory_test_suite<
             info!("2 random history proofs passed");
 
             // Perform an audit proof from 1u64 -> 2u64
-            match dir.audit::<Blake3>(1u64, 2u64).await {
+            match dir.audit(1u64, 2u64).await {
                 Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
                 Ok(proof) => {
                     let start_root_hash = root_hashes[0].as_ref();
@@ -275,7 +275,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new::<Blake3>(mysql_db, vrf, false).await;
+    let maybe_dir = Directory::<_, _, Blake3>::new(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -291,7 +291,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
                     ));
                 }
 
-                if let Err(error) = dir.publish::<Blake3>(data).await {
+                if let Err(error) = dir.publish(data).await {
                     panic!("Error publishing batch {:?}", error);
                 } else {
                     info!("Published epoch {}", i);
@@ -300,7 +300,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
 
             // Perform `num_lookup` random lookup proofs on the published users
             let azks = dir.retrieve_current_azks().await.unwrap();
-            let root_hash = dir.get_root_hash::<Blake3>(&azks).await.unwrap();
+            let root_hash = dir.get_root_hash(&azks).await.unwrap();
 
             // Pick a set of users to lookup
             let mut labels = Vec::new();
@@ -315,12 +315,12 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
             let start = Instant::now();
             // Lookup selected users one by one
             for label in labels.clone() {
-                match dir.lookup::<Blake3>(label.clone()).await {
+                match dir.lookup(label.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok(proof) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, label, proof)
+                            akd::client::lookup_verify(&vrf_pk, root_hash, label, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -338,7 +338,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
 
             let start = Instant::now();
             // Bulk lookup selected users
-            match dir.batch_lookup::<Blake3>(&labels).await {
+            match dir.batch_lookup(&labels).await {
                 Err(error) => panic!("Error batch looking up user information {:?}", error),
                 Ok(proofs) => {
                     assert_eq!(labels.len(), proofs.len());
@@ -348,7 +348,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Storage + Sync + Send, V: VRFK
                         let label = labels[i].clone();
                         let proof = proofs[i].clone();
                         if let Err(error) =
-                            akd::client::lookup_verify::<Blake3>(&vrf_pk, root_hash, label, proof)
+                            akd::client::lookup_verify(&vrf_pk, root_hash, label, proof)
                         {
                             panic!("Batch lookup failed to verify for index {} {:?}", i, error);
                         }

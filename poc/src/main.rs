@@ -10,6 +10,7 @@
 
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::Storage;
+use akd::Blake3;
 use akd::Directory;
 use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
 use clap::{ArgEnum, Parser};
@@ -25,16 +26,12 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
-use winter_crypto::hashers::Blake3_256;
-use winter_math::fields::f128::BaseElement;
 
 mod commands;
 mod directory_host;
 mod logs;
 
 use logs::ConsoleLogger;
-
-type Blake3 = Blake3_256<BaseElement>;
 
 #[derive(ArgEnum, Clone, Debug)]
 enum PublicLogLevels {
@@ -143,7 +140,7 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_, _>::new::<Blake3>(&db, &vrf, false)
+        let mut directory = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await
             .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
@@ -168,7 +165,7 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory = Directory::<_, _>::new::<Blake3>(&mysql_db, &vrf, false)
+        let mut directory = Directory::<_, _, Blake3>::new(&mysql_db, &vrf, false)
             .await
             .unwrap();
         tokio::spawn(async move {

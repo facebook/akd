@@ -11,7 +11,7 @@
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
-    directory::{get_key_history_hashes, Directory},
+    directory::{get_key_history_hashes, Directory, PublishCorruption},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
     storage::{
@@ -20,24 +20,20 @@ use crate::{
         Storage,
     },
 };
-use winter_crypto::{
-    hashers::{Blake3_256, Sha3_256},
-    Digest,
-};
+use winter_crypto::{Digest, Hasher};
 use winter_math::fields::f128::BaseElement;
-type Blake3 = Blake3_256<BaseElement>;
+type Blake3 = winter_crypto::hashers::Blake3_256<BaseElement>;
+type Sha3 = winter_crypto::hashers::Sha3_256<BaseElement>;
 
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]
 async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3_256<BaseElement>>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     let current_azks = akd.retrieve_current_azks().await?;
-    let hash = akd
-        .get_root_hash::<Blake3_256<BaseElement>>(&current_azks)
-        .await?;
+    let hash = akd.get_root_hash(&current_azks).await?;
     // Ensuring that the root hash of an empty tree is equal to the following constant
     assert_eq!(
         "f48ded419214732a2c610c1e280543744bab3c17aec33e444997fa2d8f79792a",
@@ -51,10 +47,10 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
 async fn test_simple_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
     // Make sure you can publish and that something so simple
     // won't throw errors.
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world"),
     )])
@@ -69,9 +65,9 @@ async fn test_simple_publish() -> Result<(), AkdError> {
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
     // Add two labels and corresponding values to the akd
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world"),
@@ -86,11 +82,11 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
     // Get the root hash with respect to which lookup_proof should verify
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the lookup proof
-    lookup_verify::<Blake3_256<BaseElement>>(
+    lookup_verify(
         &vrf_pk,
         root_hash,
         AkdLabel::from_utf8_str("hello"),
@@ -109,17 +105,17 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // Then the test verifies the key history.
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world"),
     )])
     .await?;
     // Publish the second value for the label "hello"
     // Epoch here will be 2
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world2"),
     )])
@@ -130,7 +126,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the key history proof
@@ -153,9 +149,9 @@ async fn test_small_key_history() -> Result<(), AkdError> {
 async fn test_simple_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
     // Epoch 1: Add labels "hello" and "hello2"
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world"),
@@ -167,7 +163,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     ])
     .await?;
     // Epoch 2: Update the values for both the labels to version 2
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world_2"),
@@ -179,7 +175,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     ])
     .await?;
     // Epoch 3: Update the values for both the labels again to version 3
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world3"),
@@ -191,7 +187,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     ])
     .await?;
     // Epoch 4: Add two new labels
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world"),
@@ -203,14 +199,14 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     ])
     .await?;
     // Epoch 5: Updated "hello" to version 4
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world_updated"),
     )])
     .await?;
     // Epoch 6: Update the values for "hello3" and "hello4"
     // both two version 2.
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world6"),
@@ -233,7 +229,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     // Get the latest root hash
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     key_history_verify::<Blake3>(
@@ -315,15 +311,98 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     Ok(())
 }
 
+// This test covers the tests for PR #224, addresses issue #222: That key history does fail on a small tree,
+// when malicious updates are made.
+// Other that it is just a simple check to see that a valid key history proof passes.
+#[tokio::test]
+async fn test_malicious_key_history() -> Result<(), AkdError> {
+    // This test has an akd with a single label: "hello", followed by an
+    // insertion of a new label "hello2". Meanwhile, the server has a one epoch
+    // delay in marking the first version for "hello" as stale, which should
+    // be caught by key history verifications for "hello".
+    let db = AsyncInMemoryDatabase::new();
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    // Publish the first value for the label "hello"
+    // Epoch here will be 1
+    akd.publish(vec![(
+        AkdLabel::from_utf8_str("hello"),
+        AkdValue::from_utf8_str("world"),
+    )])
+    .await?;
+    // Publish the second value for the label "hello" without marking the first value as stale
+    // Epoch here will be 2
+    let corruption_2 = PublishCorruption::UnmarkedStaleVersion(AkdLabel::from_utf8_str("hello"));
+    akd.publish_malicious_update(
+        vec![(
+            AkdLabel::from_utf8_str("hello"),
+            AkdValue::from_utf8_str("world2"),
+        )],
+        corruption_2,
+    )
+    .await?;
+
+    // Get the key_history_proof for the label "hello"
+    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    // Get the latest root hash
+    let current_azks = akd.retrieve_current_azks().await?;
+    let current_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd.get_root_hash(&current_azks).await?;
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await?;
+    // Verify the key history proof: This should fail since the server did not mark the version 1 for
+    // this username as stale, upon adding version 2.
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hash,
+        current_epoch,
+        AkdLabel::from_utf8_str("hello"),
+        key_history_proof,
+        false,
+    ).expect_err("The key history proof should fail here since the previous value was not marked stale at all");
+
+    // Mark the first value for the label "hello" as stale
+    // Epoch here will be 3
+    let corruption_3 = PublishCorruption::MarkVersionStale(AkdLabel::from_utf8_str("hello"), 1);
+    akd.publish_malicious_update(
+        vec![(
+            AkdLabel::from_utf8_str("hello2"),
+            AkdValue::from_utf8_str("world"),
+        )],
+        corruption_3,
+    )
+    .await?;
+
+    // Get the key_history_proof for the label "hello"
+    let key_history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
+    // Get the latest root hash
+    let current_azks = akd.retrieve_current_azks().await?;
+    let current_epoch = current_azks.get_latest_epoch();
+    let root_hash = akd.get_root_hash(&current_azks).await?;
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await?;
+    // Verify the key history proof: This should still fail, since the server added the version number too late.
+    key_history_verify::<Blake3>(
+        &vrf_pk,
+        root_hash,
+        current_epoch,
+        AkdLabel::from_utf8_str("hello"),
+        key_history_proof,
+        false,
+    ).expect_err("The key history proof should fail here since the previous value was marked stale one epoch too late.");
+
+    Ok(())
+}
+
 // This test ensures valid audit proofs pass for various epochs and
 // that invalid audit proofs fail.
 #[tokio::test]
 async fn test_simple_audit() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world"),
@@ -337,10 +416,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the first server publish
     let root_hash_1 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world_2"),
@@ -354,10 +433,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the second server publish
     let root_hash_2 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world3"),
@@ -371,10 +450,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the third server publish
     let root_hash_3 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world"),
@@ -388,10 +467,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the fourth server publish
     let root_hash_4 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world_updated"),
     )])
@@ -399,10 +478,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the fifth server publish
     let root_hash_5 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world6"),
@@ -416,7 +495,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
     // Get the root hash after the 6th server publish
     let root_hash_6 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
     // This is to ensure that an audit of two consecutive, although relatively old epochs is calculated correctly.
@@ -462,15 +541,15 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     audit_verify::<Blake3>(vec![root_hash_4, root_hash_5, root_hash_6], audit_proof_7).await?;
 
     // The audit should be of more than 1 epoch
-    let invalid_audit = akd.audit::<Blake3>(3, 3).await;
+    let invalid_audit = akd.audit(3, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
 
     // The audit epochs must be increasing
-    let invalid_audit = akd.audit::<Blake3>(3, 2).await;
+    let invalid_audit = akd.audit(3, 2).await;
     assert!(matches!(invalid_audit, Err(_)));
 
     // The audit should throw an error when queried for an epoch which hasn't yet taken place!
-    let invalid_audit = akd.audit::<Blake3>(6, 7).await;
+    let invalid_audit = akd.audit(6, 7).await;
     assert!(matches!(invalid_audit, Err(_)));
 
     Ok(())
@@ -480,10 +559,10 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 async fn test_read_during_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     // Publish once
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world"),
@@ -496,10 +575,10 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     .await?;
     // Get the root hash after the first publish
     let root_hash_1 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
     // Publish updates for the same labels.
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world_2"),
@@ -513,14 +592,14 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
 
     // Get the root hash after the second publish
     let root_hash_2 = akd
-        .get_root_hash::<Blake3>(&akd.retrieve_current_azks().await?)
+        .get_root_hash(&akd.retrieve_current_azks().await?)
         .await?;
 
     // Make the current azks a "checkpoint" to reset to later
     let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
 
     // Publish for the third time
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world_3"),
@@ -539,16 +618,14 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         .expect("Error resetting directory to previous epoch");
 
     // History proof should not contain the third epoch's update but still verify
-    let history_proof = akd
-        .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
-        .await?;
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
     let (root_hashes, _) = get_key_history_hashes(&akd, &history_proof).await?;
     assert_eq!(2, root_hashes.len());
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     key_history_verify::<Blake3>(
         &vrf_pk,
         root_hash,
@@ -559,9 +636,7 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     )?;
 
     // Lookup proof should contain the checkpoint epoch's value and still verify
-    let lookup_proof = akd
-        .lookup::<Blake3>(AkdLabel::from_utf8_str("hello"))
-        .await?;
+    let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(
         AkdValue::from_utf8_str("world_2"),
         lookup_proof.plaintext_value
@@ -577,7 +652,7 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     let audit_proof = akd.audit(1, 2).await?;
     audit_verify::<Blake3>(vec![root_hash_1, root_hash_2], audit_proof).await?;
 
-    let invalid_audit = akd.audit::<Blake3>(2, 3).await;
+    let invalid_audit = akd.audit(2, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
 
     Ok(())
@@ -592,16 +667,16 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, true).await;
     assert!(matches!(akd, Err(_)));
 
     // now create the AZKS
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await;
     assert!(matches!(akd, Ok(_)));
 
     // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
-    assert!(matches!(akd.publish::<Blake3>(vec![]).await, Err(_)));
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, true).await?;
+    assert!(matches!(akd.publish(vec![]).await, Err(_)));
 
     Ok(())
 }
@@ -614,10 +689,10 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
-    let writer = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let writer = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     writer
-        .publish::<Blake3>(vec![
+        .publish(vec![
             (
                 AkdLabel::from_utf8_str("hello"),
                 AkdValue::from_utf8_str("world"),
@@ -630,7 +705,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
         .await?;
 
     // reader will not write the AZKS but will be "polling" for AZKS changes
-    let reader = Directory::<_, _>::new::<Blake3>(&db, &vrf, true).await?;
+    let reader = Directory::<_, _, Blake3>::new(&db, &vrf, true).await?;
 
     // start the poller
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -646,7 +721,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
 
     // publish epoch 2
     writer
-        .publish::<Blake3>(vec![
+        .publish(vec![
             (
                 AkdLabel::from_utf8_str("hello"),
                 AkdValue::from_utf8_str("world_2"),
@@ -676,10 +751,10 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     // epoch 1
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world"),
@@ -692,7 +767,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     .await?;
 
     // epoch 2
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world_2"),
@@ -705,7 +780,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     .await?;
 
     // epoch 3
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello"),
             AkdValue::from_utf8_str("world3"),
@@ -718,7 +793,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     .await?;
 
     // epoch 4
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world"),
@@ -731,14 +806,14 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     .await?;
 
     // epoch 5
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world_updated"),
     )])
     .await?;
 
     // epoch 6
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world6"),
@@ -751,7 +826,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     .await?;
 
     // epoch 7
-    akd.publish::<Blake3>(vec![
+    akd.publish(vec![
         (
             AkdLabel::from_utf8_str("hello3"),
             AkdValue::from_utf8_str("world7"),
@@ -767,7 +842,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
 
     // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
     let history_proof = akd
-        .limited_key_history::<Blake3>(1, &AkdLabel::from_utf8_str("hello"))
+        .limited_key_history(1, &AkdLabel::from_utf8_str("hello"))
         .await?;
     assert_eq!(1, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -775,7 +850,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Get the current epoch and the current root hash for this akd.
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
 
     // Now check that the key history verifies
     key_history_verify::<Blake3>(
@@ -789,7 +864,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
 
     // Take the top 3 results, and check that we're getting the right epoch updates
     let history_proof = akd
-        .limited_key_history::<Blake3>(3, &AkdLabel::from_utf8_str("hello"))
+        .limited_key_history(3, &AkdLabel::from_utf8_str("hello"))
         .await?;
     assert_eq!(3, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -814,38 +889,38 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     // epoch 1
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world"),
     )])
     .await?;
 
     // epoch 2
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world2"),
     )])
     .await?;
 
     // epoch 3
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world3"),
     )])
     .await?;
 
     // epoch 4
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world4"),
     )])
     .await?;
 
     // epoch 5
-    akd.publish::<Blake3>(vec![(
+    akd.publish(vec![(
         AkdLabel::from_utf8_str("hello"),
         AkdValue::from_utf8_str("world5"),
     )])
@@ -864,15 +939,13 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     db.tombstone_value_states(&tombstones).await?;
 
     // Now get a history proof for this key
-    let history_proof = akd
-        .key_history::<Blake3>(&AkdLabel::from_utf8_str("hello"))
-        .await?;
+    let history_proof = akd.key_history(&AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(5, history_proof.update_proofs.len());
 
     // Get the current epoch and the current root hash for this akd.
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
     // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
     let tombstones = key_history_verify::<Blake3>(
         &vrf_pk,
@@ -915,7 +988,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new::<Blake3>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -928,7 +1001,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
         ));
     }
     // Publish the updates. Now the akd's epoch will be 1.
-    akd.publish::<Blake3>(updates).await?;
+    akd.publish(updates).await?;
 
     // The label we will lookup is "hello10"
     let target_label = AkdLabel(format!("hello1{}", 0).as_bytes().to_vec());
@@ -938,7 +1011,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
 
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
 
     // Get the VRF public key
     let vrf_pk = vrf.get_vrf_public_key().await?;
@@ -957,13 +1030,13 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     Ok(())
 }
 
-// Test lookup in a smaller tree with 2 leaves, using the Sha3_256 hash function.
+// Test lookup in a smaller tree with 2 leaves, using the Sha3 hash function.
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new::<Sha3_256<BaseElement>>(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Sha3>::new(&db, &vrf, false).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -977,7 +1050,7 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     }
 
     // Publish the updates. Now the akd's epoch will be 1.
-    akd.publish::<Sha3_256<BaseElement>>(updates).await?;
+    akd.publish(updates).await?;
 
     // The label we will lookup is "hello10"
     let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
@@ -986,20 +1059,14 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let lookup_proof = akd.lookup(target_label.clone()).await?;
     // retrieve the root hash
     let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd
-        .get_root_hash::<Sha3_256<BaseElement>>(&current_azks)
-        .await?;
+    let root_hash = akd.get_root_hash(&current_azks).await?;
 
     // Get the VRF public key
     let vrf_pk = vrf.get_vrf_public_key().await?;
 
     // perform the "traditional" AKD verification
-    let akd_result = crate::client::lookup_verify::<Sha3_256<BaseElement>>(
-        &vrf_pk,
-        root_hash,
-        target_label.clone(),
-        lookup_proof,
-    );
+    let akd_result =
+        crate::client::lookup_verify(&vrf_pk, root_hash, target_label.clone(), lookup_proof);
 
     // check the two results to make sure they both verify
     assert!(matches!(akd_result, Ok(())), "{:?}", akd_result);
@@ -1011,17 +1078,17 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
 =========== Test Helpers ===========
 */
 
-async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage>(
-    reader: &Directory<T, V>,
+async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher>(
+    reader: &Directory<T, V, H>,
     value: AkdValue,
 ) -> Result<(), AkdError> {
     // reader should read "hello" and this will populate the "cache" a log
     let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(value, lookup_proof.plaintext_value);
     let current_azks = reader.retrieve_current_azks().await?;
-    let root_hash = reader.get_root_hash::<Blake3>(&current_azks).await?;
+    let root_hash = reader.get_root_hash(&current_azks).await?;
     let pk = reader.get_public_key().await?;
-    lookup_verify::<Blake3>(
+    lookup_verify(
         &pk,
         root_hash,
         AkdLabel::from_utf8_str("hello"),

@@ -76,19 +76,19 @@ pub struct DynamoDbClapSettings {
     )]
     bucket: String,
 
-    /// [OPTIONAL] AWS DynamoDb custom endpoint
+    /// (OPTIONAL) AWS DynamoDb custom endpoint
     #[clap(long, value_parser = super::s3::validate_uri)]
     dynamo_endpoint: Option<String>,
 
-    /// [OPTIONAL] AWS S3 bucket custom endpoint
+    /// (OPTIONAL) AWS S3 bucket custom endpoint
     #[clap(long, value_parser = super::s3::validate_uri)]
     s3_endpoint: Option<String>,
 
-    /// [OPTIONAL] AWS Access key for the session
+    /// (OPTIONAL) AWS Access key for the session
     #[clap(long)]
     access_key: Option<String>,
 
-    /// [OPTIONAL] AWS secret key for the session
+    /// (OPTIONAL) AWS secret key for the session
     #[clap(long)]
     secret_key: Option<String>,
 }
@@ -101,13 +101,13 @@ pub struct DynamoDbAuditStorage {
     region: String,
     /// The S3 bucket which contains the underlying proof material
     bucket: String,
-    /// [OPTIONAL] AWS DynamoDb custom endpoint
+    /// (OPTIONAL) AWS DynamoDb custom endpoint
     dynamo_endpoint: Option<String>,
-    /// [OPTIONAL] AWS S3 bucket custom endpoint
+    /// (OPTIONAL) AWS S3 bucket custom endpoint
     s3_endpoint: Option<String>,
-    /// [OPTIONAL] AWS Access key for the session
+    /// (OPTIONAL) AWS Access key for the session
     access_key: Option<String>,
-    /// [OPTIONAL] AWS secret key for the session
+    /// (OPTIONAL) AWS secret key for the session
     secret_key: Option<String>,
     /// The configuration, cached for subsequent accesses
     config: Arc<RwLock<Option<aws_config::SdkConfig>>>,
