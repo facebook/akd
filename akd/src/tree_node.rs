@@ -42,6 +42,12 @@ pub enum NodeType {
     Interior = 3,
 }
 
+impl crate::storage::SizeOf for NodeType {
+    fn size_of(&self) -> usize {
+        1
+    }
+}
+
 impl NodeType {
     pub(crate) fn from_u8(code: u8) -> Self {
         match code {
@@ -81,6 +87,14 @@ pub struct TreeNodeWithPreviousValue {
     pub latest_node: TreeNode,
     /// The "previous" node, either current or past
     pub previous_node: Option<TreeNode>,
+}
+
+impl crate::storage::SizeOf for TreeNodeWithPreviousValue {
+    fn size_of(&self) -> usize {
+        self.label.size_of()
+            + self.latest_node.size_of()
+            + self.previous_node.as_ref().map_or(8, |v| v.size_of() + 8)
+    }
 }
 
 impl Storable for TreeNodeWithPreviousValue {
@@ -237,6 +251,18 @@ pub struct TreeNode {
         serde(deserialize_with = "bytes_deserialize_hex")
     )]
     pub hash: [u8; 32],
+}
+
+impl crate::storage::SizeOf for TreeNode {
+    fn size_of(&self) -> usize {
+        self.label.size_of()
+            + std::mem::size_of::<u64>() * 2
+            + self.parent.size_of()
+            + self.node_type.size_of()
+            + self.left_child.as_ref().map_or(8, |v| v.size_of() + 8)
+            + self.right_child.as_ref().map_or(8, |v| v.size_of() + 8)
+            + 32
+    }
 }
 
 impl TreeNode {

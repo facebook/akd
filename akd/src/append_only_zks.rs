@@ -9,7 +9,7 @@
 use crate::{
     errors::TreeNodeError,
     proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof},
-    storage::{Storable, Storage},
+    storage::{SizeOf, Storable, Storage},
     tree_node::*,
 };
 
@@ -42,6 +42,12 @@ pub struct Azks {
     pub latest_epoch: u64,
     /// The number of nodes ie the size of this tree
     pub num_nodes: u64, // The size of the tree
+}
+
+impl SizeOf for Azks {
+    fn size_of(&self) -> usize {
+        std::mem::size_of::<u64>() * 2
+    }
 }
 
 impl Storable for Azks {

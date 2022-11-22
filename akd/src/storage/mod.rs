@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::Send;
 
-pub mod timed_cache;
+pub mod caches;
 pub mod transaction;
 pub mod types;
 
@@ -28,6 +28,12 @@ pub mod memory;
 
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
+
+/// Support getting the size of a struct or item in bytes
+pub trait SizeOf {
+    /// Retrieve the size of the item in bytes
+    fn size_of(&self) -> usize;
+}
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(feature = "serde_serialization")]

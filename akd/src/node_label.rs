@@ -45,6 +45,12 @@ pub struct NodeLabel {
     pub label_len: u32,
 }
 
+impl crate::storage::SizeOf for NodeLabel {
+    fn size_of(&self) -> usize {
+        32 + std::mem::size_of::<u32>()
+    }
+}
+
 impl PartialOrd for NodeLabel {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))

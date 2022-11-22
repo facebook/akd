@@ -5,55 +5,34 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module implements a basic async timed cache
+//! This module implements a higher-parallelism, async temporary cache for database
+//! objects
 
+use super::{CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
 use crate::storage::DbRecord;
+#[cfg(feature = "memory_pressure")]
+use crate::storage::SizeOf;
 use crate::storage::Storable;
-use log::{debug, error, info, trace, warn};
-use std::collections::{HashMap, HashSet};
+use dashmap::DashMap;
+use log::debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-// item's live for 30s
-const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
-// clean the cache every 15s
-const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
-
-struct CachedItem {
-    expiration: Instant,
-    data: DbRecord,
-}
 
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
 pub struct TimedCache {
     azks: Arc<tokio::sync::RwLock<Option<DbRecord>>>,
-    map: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, CachedItem>>>,
+    map: Arc<DashMap<Vec<u8>, CachedItem>>,
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
-    can_clean: Arc<tokio::sync::RwLock<bool>>,
+    can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
-    hit_count: Arc<tokio::sync::RwLock<u64>>,
 }
 
 impl TimedCache {
     /// Log cache access metrics along with size information
-    pub async fn log_metrics(&self, level: log::Level) {
-        let mut hit = self.hit_count.write().await;
-        let hit_count = *hit;
-        *hit = 0;
-        let guard = self.map.read().await;
-        let cache_size = (*guard).keys().len();
-        let msg = format!(
-            "Cache hit since last: {}, cached size: {} items",
-            hit_count, cache_size
-        );
-        match level {
-            log::Level::Trace => trace!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
-        }
+    pub async fn log_metrics(&self, _level: log::Level) {
+        // in high-parallelism, we don't keep any metric counters to minimize thread locking
     }
 }
 
@@ -65,15 +44,14 @@ impl Clone for TimedCache {
             last_clean: self.last_clean.clone(),
             can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
-            hit_count: self.hit_count.clone(),
         }
     }
 }
 
 impl TimedCache {
     async fn clean(&self) {
-        let can_clean_guard = self.can_clean.read().await;
-        if !*can_clean_guard {
+        let can_clean = self.can_clean.load(Ordering::Relaxed);
+        if !can_clean {
             // cleaning is disabled
             return;
         }
@@ -84,26 +62,26 @@ impl TimedCache {
                 < Instant::now()
         };
         if do_clean {
+            let mut last_clean_write = self.last_clean.write().await;
             debug!("BEGIN clean cache");
-            let now = Instant::now();
-            let mut keys_to_flush = HashSet::new();
 
-            let mut write = self.map.write().await;
-            for (key, value) in write.iter() {
-                if value.expiration < now {
-                    keys_to_flush.insert(key.clone());
-                }
-            }
-            if !keys_to_flush.is_empty() {
-                for key in keys_to_flush.into_iter() {
-                    write.remove(&key);
-                }
-            }
+            let now = Instant::now();
+            self.map.retain(|_, v| v.expiration >= now);
+
             debug!("END clean cache");
 
             // update last clean time
-            *(self.last_clean.write().await) = Instant::now();
+            *last_clean_write = Instant::now();
         }
+    }
+
+    #[cfg(feature = "memory_pressure")]
+    /// Measure the size of the underlying hashmap and storage utilized
+    pub fn measure(&self) -> usize {
+        self.map
+            .iter()
+            .map(|(key, item)| key.len() + item.size_of())
+            .sum()
     }
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
@@ -115,11 +93,10 @@ impl TimedCache {
         };
         Self {
             azks: Arc::new(tokio::sync::RwLock::new(None)),
-            map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            map: Arc::new(DashMap::new()),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
-            can_clean: Arc::new(tokio::sync::RwLock::new(true)),
+            can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
-            hit_count: Arc::new(tokio::sync::RwLock::new(0)),
         }
     }
 
@@ -139,29 +116,25 @@ impl TimedCache {
         {
             // someone's requesting the AZKS object, return it from the special "cache" storage
             let record = self.azks.read().await.clone();
+
             debug!("END cache retrieve");
-            if record.is_some() {
-                *(self.hit_count.write().await) += 1;
-            }
+
             // AZKS objects cannot expire, they need to be manually flushed, so we don't need
             // to check the expiration as below
             return record;
         }
 
-        let guard = self.map.read().await;
-        let ptr: &HashMap<_, _> = &*guard;
-        debug!("END cache retrieve");
-        if let Some(result) = ptr.get(&full_key) {
-            *(self.hit_count.write().await) += 1;
-
-            let ignore_clean = !*self.can_clean.read().await;
+        if let Some(result) = self.map.get(&full_key) {
+            let ignore_clean = !self.can_clean.load(Ordering::Relaxed);
             // if we've disabled cache cleaning, we're in the middle
             // of an in-memory transaction and should ignore expiration
             // of cache items until this flag is disabled again
             if ignore_clean || result.expiration > Instant::now() {
+                debug!("END cache retrieve");
                 return Some(result.data.clone());
             }
         }
+        debug!("END cache retrieve");
         None
     }
 
@@ -177,13 +150,11 @@ impl TimedCache {
             let mut guard = self.azks.write().await;
             *guard = Some(DbRecord::Azks(azks_ref.clone()));
         } else {
-            let mut guard = self.map.write().await;
-            // overwrite any existing items since a flush is requested
             let item = CachedItem {
                 expiration: Instant::now() + self.item_lifetime,
                 data: record.clone(),
             };
-            (*guard).insert(key, item);
+            self.map.insert(key, item);
         }
         debug!("END cache put");
     }
@@ -193,7 +164,6 @@ impl TimedCache {
         self.clean().await;
 
         debug!("BEGIN cache put batch");
-        let mut guard = self.map.write().await;
         for record in records.iter() {
             if let DbRecord::Azks(azks_ref) = &record {
                 let mut azks_guard = self.azks.write().await;
@@ -204,7 +174,7 @@ impl TimedCache {
                     expiration: Instant::now() + self.item_lifetime,
                     data: record.clone(),
                 };
-                (*guard).insert(key, item);
+                self.map.insert(key, item);
             }
         }
         debug!("END cache put batch");
@@ -213,24 +183,21 @@ impl TimedCache {
     /// Flush the cache
     pub async fn flush(&self) {
         debug!("BEGIN cache flush");
-        let mut guard = self.map.write().await;
-        (*guard).clear();
+        self.map.clear();
         let mut azks_guard = self.azks.write().await;
         *azks_guard = None;
         debug!("END cache flush");
     }
 
     /// Disable cache-cleaning (i.e. during a transaction)
-    pub async fn disable_clean(&self) {
+    pub fn disable_clean(&self) {
         debug!("Disabling MySQL object cache cleaning");
-        let mut guard = self.can_clean.write().await;
-        (*guard) = false;
+        self.can_clean.store(false, Ordering::Relaxed);
     }
 
     /// Re-enable cache cleaning (i.e. when a transaction is over)
-    pub async fn enable_clean(&self) {
+    pub fn enable_clean(&self) {
         debug!("Enabling MySQL object cache cleaning");
-        let mut guard = self.can_clean.write().await;
-        (*guard) = true;
+        self.can_clean.store(true, Ordering::Relaxed);
     }
 }

@@ -30,7 +30,7 @@ use tokio::time::{Duration, Instant};
 type MySqlError = mysql_async::Error;
 type LocalTransaction = akd::storage::transaction::Transaction;
 
-use akd::storage::timed_cache::*;
+use akd::storage::caches::*;
 
 const TABLE_AZKS: &str = crate::mysql_storables::TABLE_AZKS;
 const TABLE_HISTORY_TREE_NODES: &str = crate::mysql_storables::TABLE_HISTORY_TREE_NODES;
@@ -720,7 +720,7 @@ impl Storage for AsyncMySqlDatabase {
         // disable the cache cleaning since we're in a write transaction
         // and will want to keep cache'd objects for the life of the transaction
         if let Some(cache) = &self.cache {
-            cache.disable_clean().await;
+            cache.disable_clean();
         }
 
         self.trans.begin_transaction().await
@@ -731,7 +731,7 @@ impl Storage for AsyncMySqlDatabase {
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
-            cache.enable_clean().await;
+            cache.enable_clean();
         }
 
         // this retrieves all the trans operations, and "de-activates" the transaction flag
@@ -753,7 +753,7 @@ impl Storage for AsyncMySqlDatabase {
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
-            cache.enable_clean().await;
+            cache.enable_clean();
         }
 
         self.trans.rollback_transaction().await

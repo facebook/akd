@@ -44,6 +44,12 @@ pub struct AkdLabel(
     pub Vec<u8>,
 );
 
+impl crate::storage::SizeOf for AkdLabel {
+    fn size_of(&self) -> usize {
+        self.0.len()
+    }
+}
+
 impl AkdLabel {
     /// Build an [`AkdLabel`] struct from an UTF8 string
     pub fn from_utf8_str(value: &str) -> Self {
@@ -75,6 +81,12 @@ pub struct AkdValue(
     )]
     pub Vec<u8>,
 );
+
+impl crate::storage::SizeOf for AkdValue {
+    fn size_of(&self) -> usize {
+        self.0.len()
+    }
+}
 
 impl AkdValue {
     /// Build an [`AkdValue`] struct from an UTF8 string
@@ -116,6 +128,16 @@ pub struct ValueState {
     pub epoch: u64,
     /// The username associated to this value state (username + epoch is the record key)
     pub username: AkdLabel,
+}
+
+impl super::SizeOf for ValueState {
+    fn size_of(&self) -> usize {
+        self.plaintext_val.size_of()
+            + std::mem::size_of::<u64>()
+            + self.label.size_of()
+            + std::mem::size_of::<u64>()
+            + self.username.size_of()
+    }
 }
 
 impl crate::storage::Storable for ValueState {
@@ -214,6 +236,16 @@ pub enum DbRecord {
     TreeNode(TreeNodeWithPreviousValue),
     /// The state of the value for a particular key.
     ValueState(ValueState),
+}
+
+impl super::SizeOf for DbRecord {
+    fn size_of(&self) -> usize {
+        match &self {
+            DbRecord::Azks(azks) => azks.size_of(),
+            DbRecord::TreeNode(node) => node.size_of(),
+            DbRecord::ValueState(state) => state.size_of(),
+        }
+    }
 }
 
 impl Clone for DbRecord {
