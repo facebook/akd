@@ -36,6 +36,10 @@ async fn test_directory_operations() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
+            // clean every 1s and limit to 1KB
+            #[cfg(feature = "limited_memory_test")]
+            MySqlCacheOptions::Specific(std::time::Duration::from_secs(1), Some(1024)),
+            #[cfg(not(feature = "limited_memory_test"))]
             MySqlCacheOptions::Default,
             200,
         )

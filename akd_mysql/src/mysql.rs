@@ -65,8 +65,8 @@ pub enum MySqlCacheOptions {
     None,
     /// Utilize the default caching settings
     Default,
-    /// Customize the caching options (cache item duration)
-    Specific(std::time::Duration),
+    /// Customize the caching options (cache item duration, memory_limit_bytes)
+    Specific(std::time::Duration, Option<usize>),
 }
 
 /// Represents an _asynchronous_ connection to a MySQL database
@@ -160,8 +160,10 @@ impl<'a> AsyncMySqlDatabase {
 
         let cache = match cache_options {
             MySqlCacheOptions::None => None,
-            MySqlCacheOptions::Default => Some(TimedCache::new(None)),
-            MySqlCacheOptions::Specific(timing) => Some(TimedCache::new(Some(timing))),
+            MySqlCacheOptions::Default => Some(TimedCache::new(None, None)),
+            MySqlCacheOptions::Specific(timing, memory_limit_bytes) => {
+                Some(TimedCache::new(Some(timing), memory_limit_bytes))
+            }
         };
 
         Self {

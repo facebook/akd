@@ -15,7 +15,6 @@ use std::time::Instant;
 pub(crate) const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
 /// clean the cache every 15s
 pub(crate) const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
-#[cfg(feature = "memory_pressure")]
 /// Default memory limit in bytes ~ 1GB
 pub(crate) const DEFAULT_MEMORY_LIMIT_BYTES: usize = 1024 * 1024 * 1024;
 

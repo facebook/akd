@@ -8,7 +8,9 @@
 //! This module implements a basic async timed cache. It additionally counts some
 //! metrics related to access counts which can be helpful for profiling/debugging
 
-use super::{CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
+use super::{
+    CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS, DEFAULT_MEMORY_LIMIT_BYTES,
+};
 use crate::storage::DbRecord;
 #[cfg(feature = "memory_pressure")]
 use crate::storage::SizeOf;
@@ -29,6 +31,7 @@ pub struct TimedCache {
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
     hit_count: Arc<tokio::sync::RwLock<u64>>,
+    memory_limit_bytes: usize,
 }
 
 impl TimedCache {
@@ -62,6 +65,7 @@ impl Clone for TimedCache {
             can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
             hit_count: self.hit_count.clone(),
+            memory_limit_bytes: self.memory_limit_bytes,
         }
     }
 }
@@ -81,9 +85,49 @@ impl TimedCache {
         };
         if do_clean {
             debug!("BEGIN clean cache");
-            let now = Instant::now();
             let mut write = self.map.write().await;
+            let now = Instant::now();
+            #[cfg(not(feature = "memory_pressure"))]
             write.retain(|_, v| v.expiration >= now);
+            #[cfg(feature = "memory_pressure")]
+            {
+                let mut retained_size = 0;
+                let mut retained_elements = 0f64;
+                write.retain(|k, v| {
+                    if v.expiration >= now {
+                        retained_size += k.len() + v.size_of();
+                        retained_elements += 1.0;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                debug!("Retained cache size is {} bytes", retained_size);
+                if retained_size > self.memory_limit_bytes {
+                    debug!("BEGIN cache memory pressure clean");
+                    info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
+                    // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
+                    let percent_clean =
+                        0.05 + 1.0 - (self.memory_limit_bytes as f64) / (retained_size as f64);
+                    // convert that to the number of items to delete based on the size of the dictionary
+                    let num_clean = (retained_elements * percent_clean).round() as usize;
+                    // sort the dict based on the oldest entries
+                    let mut keys_and_expiration = write
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.expiration))
+                        .collect::<Vec<_>>();
+                    keys_and_expiration.sort_by(|(_, a), (_, b)| a.cmp(b));
+                    // take those old entries, and remove them
+                    for key in keys_and_expiration
+                        .into_iter()
+                        .take(num_clean)
+                        .map(|(k, _)| k)
+                    {
+                        write.remove(&key);
+                    }
+                    debug!("END cache memory pressure clean")
+                }
+            }
             debug!("END clean cache");
 
             // update last clean time
@@ -102,11 +146,12 @@ impl TimedCache {
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
     /// or take the default (30s)
-    pub fn new(o_lifetime: Option<Duration>) -> Self {
+    pub fn new(o_lifetime: Option<Duration>, o_memory_limit_bytes: Option<usize>) -> Self {
         let lifetime = match o_lifetime {
             Some(life) if life > Duration::from_secs(1) => life,
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
         };
+        let memory_limit_bytes: usize = o_memory_limit_bytes.unwrap_or(DEFAULT_MEMORY_LIMIT_BYTES);
         Self {
             azks: Arc::new(tokio::sync::RwLock::new(None)),
             map: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
@@ -114,6 +159,7 @@ impl TimedCache {
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
             hit_count: Arc::new(tokio::sync::RwLock::new(0)),
+            memory_limit_bytes,
         }
     }
 

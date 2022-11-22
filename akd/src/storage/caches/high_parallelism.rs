@@ -8,13 +8,17 @@
 //! This module implements a higher-parallelism, async temporary cache for database
 //! objects
 
-use super::{CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
+use super::{
+    CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS, DEFAULT_MEMORY_LIMIT_BYTES,
+};
 use crate::storage::DbRecord;
 #[cfg(feature = "memory_pressure")]
 use crate::storage::SizeOf;
 use crate::storage::Storable;
 use dashmap::DashMap;
 use log::debug;
+#[cfg(feature = "memory_pressure")]
+use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,6 +31,7 @@ pub struct TimedCache {
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
+    memory_limit_bytes: usize,
 }
 
 impl TimedCache {
@@ -44,6 +49,7 @@ impl Clone for TimedCache {
             last_clean: self.last_clean.clone(),
             can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
+            memory_limit_bytes: self.memory_limit_bytes,
         }
     }
 }
@@ -66,7 +72,51 @@ impl TimedCache {
             debug!("BEGIN clean cache");
 
             let now = Instant::now();
+            #[cfg(not(feature = "memory_pressure"))]
             self.map.retain(|_, v| v.expiration >= now);
+            #[cfg(feature = "memory_pressure")]
+            {
+                let mut retained_size = 0;
+                let mut retained_elements = 0f64;
+                let mut removed = 0;
+                self.map.retain(|k, v| {
+                    if v.expiration >= now {
+                        retained_size += k.len() + v.size_of();
+                        retained_elements += 1.0;
+                        true
+                    } else {
+                        removed += 1;
+                        false
+                    }
+                });
+                info!("Removed {} expired elements from the cache", removed);
+                debug!("Retained cache size is {} bytes", retained_size);
+                if retained_size > self.memory_limit_bytes {
+                    debug!("BEGIN cache memory pressure clean");
+                    info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
+                    // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
+                    let percent_clean =
+                        0.05 + 1.0 - (self.memory_limit_bytes as f64) / (retained_size as f64);
+                    // convert that to the number of items to delete based on the size of the dictionary
+                    let num_clean = (retained_elements * percent_clean).round() as usize;
+                    // sort the dict based on the oldest entries
+                    let mut keys_and_expiration = self
+                        .map
+                        .iter()
+                        .map(|kv| (kv.key().clone(), kv.value().expiration))
+                        .collect::<Vec<_>>();
+                    keys_and_expiration.sort_by(|(_, a), (_, b)| a.cmp(b));
+                    // take those old entries, and remove them
+                    for key in keys_and_expiration
+                        .into_iter()
+                        .take(num_clean)
+                        .map(|(k, _)| k)
+                    {
+                        self.map.remove(&key);
+                    }
+                    debug!("END cache memory pressure clean")
+                }
+            }
 
             debug!("END clean cache");
 
@@ -80,23 +130,25 @@ impl TimedCache {
     pub fn measure(&self) -> usize {
         self.map
             .iter()
-            .map(|(key, item)| key.len() + item.size_of())
+            .map(|kv| kv.key().len() + kv.value().size_of())
             .sum()
     }
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
     /// or take the default (30s)
-    pub fn new(o_lifetime: Option<Duration>) -> Self {
+    pub fn new(o_lifetime: Option<Duration>, o_memory_limit_bytes: Option<usize>) -> Self {
         let lifetime = match o_lifetime {
             Some(life) if life > Duration::from_secs(1) => life,
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
         };
+        let memory_limit_bytes: usize = o_memory_limit_bytes.unwrap_or(DEFAULT_MEMORY_LIMIT_BYTES);
         Self {
             azks: Arc::new(tokio::sync::RwLock::new(None)),
             map: Arc::new(DashMap::new()),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
+            memory_limit_bytes,
         }
     }
 
