@@ -160,6 +160,25 @@ impl Transaction {
         out
     }
 
+    /// Set a batch of values into the cache
+    pub async fn batch_set(&self, records: &[DbRecord]) {
+        debug!("BEGIN transaction set");
+
+        let mut guard = self.state.write().await;
+        for record in records {
+            guard
+                .mods
+                .insert(record.get_full_binary_id(), record.clone());
+        }
+
+        #[cfg(feature = "runtime_metrics")]
+        {
+            *(self.num_writes.write().await) += 1;
+        }
+
+        debug!("END transaction set");
+    }
+
     /// Set a value in the transaction to be committed at transaction commit time
     pub async fn set(&self, record: &DbRecord) {
         debug!("BEGIN transaction set");

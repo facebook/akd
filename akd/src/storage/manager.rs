@@ -110,22 +110,23 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             .collect::<Vec<_>>();
 
         let msg = format!(
-            "===================================================
+            "
+===================================================
 ============ Database operation counts ============
 ===================================================
-        SET {}, 
-        BATCH SET {}, 
-        GET {}, 
-        BATCH GET {}
-        TOMBSTONE {}
-        GET USER STATE {}
-        GET USER DATA {}
-        GET USER STATE VERSIONS {}
+    SET {}, 
+    BATCH SET {}, 
+    GET {}, 
+    BATCH GET {}
+    TOMBSTONE {}
+    GET USER STATE {}
+    GET USER DATA {}
+    GET USER STATE VERSIONS {}
 ===================================================
 ============ Database operation timing ============
 ===================================================
-        TIME READ {} ms
-        TIME WRITE {} ms",
+    TIME READ {} ms
+    TIME WRITE {} ms",
             snapshot[METRIC_SET],
             snapshot[METRIC_BATCH_SET],
             snapshot[METRIC_GET],
@@ -179,8 +180,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             ))),
         }?;
 
-        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(ops))
-            .await?;
+        self.tic_toc(METRIC_WRITE_TIME, self.batch_set(ops)).await?;
         self.increment_metric(METRIC_BATCH_SET).await;
         Ok(())
     }
@@ -229,9 +229,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
         // we're in a transaction, set the items in the transaction
         if self.is_transaction_active().await {
-            for record in records.iter() {
-                self.transaction.set(record).await;
-            }
+            self.transaction.batch_set(&records).await;
             return Ok(());
         }
 
@@ -367,8 +365,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         }
         if !new_data.is_empty() {
             debug!("Tombstoning {} entries", new_data.len());
-            self.tic_toc(METRIC_WRITE_TIME, self.batch_set(new_data))
-                .await?;
+            self.batch_set(new_data).await?;
             self.increment_metric(METRIC_TOMBSTONE).await;
         }
 
