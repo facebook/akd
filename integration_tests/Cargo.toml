@@ -6,8 +6,6 @@ edition = "2018"
 publish = false
 
 [features]
-high_parallelism = ["akd/high_parallelism"]
-memory_pressure = ["akd/memory_pressure"]
 
 [dependencies]
 winter-crypto = "0.2"

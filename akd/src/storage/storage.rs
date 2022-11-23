@@ -9,7 +9,7 @@
 //! to manage interactions with the data layer to optimize things like caching and
 //! transaction management
 
-use crate::storage::caches::TimedCache;
+use crate::storage::cache::TimedCache;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::DbRecord;
 use crate::storage::types::KeyData;
@@ -25,6 +25,7 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use super::types::ValueStateRetrievalFlag;
@@ -52,7 +53,7 @@ pub struct StorageManager<Db: Database + Sync + Send> {
     /// The underlying database managed by this storage manager
     pub db: Db,
 
-    metrics: Arc<tokio::sync::RwLock<[u128; NUM_METRICS]>>,
+    metrics: [Arc<AtomicU64>; NUM_METRICS],
 }
 
 impl<Db: Database + Sync + Send> Clone for StorageManager<Db> {
@@ -76,7 +77,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             cache: None,
             transaction: Transaction::new(),
             db: db.clone(),
-            metrics: Arc::new(tokio::sync::RwLock::new([0; NUM_METRICS])),
+            metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
 
@@ -90,7 +91,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             cache: Some(TimedCache::new(cache_item_lifetime, cache_limit_bytes)),
             transaction: Transaction::new(),
             db: db.clone(),
-            metrics: Arc::new(tokio::sync::RwLock::new([0; NUM_METRICS])),
+            metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
 
@@ -102,12 +103,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
         self.transaction.log_metrics(level).await;
 
-        let mut metric_guard = self.metrics.write().await;
-        let snapshot = metric_guard.clone();
-        // clear the metrics
-        *metric_guard = [0; NUM_METRICS];
-        // free the metric's guard to not block metric collection processing in parallel
-        drop(metric_guard);
+        let snapshot = self.metrics.iter().map(|metric| metric.load(Ordering::Relaxed)).collect::<Vec<_>>();
 
         let msg = format!(
             "===================================================
@@ -549,8 +545,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
     async fn increment_metric(&self, _metric: Metric) {
         #[cfg(feature = "runtime_metrics")]
         {
-            let mut guard = self.metrics.write().await;
-            (*guard)[_metric] = (*guard)[_metric] + 1;
+            (&self.metrics[_metric]).fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -561,8 +556,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             let out = f.await;
             let delta = std::time::Instant::now().duration_since(tic);
 
-            let mut guard = self.metrics.write().await;
-            (*guard)[_metric] = (*guard)[_metric] + delta.as_millis();
+            (&self.metrics[_metric]).fetch_add(delta.as_millis() as u64, Ordering::Relaxed);
 
             out
         }

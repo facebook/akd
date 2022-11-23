@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::Send;
 
-pub mod caches;
+pub mod cache;
 pub mod transaction;
 pub mod types;
 

@@ -5,18 +5,22 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module handles various types of caches supported in the AKD crate which are
-//! helpful for caching storage results for faster re-access
+//! This module handles the caching implementation and testing for a time-based cache
+//! which supports memory pressure shedding
 
 use crate::storage::DbRecord;
 use std::time::Instant;
 
+#[cfg(test)]
+mod tests;
+
 /// item's live for 30s
 pub(crate) const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
 /// clean the cache every 15s
+#[cfg(not(test))]
 pub(crate) const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
-/// Default memory limit in bytes ~ 1GB
-pub(crate) const DEFAULT_MEMORY_LIMIT_BYTES: usize = 1024 * 1024 * 1024;
+#[cfg(test)]
+pub(crate) const CACHE_CLEAN_FREQUENCY_MS: u64 = 50;
 
 pub(crate) struct CachedItem {
     pub(crate) expiration: Instant,
@@ -33,14 +37,8 @@ impl super::SizeOf for CachedItem {
 
 // -------- sub modules -------- //
 
-#[cfg(not(feature = "high_parallelism"))]
-pub mod basic;
-#[cfg(feature = "high_parallelism")]
 pub mod high_parallelism;
 
 // -------- cache exports -------- //
 
-#[cfg(not(feature = "high_parallelism"))]
-pub use basic::TimedCache;
-#[cfg(feature = "high_parallelism")]
 pub use high_parallelism::TimedCache;

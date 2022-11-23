@@ -36,6 +36,12 @@ jobs:
           command: test
           args: --package akd
 
+      - name: Test the base library, enabling runtime metrics processing
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd --features runtime_metrics
+
       - name: Test the local auditor, with default features
         uses: actions-rs/cargo@v1
         with:

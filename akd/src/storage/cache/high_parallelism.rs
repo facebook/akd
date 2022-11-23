@@ -9,19 +9,17 @@
 //! objects
 
 use super::{
-    CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS, DEFAULT_MEMORY_LIMIT_BYTES,
+    CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS,
 };
 use crate::storage::DbRecord;
-#[cfg(feature = "memory_pressure")]
 use crate::storage::SizeOf;
 use crate::storage::Storable;
 use dashmap::DashMap;
 #[cfg(not(feature = "runtime_metrics"))]
 use log::debug;
-#[cfg(all(feature = "memory_pressure", not(feature = "runtime_metrics")))]
 use log::info;
 #[cfg(feature = "runtime_metrics")]
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -35,7 +33,7 @@ pub struct TimedCache {
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
-    memory_limit_bytes: usize,
+    memory_limit_bytes: Option<usize>,
     hit_count: Arc<AtomicU64>,
 }
 
@@ -78,8 +76,7 @@ impl Clone for TimedCache {
 
 impl TimedCache {
     async fn clean(&self) {
-        let can_clean = self.can_clean.load(Ordering::Relaxed);
-        if !can_clean {
+        if !self.can_clean.load(Ordering::Relaxed) {
             // cleaning is disabled
             return;
         }
@@ -94,10 +91,7 @@ impl TimedCache {
             debug!("BEGIN clean cache");
 
             let now = Instant::now();
-            #[cfg(not(feature = "memory_pressure"))]
-            self.map.retain(|_, v| v.expiration >= now);
-            #[cfg(feature = "memory_pressure")]
-            {
+            if let Some(memory_limit_bytes) = self.memory_limit_bytes {
                 let mut retained_size = 0;
                 let mut retained_elements = 0f64;
                 let mut removed = 0;
@@ -113,12 +107,12 @@ impl TimedCache {
                 });
                 info!("Removed {} expired elements from the cache", removed);
                 debug!("Retained cache size is {} bytes", retained_size);
-                if retained_size > self.memory_limit_bytes {
+                if retained_size > memory_limit_bytes {
                     debug!("BEGIN cache memory pressure clean");
                     info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
                     // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
                     let percent_clean =
-                        0.05 + 1.0 - (self.memory_limit_bytes as f64) / (retained_size as f64);
+                        0.05 + 1.0 - (memory_limit_bytes as f64) / (retained_size as f64);
                     // convert that to the number of items to delete based on the size of the dictionary
                     let num_clean = (retained_elements * percent_clean).round() as usize;
                     // sort the dict based on the oldest entries
@@ -138,6 +132,8 @@ impl TimedCache {
                     }
                     debug!("END cache memory pressure clean")
                 }
+            } else {
+                self.map.retain(|_, v| v.expiration >= now);
             }
 
             debug!("END clean cache");
@@ -157,20 +153,20 @@ impl TimedCache {
     }
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
-    /// or take the default (30s)
+    /// or take the default (30s) and an optional memory-pressure limit, where the cache will be
+    /// cleaned if too much memory is being utilized
     pub fn new(o_lifetime: Option<Duration>, o_memory_limit_bytes: Option<usize>) -> Self {
         let lifetime = match o_lifetime {
-            Some(life) if life > Duration::from_secs(1) => life,
+            Some(life) if life > Duration::from_millis(1) => life,
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
         };
-        let memory_limit_bytes: usize = o_memory_limit_bytes.unwrap_or(DEFAULT_MEMORY_LIMIT_BYTES);
         Self {
             azks: Arc::new(tokio::sync::RwLock::new(None)),
             map: Arc::new(DashMap::new()),
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
-            memory_limit_bytes,
+            memory_limit_bytes: o_memory_limit_bytes,
             hit_count: Arc::new(AtomicU64::new(0u64)),
         }
     }
@@ -269,6 +265,20 @@ impl TimedCache {
         let mut azks_guard = self.azks.write().await;
         *azks_guard = None;
         debug!("END cache flush");
+    }
+
+    /// Retrieve all of the cached items
+    pub async fn get_all(&self) -> Vec<DbRecord> {
+        self.clean().await;
+
+        let mut items = vec![];
+        if let Some(record) = self.azks.read().await.clone() {
+            items.push(record);
+        }
+        for kv in self.map.iter() {
+            items.push(kv.value().data.clone());
+        }
+        items
     }
 
     /// Disable cache-cleaning (i.e. during a transaction)
