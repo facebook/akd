@@ -9,8 +9,8 @@ extern crate thread_id;
 
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::types::{AkdLabel, AkdValue};
-use akd::Blake3;
 use akd::Directory;
+use akd::{Blake3, HistoryParams};
 use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
 use rand::{thread_rng, Rng};
@@ -81,7 +81,7 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
                 let key = AkdLabel::from_utf8_str(user);
-                match dir.key_history(&key).await {
+                match dir.key_history(&key, HistoryParams::default()).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
                         let (root_hash, current_epoch) =
@@ -95,7 +95,7 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
                             current_epoch,
                             key,
                             proof,
-                            false,
+                            akd::HistoryVerificationParams::default(),
                         ) {
                             panic!("History proof failed to verify {:?}", error);
                         }

@@ -82,7 +82,7 @@ mod tests {
     use crate::storage::manager::StorageManager;
     use crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::types::{AkdLabel, AkdValue};
-    use crate::Blake3;
+    use crate::{Blake3, HistoryParams};
 
     #[derive(Serialize, Deserialize)]
     struct Wrapper<H: Hasher> {
@@ -162,7 +162,7 @@ mod tests {
         .unwrap();
         // Generate latest proof
         let history_proof = akd
-            .key_history(&AkdLabel::from_utf8_str("hello"))
+            .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
             .await
             .unwrap();
 

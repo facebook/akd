@@ -9,6 +9,7 @@ use akd::ecvrf::VRFKeyStorage;
 use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::{Database, StorageManager};
+use akd::HistoryParams;
 use akd::{Directory, EpochHash};
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
@@ -157,7 +158,10 @@ where
                 }
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
-                match directory.key_history(&AkdLabel::from_utf8_str(&a)).await {
+                match directory
+                    .key_history(&AkdLabel::from_utf8_str(&a), HistoryParams::default())
+                    .await
+                {
                     Ok(_proof) => {
                         let msg = format!("GOT KEY HISTORY FOR '{}'", a);
                         response.send(Ok(msg)).unwrap();
