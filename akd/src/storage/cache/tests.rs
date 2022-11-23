@@ -116,7 +116,7 @@ async fn test_many_memory_pressure() {
             plaintext_val: AkdValue::from_utf8_str("test"),
             username: AkdLabel::from_utf8_str("user"),
         })
-        .map(|vs| DbRecord::ValueState(vs))
+        .map(DbRecord::ValueState)
         .collect::<Vec<_>>();
 
     cache.batch_put(&value_states).await;

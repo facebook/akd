@@ -184,7 +184,7 @@ impl Transaction {
         usernames: &[crate::AkdLabel],
     ) -> HashMap<crate::AkdLabel, Vec<ValueState>> {
         debug!("BEGIN transaction user version scan");
-        let mut results = HashMap::new();
+        let mut results: HashMap<crate::AkdLabel, Vec<ValueState>> = HashMap::new();
 
         let mut set = std::collections::HashSet::with_capacity(usernames.len());
         for username in usernames.iter() {
@@ -198,9 +198,9 @@ impl Transaction {
             if let DbRecord::ValueState(value_state) = record {
                 if set.contains(&value_state.username) {
                     if results.contains_key(&value_state.username) {
-                        results
-                            .get_mut(&value_state.username)
-                            .map(|item: &mut Vec<ValueState>| item.push(value_state.clone()));
+                        if let Some(item) = results.get_mut(&value_state.username) {
+                            item.push(value_state.clone())
+                        }
                     } else {
                         results.insert(value_state.username.clone(), vec![value_state.clone()]);
                     }
@@ -229,7 +229,7 @@ impl Transaction {
             .get_users_data(&[username.clone()])
             .await
             .remove(username)
-            .unwrap_or_else(|| vec![]);
+            .unwrap_or_default();
         let out = Self::find_appropriate_item(intermediate, flag);
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
@@ -279,7 +279,7 @@ impl Transaction {
                 .rev()
                 .find(|item| item.epoch <= epoch),
             ValueStateRetrievalFlag::MaxEpoch => intermediate.into_iter().last(),
-            ValueStateRetrievalFlag::MinEpoch => intermediate.into_iter().nth(0),
+            ValueStateRetrievalFlag::MinEpoch => intermediate.into_iter().next(),
         }
     }
 }

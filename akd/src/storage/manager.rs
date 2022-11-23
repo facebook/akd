@@ -237,7 +237,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
         // update the cache
         if let Some(cache) = &self.cache {
-            let _ = cache.batch_put(&records).await;
+            cache.batch_put(&records).await;
         }
 
         // Write to the database
@@ -444,14 +444,14 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                         .map(|state| (state.epoch, state))
                         .collect::<HashMap<u64, _>>()
                 })
-                .unwrap_or_else(|| HashMap::new());
+                .unwrap_or_else(HashMap::new);
 
             let transaction_records = self
                 .transaction
                 .get_users_data(&[username.clone()])
                 .await
                 .remove(username)
-                .unwrap_or_else(|| vec![]);
+                .unwrap_or_default();
             for transaction_record in transaction_records.into_iter() {
                 map.insert(transaction_record.epoch, transaction_record);
             }
@@ -549,7 +549,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
     async fn increment_metric(&self, _metric: Metric) {
         #[cfg(feature = "runtime_metrics")]
         {
-            (&self.metrics[_metric]).fetch_add(1, Ordering::Relaxed);
+            self.metrics[_metric].fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -560,7 +560,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             let out = f.await;
             let delta = std::time::Instant::now().duration_since(tic);
 
-            (&self.metrics[_metric]).fetch_add(delta.as_millis() as u64, Ordering::Relaxed);
+            self.metrics[_metric].fetch_add(delta.as_millis() as u64, Ordering::Relaxed);
 
             out
         }
