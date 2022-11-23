@@ -79,8 +79,8 @@ mod tests {
     use crate::ecvrf::HardCodedAkdVRF;
     use crate::errors::AkdError;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
+    use crate::storage::manager::StorageManager;
     use crate::storage::memory::AsyncInMemoryDatabase;
-    use crate::storage::storage::StorageManager;
     use crate::storage::types::{AkdLabel, AkdValue};
     use crate::Blake3;
 

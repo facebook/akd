@@ -7,11 +7,11 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::serialization::to_digest;
-use crate::storage::storage::StorageManager;
+use crate::storage::manager::StorageManager;
 use crate::{
     errors::TreeNodeError,
     proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof},
-    storage::{Database as Storage, SizeOf, Storable},
+    storage::{Database, SizeOf, Storable},
     tree_node::*,
 };
 
@@ -86,7 +86,7 @@ impl Clone for Azks {
 
 impl Azks {
     /// Creates a new azks
-    pub async fn new<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn new<S: Database + Sync + Send, H: Hasher>(
         storage: &StorageManager<S>,
     ) -> Result<Self, AkdError> {
         create_empty_root::<H, S>(storage, Option::Some(0), Option::Some(0)).await?;
@@ -101,7 +101,7 @@ impl Azks {
     /// Inserts a single leaf and is only used for testing, since batching is more efficient.
     /// We just want to make sure batch insertions work correctly and this function is useful for that.
     #[cfg(test)]
-    pub async fn insert_leaf<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn insert_leaf<S: Database + Sync + Send, H: Hasher>(
         &mut self,
         storage: &StorageManager<S>,
         node: Node<H>,
@@ -134,7 +134,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves
-    pub async fn batch_insert_leaves<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn batch_insert_leaves<S: Database + Sync + Send, H: Hasher>(
         &mut self,
         storage: &StorageManager<S>,
         insertion_set: Vec<Node<H>>,
@@ -143,7 +143,7 @@ impl Azks {
             .await
     }
 
-    async fn preload_nodes_for_insertion<S: Storage + Sync + Send, H: Hasher>(
+    async fn preload_nodes_for_insertion<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         insertion_set: &[Node<H>],
@@ -160,7 +160,7 @@ impl Azks {
     }
 
     /// Preloads given nodes using breadth-first search.
-    pub async fn bfs_preload_nodes<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn bfs_preload_nodes<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         nodes_to_load: HashSet<NodeLabel>,
@@ -200,7 +200,7 @@ impl Azks {
     /// An azks is built both by the [crate::directory::Directory] and the auditor.
     /// However, both constructions have very minor differences, and the append_only_usage
     /// bool keeps track of this.
-    pub async fn batch_insert_leaves_helper<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn batch_insert_leaves_helper<S: Database + Sync + Send, H: Hasher>(
         &mut self,
         storage: &StorageManager<S>,
         insertion_set: Vec<Node<H>>,
@@ -284,7 +284,7 @@ impl Azks {
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
     // Assumes the verifier has access to the root at epoch
-    pub async fn get_membership_proof<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_membership_proof<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -301,7 +301,7 @@ impl Azks {
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
-    pub async fn get_non_membership_proof<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_non_membership_proof<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -361,7 +361,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
-    pub async fn get_append_only_proof<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_append_only_proof<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         start_epoch: u64,
@@ -431,7 +431,7 @@ impl Azks {
         }
     }
 
-    async fn gather_audit_proof_nodes<S: Storage + Sync + Send, H: Hasher>(
+    async fn gather_audit_proof_nodes<S: Database + Sync + Send, H: Hasher>(
         &self,
         nodes: Vec<TreeNode>,
         storage: &StorageManager<S>,
@@ -463,7 +463,7 @@ impl Azks {
     }
 
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Storage + Sync + Send, H: Hasher>(
+    async fn get_append_only_proof_helper<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         node: TreeNode,
@@ -527,7 +527,7 @@ impl Azks {
 
     // FIXME: these functions below should be moved into higher-level API
     /// Gets the root hash for this azks
-    pub async fn get_root_hash<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_root_hash<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<H::Digest, AkdError> {
@@ -538,7 +538,7 @@ impl Azks {
     /// Gets the root hash of the tree at a epoch.
     /// Since this is accessing the root node and the root node exists at all epochs that
     /// the azks does, this would never be called at an epoch before the birth of the root node.
-    pub async fn get_root_hash_at_epoch<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_root_hash_at_epoch<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -573,7 +573,7 @@ impl Azks {
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
-    pub async fn get_membership_proof_and_node<S: Storage + Sync + Send, H: Hasher>(
+    pub async fn get_membership_proof_and_node<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,

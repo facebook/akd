@@ -15,10 +15,10 @@ use crate::{
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
     storage::{
+        manager::StorageManager,
         memory::AsyncInMemoryDatabase,
-        storage::StorageManager,
         types::{AkdLabel, AkdValue, DbRecord},
-        Database as Storage,
+        Database,
     },
 };
 use winter_crypto::{Digest, Hasher};
@@ -1093,7 +1093,7 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
 =========== Test Helpers ===========
 */
 
-async fn async_poll_helper_proof<T: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher>(
+async fn async_poll_helper_proof<T: Database + Sync + Send, V: VRFKeyStorage, H: Hasher>(
     reader: &Directory<T, V, H>,
     value: AkdValue,
 ) -> Result<(), AkdError> {

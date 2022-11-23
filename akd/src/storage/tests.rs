@@ -303,7 +303,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
 }
 
 async fn test_transactions<S: Database + Sync + Send>(db: &S) {
-    let storage = crate::storage::storage::StorageManager::new_no_cache(db);
+    let storage = crate::storage::manager::StorageManager::new_no_cache(db);
 
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {

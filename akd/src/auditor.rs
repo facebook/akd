@@ -14,7 +14,7 @@ use winter_crypto::Hasher;
 use crate::{
     errors::{AkdError, AuditorError, AzksError},
     proof_structs::{AppendOnlyProof, SingleAppendOnlyProof},
-    storage::{memory::AsyncInMemoryDatabase, storage::StorageManager},
+    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
     Azks,
 };
 

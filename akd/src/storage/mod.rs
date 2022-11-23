@@ -24,10 +24,10 @@ pub mod types;
 /*
 Various implementations supported by the library are imported here and usable at various checkpoints
 */
+pub mod manager;
 pub mod memory;
-pub mod storage;
 
-pub use storage::StorageManager;
+pub use manager::StorageManager;
 
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
