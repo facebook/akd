@@ -49,15 +49,17 @@
 //! as `false`.
 //! ```
 //! use akd::Blake3;
+//! use akd::storage::StorageManager;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! use akd::ecvrf::HardCodedAkdVRF;
 //! use akd::directory::Directory;
 //!
 //! let db = AsyncInMemoryDatabase::new();
+//! let storage_manager = StorageManager::new_no_cache(&db);
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
+//! let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -69,11 +71,13 @@
 //! the new epoch number and root hash are returned.
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! use akd::EpochHash;
 //! use akd::storage::types::{AkdLabel, AkdValue};
@@ -84,10 +88,11 @@
 //!     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash.as_bytes()));
@@ -101,11 +106,13 @@
 //! of a client lookup for an existing entry.
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -116,10 +123,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let lookup_proof = akd.lookup(
@@ -132,11 +140,13 @@
 //! the server's public key.
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -147,10 +157,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let lookup_proof = akd.lookup(
@@ -176,11 +187,13 @@
 //! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch, as follows.
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -191,10 +204,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let history_proof = akd.key_history(
@@ -206,11 +220,13 @@
 //! with respect to the latest root hash and public key, as follows:
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -221,10 +237,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let history_proof = akd.key_history(
@@ -252,11 +269,13 @@
 //! Below we illustrate how the server responds to an audit query between two epochs.
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -267,10 +286,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -289,11 +309,13 @@
 //! The auditor then verifies the above [`AppendOnlyProof`] using [`auditor::audit_verify`].
 //! ```
 //! # use akd::Blake3;
+//! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db); 
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
@@ -304,10 +326,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch

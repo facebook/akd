@@ -80,6 +80,7 @@ mod tests {
     use crate::errors::AkdError;
     use crate::proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
     use crate::storage::memory::AsyncInMemoryDatabase;
+    use crate::storage::storage::StorageManager;
     use crate::storage::types::{AkdLabel, AkdValue};
     use crate::Blake3;
 
@@ -109,7 +110,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn lookup_proof_roundtrip() -> Result<(), AkdError> {
-        let db = AsyncInMemoryDatabase::new();
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
 
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
@@ -140,7 +142,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn history_proof_roundtrip() -> Result<(), AkdError> {
-        let db = AsyncInMemoryDatabase::new();
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await
@@ -173,7 +176,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn audit_proof_roundtrip() -> Result<(), AkdError> {
-        let db = AsyncInMemoryDatabase::new();
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
         let vrf = HardCodedAkdVRF {};
         let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
             .await

@@ -8,15 +8,13 @@
 //! Implementation of a auditable key directory
 
 use crate::append_only_zks::Azks;
-
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
-use crate::proof_structs::*;
-use crate::{helper_structs::LookupInfo, EpochHash, Node};
-
 use crate::errors::{AkdError, DirectoryError, StorageError};
-
+use crate::proof_structs::*;
+use crate::storage::storage::StorageManager;
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-use crate::storage::Storage;
+use crate::storage::Database as Storage;
+use crate::{helper_structs::LookupInfo, EpochHash, Node};
 
 use log::{debug, error, info};
 
@@ -45,8 +43,8 @@ impl AkdLabel {
 }
 
 /// The representation of a auditable key directory
-pub struct Directory<S, V, H> {
-    storage: S,
+pub struct Directory<S: Storage + Sync + Send, V, H> {
+    storage: StorageManager<S>,
     vrf: V,
     hasher: PhantomData<H>,
     read_only: bool,
@@ -76,7 +74,11 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new(storage: &S, vrf: &V, read_only: bool) -> Result<Self, AkdError> {
+    pub async fn new(
+        storage: &StorageManager<S>,
+        vrf: &V,
+        read_only: bool,
+    ) -> Result<Self, AkdError> {
         let azks = Directory::<S, V, H>::get_azks_from_storage(storage, false).await;
 
         if read_only && azks.is_err() {
@@ -680,7 +682,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     }
 
     async fn get_azks_from_storage(
-        storage: &S,
+        storage: &StorageManager<S>,
         ignore_cache: bool,
     ) -> Result<Azks, crate::errors::AkdError> {
         let got = if ignore_cache {

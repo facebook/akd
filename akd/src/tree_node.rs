@@ -11,8 +11,9 @@ use crate::errors::{AkdError, StorageError, TreeNodeError};
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::serialization::{from_digest, to_digest};
+use crate::storage::storage::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
-use crate::storage::{Storable, Storage};
+use crate::storage::{Database as Storage, Storable};
 use crate::{node_label::*, Direction, EMPTY_LABEL};
 use async_recursion::async_recursion;
 use log::debug;
@@ -171,13 +172,13 @@ impl TreeNodeWithPreviousValue {
 
     pub(crate) async fn write_to_storage<S: Storage + Send + Sync>(
         &self,
-        storage: &S,
+        storage: &StorageManager<S>,
     ) -> Result<(), StorageError> {
         storage.set(DbRecord::TreeNode(self.clone())).await
     }
 
     pub(crate) async fn get_appropriate_tree_node_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
+        storage: &StorageManager<S>,
         key: &NodeKey,
         target_epoch: u64,
     ) -> Result<TreeNode, StorageError> {
@@ -191,7 +192,7 @@ impl TreeNodeWithPreviousValue {
     }
 
     pub(crate) async fn batch_get_appropriate_tree_node_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
+        storage: &StorageManager<S>,
         keys: &[NodeKey],
         target_epoch: u64,
     ) -> Result<Vec<TreeNode>, StorageError> {
@@ -269,7 +270,7 @@ impl TreeNode {
     // Storage operations
     pub(crate) async fn write_to_storage<S: Storage + Send + Sync>(
         &self,
-        storage: &S,
+        storage: &StorageManager<S>,
     ) -> Result<(), StorageError> {
         self.write_to_storage_impl(storage, false).await
     }
@@ -278,7 +279,7 @@ impl TreeNode {
     /// will be used as None without the cost of finding this information in the cache or worse yet in the database.
     async fn write_to_storage_impl<S: Storage + Send + Sync>(
         &self,
-        storage: &S,
+        storage: &StorageManager<S>,
         is_new_node: bool,
     ) -> Result<(), StorageError> {
         // MOTIVATION:
@@ -325,7 +326,7 @@ impl TreeNode {
     }
 
     pub(crate) async fn get_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
+        storage: &StorageManager<S>,
         key: &NodeKey,
         target_epoch: u64,
     ) -> Result<TreeNode, StorageError> {
@@ -338,7 +339,7 @@ impl TreeNode {
     }
 
     pub(crate) async fn batch_get_from_storage<S: Storage + Send + Sync>(
-        storage: &S,
+        storage: &StorageManager<S>,
         keys: &[NodeKey],
         target_epoch: u64,
     ) -> Result<Vec<TreeNode>, StorageError> {
@@ -381,7 +382,7 @@ impl TreeNode {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new TreeNode and writes it to the storage.
     async fn new<S: Storage + Send + Sync>(
-        storage: &S,
+        storage: &StorageManager<S>,
         label: NodeLabel,
         parent: NodeLabel,
         node_type: NodeType,
@@ -411,7 +412,7 @@ impl TreeNode {
     #[cfg(test)]
     pub(crate) async fn insert_single_leaf_and_hash<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
@@ -430,7 +431,7 @@ impl TreeNode {
     /// in an amortized way, at a later time.
     pub(crate) async fn insert_leaf<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
@@ -449,7 +450,7 @@ impl TreeNode {
     #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
@@ -509,7 +510,7 @@ impl TreeNode {
         H: Hasher,
     >(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         mut new_leaf: Self,
         epoch: u64,
         hashing: bool,
@@ -551,7 +552,7 @@ impl TreeNode {
         H: Hasher,
     >(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         mut new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
@@ -631,7 +632,7 @@ impl TreeNode {
         H: Hasher,
     >(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         new_leaf: Self,
         epoch: u64,
         num_nodes: &mut u64,
@@ -675,7 +676,7 @@ impl TreeNode {
     /// Updates the node hash and saves it in storage.
     pub(crate) async fn update_node_hash<S: Storage + Sync + Send, H: Hasher>(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         epoch: u64,
         exclude_ep: Option<bool>,
     ) -> Result<(), AkdError> {
@@ -715,7 +716,7 @@ impl TreeNode {
     /// without updating its own hash.
     pub(crate) async fn set_child<S: Storage + Sync + Send>(
         &mut self,
-        storage: &S,
+        storage: &StorageManager<S>,
         child: &mut InsertionNode<'_>,
         epoch: u64,
     ) -> Result<(), StorageError> {
@@ -794,7 +795,7 @@ impl TreeNode {
     /// Loads (from storage) the left or right child of a node using given direction
     pub(crate) async fn get_child_state<S: Storage + Sync + Send>(
         &self,
-        storage: &S,
+        storage: &StorageManager<S>,
         direction: Direction,
         current_epoch: u64,
     ) -> Result<Option<TreeNode>, AkdError> {
@@ -907,7 +908,7 @@ pub(crate) fn optional_child_state_hash<H: Hasher>(
 
 /// Create an empty root node.
 pub async fn create_empty_root<H: Hasher, S: Storage + Sync + Send>(
-    storage: &S,
+    storage: &StorageManager<S>,
     ep: Option<u64>,
     least_descendant_ep: Option<u64>,
 ) -> Result<TreeNode, StorageError> {
@@ -937,7 +938,7 @@ pub async fn create_empty_root<H: Hasher, S: Storage + Sync + Send>(
 
 /// Create a specific leaf node.
 pub async fn create_leaf_node<H: Hasher, S: Storage + Sync + Send>(
-    storage: &S,
+    storage: &StorageManager<S>,
     label: NodeLabel,
     value: &H::Digest,
     parent: NodeLabel,
@@ -971,10 +972,12 @@ mod tests {
 
     type Blake3 = Blake3_256<BaseElement>;
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
+    use crate::storage::storage::StorageManager;
 
     #[tokio::test]
     async fn test_least_descendant_ep() -> Result<(), AkdError> {
-        let db = InMemoryDb::new();
+        let database = InMemoryDb::new();
+        let db = StorageManager::new_no_cache(&database);
         let mut root =
             create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
@@ -1076,7 +1079,8 @@ mod tests {
     // insert_single_leaf tests
     #[tokio::test]
     async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
-        let db = InMemoryDb::new();
+        let database = InMemoryDb::new();
+        let db = StorageManager::new_no_cache(&database);
 
         let mut root =
             create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
@@ -1147,7 +1151,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
-        let db = InMemoryDb::new();
+        let database = InMemoryDb::new();
+        let db = StorageManager::new_no_cache(&database);
         let mut root =
             create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
@@ -1230,7 +1235,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
-        let db = InMemoryDb::new();
+        let database = InMemoryDb::new();
+        let db = StorageManager::new_no_cache(&database);
         let mut root =
             create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
@@ -1336,7 +1342,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
-        let db = InMemoryDb::new();
+        let database = InMemoryDb::new();
+        let db = StorageManager::new_no_cache(&database);
         let mut root =
             create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;

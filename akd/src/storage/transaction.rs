@@ -9,6 +9,8 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::DbRecord;
+use crate::storage::types::ValueState;
+use crate::storage::types::ValueStateRetrievalFlag;
 use crate::storage::Storable;
 
 use log::{debug, error, info, trace, warn};
@@ -65,6 +67,8 @@ impl Transaction {
 
         *r = 0;
         *w = 0;
+        drop(r);
+        drop(w);
 
         match level {
             log::Level::Trace => trace!("{}", msg),
@@ -148,6 +152,7 @@ impl Transaction {
 
         let guard = self.state.read().await;
         let out = guard.mods.get(&bin_id).cloned();
+        #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
@@ -163,8 +168,119 @@ impl Transaction {
         let mut guard = self.state.write().await;
         guard.mods.insert(bin_id, record.clone());
 
-        *(self.num_writes.write().await) += 1;
+        #[cfg(feature = "runtime_metrics")]
+        {
+            *(self.num_writes.write().await) += 1;
+        }
+
         debug!("END transaction set");
+    }
+
+    /// Retrieve all of the user data for a given username
+    ///
+    /// Note: This is a FULL SCAN operation of the entire transaction log
+    pub async fn get_users_data(
+        &self,
+        usernames: &[crate::AkdLabel],
+    ) -> HashMap<crate::AkdLabel, Vec<ValueState>> {
+        debug!("BEGIN transaction user version scan");
+        let mut results = HashMap::new();
+
+        let mut set = std::collections::HashSet::with_capacity(usernames.len());
+        for username in usernames.iter() {
+            if !set.contains(username) {
+                set.insert(username.clone());
+            }
+        }
+
+        let guard = self.state.read().await;
+        for (_key, record) in guard.mods.iter() {
+            if let DbRecord::ValueState(value_state) = record {
+                if set.contains(&value_state.username) {
+                    if results.contains_key(&value_state.username) {
+                        results
+                            .get_mut(&value_state.username)
+                            .map(|item: &mut Vec<ValueState>| item.push(value_state.clone()));
+                    } else {
+                        results.insert(value_state.username.clone(), vec![value_state.clone()]);
+                    }
+                }
+            }
+        }
+
+        // sort all the value lists by epoch
+        for (_k, v) in results.iter_mut() {
+            v.sort_unstable_by(|a, b| a.epoch.cmp(&b.epoch));
+        }
+
+        debug!("END transaction user version scan");
+        results
+    }
+
+    /// Retrieve the user state given the specified value state retrieval mode
+    ///
+    /// Note: This is a FULL SCAN operation of the entire transaction log
+    pub async fn get_user_state(
+        &self,
+        username: &crate::AkdLabel,
+        flag: ValueStateRetrievalFlag,
+    ) -> Option<ValueState> {
+        let intermediate = self
+            .get_users_data(&[username.clone()])
+            .await
+            .remove(username)
+            .unwrap_or_else(|| vec![]);
+        let out = Self::find_appropriate_item(intermediate, flag);
+        #[cfg(feature = "runtime_metrics")]
+        if out.is_some() {
+            *(self.num_reads.write().await) += 1;
+        }
+        out
+    }
+
+    /// Retrieve the batch of specified users user_state's based on the filtering flag provided
+    ///
+    /// Note: This is a FULL SCAN operation of the entire transaction log
+    pub async fn get_users_states(
+        &self,
+        usernames: &[crate::AkdLabel],
+        flag: ValueStateRetrievalFlag,
+    ) -> HashMap<crate::AkdLabel, ValueState> {
+        let mut result_map = HashMap::new();
+        let intermediate = self.get_users_data(usernames).await;
+
+        for (key, value_list) in intermediate.into_iter() {
+            if let Some(found) = Self::find_appropriate_item(value_list, flag) {
+                result_map.insert(key, found);
+            }
+        }
+        #[cfg(feature = "runtime_metrics")]
+        {
+            *(self.num_reads.write().await) += 1;
+        }
+        result_map
+    }
+
+    /// Find the appropriate item of the cached value states for a given user. This assumes that the incoming vector
+    /// is already sorted in ascending epoch order
+    fn find_appropriate_item(
+        intermediate: Vec<ValueState>,
+        flag: ValueStateRetrievalFlag,
+    ) -> Option<ValueState> {
+        match flag {
+            ValueStateRetrievalFlag::SpecificVersion(version) => intermediate
+                .into_iter()
+                .find(|item| item.version == version),
+            ValueStateRetrievalFlag::SpecificEpoch(epoch) => {
+                intermediate.into_iter().find(|item| item.epoch == epoch)
+            }
+            ValueStateRetrievalFlag::LeqEpoch(epoch) => intermediate
+                .into_iter()
+                .rev()
+                .find(|item| item.epoch <= epoch),
+            ValueStateRetrievalFlag::MaxEpoch => intermediate.into_iter().last(),
+            ValueStateRetrievalFlag::MinEpoch => intermediate.into_iter().nth(0),
+        }
     }
 }
 

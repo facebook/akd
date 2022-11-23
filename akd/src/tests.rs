@@ -16,8 +16,9 @@ use crate::{
     errors::AkdError,
     storage::{
         memory::AsyncInMemoryDatabase,
+        storage::StorageManager,
         types::{AkdLabel, AkdValue, DbRecord},
-        Storage,
+        Database as Storage,
     },
 };
 use winter_crypto::{Digest, Hasher};
@@ -29,8 +30,9 @@ type Sha3 = winter_crypto::hashers::Sha3_256<BaseElement>;
 #[tokio::test]
 async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     let current_azks = akd.retrieve_current_azks().await?;
     let hash = akd.get_root_hash(&current_azks).await?;
@@ -46,8 +48,9 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
     // Make sure you can publish and that something so simple
     // won't throw errors.
     akd.publish(vec![(
@@ -64,8 +67,9 @@ async fn test_simple_publish() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
     // Add two labels and corresponding values to the akd
     akd.publish(vec![
         (
@@ -104,8 +108,9 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // The value of this label is updated two times.
     // Then the test verifies the key history.
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(
@@ -148,8 +153,9 @@ async fn test_small_key_history() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
     // Epoch 1: Add labels "hello" and "hello2"
     akd.publish(vec![
         (
@@ -321,8 +327,9 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // delay in marking the first version for "hello" as stale, which should
     // be caught by key history verifications for "hello".
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(
@@ -399,8 +406,9 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_audit() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     akd.publish(vec![
         (
@@ -558,8 +566,9 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_read_during_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     // Publish once
     akd.publish(vec![
@@ -665,17 +674,18 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_directory_read_only_mode() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, true).await;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, true).await;
     assert!(matches!(akd, Err(_)));
 
     // now create the AZKS
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await;
     assert!(matches!(akd, Ok(_)));
 
     // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, true).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, true).await?;
     assert!(matches!(akd.publish(vec![]).await, Err(_)));
 
     Ok(())
@@ -687,9 +697,10 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
-    let writer = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let writer = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     writer
         .publish(vec![
@@ -705,7 +716,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
         .await?;
 
     // reader will not write the AZKS but will be "polling" for AZKS changes
-    let reader = Directory::<_, _, Blake3>::new(&db, &vrf, true).await?;
+    let reader = Directory::<_, _, Blake3>::new(&storage, &vrf, true).await?;
 
     // start the poller
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -749,9 +760,10 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_limited_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     // epoch 1
     akd.publish(vec![
@@ -887,9 +899,10 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     // epoch 1
     akd.publish(vec![(
@@ -986,9 +999,10 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -1034,9 +1048,10 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _, Sha3>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Sha3>::new(&storage, &vrf, false).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")

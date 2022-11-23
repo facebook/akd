@@ -28,6 +28,8 @@ high_parallelism = ["dashmap"]
 # Add support for handling memory pressure process on the caches. This costs some performance, however 
 # provides the ability to protect against OOMing
 memory_pressure = []
+# Collect runtime metrics on db access calls + timing
+runtime_metrics = []
 
 [dependencies]
 ## Required dependencies ##

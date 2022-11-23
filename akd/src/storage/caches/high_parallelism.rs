@@ -16,10 +16,14 @@ use crate::storage::DbRecord;
 use crate::storage::SizeOf;
 use crate::storage::Storable;
 use dashmap::DashMap;
+#[cfg(not(feature = "runtime_metrics"))]
 use log::debug;
-#[cfg(feature = "memory_pressure")]
+#[cfg(all(feature = "memory_pressure", not(feature = "runtime_metrics")))]
 use log::info;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(feature = "runtime_metrics")]
+use log::{debug, error, info, warn};
+
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -32,12 +36,29 @@ pub struct TimedCache {
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
     memory_limit_bytes: usize,
+    hit_count: Arc<AtomicU64>,
 }
 
 impl TimedCache {
     /// Log cache access metrics along with size information
     pub async fn log_metrics(&self, _level: log::Level) {
-        // in high-parallelism, we don't keep any metric counters to minimize thread locking
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
+            let cache_size = self.map.len();
+
+            let msg = format!(
+                "Cache hit since last: {}, cached size: {} items",
+                hit_count, cache_size
+            );
+            match _level {
+                log::Level::Trace => println!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
+        }
     }
 }
 
@@ -50,6 +71,7 @@ impl Clone for TimedCache {
             can_clean: self.can_clean.clone(),
             item_lifetime: self.item_lifetime,
             memory_limit_bytes: self.memory_limit_bytes,
+            hit_count: self.hit_count.clone(),
         }
     }
 }
@@ -149,6 +171,7 @@ impl TimedCache {
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
             memory_limit_bytes,
+            hit_count: Arc::new(AtomicU64::new(0u64)),
         }
     }
 
@@ -171,12 +194,18 @@ impl TimedCache {
 
             debug!("END cache retrieve");
 
+            #[cfg(feature = "runtime_metrics")]
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
+
             // AZKS objects cannot expire, they need to be manually flushed, so we don't need
             // to check the expiration as below
             return record;
         }
 
         if let Some(result) = self.map.get(&full_key) {
+            #[cfg(feature = "runtime_metrics")]
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
+
             let ignore_clean = !self.can_clean.load(Ordering::Relaxed);
             // if we've disabled cache cleaning, we're in the middle
             // of an in-memory transaction and should ignore expiration
@@ -208,6 +237,7 @@ impl TimedCache {
             };
             self.map.insert(key, item);
         }
+
         debug!("END cache put");
     }
 

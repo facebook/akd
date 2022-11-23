@@ -15,9 +15,14 @@ use crate::storage::DbRecord;
 #[cfg(feature = "memory_pressure")]
 use crate::storage::SizeOf;
 use crate::storage::Storable;
-use log::{debug, error, info, trace, warn};
+#[cfg(not(feature = "runtime_metrics"))]
+use log::debug;
+#[cfg(all(feature = "memory_pressure", not(feature = "runtime_metrics")))]
+use log::info;
+#[cfg(feature = "runtime_metrics")]
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
@@ -30,28 +35,32 @@ pub struct TimedCache {
     last_clean: Arc<tokio::sync::RwLock<Instant>>,
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
-    hit_count: Arc<tokio::sync::RwLock<u64>>,
+    hit_count: Arc<AtomicU64>,
     memory_limit_bytes: usize,
 }
 
 impl TimedCache {
     /// Log cache access metrics along with size information
-    pub async fn log_metrics(&self, level: log::Level) {
-        let mut hit = self.hit_count.write().await;
-        let hit_count = *hit;
-        *hit = 0;
-        let guard = self.map.read().await;
-        let cache_size = (*guard).keys().len();
-        let msg = format!(
-            "Cache hit since last: {}, cached size: {} items",
-            hit_count, cache_size
-        );
-        match level {
-            log::Level::Trace => trace!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
+    pub async fn log_metrics(&self, _level: log::Level) {
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
+
+            let guard = self.map.read().await;
+            let cache_size = (*guard).keys().len();
+            drop(guard);
+
+            let msg = format!(
+                "Cache hit since last: {}, cached size: {} items",
+                hit_count, cache_size
+            );
+            match level {
+                log::Level::Trace => trace!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
         }
     }
 }
@@ -158,7 +167,7 @@ impl TimedCache {
             last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
-            hit_count: Arc::new(tokio::sync::RwLock::new(0)),
+            hit_count: Arc::new(AtomicU64::new(0)),
             memory_limit_bytes,
         }
     }
@@ -180,8 +189,9 @@ impl TimedCache {
             // someone's requesting the AZKS object, return it from the special "cache" storage
             let record = self.azks.read().await.clone();
             debug!("END cache retrieve");
+            #[cfg(feature = "runtime_metrics")]
             if record.is_some() {
-                *(self.hit_count.write().await) += 1;
+                self.hit_count.fetch_add(1, Ordering::Relaxed);
             }
             // AZKS objects cannot expire, they need to be manually flushed, so we don't need
             // to check the expiration as below
@@ -192,7 +202,9 @@ impl TimedCache {
         let ptr: &HashMap<_, _> = &*guard;
         debug!("END cache retrieve");
         if let Some(result) = ptr.get(&full_key) {
-            *(self.hit_count.write().await) += 1;
+            #[cfg(feature = "runtime_metrics")]
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
+
             let ignore_clean = !self.can_clean.load(Ordering::Relaxed);
             // if we've disabled cache cleaning, we're in the middle
             // of an in-memory transaction and should ignore expiration
