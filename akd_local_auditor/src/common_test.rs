@@ -12,6 +12,7 @@ use crate::{Digest, Hasher};
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::memory::AsyncInMemoryDatabase;
+use akd::storage::StorageManager;
 use akd::AkdLabel;
 use akd::AkdValue;
 
@@ -60,8 +61,9 @@ pub async fn generate_audit_proofs(
     expensive: bool,
 ) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
     let db = AsyncInMemoryDatabase::new();
+    let storage_manager = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Hasher>::new(&db, &vrf, false).await?;
+    let akd = Directory::<_, _, Hasher>::new(&storage_manager, &vrf, false).await?;
     let mut proofs = vec![];
     // gather the hash + azks for epoch "0" (init)
     let mut azks = akd.retrieve_current_azks().await?;

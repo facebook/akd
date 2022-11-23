@@ -8,7 +8,7 @@
 use akd::ecvrf::VRFKeyStorage;
 use akd::errors::AkdError;
 use akd::storage::types::*;
-use akd::storage::Storage;
+use akd::storage::{Database, StorageManager};
 use akd::{Directory, EpochHash};
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
@@ -38,7 +38,7 @@ async fn get_root_hash<S, H, V>(
     o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
-    S: Storage + Sync + Send,
+    S: Database + Sync + Send,
     H: Hasher,
     V: VRFKeyStorage,
 {
@@ -54,7 +54,7 @@ where
 
 pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V, H>)
 where
-    S: Storage + Sync + Send,
+    S: Database + Sync + Send,
     H: Hasher,
     V: VRFKeyStorage,
 {

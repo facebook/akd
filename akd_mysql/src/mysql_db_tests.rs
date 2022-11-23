@@ -36,7 +36,6 @@ async fn test_mysql_db() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
-            MySqlCacheOptions::None,
             200,
         )
         .await;

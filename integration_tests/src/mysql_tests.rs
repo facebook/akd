@@ -5,7 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use akd::{ecvrf::HardCodedAkdVRF, storage::Storage};
+use akd::ecvrf::HardCodedAkdVRF;
+use akd::storage::StorageManager;
 use akd_mysql::mysql::*;
 use log::{error, info, warn};
 
@@ -36,11 +37,6 @@ async fn test_directory_operations() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
-            // clean every 1s and limit to 1KB
-            #[cfg(feature = "limited_memory_test")]
-            MySqlCacheOptions::Specific(std::time::Duration::from_secs(1), Some(1024)),
-            #[cfg(not(feature = "limited_memory_test"))]
-            MySqlCacheOptions::Default,
             200,
         )
         .await;
@@ -51,12 +47,15 @@ async fn test_directory_operations() {
         }
 
         let vrf = HardCodedAkdVRF {};
+        let storage_manager = StorageManager::new(&mysql_db, None, None);
         akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
-            &mysql_db, 50, &vrf,
+            &storage_manager,
+            50,
+            &vrf,
         )
         .await;
 
-        mysql_db.log_metrics(log::Level::Trace).await;
+        storage_manager.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
@@ -99,7 +98,6 @@ async fn test_lookups() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
-            MySqlCacheOptions::Default,
             200,
         )
         .await;
@@ -110,7 +108,9 @@ async fn test_lookups() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&mysql_db, &vrf, 50, 5, 100).await;
+        let storage_manager = StorageManager::new(&mysql_db, None, None);
+        crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
+            .await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {

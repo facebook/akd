@@ -12,7 +12,7 @@ use std::fs::File;
 use akd::{
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
-    storage::{memory::AsyncInMemoryDatabase, Storage, StorageUtil},
+    storage::{memory::AsyncInMemoryDatabase, Database, StorageManager, StorageUtil},
     Blake3,
 };
 
@@ -34,7 +34,8 @@ async fn test_use_fixture() {
     let db = AsyncInMemoryDatabase::new();
     db.batch_set(initial_state.records).await.unwrap();
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
+    let storage_manager = StorageManager::new_no_cache(&db);
+    let akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
         .await
         .unwrap();
 

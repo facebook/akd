@@ -315,7 +315,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db); 
+//! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::storage::types::{AkdLabel, AkdValue};

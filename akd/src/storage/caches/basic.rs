@@ -54,8 +54,8 @@ impl TimedCache {
                 "Cache hit since last: {}, cached size: {} items",
                 hit_count, cache_size
             );
-            match level {
-                log::Level::Trace => trace!("{}", msg),
+            match _level {
+                log::Level::Trace => println!("{}", msg),
                 log::Level::Debug => debug!("{}", msg),
                 log::Level::Info => info!("{}", msg),
                 log::Level::Warn => warn!("{}", msg),

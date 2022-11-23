@@ -49,7 +49,8 @@ const NUM_METRICS: usize = 10;
 pub struct StorageManager<Db: Database + Sync + Send> {
     cache: Option<TimedCache>,
     transaction: Transaction,
-    db: Db,
+    /// The underlying database managed by this storage manager
+    pub db: Db,
 
     metrics: Arc<tokio::sync::RwLock<[u128; NUM_METRICS]>>,
 }
