@@ -277,3 +277,21 @@ pub struct HistoryProof {
     /// Proof that future markers did not exist
     pub non_existence_of_future_markers: Vec<NonMembershipProof>,
 }
+
+/// The payload that is outputted as a result of successful verification of
+/// a [LookupProof] or [HistoryProof]. This includes the fields containing the
+/// epoch that the leaf was published in, the version corresponding to the value,
+/// and the value itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+pub struct VerifyResult {
+    /// The epoch of this record
+    pub epoch: u64,
+    /// Version at this update
+    pub version: u64,
+    /// The plaintext value associated with the record
+    pub value: AkdValue,
+}

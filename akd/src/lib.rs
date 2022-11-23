@@ -158,14 +158,21 @@
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
-//! assert_eq!(lookup_proof.plaintext_value, AkdValue::from_utf8_str("first value"));
 //! let lookup_result = akd::client::lookup_verify(
 //!     &public_key,
 //!     root_hash,
 //!     AkdLabel::from_utf8_str("first entry"),
 //!     lookup_proof,
+//! ).expect("Could not verify lookup proof");
+//!
+//! assert_eq!(
+//!     lookup_result,
+//!     akd::VerifyResult {
+//!         epoch: 1,
+//!         version: 1,
+//!         value: AkdValue::from_utf8_str("first value"),
+//!     },
 //! );
-//! assert!(lookup_result.is_ok());
 //! # });
 //! ```
 //!
@@ -173,7 +180,8 @@
 //! As mentioned above, the security is defined by consistent views of the value for a key at any epoch.
 //! To this end, a server running an AKD needs to provide a way to check the history of a key. Note that in this case,
 //! the server is trusted for validating that a particular client is authorized to run a history check on a particular key.
-//! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch, as follows.
+//! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch. The [HistoryParams] field
+//! can be used to limit the history that we issue proofs for, but in this example we default to a complete history.
 //! ```
 //! # use akd::Blake3;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
@@ -197,13 +205,21 @@
 //! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
+//! use akd::HistoryParams;
+//!
+//! let EpochHash(epoch2, root_hash2) = akd.publish(
+//!     vec![(AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("updated value"))],
+//! ).await.expect("Error with publishing");
 //! let history_proof = akd.key_history(
 //!     &AkdLabel::from_utf8_str("first entry"),
+//!     HistoryParams::default(),
 //! ).await.expect("Could not generate proof");
 //! # });
 //! ```
 //! To verify the above proof, we call [`client::key_history_verify`],
-//! with respect to the latest root hash and public key, as follows:
+//! with respect to the latest root hash and public key, as follows. This function
+//! returns a list of values that have been associated with the specified entry, in
+//! reverse chronological order.
 //! ```
 //! # use akd::Blake3;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
@@ -213,6 +229,7 @@
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
+//! # use akd::HistoryParams;
 //! # use akd::storage::types::{AkdLabel, AkdValue};
 //! # use akd::winter_crypto::Digest;
 //! #
@@ -227,23 +244,38 @@
 //! #     let mut akd = Directory::<_, _, Blake3>::new(&db, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
+//! #     let EpochHash(epoch2, root_hash2) = akd.publish(
+//! #         vec![(AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("updated value"))],
+//! #     ).await.expect("Error with publishing");
 //! #     let history_proof = akd.key_history(
 //! #         &AkdLabel::from_utf8_str("first entry"),
+//! #         HistoryParams::default(),
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //! let key_history_result = akd::client::key_history_verify(
 //!     &public_key,
-//!     root_hash,
+//!     root_hash2,
 //!     epoch,
 //!     AkdLabel::from_utf8_str("first entry"),
-//!     history_proof.clone(),
-//!     false,
-//! );
-//! assert!(key_history_result.is_ok());
+//!     history_proof,
+//!     akd::HistoryVerificationParams::default(),
+//! ).expect("Could not verify history");
 //!
-//! for entry in history_proof.update_proofs {
-//!     println!("({}, {}, {:?})", entry.epoch, entry.version, entry.plaintext_value);
-//! }
+//! assert_eq!(
+//!     key_history_result,
+//!     vec![
+//!         akd::VerifyResult {
+//!             epoch: 2,
+//!             version: 2,
+//!             value: AkdValue::from_utf8_str("updated value"),
+//!         },
+//!         akd::VerifyResult {
+//!             epoch: 1,
+//!             version: 1,
+//!             value: AkdValue::from_utf8_str("first value"),
+//!         },
+//!     ],
+//! );
 //! # });
 //! ```
 //!
@@ -381,10 +413,11 @@ mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
-pub use directory::Directory;
+pub use client::HistoryVerificationParams;
+pub use directory::{Directory, HistoryParams};
 pub use helper_structs::{EpochHash, Node};
 pub use node_label::NodeLabel;
-pub use proof_structs::{AppendOnlyProof, HistoryProof, LookupProof};
+pub use proof_structs::{AppendOnlyProof, HistoryProof, LookupProof, VerifyResult};
 pub use storage::types::{AkdLabel, AkdValue};
 pub use winter_crypto;
 /// The [Blake3](https://github.com/BLAKE3-team/BLAKE3) hash function
@@ -400,7 +433,7 @@ mod tests;
 
 /// The arity of the underlying tree structure of the akd.
 pub const ARITY: usize = 2;
-/// The length of a leaf node's label
+/// The length of a leaf node's label (in bits)
 pub const LEAF_LEN: u32 = 256;
 
 /// The value to be hashed every time an empty node's hash is to be considered
