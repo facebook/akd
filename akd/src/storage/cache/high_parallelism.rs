@@ -141,7 +141,6 @@ impl TimedCache {
         }
     }
 
-    #[cfg(feature = "memory_pressure")]
     /// Measure the size of the underlying hashmap and storage utilized
     pub fn measure(&self) -> usize {
         self.map

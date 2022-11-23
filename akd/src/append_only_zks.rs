@@ -20,7 +20,7 @@ use crate::{errors::*, node_label::*, tree_node::TreeNode, ARITY, *};
 use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
-use tokio::time::Instant;
+use std::time::Instant;
 use winter_crypto::Hasher;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
