@@ -8,9 +8,7 @@
 //! This module implements a higher-parallelism, async temporary cache for database
 //! objects
 
-use super::{
-    CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS,
-};
+use super::{CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
 use crate::storage::DbRecord;
 use crate::storage::SizeOf;
 use crate::storage::Storable;

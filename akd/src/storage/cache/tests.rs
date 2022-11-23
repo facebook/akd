@@ -10,9 +10,9 @@
 use super::*;
 use std::time::Duration;
 
-use crate::storage::DbRecord;
-use crate::{NodeLabel, AkdValue, AkdLabel};
 use crate::storage::types::{ValueState, ValueStateKey};
+use crate::storage::DbRecord;
+use crate::{AkdLabel, AkdValue, NodeLabel};
 
 #[tokio::test]
 async fn test_cache_put_and_expires() {
@@ -67,12 +67,13 @@ async fn test_cache_overwrite() {
         username: AkdLabel::from_utf8_str("user"),
     };
     cache.put(&DbRecord::ValueState(value_state)).await;
-    cache.put(&DbRecord::ValueState(value_state_2.clone())).await;
+    cache
+        .put(&DbRecord::ValueState(value_state_2.clone()))
+        .await;
 
     let got = cache.hit_test::<ValueState>(&key).await;
     assert_eq!(Some(DbRecord::ValueState(value_state_2)), got);
 }
-
 
 #[tokio::test]
 async fn test_cache_memory_pressure() {
@@ -102,10 +103,10 @@ async fn test_cache_memory_pressure() {
 
 #[tokio::test]
 async fn test_many_memory_pressure() {
-    let cache = TimedCache::new(Some(Duration::from_millis(1000)), Some(1024*5));
+    let cache = TimedCache::new(Some(Duration::from_millis(1000)), Some(1024 * 5));
 
-    let value_states = (1..100).map(|i| {
-        ValueState {
+    let value_states = (1..100)
+        .map(|i| ValueState {
             epoch: i as u64,
             version: i as u64,
             label: NodeLabel {
@@ -114,10 +115,9 @@ async fn test_many_memory_pressure() {
             },
             plaintext_val: AkdValue::from_utf8_str("test"),
             username: AkdLabel::from_utf8_str("user"),
-        }
-    })
-    .map(|vs| DbRecord::ValueState(vs))
-    .collect::<Vec<_>>();
+        })
+        .map(|vs| DbRecord::ValueState(vs))
+        .collect::<Vec<_>>();
 
     cache.batch_put(&value_states).await;
 

@@ -24,8 +24,8 @@ use crate::AkdValue;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::types::ValueStateRetrievalFlag;
@@ -103,7 +103,11 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
         self.transaction.log_metrics(level).await;
 
-        let snapshot = self.metrics.iter().map(|metric| metric.load(Ordering::Relaxed)).collect::<Vec<_>>();
+        let snapshot = self
+            .metrics
+            .iter()
+            .map(|metric| metric.load(Ordering::Relaxed))
+            .collect::<Vec<_>>();
 
         let msg = format!(
             "===================================================
