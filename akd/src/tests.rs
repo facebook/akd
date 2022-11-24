@@ -1008,7 +1008,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 1u64),
         crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 2u64),
     ];
-    db.tombstone_value_states(&tombstones).await?;
+    storage.tombstone_value_states(&tombstones).await?;
 
     // Now get a history proof for this key
     let history_proof = akd

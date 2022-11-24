@@ -171,7 +171,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
     /// Commit a transaction in the database
     pub async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
-        let ops = self.transaction.commit_transaction().await?;
+        let records = self.transaction.commit_transaction().await?;
 
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
@@ -179,7 +179,12 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             cache.enable_clean();
         }
 
-        let _epoch = match ops.last() {
+        if records.is_empty() {
+            // no-op, there's nothing to commit
+            return Ok(());
+        }
+
+        let _epoch = match records.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
             other => Err(StorageError::Transaction(format!(
                 "The last record in the transaction log is NOT an Azks record {:?}",
@@ -187,11 +192,16 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             ))),
         }?;
 
-        // We're calling the internal batch set operation in order to manage the cache correctly.
-        // Since we've "committed" the in-memory transaction, the batch_set operation will bypass
-        // the transaction management and simply interact with the cache then write to the underlying
-        // DB
-        self.batch_set(ops).await
+        // update the cache
+        if let Some(cache) = &self.cache {
+            cache.batch_put(&records).await;
+        }
+
+        // Write to the database
+        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(records, true))
+            .await?;
+        self.increment_metric(METRIC_BATCH_SET).await;
+        Ok(())
     }
 
     /// Rollback a transaction
@@ -248,7 +258,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         }
 
         // Write to the database
-        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(records))
+        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(records, false))
             .await?;
         self.increment_metric(METRIC_BATCH_SET).await;
         Ok(())

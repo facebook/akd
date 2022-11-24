@@ -11,6 +11,7 @@ use crate::errors::StorageError;
 use crate::node_label::byte_arr_from_u64;
 use crate::storage::types::*;
 use crate::storage::Database;
+use crate::storage::StorageManager;
 use crate::tree_node::*;
 use crate::NodeLabel;
 use rand::distributions::Alphanumeric;
@@ -45,7 +46,9 @@ pub async fn run_test_cases_for_storage_impl<S: Database + Sync + Send>(db: &S) 
     test_user_data(db).await;
     test_transactions(db).await;
     test_batch_get_items(db).await;
-    test_tombstoning_data(db).await.unwrap();
+
+    let manager = StorageManager::new_no_cache(db);
+    test_tombstoning_data(&manager).await.unwrap();
 }
 
 // *** New Test Helper Functions *** //
@@ -170,7 +173,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     }
 
     let tic = Instant::now();
-    assert_eq!(Ok(()), storage.batch_set(data.clone()).await);
+    assert_eq!(Ok(()), storage.batch_set(data.clone(), false).await);
     let toc: Duration = Instant::now() - tic;
     println!("Storage batch op: {} ms", toc.as_millis());
     let got = storage
@@ -574,7 +577,7 @@ async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
         .into_iter()
         .map(DbRecord::ValueState)
         .collect::<Vec<_>>();
-    let result = storage.batch_set(records).await;
+    let result = storage.batch_set(records, false).await;
     assert_eq!(Ok(()), result);
 
     let data = storage.get_user_data(&sample_state_2.username).await;
@@ -582,7 +585,7 @@ async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
 }
 
 async fn test_tombstoning_data<S: Database + Sync + Send>(
-    storage: &S,
+    storage: &StorageManager<S>,
 ) -> Result<(), crate::errors::AkdError> {
     let rand_user = thread_rng()
         .sample_iter(&Alphanumeric)
