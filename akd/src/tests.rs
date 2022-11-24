@@ -11,7 +11,7 @@
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
-    directory::{get_key_history_hashes, Directory, PublishCorruption},
+    directory::{Directory, PublishCorruption},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
     proof_structs::VerifyResult,
@@ -830,8 +830,6 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     let history_proof = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
-    let (root_hashes, _) = get_key_history_hashes(&akd, &history_proof).await?;
-    assert_eq!(2, root_hashes.len());
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     let current_azks = akd.retrieve_current_azks().await?;

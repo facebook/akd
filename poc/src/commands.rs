@@ -155,15 +155,8 @@ impl Command {
         }
     }
 
-    fn root_hash(parts: Vec<&str>) -> Option<DirectoryCommand> {
-        let mut epoch = None;
-        if parts.len() > 1 {
-            if let Ok(a) = parts[1].parse::<u64>() {
-                epoch = Some(a);
-            }
-        }
-
-        let cmd = DirectoryCommand::RootHash(epoch);
+    fn root_hash(_parts: Vec<&str>) -> Option<DirectoryCommand> {
+        let cmd = DirectoryCommand::RootHash;
         Some(cmd)
     }
 }

@@ -21,7 +21,6 @@ use log::{debug, error, info};
 #[cfg(feature = "rand")]
 use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
-use std::collections::HashMap;
 use std::marker::{PhantomData, Send, Sync};
 use std::sync::Arc;
 use winter_crypto::{Digest, Hasher};
@@ -240,7 +239,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> 
         }
 
         let root_hash = current_azks
-            .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+            .get_root_hash_safe::<_, H>(&self.storage, next_epoch)
             .await?;
 
         Ok(EpochHash(next_epoch, root_hash))
@@ -692,9 +691,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> 
         })
     }
 
-    /// Gets the azks root hash at the provided epoch. Note that the root hash should exist at any epoch
-    /// that the azks existed, so as long as epoch >= 0, we should be fine.
-    pub async fn get_root_hash_at_epoch(
+    /// Gets the root hash of the tree at the latest epoch if the passed epoch
+    /// is equal to the latest epoch. Will return an error otherwise.
+    pub async fn get_root_hash_safe(
         &self,
         current_azks: &Azks,
         epoch: u64,
@@ -703,14 +702,13 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> 
         let _guard = self.cache_lock.read().await;
 
         current_azks
-            .get_root_hash_at_epoch::<_, H>(&self.storage, epoch)
+            .get_root_hash_safe::<_, H>(&self.storage, epoch)
             .await
     }
 
     /// Gets the azks root hash at the current epoch.
     pub async fn get_root_hash(&self, current_azks: &Azks) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch(current_azks, current_azks.get_latest_epoch())
-            .await
+        current_azks.get_root_hash::<_, H>(&self.storage).await
     }
 
     // FIXME (Issue #184): This should be derived properly. Instead of hashing the VRF private
@@ -753,46 +751,6 @@ fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
         .take(32)
         .map(char::from)
         .collect()
-}
-
-type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
-
-/// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: Database + Sync + Send, H: Hasher, V: VRFKeyStorage>(
-    akd_dir: &Directory<S, V, H>,
-    history_proof: &HistoryProof<H>,
-) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
-    let mut epoch_hash_map: HashMap<u64, H::Digest> = HashMap::new();
-
-    let mut root_hashes = Vec::<H::Digest>::new();
-    let mut previous_root_hashes = Vec::<Option<H::Digest>>::new();
-    let current_azks = akd_dir.retrieve_current_azks().await?;
-    for proof in &history_proof.update_proofs {
-        let hash = akd_dir
-            .get_root_hash_at_epoch(&current_azks, proof.epoch)
-            .await?;
-        epoch_hash_map.insert(proof.epoch, hash);
-        root_hashes.push(hash);
-    }
-
-    for proof in &history_proof.update_proofs {
-        let epoch_in_question = proof.epoch - 1;
-        if epoch_in_question == 0 {
-            // edge condition
-            previous_root_hashes.push(None);
-        } else if let Some(hash) = epoch_hash_map.get(&epoch_in_question) {
-            // cache hit
-            previous_root_hashes.push(Some(*hash));
-        } else {
-            // cache miss, fetch it
-            let hash = akd_dir
-                .get_root_hash_at_epoch(&current_azks, proof.epoch - 1)
-                .await?;
-            previous_root_hashes.push(Some(hash));
-        }
-    }
-
-    Ok((root_hashes, previous_root_hashes))
 }
 
 /// Gets the azks root hash at the current epoch.
@@ -987,7 +945,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> 
         }
 
         let root_hash = current_azks
-            .get_root_hash_at_epoch::<_, H>(&self.storage, next_epoch)
+            .get_root_hash_safe::<_, H>(&self.storage, next_epoch)
             .await?;
 
         Ok(EpochHash(next_epoch, root_hash))

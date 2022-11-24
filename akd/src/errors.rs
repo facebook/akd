@@ -211,7 +211,7 @@ pub enum DirectoryError {
     VerifyLookupProof(String),
     /// Key-History proof did not verify
     VerifyKeyHistoryProof(String),
-    /// Tried to audit an invalid epoch range
+    /// Tried to perform an operation on an invalid epoch or epoch range
     InvalidEpoch(String),
     /// AZKS not found in read-only directory mode
     ReadOnlyDirectory(String),

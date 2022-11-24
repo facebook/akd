@@ -9,7 +9,7 @@
 use crate::serialization::to_digest;
 use crate::storage::manager::StorageManager;
 use crate::{
-    errors::TreeNodeError,
+    errors::{DirectoryError, TreeNodeError},
     proof_structs::{AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof},
     storage::{Database, SizeOf, Storable},
     tree_node::*,
@@ -531,31 +531,27 @@ impl Azks {
         &self,
         storage: &StorageManager<S>,
     ) -> Result<H::Digest, AkdError> {
-        self.get_root_hash_at_epoch::<_, H>(storage, self.get_latest_epoch())
+        self.get_root_hash_safe::<_, H>(storage, self.get_latest_epoch())
             .await
     }
 
-    /// Gets the root hash of the tree at a epoch.
-    /// Since this is accessing the root node and the root node exists at all epochs that
-    /// the azks does, this would never be called at an epoch before the birth of the root node.
-    pub async fn get_root_hash_at_epoch<S: Database + Sync + Send, H: Hasher>(
+    /// Gets the root hash of the tree at the latest epoch if the passed epoch
+    /// is equal to the latest epoch. Will return an error otherwise.
+    pub async fn get_root_hash_safe<S: Database + Sync + Send, H: Hasher>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
     ) -> Result<H::Digest, AkdError> {
-        if self.latest_epoch < epoch {
-            // cannot retrieve information for future epoch
-            return Err(AkdError::TreeNode(TreeNodeError::NonexistentAtEpoch(
-                NodeLabel::root(),
-                epoch,
-            )));
+        if self.latest_epoch != epoch {
+            // cannot retrieve information for non-latest epoch
+            return Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "Passed epoch ({}) was not the latest epoch ({}).",
+                epoch, self.latest_epoch
+            ))));
         }
-        let root_node: TreeNode = TreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
+        let root_node: TreeNode =
+            TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), self.latest_epoch)
+                .await?;
         hash_u8_with_label::<H>(&root_node.hash, root_node.label)
     }
 
@@ -1138,13 +1134,12 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let azks = Azks::new::<_, Blake3>(&db).await?;
 
-        let out = azks.get_root_hash_at_epoch::<_, Blake3>(&db, 123).await;
+        let out = azks.get_root_hash_safe::<_, Blake3>(&db, 123).await;
 
-        let expected = Err::<_, AkdError>(AkdError::TreeNode(TreeNodeError::NonexistentAtEpoch(
-            NodeLabel::root(),
-            123,
-        )));
-        assert_eq!(expected, out);
+        assert!(matches!(
+            out,
+            Err(AkdError::Directory(DirectoryError::InvalidEpoch(_)))
+        ));
         Ok(())
     }
 }
