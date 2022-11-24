@@ -16,6 +16,7 @@ use crate::storage::types::KeyData;
 use crate::storage::types::ValueState;
 use crate::storage::types::ValueStateKey;
 use crate::storage::Database;
+use crate::storage::DbSetState;
 use crate::storage::Storable;
 use crate::storage::StorageError;
 use crate::AkdLabel;
@@ -198,8 +199,11 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         }
 
         // Write to the database
-        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(records, true))
-            .await?;
+        self.tic_toc(
+            METRIC_WRITE_TIME,
+            self.db.batch_set(records, DbSetState::TransactionCommit),
+        )
+        .await?;
         self.increment_metric(METRIC_BATCH_SET).await;
         Ok(())
     }
@@ -258,8 +262,11 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         }
 
         // Write to the database
-        self.tic_toc(METRIC_WRITE_TIME, self.db.batch_set(records, false))
-            .await?;
+        self.tic_toc(
+            METRIC_WRITE_TIME,
+            self.db.batch_set(records, DbSetState::General),
+        )
+        .await?;
         self.increment_metric(METRIC_BATCH_SET).await;
         Ok(())
     }

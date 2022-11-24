@@ -32,7 +32,9 @@ async fn test_use_fixture() {
     // prepare directory with initial state
     let initial_state = reader.read_state(epochs[0]).unwrap();
     let db = AsyncInMemoryDatabase::new();
-    db.batch_set(initial_state.records, false).await.unwrap();
+    db.batch_set(initial_state.records, akd::storage::DbSetState::General)
+        .await
+        .unwrap();
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(&db);
     let akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)

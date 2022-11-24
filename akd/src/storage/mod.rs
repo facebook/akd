@@ -32,6 +32,14 @@ pub use manager::StorageManager;
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
 
+/// Denotes the "state" when a batch_set is being called in the data layer
+pub enum DbSetState {
+    /// Being called as part of a transaction commit operation
+    TransactionCommit,
+    /// Being called as a general, in-line operation
+    General,
+}
+
 /// Support getting the size of a struct or item in bytes
 pub trait SizeOf {
     /// Retrieve the size of the item in bytes
@@ -98,7 +106,7 @@ pub trait Database: Clone {
     async fn batch_set(
         &self,
         records: Vec<DbRecord>,
-        is_committing_transaction: bool,
+        state: DbSetState,
     ) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the database

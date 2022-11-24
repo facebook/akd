@@ -173,7 +173,12 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     }
 
     let tic = Instant::now();
-    assert_eq!(Ok(()), storage.batch_set(data.clone(), false).await);
+    assert_eq!(
+        Ok(()),
+        storage
+            .batch_set(data.clone(), crate::storage::DbSetState::General)
+            .await
+    );
     let toc: Duration = Instant::now() - tic;
     println!("Storage batch op: {} ms", toc.as_millis());
     let got = storage
@@ -577,7 +582,9 @@ async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
         .into_iter()
         .map(DbRecord::ValueState)
         .collect::<Vec<_>>();
-    let result = storage.batch_set(records, false).await;
+    let result = storage
+        .batch_set(records, crate::storage::DbSetState::General)
+        .await;
     assert_eq!(Ok(()), result);
 
     let data = storage.get_user_data(&sample_state_2.username).await;
