@@ -18,8 +18,8 @@ use rand::{thread_rng, Rng};
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
-pub async fn directory_test_suite<S: akd::storage::Storage + Sync + Send, V: VRFKeyStorage>(
-    mysql_db: &S,
+pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VRFKeyStorage>(
+    mysql_db: &akd::storage::StorageManager<S>,
     num_users: usize,
     vrf: &V,
 ) {

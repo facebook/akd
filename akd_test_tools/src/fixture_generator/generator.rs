@@ -15,7 +15,7 @@ use std::io::Write;
 
 use akd::directory::Directory;
 use akd::storage::types::{AkdLabel, AkdValue, DbRecord};
-use akd::storage::StorageUtil;
+use akd::storage::{StorageManager, StorageUtil};
 use akd::Blake3;
 use clap::Parser;
 use rand::{rngs::OsRng, Rng};
@@ -121,7 +121,8 @@ pub(crate) async fn generate(args: Args) {
     // initialize directory
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Blake3>::new(&db, &vrf, false)
+    let storage_manager = StorageManager::new_no_cache(&db);
+    let akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
         .await
         .unwrap();
 

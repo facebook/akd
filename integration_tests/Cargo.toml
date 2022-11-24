@@ -5,9 +5,12 @@ authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "S
 edition = "2018"
 publish = false
 
+[features]
+
 [dependencies]
 winter-crypto = "0.2"
 winter-math = "0.2"
+akd = { path = "../akd", features = ["public-tests", "rand", "serde_serialization", "runtime_metrics"] }
 
 [dev-dependencies]
 log = { version = "0.4.8", features = ["kv_unstable"] }
@@ -20,6 +23,5 @@ thread-id = "3"
 multi_log = "0.1"
 hex = "0.4.3"
 
-akd = { path = "../akd", features = ["public-tests", "rand", "serde_serialization"] }
-akd_mysql = { path = "../akd_mysql" }
+akd_mysql = { path = "../akd_mysql", features = ["runtime_metrics"] }
 akd_test_tools = { path = "../akd_test_tools" }

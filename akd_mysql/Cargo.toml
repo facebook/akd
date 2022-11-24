@@ -9,7 +9,8 @@ keywords = ["key-transparency", "akd", "mysql", "akd-mysql"]
 repository = "https://github.com/novifinancial/akd"
 
 [features]
-bench = []
+# Collect runtime metrics on db access calls + timing
+runtime_metrics = []
 
 [dependencies]
 bincode = "1"

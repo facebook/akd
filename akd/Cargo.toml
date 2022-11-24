@@ -20,12 +20,15 @@ public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization"
 public_auditing = ["protobuf", "thiserror"]
 default = []
 serde_serialization = ["serde", "ed25519-dalek/serde"]
+# Collect runtime metrics on db access calls + timing
+runtime_metrics = []
 protobuf_serialization = ["protobuf", "thiserror"]
 
 [dependencies]
 ## Required dependencies ##
 hex = "0.4"
 async-trait = "0.1"
+dashmap = { version = "5" }
 tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }

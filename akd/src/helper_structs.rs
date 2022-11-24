@@ -11,6 +11,7 @@
 #[cfg(feature = "serde_serialization")]
 use crate::serialization::{digest_deserialize, digest_serialize};
 
+use winter_crypto::Digest;
 use winter_crypto::Hasher;
 
 use crate::{storage::types::ValueState, NodeLabel};
@@ -34,6 +35,12 @@ pub struct Node<H: Hasher> {
         serde(deserialize_with = "digest_deserialize")
     )]
     pub hash: H::Digest,
+}
+
+impl<H: Hasher> crate::storage::SizeOf for Node<H> {
+    fn size_of(&self) -> usize {
+        self.label.size_of() + self.hash.as_bytes().len()
+    }
 }
 
 // can't use #derive because it doesn't bind correctly
