@@ -39,7 +39,7 @@ async fn test_directory_operations_with_caching() {
     let db = InMemoryDb::new();
 
     let vrf = HardCodedAkdVRF {};
-    let storage_manager = StorageManager::new(&db, None, None);
+    let storage_manager = StorageManager::new(&db, None, None, None);
     akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
         &storage_manager,
         500,

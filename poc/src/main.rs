@@ -165,8 +165,12 @@ async fn main() {
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let storage_manager =
-            StorageManager::new(&mysql_db, Some(Duration::from_secs(10 * 60)), None);
+        let storage_manager = StorageManager::new(
+            &mysql_db,
+            Some(Duration::from_secs(10 * 60)),
+            None,
+            Some(Duration::from_secs(15)),
+        );
         let mut directory = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
             .await
             .unwrap();

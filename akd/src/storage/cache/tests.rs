@@ -16,7 +16,11 @@ use crate::{AkdLabel, AkdValue, NodeLabel};
 
 #[tokio::test]
 async fn test_cache_put_and_expires() {
-    let cache = TimedCache::new(Some(Duration::from_millis(10)), None);
+    let cache = TimedCache::new(
+        Some(Duration::from_millis(10)),
+        None,
+        Some(Duration::from_millis(50)),
+    );
 
     let value_state = DbRecord::ValueState(ValueState {
         epoch: 1,
@@ -42,7 +46,7 @@ async fn test_cache_put_and_expires() {
 
 #[tokio::test]
 async fn test_cache_overwrite() {
-    let cache = TimedCache::new(Some(Duration::from_millis(1000)), None);
+    let cache = TimedCache::new(Some(Duration::from_millis(1000)), None, None);
 
     let value_state = ValueState {
         epoch: 1,
@@ -77,7 +81,11 @@ async fn test_cache_overwrite() {
 
 #[tokio::test]
 async fn test_cache_memory_pressure() {
-    let cache = TimedCache::new(Some(Duration::from_millis(1000)), Some(10));
+    let cache = TimedCache::new(
+        Some(Duration::from_millis(1000)),
+        Some(10),
+        Some(Duration::from_millis(50)),
+    );
 
     let value_state = DbRecord::ValueState(ValueState {
         epoch: 1,
@@ -103,7 +111,11 @@ async fn test_cache_memory_pressure() {
 
 #[tokio::test]
 async fn test_many_memory_pressure() {
-    let cache = TimedCache::new(Some(Duration::from_millis(1000)), Some(1024 * 5));
+    let cache = TimedCache::new(
+        Some(Duration::from_millis(1000)),
+        Some(1024 * 5),
+        Some(Duration::from_millis(50)),
+    );
 
     let value_states = (1..100)
         .map(|i| ValueState {

@@ -899,7 +899,7 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
 #[tokio::test]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
-    let storage = StorageManager::new(&db, None, None);
+    let storage = StorageManager::new(&db, None, None, None);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
     let writer = Directory::<_, _, Blake3>::new(&storage, &vrf, false).await?;

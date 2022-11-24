@@ -8,7 +8,7 @@
 //! This module implements a higher-parallelism, async temporary cache for database
 //! objects
 
-use super::{CachedItem, CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
+use super::{CachedItem, DEFAULT_CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
 use crate::storage::DbRecord;
 use crate::storage::SizeOf;
 use crate::storage::Storable;
@@ -33,6 +33,7 @@ pub struct TimedCache {
     item_lifetime: Duration,
     memory_limit_bytes: Option<usize>,
     hit_count: Arc<AtomicU64>,
+    clean_frequency: Duration,
 }
 
 impl TimedCache {
@@ -68,6 +69,7 @@ impl Clone for TimedCache {
             item_lifetime: self.item_lifetime,
             memory_limit_bytes: self.memory_limit_bytes,
             hit_count: self.hit_count.clone(),
+            clean_frequency: self.clean_frequency,
         }
     }
 }
@@ -81,8 +83,7 @@ impl TimedCache {
 
         let do_clean = {
             // we need the {} brackets in order to release the read lock, since we _may_ acquire a write lock shortly later
-            *(self.last_clean.read().await) + Duration::from_millis(CACHE_CLEAN_FREQUENCY_MS)
-                < Instant::now()
+            *(self.last_clean.read().await) + self.clean_frequency < Instant::now()
         };
         if do_clean {
             let mut last_clean_write = self.last_clean.write().await;
@@ -152,10 +153,18 @@ impl TimedCache {
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
     /// or take the default (30s) and an optional memory-pressure limit, where the cache will be
     /// cleaned if too much memory is being utilized
-    pub fn new(o_lifetime: Option<Duration>, o_memory_limit_bytes: Option<usize>) -> Self {
+    pub fn new(
+        o_lifetime: Option<Duration>,
+        o_memory_limit_bytes: Option<usize>,
+        o_clean_frequency: Option<Duration>,
+    ) -> Self {
         let lifetime = match o_lifetime {
             Some(life) if life > Duration::from_millis(1) => life,
             _ => Duration::from_millis(DEFAULT_ITEM_LIFETIME_MS),
+        };
+        let clean_frequency = match o_clean_frequency {
+            Some(frequency) if frequency > Duration::from_millis(1) => frequency,
+            _ => Duration::from_millis(DEFAULT_CACHE_CLEAN_FREQUENCY_MS),
         };
         Self {
             azks: Arc::new(tokio::sync::RwLock::new(None)),
@@ -165,6 +174,7 @@ impl TimedCache {
             item_lifetime: lifetime,
             memory_limit_bytes: o_memory_limit_bytes,
             hit_count: Arc::new(AtomicU64::new(0u64)),
+            clean_frequency,
         }
     }
 

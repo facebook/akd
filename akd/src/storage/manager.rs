@@ -86,9 +86,14 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         db: &Db,
         cache_item_lifetime: Option<Duration>,
         cache_limit_bytes: Option<usize>,
+        cache_clean_frequency: Option<Duration>,
     ) -> Self {
         Self {
-            cache: Some(TimedCache::new(cache_item_lifetime, cache_limit_bytes)),
+            cache: Some(TimedCache::new(
+                cache_item_lifetime,
+                cache_limit_bytes,
+                cache_clean_frequency,
+            )),
             transaction: Transaction::new(),
             db: db.clone(),
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),

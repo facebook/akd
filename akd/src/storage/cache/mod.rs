@@ -14,13 +14,10 @@ use std::time::Instant;
 #[cfg(test)]
 mod tests;
 
-/// item's live for 30s
+/// items live for 30s by default
 pub(crate) const DEFAULT_ITEM_LIFETIME_MS: u64 = 30000;
-/// clean the cache every 15s
-#[cfg(not(test))]
-pub(crate) const CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
-#[cfg(test)]
-pub(crate) const CACHE_CLEAN_FREQUENCY_MS: u64 = 50;
+/// clean the cache every 15s by default
+pub(crate) const DEFAULT_CACHE_CLEAN_FREQUENCY_MS: u64 = 15000;
 
 pub(crate) struct CachedItem {
     pub(crate) expiration: Instant,
