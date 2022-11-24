@@ -9,10 +9,10 @@
 // of this source tree.
 
 use akd::ecvrf::HardCodedAkdVRF;
-use akd::storage::Storage;
+use akd::storage::{Database, StorageManager};
 use akd::Blake3;
 use akd::Directory;
-use akd_mysql::mysql::{AsyncMySqlDatabase, MySqlCacheOptions};
+use akd_mysql::mysql::AsyncMySqlDatabase;
 use clap::{ArgEnum, Parser};
 use commands::Command;
 use log::{debug, error, info, warn};
@@ -140,7 +140,8 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let mut directory = Directory::<_, _, Blake3>::new(&db, &vrf, false)
+        let storage_manager = StorageManager::new_no_cache(&db);
+        let mut directory = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
             .await
             .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
@@ -158,20 +159,25 @@ async fn main() {
             Option::from("root"),
             Option::from("example"),
             Option::from(8001),
-            MySqlCacheOptions::Default, // enable caching
             cli.mysql_insert_depth,
         )
         .await;
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
-        let mut directory = Directory::<_, _, Blake3>::new(&mysql_db, &vrf, false)
+        let storage_manager = StorageManager::new(
+            &mysql_db,
+            Some(Duration::from_secs(10 * 60)),
+            None,
+            Some(Duration::from_secs(15)),
+        );
+        let mut directory = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
             .await
             .unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
-        process_input(&cli, &tx, Some(&mysql_db)).await;
+        process_input(&cli, &tx, Some(&storage_manager)).await;
     }
 }
 
@@ -200,7 +206,7 @@ async fn pre_process_input(
 async fn process_input(
     cli: &Cli,
     tx: &Sender<directory_host::Rpc>,
-    db: Option<&AsyncMySqlDatabase>,
+    db: Option<&StorageManager<AsyncMySqlDatabase>>,
 ) {
     if let Some(other_mode) = &cli.other_mode {
         match other_mode {
@@ -399,7 +405,7 @@ async fn process_input(
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.delete_data().await {
+                    if let Err(error) = mysql_db.db.delete_data().await {
                         error!("Error flushing database: {}", error);
                     } else {
                         info!("Database flushed.");
@@ -409,7 +415,7 @@ async fn process_input(
             OtherMode::Drop => {
                 println!("======= Dropping database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.drop_tables().await {
+                    if let Err(error) = mysql_db.db.drop_tables().await {
                         error!("Error dropping database: {}", error);
                     } else {
                         info!("Database dropped.");
@@ -443,7 +449,7 @@ async fn process_input(
                 Command::Flush => {
                     println!("Flushing the database...");
                     if let Some(mysql_db) = db {
-                        if let Err(error) = mysql_db.delete_data().await {
+                        if let Err(error) = mysql_db.db.delete_data().await {
                             println!("Error flushing database: {}", error);
                         } else {
                             println!(
@@ -459,7 +465,7 @@ async fn process_input(
                     }
                     println!("===== Auditable Key Directory Information =====");
                     if let Some(mysql) = db {
-                        println!("      Database properties ({})", mysql);
+                        println!("      Database properties ({})", mysql.db);
                     } else {
                         println!("      Connected to an in-memory database");
                     }

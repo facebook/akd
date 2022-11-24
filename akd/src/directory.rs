@@ -8,15 +8,13 @@
 //! Implementation of a auditable key directory
 
 use crate::append_only_zks::Azks;
-
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
-use crate::proof_structs::*;
-use crate::{helper_structs::LookupInfo, EpochHash, Node};
-
 use crate::errors::{AkdError, DirectoryError, StorageError};
-
+use crate::proof_structs::*;
+use crate::storage::manager::StorageManager;
 use crate::storage::types::{AkdLabel, AkdValue, DbRecord, ValueState, ValueStateRetrievalFlag};
-use crate::storage::Storage;
+use crate::storage::Database;
+use crate::{helper_structs::LookupInfo, EpochHash, Node};
 
 use log::{debug, error, info};
 
@@ -45,8 +43,8 @@ impl AkdLabel {
 }
 
 /// The representation of a auditable key directory
-pub struct Directory<S, V, H> {
-    storage: S,
+pub struct Directory<S: Database + Sync + Send, V, H> {
+    storage: StorageManager<S>,
     vrf: V,
     hasher: PhantomData<H>,
     read_only: bool,
@@ -60,7 +58,7 @@ pub struct Directory<S, V, H> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Clone for Directory<S, V, H> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Clone for Directory<S, V, H> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -72,11 +70,15 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Clone for Directory<
     }
 }
 
-impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new(storage: &S, vrf: &V, read_only: bool) -> Result<Self, AkdError> {
+    pub async fn new(
+        storage: &StorageManager<S>,
+        vrf: &V,
+        read_only: bool,
+    ) -> Result<Self, AkdError> {
         let azks = Directory::<S, V, H>::get_azks_from_storage(storage, false).await;
 
         if read_only && azks.is_err() {
@@ -597,7 +599,7 @@ impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     }
 
     async fn get_azks_from_storage(
-        storage: &S,
+        storage: &StorageManager<S>,
         ignore_cache: bool,
     ) -> Result<Azks, crate::errors::AkdError> {
         let got = if ignore_cache {
@@ -756,7 +758,7 @@ fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
 type KeyHistoryHelper<D> = (Vec<D>, Vec<Option<D>>);
 
 /// Gets hashes for key history proofs
-pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFKeyStorage>(
+pub async fn get_key_history_hashes<S: Database + Sync + Send, H: Hasher, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V, H>,
     history_proof: &HistoryProof<H>,
 ) -> Result<KeyHistoryHelper<H::Digest>, AkdError> {
@@ -795,7 +797,7 @@ pub async fn get_key_history_hashes<S: Storage + Sync + Send, H: Hasher, V: VRFK
 
 /// Gets the azks root hash at the current epoch.
 pub async fn get_directory_root_hash_and_ep<
-    S: Storage + Sync + Send,
+    S: Database + Sync + Send,
     H: Hasher,
     V: VRFKeyStorage,
 >(
@@ -818,7 +820,7 @@ pub enum PublishCorruption {
     MarkVersionStale(AkdLabel, u64),
 }
 
-impl<S: Storage + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage, H: Hasher> Directory<S, V, H> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub async fn publish_malicious_update(
         &self,

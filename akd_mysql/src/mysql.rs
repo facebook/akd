@@ -12,7 +12,7 @@ use akd::errors::StorageError;
 use akd::storage::types::{
     AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
 };
-use akd::storage::{Storable, Storage};
+use akd::storage::{Database, Storable};
 use akd::tree_node::TreeNodeWithPreviousValue;
 use akd::NodeLabel;
 use async_trait::async_trait;
@@ -21,16 +21,13 @@ use mysql_async::prelude::*;
 use mysql_async::*;
 
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::process::Command;
 use std::sync::Arc;
-use tokio::time::{Duration, Instant};
+use tokio::time::Instant;
 
 type MySqlError = mysql_async::Error;
-type LocalTransaction = akd::storage::transaction::Transaction;
-
-use akd::storage::timed_cache::*;
 
 const TABLE_AZKS: &str = crate::mysql_storables::TABLE_AZKS;
 const TABLE_HISTORY_TREE_NODES: &str = crate::mysql_storables::TABLE_HISTORY_TREE_NODES;
@@ -59,30 +56,14 @@ enum BatchMode {
     MySql documentation: https://docs.rs/mysql_async/0.23.1/mysql_async/
 */
 
-/// Memory cache options for SQL query result caching
-pub enum MySqlCacheOptions {
-    /// Do not utilize any cache
-    None,
-    /// Utilize the default caching settings
-    Default,
-    /// Customize the caching options (cache item duration)
-    Specific(std::time::Duration),
-}
-
 /// Represents an _asynchronous_ connection to a MySQL database
 pub struct AsyncMySqlDatabase {
     opts: Opts,
     pool: Arc<tokio::sync::RwLock<Pool>>,
     is_healthy: Arc<tokio::sync::RwLock<bool>>,
-    cache: Option<TimedCache>,
-    trans: LocalTransaction,
 
-    num_reads: Arc<tokio::sync::RwLock<u64>>,
     read_call_stats: Arc<tokio::sync::RwLock<HashMap<String, u64>>>,
-    num_writes: Arc<tokio::sync::RwLock<u64>>,
     write_call_stats: Arc<tokio::sync::RwLock<HashMap<String, u64>>>,
-    time_read: Arc<tokio::sync::RwLock<Duration>>,
-    time_write: Arc<tokio::sync::RwLock<Duration>>,
 
     tunable_insert_depth: usize,
 }
@@ -115,15 +96,9 @@ impl Clone for AsyncMySqlDatabase {
             opts: self.opts.clone(),
             pool: self.pool.clone(),
             is_healthy: self.is_healthy.clone(),
-            cache: self.cache.clone(),
-            trans: LocalTransaction::new(),
 
-            num_reads: self.num_reads.clone(),
             read_call_stats: self.read_call_stats.clone(),
-            num_writes: self.num_writes.clone(),
             write_call_stats: self.write_call_stats.clone(),
-            time_read: self.time_read.clone(),
-            time_write: self.time_write.clone(),
 
             tunable_insert_depth: self.tunable_insert_depth,
         }
@@ -139,7 +114,6 @@ impl<'a> AsyncMySqlDatabase {
         user: Option<T>,
         password: Option<T>,
         port: Option<u16>,
-        cache_options: MySqlCacheOptions,
         depth: usize,
     ) -> Self {
         let dport = port.unwrap_or(3306u16);
@@ -158,25 +132,12 @@ impl<'a> AsyncMySqlDatabase {
         // prior to the directory
         let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
 
-        let cache = match cache_options {
-            MySqlCacheOptions::None => None,
-            MySqlCacheOptions::Default => Some(TimedCache::new(None)),
-            MySqlCacheOptions::Specific(timing) => Some(TimedCache::new(Some(timing))),
-        };
-
         Self {
             opts,
             pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
-            cache,
-            trans: LocalTransaction::new(),
-
-            num_reads: Arc::new(tokio::sync::RwLock::new(0)),
             read_call_stats: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            num_writes: Arc::new(tokio::sync::RwLock::new(0)),
             write_call_stats: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            time_read: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
-            time_write: Arc::new(tokio::sync::RwLock::new(Duration::from_millis(0))),
 
             tunable_insert_depth: depth,
         }
@@ -415,13 +376,10 @@ impl<'a> AsyncMySqlDatabase {
         record: DbRecord,
         trans: Option<mysql_async::Transaction<'a>>,
     ) -> Result<()> {
-        *(self.num_writes.write().await) += 1;
         self.record_call_stats('w', "internal_set".to_string(), "".to_string())
             .await;
 
         debug!("BEGIN MySQL set");
-        let tic = Instant::now();
-
         let statement_text = record.set_statement();
         let params = record
             .set_params()
@@ -438,8 +396,6 @@ impl<'a> AsyncMySqlDatabase {
             }
         };
         self.check_for_infra_error(out)?;
-        let toc = Instant::now() - tic;
-        *(self.time_write.write().await) += toc;
 
         debug!("END MySQL set");
         Ok(())
@@ -455,7 +411,6 @@ impl<'a> AsyncMySqlDatabase {
             return Ok(trans);
         }
 
-        *(self.num_writes.write().await) += records.len() as u64;
         self.record_call_stats('w', "internal_batch_set".to_string(), "".to_string())
             .await;
 
@@ -500,8 +455,6 @@ impl<'a> AsyncMySqlDatabase {
             }
         }
 
-        let tic = Instant::now();
-
         debug!("MySQL batch - {} full inserts", params.len());
         // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
         if !params.is_empty() {
@@ -518,8 +471,6 @@ impl<'a> AsyncMySqlDatabase {
             self.check_for_infra_error(out)?;
         }
 
-        let toc = Instant::now() - tic;
-        *(self.time_write.write().await) += toc;
         debug!("END MySQL set batch");
         Ok(trans)
     }
@@ -546,17 +497,22 @@ impl<'a> AsyncMySqlDatabase {
         Ok(())
     }
 
-    async fn record_call_stats(&self, call_type: char, caller_name: String, data_type: String) {
-        let mut stats;
-        if call_type == 'r' {
-            stats = self.read_call_stats.write().await;
-        } else if call_type == 'w' {
-            stats = self.write_call_stats.write().await;
-        } else {
-            panic!("Unknown call type to record call stats for.")
+    async fn record_call_stats(&self, _call_type: char, _caller_name: String, _data_type: String) {
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let mut stats;
+            if _call_type == 'r' {
+                stats = self.read_call_stats.write().await;
+            } else if _call_type == 'w' {
+                stats = self.write_call_stats.write().await;
+            } else {
+                panic!("Unknown call type to record call stats for.")
+            }
+            let call_count = (*stats)
+                .entry(_caller_name + "~" + &_data_type)
+                .or_insert(0);
+            *call_count += 1;
         }
-        let call_count = (*stats).entry(caller_name + "~" + &data_type).or_insert(0);
-        *call_count += 1;
     }
 
     fn try_dockers() -> std::io::Result<std::process::Output> {
@@ -627,155 +583,63 @@ impl<'a> AsyncMySqlDatabase {
         // docker may have thrown an error, just fail
         false
     }
+
+    async fn get_direct<St: Storable>(
+        &self,
+        id: &St::StorageKey,
+    ) -> core::result::Result<DbRecord, StorageError> {
+        self.record_call_stats(
+            'r',
+            "get_direct:".to_string(),
+            format!("{:?}", St::data_type()),
+        )
+        .await;
+
+        debug!("BEGIN MySQL get {:?}", id);
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let statement = DbRecord::get_specific_statement::<St>();
+            let params = DbRecord::get_specific_params::<St>(id);
+            let out = match params {
+                Some(p) => match conn.exec_first(statement, p).await {
+                    Err(err) => Err(err),
+                    Ok(result) => Ok(result),
+                },
+                None => match conn.query_first(statement).await {
+                    Err(err) => Err(err),
+                    Ok(result) => Ok(result),
+                },
+            };
+
+            let result = self.check_for_infra_error(out)?;
+            if let Some(mut row) = result {
+                // return result
+                let record = DbRecord::from_row::<St>(&mut row)?;
+                return Ok::<Option<DbRecord>, MySqlError>(Some(record));
+            }
+            Ok::<Option<DbRecord>, MySqlError>(None)
+        };
+
+        debug!("END MySQL get");
+        match result.await {
+            Ok(Some(r)) => Ok(r),
+            Ok(None) => Err(StorageError::NotFound(format!(
+                "{:?} {:?}",
+                St::data_type(),
+                id
+            ))),
+            Err(error) => {
+                error!("MySQL error {}", error);
+                Err(StorageError::Other(format!("MySQL Error {}", error)))
+            }
+        }
+    }
 }
 
 #[async_trait]
-impl Storage for AsyncMySqlDatabase {
-    async fn log_metrics(&self, level: log::Level) {
-        if let Some(cache) = &self.cache {
-            cache.log_metrics(level).await
-        }
-
-        self.trans.log_metrics(level).await;
-
-        let mut tree_size = "Tree size: Query err".to_string();
-        let mut value_state_size = "Value state count: Query err".to_string();
-        if let Ok(mut conn) = self.get_connection().await {
-            let query_text = format!("SELECT COUNT(*) FROM {}", TABLE_HISTORY_TREE_NODES);
-            if let Ok(results) = conn.query_iter(query_text).await {
-                if let Ok(mapped) = results
-                    .map_and_drop(|row| {
-                        let count: u64 = mysql_async::from_row(row);
-                        count
-                    })
-                    .await
-                {
-                    if let Some(count) = mapped.first() {
-                        tree_size = format!("Tree size: {}", count);
-                    }
-
-                    let query_text = format!("SELECT COUNT(`epoch`) FROM {}", TABLE_USER);
-                    if let Ok(results) = conn.query_iter(query_text).await {
-                        if let Ok(mapped) = results
-                            .map_and_drop(|row| {
-                                let count: u64 = mysql_async::from_row(row);
-                                count
-                            })
-                            .await
-                        {
-                            if let Some(count) = mapped.first() {
-                                value_state_size = format!("Value state count: {}", count);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut r = self.num_reads.write().await;
-        let mut rcs = self.read_call_stats.write().await;
-        let mut w = self.num_writes.write().await;
-        let mut wcs = self.write_call_stats.write().await;
-        let mut tr = self.time_read.write().await;
-        let mut tw = self.time_write.write().await;
-
-        // Sort call stats for consistency.
-        let mut rcs_vec = (*rcs).iter().collect::<Vec<_>>();
-        let mut wcs_vec = (*wcs).iter().collect::<Vec<_>>();
-        rcs_vec.sort_by_key(|rc| rc.0);
-        wcs_vec.sort_by_key(|wc| wc.0);
-
-        let msg = format!(
-            "MySQL writes: {}, MySQL reads: {}, Time read: {} s, Time write: {} s\n\t{}\n\t{}\nRead call stats: {:?}\nWrite call stats: {:?}\n",
-            *w,
-            *r,
-            (*tr).as_secs_f64(),
-            (*tw).as_secs_f64(),
-            tree_size,
-            value_state_size,
-            rcs_vec,
-            wcs_vec,
-        );
-
-        *r = 0;
-        *rcs = HashMap::new();
-        *w = 0;
-        *wcs = HashMap::new();
-        *tr = Duration::from_millis(0);
-        *tw = Duration::from_millis(0);
-
-        match level {
-            // Currently logs cannot be captured unless they are
-            // println!. Normally Level::Trace should use the trace! macro.
-            log::Level::Trace => println!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
-        }
-    }
-
-    /// Start a transaction in the storage layer
-    async fn begin_transaction(&self) -> bool {
-        // disable the cache cleaning since we're in a write transaction
-        // and will want to keep cache'd objects for the life of the transaction
-        if let Some(cache) = &self.cache {
-            cache.disable_clean().await;
-        }
-
-        self.trans.begin_transaction().await
-    }
-
-    /// Commit a transaction in the storage layer
-    async fn commit_transaction(&self) -> core::result::Result<(), StorageError> {
-        // The transaction is now complete (or reverted) and therefore we can re-enable
-        // the cache cleaning status
-        if let Some(cache) = &self.cache {
-            cache.enable_clean().await;
-        }
-
-        // this retrieves all the trans operations, and "de-activates" the transaction flag
-        let ops = self.trans.commit_transaction().await?;
-
-        let _epoch = match ops.last() {
-            Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
-            other => Err(StorageError::Transaction(format!(
-                "The last record in the transaction log is NOT an Azks record {:?}",
-                other
-            ))),
-        }?;
-
-        self.batch_set(ops).await
-    }
-
-    /// Rollback a transaction
-    async fn rollback_transaction(&self) -> core::result::Result<(), StorageError> {
-        // The transaction is being reverted and therefore we can re-enable
-        // the cache cleaning status
-        if let Some(cache) = &self.cache {
-            cache.enable_clean().await;
-        }
-
-        self.trans.rollback_transaction().await
-    }
-
-    /// Retrieve a flag determining if there is a transaction active
-    async fn is_transaction_active(&self) -> bool {
-        self.trans.is_transaction_active().await
-    }
-
+impl Database for AsyncMySqlDatabase {
     /// Storage a record in the data layer
     async fn set(&self, record: DbRecord) -> core::result::Result<(), StorageError> {
-        // we're in a transaction, set the item in the transaction
-        if self.is_transaction_active().await {
-            self.trans.set(&record).await;
-            return Ok(());
-        }
-
-        if let Some(cache) = &self.cache {
-            cache.put(&record).await;
-        }
-
         match self.internal_set(record, None).await {
             Ok(_) => Ok(()),
             Err(error) => {
@@ -789,18 +653,6 @@ impl Storage for AsyncMySqlDatabase {
         if records.is_empty() {
             // nothing to do, save the cycles
             return Ok(());
-        }
-
-        // we're in a transaction, set the items in the transaction
-        if self.is_transaction_active().await {
-            for record in records.iter() {
-                self.trans.set(record).await;
-            }
-            return Ok(());
-        }
-
-        if let Some(cache) = &self.cache {
-            let _ = cache.batch_put(&records).await;
         }
 
         // generate batches by type
@@ -880,92 +732,7 @@ impl Storage for AsyncMySqlDatabase {
         &self,
         id: &St::StorageKey,
     ) -> core::result::Result<DbRecord, StorageError> {
-        // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
-        // log instead of the raw storage layer
-        if self.is_transaction_active().await {
-            if let Some(result) = self.trans.get::<St>(id).await {
-                return Ok(result);
-            }
-        }
-
-        // check for a cache hit
-        if let Some(cache) = &self.cache {
-            if let Some(result) = cache.hit_test::<St>(id).await {
-                return Ok(result);
-            }
-        }
-
-        // cache miss, log a real sql read op
-        let record = self.get_direct::<St>(id).await?;
-        if let Some(cache) = &self.cache {
-            // cache the result
-            cache.put(&record).await;
-        }
-        Ok(record)
-    }
-
-    async fn get_direct<St: Storable>(
-        &self,
-        id: &St::StorageKey,
-    ) -> core::result::Result<DbRecord, StorageError> {
-        *(self.num_reads.write().await) += 1;
-        self.record_call_stats(
-            'r',
-            "get_direct:".to_string(),
-            format!("{:?}", St::data_type()),
-        )
-        .await;
-
-        debug!("BEGIN MySQL get {:?}", id);
-        let result = async {
-            let tic = Instant::now();
-
-            let mut conn = self.get_connection().await?;
-            let statement = DbRecord::get_specific_statement::<St>();
-            let params = DbRecord::get_specific_params::<St>(id);
-            let out = match params {
-                Some(p) => match conn.exec_first(statement, p).await {
-                    Err(err) => Err(err),
-                    Ok(result) => Ok(result),
-                },
-                None => match conn.query_first(statement).await {
-                    Err(err) => Err(err),
-                    Ok(result) => Ok(result),
-                },
-            };
-
-            let toc = Instant::now() - tic;
-            *(self.time_read.write().await) += toc;
-
-            let result = self.check_for_infra_error(out)?;
-            if let Some(mut row) = result {
-                // return result
-                let record = DbRecord::from_row::<St>(&mut row)?;
-                return Ok::<Option<DbRecord>, MySqlError>(Some(record));
-            }
-            Ok::<Option<DbRecord>, MySqlError>(None)
-        };
-
-        debug!("END MySQL get");
-        match result.await {
-            Ok(Some(r)) => Ok(r),
-            Ok(None) => Err(StorageError::NotFound(format!(
-                "{:?} {:?}",
-                St::data_type(),
-                id
-            ))),
-            Err(error) => {
-                error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
-            }
-        }
-    }
-
-    /// Flush the caching of objects (if present)
-    async fn flush_cache(&self) {
-        if let Some(cache) = &self.cache {
-            cache.flush().await;
-        }
+        self.get_direct::<St>(id).await
     }
 
     /// Retrieve a batch of records by id
@@ -980,162 +747,120 @@ impl Storage for AsyncMySqlDatabase {
             return Ok(map);
         }
 
-        let mut key_set: HashSet<St::StorageKey> = ids.iter().cloned().collect::<HashSet<_>>();
+        let result = async {
+            let key_set_vec: Vec<_> = ids.to_vec();
 
-        let trans_active = self.is_transaction_active().await;
-        // first check the transaction log & cache records
-        for id in ids.iter() {
-            if trans_active {
-                // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
-                // log instead of the raw storage layer
-                if let Some(result) = self.trans.get::<St>(id).await {
-                    map.push(result);
-                    key_set.remove(id);
-                    continue;
-                }
-            }
+            debug!("BEGIN MySQL get batch");
+            let mut conn = self.get_connection().await?;
 
-            // check if item is cached
-            if let Some(cache) = &self.cache {
-                if let Some(result) = cache.hit_test::<St>(id).await {
-                    map.push(result);
-                    key_set.remove(id);
-                    continue;
-                }
-            }
-        }
+            let results = if let Some(create_table_cmd) =
+                DbRecord::get_batch_create_temp_table::<St>()
+            {
+                // Create the temp table of ids
+                let out = conn.query_drop(create_table_cmd).await;
+                self.check_for_infra_error(out)?;
 
-        if !key_set.is_empty() {
-            // these are items to be retrieved from the backing database (not in pending transaction or in the object cache)
-            let result = async {
-                let tic = Instant::now();
+                // Fill temp table with the requested ids
+                let mut tx = conn.start_transaction(TxOpts::default()).await?;
+                tx.query_drop("SET autocommit=0").await?;
+                tx.query_drop("SET unique_checks=0").await?;
+                tx.query_drop("SET foreign_key_checks=0").await?;
 
-                let key_set_vec: Vec<_> = key_set.into_iter().collect();
-
-                debug!("BEGIN MySQL get batch");
-                let mut conn = self.get_connection().await?;
-
-                let results = if let Some(create_table_cmd) =
-                    DbRecord::get_batch_create_temp_table::<St>()
-                {
-                    // Create the temp table of ids
-                    let out = conn.query_drop(create_table_cmd).await;
-                    self.check_for_infra_error(out)?;
-
-                    // Fill temp table with the requested ids
-                    let mut tx = conn.start_transaction(TxOpts::default()).await?;
-                    tx.query_drop("SET autocommit=0").await?;
-                    tx.query_drop("SET unique_checks=0").await?;
-                    tx.query_drop("SET foreign_key_checks=0").await?;
-
-                    let mut fallout: Option<Vec<_>> = None;
-                    let mut params = vec![];
-                    for batch in key_set_vec.chunks(self.tunable_insert_depth) {
-                        if batch.len() < self.tunable_insert_depth {
-                            fallout = Some(batch.to_vec());
-                        } else if let Some(p) = DbRecord::get_multi_row_specific_params::<St>(batch)
-                        {
-                            params.push(p);
-                        } else {
-                            return Err(MySqlError::Other(
-                                "Unable to generate type-specific MySQL parameters".into(),
-                            ));
-                        }
-                    }
-
-                    // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
-                    if !params.is_empty() {
-                        let fill_statement = DbRecord::get_batch_fill_temp_table::<St>(Some(
-                            self.tunable_insert_depth,
+                let mut fallout: Option<Vec<_>> = None;
+                let mut params = vec![];
+                for batch in key_set_vec.chunks(self.tunable_insert_depth) {
+                    if batch.len() < self.tunable_insert_depth {
+                        fallout = Some(batch.to_vec());
+                    } else if let Some(p) = DbRecord::get_multi_row_specific_params::<St>(batch) {
+                        params.push(p);
+                    } else {
+                        return Err(MySqlError::Other(
+                            "Unable to generate type-specific MySQL parameters".into(),
                         ));
-                        let out = tx.exec_batch(fill_statement, params).await;
-                        self.check_for_infra_error(out)?;
-                        // We would need the statement for it. (Possibly) No need for close here.
-                        // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
-                        // tx.close().await?;
-                    }
-
-                    // insert the remainder as a final statement
-                    if let Some(remainder) = fallout {
-                        let remainder_stmt =
-                            DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
-                        let params_batch =
-                            DbRecord::get_multi_row_specific_params::<St>(&remainder);
-                        if let Some(pb) = params_batch {
-                            let out = tx.exec_drop(remainder_stmt, pb).await;
-                            self.check_for_infra_error(out)?;
-                        } else {
-                            return Err(MySqlError::Other(
-                                "Unable to generate type-specific MySQL parameters".into(),
-                            ));
-                        }
-                    }
-
-                    tx.query_drop("SET autocommit=1").await?;
-                    tx.query_drop("SET unique_checks=1").await?;
-                    tx.query_drop("SET foreign_key_checks=1").await?;
-                    tx.commit().await?;
-
-                    // Query the records which intersect (INNER JOIN) with the temp table of ids
-                    let query = DbRecord::get_batch_statement::<St>();
-                    let out = conn.query_iter(query).await;
-                    let result = self.check_for_infra_error(out)?;
-
-                    let out = result
-                        .reduce_and_drop(vec![], |mut acc, mut row| {
-                            if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
-                                acc.push(result);
-                            }
-                            acc
-                        })
-                        .await?;
-
-                    // drop the temp table of ids
-                    let t_out = conn
-                        .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
-                        .await;
-                    self.check_for_infra_error(t_out)?;
-
-                    out
-                } else {
-                    // no results (i.e. AZKS table doesn't support "get by batch ids")
-                    vec![]
-                };
-
-                debug!("END MySQL get batch");
-                let toc = Instant::now() - tic;
-                *(self.time_read.write().await) += toc;
-
-                if let Some(cache) = &self.cache {
-                    // insert retrieved records into the cache for faster future access
-                    for el in results.iter() {
-                        cache.put(el).await;
                     }
                 }
 
-                Ok::<Vec<DbRecord>, mysql_async::Error>(results)
+                // insert the batches of size = MYSQL_EXTENDED_INSERT_DEPTH
+                if !params.is_empty() {
+                    let fill_statement =
+                        DbRecord::get_batch_fill_temp_table::<St>(Some(self.tunable_insert_depth));
+                    let out = tx.exec_batch(fill_statement, params).await;
+                    self.check_for_infra_error(out)?;
+                    // We would need the statement for it. (Possibly) No need for close here.
+                    // See https://docs.rs/mysql_async/0.28.1/mysql_async/struct.Opts.html#caveats.
+                    // tx.close().await?;
+                }
+
+                // insert the remainder as a final statement
+                if let Some(remainder) = fallout {
+                    let remainder_stmt =
+                        DbRecord::get_batch_fill_temp_table::<St>(Some(remainder.len()));
+                    let params_batch = DbRecord::get_multi_row_specific_params::<St>(&remainder);
+                    if let Some(pb) = params_batch {
+                        let out = tx.exec_drop(remainder_stmt, pb).await;
+                        self.check_for_infra_error(out)?;
+                    } else {
+                        return Err(MySqlError::Other(
+                            "Unable to generate type-specific MySQL parameters".into(),
+                        ));
+                    }
+                }
+
+                tx.query_drop("SET autocommit=1").await?;
+                tx.query_drop("SET unique_checks=1").await?;
+                tx.query_drop("SET foreign_key_checks=1").await?;
+                tx.commit().await?;
+
+                // Query the records which intersect (INNER JOIN) with the temp table of ids
+                let query = DbRecord::get_batch_statement::<St>();
+                let out = conn.query_iter(query).await;
+                let result = self.check_for_infra_error(out)?;
+
+                let out = result
+                    .reduce_and_drop(vec![], |mut acc, mut row| {
+                        if let Ok(result) = DbRecord::from_row::<St>(&mut row) {
+                            acc.push(result);
+                        }
+                        acc
+                    })
+                    .await?;
+
+                // drop the temp table of ids
+                let t_out = conn
+                    .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                    .await;
+                self.check_for_infra_error(t_out)?;
+
+                out
+            } else {
+                // no results (i.e. AZKS table doesn't support "get by batch ids")
+                vec![]
             };
 
-            *(self.num_reads.write().await) += 1;
-            self.record_call_stats(
-                'r',
-                "batch_get".to_string(),
-                format!("{:?}", St::data_type()),
-            )
-            .await;
+            debug!("END MySQL get batch");
 
-            match result.await {
-                Ok(result_vec) => {
-                    for item in result_vec.into_iter() {
-                        map.push(item);
-                    }
-                }
-                Err(error) => {
-                    error!("MySQL error {}", error);
-                    return Err(StorageError::Other(format!("MySQL Error {}", error)));
+            Ok::<Vec<DbRecord>, mysql_async::Error>(results)
+        };
+
+        self.record_call_stats(
+            'r',
+            "batch_get".to_string(),
+            format!("{:?}", St::data_type()),
+        )
+        .await;
+
+        match result.await {
+            Ok(result_vec) => {
+                for item in result_vec.into_iter() {
+                    map.push(item);
                 }
             }
+            Err(error) => {
+                error!("MySQL error {}", error);
+                return Err(StorageError::Other(format!("MySQL Error {}", error)));
+            }
         }
+
         Ok(map)
     }
 
@@ -1186,15 +911,12 @@ impl Storage for AsyncMySqlDatabase {
     ) -> core::result::Result<KeyData, StorageError> {
         // This is the same as previous logic under "get_all"
 
-        *(self.num_reads.write().await) += 1;
         self.record_call_stats('r', "get_user_data".to_string(), "".to_string())
             .await;
 
         // DO NOT log the user info, it's PII in the future
         debug!("BEGIN MySQL get user data");
         let result = async {
-            let tic = Instant::now();
-
             let mut conn = self.get_connection().await?;
             let statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
@@ -1241,33 +963,10 @@ impl Storage for AsyncMySqlDatabase {
                 .await
                 .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
 
-            let toc = Instant::now() - tic;
-            *(self.time_read.write().await) += toc;
             let selected_records = self.check_for_infra_error(out)?;
-            if let Some(cache) = &self.cache {
-                for record in selected_records.iter() {
-                    cache.put(&DbRecord::ValueState(record.clone())).await;
-                }
-            }
-            if self.is_transaction_active().await {
-                let mut updated = vec![];
-                for record in selected_records.into_iter() {
-                    if let Some(DbRecord::ValueState(value)) = self
-                        .trans
-                        .get::<akd::storage::types::ValueState>(&record.get_id())
-                        .await
-                    {
-                        updated.push(value);
-                    } else {
-                        updated.push(record);
-                    }
-                }
-                Ok::<KeyData, MySqlError>(KeyData { states: updated })
-            } else {
-                Ok::<KeyData, MySqlError>(KeyData {
-                    states: selected_records,
-                })
-            }
+            Ok::<KeyData, MySqlError>(KeyData {
+                states: selected_records,
+            })
         };
 
         debug!("END MySQL get user data");
@@ -1285,14 +984,11 @@ impl Storage for AsyncMySqlDatabase {
         username: &AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<ValueState, StorageError> {
-        *(self.num_reads.write().await) += 1;
         self.record_call_stats('r', "get_user_state".to_string(), "".to_string())
             .await;
 
         debug!("BEGIN MySQL get user state (flag {:?})", flag);
         let result = async {
-            let tic = Instant::now();
-
             let mut conn = self.get_connection().await?;
             let mut statement_text =
                 "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
@@ -1359,30 +1055,8 @@ impl Storage for AsyncMySqlDatabase {
                 .await
                 .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
 
-            let toc = Instant::now() - tic;
-            *(self.time_read.write().await) += toc;
             let selected_record = self.check_for_infra_error(out)?;
-
             let item = selected_record.into_iter().next();
-            if let Some(value_in_item) = &item {
-                if let Some(cache) = &self.cache {
-                    cache
-                        .put(&DbRecord::ValueState(value_in_item.clone()))
-                        .await;
-                }
-            }
-            // check the transaction log for an updated record
-            if self.is_transaction_active().await {
-                if let Some(found_item) = &item {
-                    if let Some(DbRecord::ValueState(value)) = self
-                        .trans
-                        .get::<akd::storage::types::ValueState>(&found_item.get_id())
-                        .await
-                    {
-                        return Ok::<Option<ValueState>, MySqlError>(Some(value));
-                    }
-                }
-            }
             Ok::<Option<ValueState>, MySqlError>(item)
         };
         debug!("END MySQL get user state");
@@ -1401,7 +1075,6 @@ impl Storage for AsyncMySqlDatabase {
         keys: &[AkdLabel],
         flag: ValueStateRetrievalFlag,
     ) -> core::result::Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError> {
-        *(self.num_reads.write().await) += 1;
         self.record_call_stats('r', "get_user_state_versions".to_string(), "".to_string())
             .await;
 
@@ -1409,8 +1082,6 @@ impl Storage for AsyncMySqlDatabase {
 
         debug!("BEGIN MySQL get user state versions (flag {:?})", flag);
         let result = async {
-            let tic = Instant::now();
-
             let mut conn = self.get_connection().await?;
 
             debug!("Creating the temporary search username's table");
@@ -1574,9 +1245,6 @@ impl Storage for AsyncMySqlDatabase {
 
             let nout = conn.query_drop("DROP TEMPORARY TABLE `search_users`").await;
             self.check_for_infra_error(nout)?;
-
-            let toc = Instant::now() - tic;
-            *(self.time_read.write().await) += toc;
 
             for item in out.into_iter() {
                 results.insert(item.0, item.1);

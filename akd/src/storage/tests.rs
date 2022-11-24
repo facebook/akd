@@ -10,7 +10,7 @@
 use crate::errors::StorageError;
 use crate::node_label::byte_arr_from_u64;
 use crate::storage::types::*;
-use crate::storage::Storage;
+use crate::storage::Database;
 use crate::tree_node::*;
 use crate::NodeLabel;
 use rand::distributions::Alphanumeric;
@@ -30,13 +30,6 @@ mod memory_storage_tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_v2_in_memory_db_with_caching() {
-        let db = crate::storage::memory::AsyncInMemoryDbWithCache::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_v2_in_memory_db() {
         let db = AsyncInMemoryDatabase::new();
         crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
@@ -47,7 +40,7 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
+pub async fn run_test_cases_for_storage_impl<S: Database + Sync + Send>(db: &S) {
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
@@ -56,7 +49,7 @@ pub async fn run_test_cases_for_storage_impl<S: Storage + Sync + Send>(db: &S) {
 }
 
 // *** New Test Helper Functions *** //
-async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
+async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
     // === Azks storage === //
     let azks = Azks {
         latest_epoch: 34,
@@ -146,7 +139,7 @@ async fn test_get_and_set_item<Ns: Storage>(storage: &Ns) {
     }
 }
 
-async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
+async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
         let str: String = thread_rng()
@@ -309,7 +302,9 @@ async fn test_batch_get_items<Ns: Storage>(storage: &Ns) {
     }
 }
 
-async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
+async fn test_transactions<S: Database + Sync + Send>(db: &S) {
+    let storage = crate::storage::manager::StorageManager::new_no_cache(db);
+
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
         let str: String = thread_rng()
@@ -389,7 +384,7 @@ async fn test_transactions<S: Storage + Sync + Send>(storage: &S) {
     }
 }
 
-async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
+async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
     let rand_user = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -586,7 +581,7 @@ async fn test_user_data<S: Storage + Sync + Send>(storage: &S) {
     assert_eq!(4, data.unwrap().states.len());
 }
 
-async fn test_tombstoning_data<S: Storage + Sync + Send>(
+async fn test_tombstoning_data<S: Database + Sync + Send>(
     storage: &S,
 ) -> Result<(), crate::errors::AkdError> {
     let rand_user = thread_rng()

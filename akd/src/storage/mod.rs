@@ -17,17 +17,26 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::Send;
 
-pub mod timed_cache;
+pub mod cache;
 pub mod transaction;
 pub mod types;
 
 /*
 Various implementations supported by the library are imported here and usable at various checkpoints
 */
+pub mod manager;
 pub mod memory;
+
+pub use manager::StorageManager;
 
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
+
+/// Support getting the size of a struct or item in bytes
+pub trait SizeOf {
+    /// Retrieve the size of the item in bytes
+    fn size_of(&self) -> usize;
+}
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(feature = "serde_serialization")]
@@ -79,39 +88,23 @@ pub trait Storable: Clone + Sync {
     fn key_from_full_binary(bin: &[u8]) -> Result<Self::StorageKey, String>;
 }
 
-/// Storage layer with support for asynchronous work and batched operations
+/// A database implementation backing storage for the AKD
 #[async_trait]
-pub trait Storage: Clone {
-    /// Log some information about the cache (hit rate, etc)
-    async fn log_metrics(&self, level: log::Level);
-
-    /// Start a transaction in the storage layer
-    async fn begin_transaction(&self) -> bool;
-
-    /// Commit a transaction in the storage layer
-    async fn commit_transaction(&self) -> Result<(), StorageError>;
-
-    /// Rollback a transaction
-    async fn rollback_transaction(&self) -> Result<(), StorageError>;
-
-    /// Retrieve a flag determining if there is a transaction active
-    async fn is_transaction_active(&self) -> bool;
-
-    /// Set a record in the data layer
+pub trait Database: Clone {
+    /// Set a record in the database
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
-    /// Set multiple records in transactional operation
+    /// Set multiple records in the database with a minimal set of operations
     async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError>;
 
-    /// Retrieve a stored record from the data layer
+    /// Retrieve a stored record from the database
     async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError>;
 
-    /// Retrieve a record from the data layer, ignoring any caching or transaction pending
-    async fn get_direct<St: Storable>(&self, id: &St::StorageKey)
-        -> Result<DbRecord, StorageError>;
-
-    /// Flush the caching of objects (if present)
-    async fn flush_cache(&self);
+    /// Retrieve a batch of records by id from the database
+    async fn batch_get<St: Storable>(
+        &self,
+        ids: &[St::StorageKey],
+    ) -> Result<Vec<DbRecord>, StorageError>;
 
     /// Convert the given value state's into tombstones, replacing the plaintext value with
     /// the tombstone key array
@@ -119,12 +112,6 @@ pub trait Storage: Clone {
         &self,
         keys: &[types::ValueStateKey],
     ) -> Result<(), StorageError>;
-
-    /// Retrieve a batch of records by id
-    async fn batch_get<St: Storable>(
-        &self,
-        ids: &[St::StorageKey],
-    ) -> Result<Vec<DbRecord>, StorageError>;
 
     /* User data searching */
 
@@ -151,7 +138,7 @@ pub trait Storage: Clone {
 
 /// Optional storage layer utility functions for debug and test purposes
 #[async_trait]
-pub trait StorageUtil: Storage {
+pub trait StorageUtil: Database {
     /// Retrieves all stored records of a given type from the data layer, ignoring any caching or transaction pending
     async fn batch_get_type_direct<St: Storable>(&self) -> Result<Vec<DbRecord>, StorageError>;
 

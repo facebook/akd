@@ -20,7 +20,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use akd::errors::{AkdError, StorageError};
-use akd::storage::Storage;
+use akd::storage::StorageManager;
 use akd::{AkdLabel, AkdValue};
 use winter_crypto::Hasher;
 
@@ -57,7 +57,9 @@ fn make_unparsable_json(serialized_json: &str) -> String {
 
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
+
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::new(&db, &vrf, false).await?;
 
@@ -175,7 +177,8 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::new(&db, &vrf, false).await?;
 
@@ -243,7 +246,8 @@ async fn test_simple_lookup_for_small_tree() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::new(&db, &vrf, false).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
@@ -397,7 +401,8 @@ async fn test_history_proof_multiple_epochs() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::new(&db, &vrf, false).await?;
     let vrf_pk = akd.get_public_key().await.unwrap();
@@ -437,7 +442,8 @@ async fn test_history_proof_single_epoch() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
     let akd = Directory::new(&db, &vrf, false).await?;
@@ -564,7 +570,8 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // insertion of a new label "hello2". Meanwhile, the server has a one epoch
     // delay in marking the first version for "hello" as stale, which should
     // be caught by key history verifications for "hello".
-    let db = InMemoryDb::new();
+    let database = InMemoryDb::new();
+    let db = StorageManager::new_no_cache(&database);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::new(&db, &vrf, false).await?;
     // Publish the first value for the label "hello"

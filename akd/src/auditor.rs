@@ -14,7 +14,7 @@ use winter_crypto::Hasher;
 use crate::{
     errors::{AkdError, AuditorError, AzksError},
     proof_structs::{AppendOnlyProof, SingleAppendOnlyProof},
-    storage::memory::AsyncInMemoryDatabase,
+    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
     Azks,
 };
 
@@ -65,10 +65,12 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
     let inserted = proof.inserted.clone();
 
     let db = AsyncInMemoryDatabase::new();
-    let mut azks = Azks::new::<_, H>(&db).await?;
-    azks.batch_insert_leaves_helper::<_, H>(&db, unchanged_nodes, true)
+    let manager = StorageManager::new_no_cache(&db);
+
+    let mut azks = Azks::new::<_, H>(&manager).await?;
+    azks.batch_insert_leaves_helper::<_, H>(&manager, unchanged_nodes, true)
         .await?;
-    let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
+    let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
     azks.latest_epoch = epoch - 1;
     let updated_inserted = inserted
@@ -79,9 +81,9 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
             y
         })
         .collect();
-    azks.batch_insert_leaves_helper::<_, H>(&db, updated_inserted, true)
+    azks.batch_insert_leaves_helper::<_, H>(&manager, updated_inserted, true)
         .await?;
-    let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&db).await?;
+    let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&manager).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
         return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
