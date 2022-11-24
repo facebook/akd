@@ -32,6 +32,14 @@ pub use manager::StorageManager;
 #[cfg(any(test, feature = "public-tests"))]
 pub mod tests;
 
+/// Denotes the "state" when a batch_set is being called in the data layer
+pub enum DbSetState {
+    /// Being called as part of a transaction commit operation
+    TransactionCommit,
+    /// Being called as a general, in-line operation
+    General,
+}
+
 /// Support getting the size of a struct or item in bytes
 pub trait SizeOf {
     /// Retrieve the size of the item in bytes
@@ -95,7 +103,11 @@ pub trait Database: Clone {
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
     /// Set multiple records in the database with a minimal set of operations
-    async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError>;
+    async fn batch_set(
+        &self,
+        records: Vec<DbRecord>,
+        state: DbSetState,
+    ) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the database
     async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError>;
@@ -105,13 +117,6 @@ pub trait Database: Clone {
         &self,
         ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError>;
-
-    /// Convert the given value state's into tombstones, replacing the plaintext value with
-    /// the tombstone key array
-    async fn tombstone_value_states(
-        &self,
-        keys: &[types::ValueStateKey],
-    ) -> Result<(), StorageError>;
 
     /* User data searching */
 

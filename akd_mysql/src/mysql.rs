@@ -649,7 +649,11 @@ impl Database for AsyncMySqlDatabase {
         }
     }
 
-    async fn batch_set(&self, records: Vec<DbRecord>) -> core::result::Result<(), StorageError> {
+    async fn batch_set(
+        &self,
+        records: Vec<DbRecord>,
+        _state: akd::storage::DbSetState,
+    ) -> core::result::Result<(), StorageError> {
         if records.is_empty() {
             // nothing to do, save the cycles
             return Ok(());
@@ -862,47 +866,6 @@ impl Database for AsyncMySqlDatabase {
         }
 
         Ok(map)
-    }
-
-    async fn tombstone_value_states(
-        &self,
-        keys: &[akd::storage::types::ValueStateKey],
-    ) -> core::result::Result<(), StorageError> {
-        // NOTE: This might be optimizable in the future where we could use a SQL statement such as
-        //
-        // UPDATE `users`
-        // SET `data` = TOMBSTONE
-        // WHERE key in (set)
-        //
-        // However, the problem comes from managing an active transaction and cache (if there is one)
-        // since we may need to batch load nodes anyways in order to get the other properties
-        // which might need to be set. We could write everything to SQL, and after-the-fact update
-        // the active transaction and caches with replacing nodes which were updated? Anyways it's a
-        // relatively minor improvement here, due to proper use of batch operations
-
-        if keys.is_empty() {
-            return Ok(());
-        }
-
-        let data = self.batch_get::<ValueState>(keys).await?;
-        let mut new_data = vec![];
-        for record in data {
-            if let DbRecord::ValueState(value_state) = record {
-                new_data.push(DbRecord::ValueState(ValueState {
-                    epoch: value_state.epoch,
-                    label: value_state.label,
-                    plaintext_val: akd::AkdValue(akd::TOMBSTONE.to_vec()),
-                    username: value_state.username,
-                    version: value_state.version,
-                }));
-            }
-        }
-        if !new_data.is_empty() {
-            debug!("Tombstoning {} entries", new_data.len());
-            self.batch_set(new_data).await?;
-        }
-
-        Ok(())
     }
 
     async fn get_user_data(

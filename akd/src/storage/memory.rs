@@ -16,7 +16,6 @@ use crate::storage::types::{
 };
 use crate::storage::{Database, Storable, StorageUtil};
 use async_trait::async_trait;
-use log::debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -87,7 +86,11 @@ impl Database for AsyncInMemoryDatabase {
         Ok(())
     }
 
-    async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
+    async fn batch_set(
+        &self,
+        records: Vec<DbRecord>,
+        _state: crate::storage::DbSetState,
+    ) -> Result<(), StorageError> {
         if records.is_empty() {
             // nothing to do, save the cycles
             return Ok(());
@@ -158,35 +161,6 @@ impl Database for AsyncInMemoryDatabase {
             // swallow errors (i.e. not found)
         }
         Ok(map)
-    }
-
-    async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
-        if keys.is_empty() {
-            return Ok(());
-        }
-
-        let data = self.batch_get::<ValueState>(keys).await?;
-        let mut new_data = vec![];
-        for record in data {
-            if let DbRecord::ValueState(value_state) = record {
-                debug!(
-                    "Tombstoning 0x{}",
-                    hex::encode(value_state.username.to_vec())
-                );
-
-                new_data.push(DbRecord::ValueState(ValueState {
-                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
-                    ..value_state
-                }));
-            }
-        }
-
-        if !new_data.is_empty() {
-            debug!("Tombstoning {} entries", new_data.len());
-            self.batch_set(new_data).await?;
-        }
-
-        Ok(())
     }
 
     /// Retrieve the user data for a given user
