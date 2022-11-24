@@ -30,13 +30,12 @@ pub enum DirectoryCommand {
     Lookup(String),
     KeyHistory(String),
     Audit(u64, u64),
-    RootHash(Option<u64>),
+    RootHash,
     Terminate,
 }
 
 async fn get_root_hash<S, H, V>(
     directory: &mut Directory<S, V, H>,
-    o_epoch: Option<u64>,
 ) -> Option<Result<H::Digest, AkdError>>
 where
     S: Database + Sync + Send,
@@ -44,10 +43,7 @@ where
     V: VRFKeyStorage,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
-        match o_epoch {
-            Some(epoch) => Some(directory.get_root_hash_at_epoch(&azks, epoch).await),
-            None => Some(directory.get_root_hash(&azks).await),
-        }
+        Some(directory.get_root_hash(&azks).await)
     } else {
         None
     }
@@ -124,7 +120,7 @@ where
             (DirectoryCommand::Lookup(a), Some(response)) => {
                 match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
                     Ok(proof) => {
-                        let hash = get_root_hash::<_, H, V>(directory, None).await;
+                        let hash = get_root_hash::<_, H, V>(directory).await;
                         match hash {
                             Some(Ok(root_hash)) => {
                                 let vrf_pk = directory.get_public_key().await.unwrap();
@@ -184,8 +180,8 @@ where
                     }
                 }
             }
-            (DirectoryCommand::RootHash(o_epoch), Some(response)) => {
-                let hash = get_root_hash::<_, H, V>(directory, o_epoch).await;
+            (DirectoryCommand::RootHash, Some(response)) => {
+                let hash = get_root_hash::<_, H, V>(directory).await;
                 match hash {
                     Some(Ok(hash)) => {
                         let msg = format!("Retrieved root hash {}", hex::encode(hash.as_bytes()));
