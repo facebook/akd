@@ -16,3 +16,7 @@ Cargo.lock
 **/*.log
 
 .idea/**
+
+
+akd_client/src/proto/raw/*.rs
+akd/src/proto/raw/*.rs

@@ -9,7 +9,9 @@
 use protobuf::MessageField;
 use std::convert::{TryFrom, TryInto};
 
-pub mod types;
+/// This is the auto-generated types from protobuf specifications
+pub mod raw;
+use crate::proto::raw::types;
 
 #[cfg(test)]
 mod tests;
