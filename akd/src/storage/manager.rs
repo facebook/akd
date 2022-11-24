@@ -157,25 +157,27 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
     /// Start an in-memory transaction of changes
     pub async fn begin_transaction(&self) -> bool {
+        let started = self.transaction.begin_transaction().await;
+
         // disable the cache cleaning since we're in a write transaction
         // and will want to keep cache'd objects for the life of the transaction
         if let Some(cache) = &self.cache {
             cache.disable_clean();
         }
 
-        self.transaction.begin_transaction().await
+        started
     }
 
     /// Commit a transaction in the database
     pub async fn commit_transaction(&self) -> Result<(), StorageError> {
+        // this retrieves all the trans operations, and "de-activates" the transaction flag
+        let ops = self.transaction.commit_transaction().await?;
+
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
             cache.enable_clean();
         }
-
-        // this retrieves all the trans operations, and "de-activates" the transaction flag
-        let ops = self.transaction.commit_transaction().await?;
 
         let _epoch = match ops.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
@@ -185,20 +187,22 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             ))),
         }?;
 
-        self.tic_toc(METRIC_WRITE_TIME, self.batch_set(ops)).await?;
-        self.increment_metric(METRIC_BATCH_SET).await;
-        Ok(())
+        // We're calling the internal batch set operation in order to manage the cache correctly.
+        // Since we've "committed" the in-memory transaction, the batch_set operation will bypass
+        // the transaction management and simply interact with the cache then write to the underlying
+        // DB
+        self.batch_set(ops).await
     }
 
     /// Rollback a transaction
     pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
+        self.transaction.rollback_transaction().await?;
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
             cache.enable_clean();
         }
-
-        self.transaction.rollback_transaction().await
+        Ok(())
     }
 
     /// Retrieve a flag determining if there is a transaction active

@@ -92,28 +92,31 @@ impl TimedCache {
             let now = Instant::now();
             if let Some(memory_limit_bytes) = self.memory_limit_bytes {
                 let mut retained_size = 0;
-                let mut retained_elements = 0f64;
-                let mut removed = 0;
+                let mut num_retained = 0u32;
+                let mut num_removed = 0u32;
                 self.map.retain(|k, v| {
                     if v.expiration >= now {
                         retained_size += k.len() + v.size_of();
-                        retained_elements += 1.0;
+                        num_retained += 1;
                         true
                     } else {
-                        removed += 1;
+                        num_removed += 1;
                         false
                     }
                 });
-                info!("Removed {} expired elements from the cache", removed);
+
+                info!("Removed {} expired elements from the cache", num_removed);
                 debug!("Retained cache size is {} bytes", retained_size);
+
                 if retained_size > memory_limit_bytes {
                     debug!("BEGIN cache memory pressure clean");
+
                     info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
                     // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
                     let percent_clean =
                         0.05 + 1.0 - (memory_limit_bytes as f64) / (retained_size as f64);
                     // convert that to the number of items to delete based on the size of the dictionary
-                    let num_clean = (retained_elements * percent_clean).round() as usize;
+                    let num_clean = ((num_retained as f64) * percent_clean).ceil() as usize;
                     // sort the dict based on the oldest entries
                     let mut keys_and_expiration = self
                         .map
@@ -121,7 +124,7 @@ impl TimedCache {
                         .map(|kv| (kv.key().clone(), kv.value().expiration))
                         .collect::<Vec<_>>();
                     keys_and_expiration.sort_by(|(_, a), (_, b)| a.cmp(b));
-                    // take those old entries, and remove them
+                    // take `num_clean` old entries and remove them
                     for key in keys_and_expiration
                         .into_iter()
                         .take(num_clean)
@@ -129,9 +132,11 @@ impl TimedCache {
                     {
                         self.map.remove(&key);
                     }
+
                     debug!("END cache memory pressure clean")
                 }
             } else {
+                // memory pressure analysis is disabled, simply utilize timed cache cleaning
                 self.map.retain(|_, v| v.expiration >= now);
             }
 
@@ -140,14 +145,6 @@ impl TimedCache {
             // update last clean time
             *last_clean_write = Instant::now();
         }
-    }
-
-    /// Measure the size of the underlying hashmap and storage utilized
-    pub fn measure(&self) -> usize {
-        self.map
-            .iter()
-            .map(|kv| kv.key().len() + kv.value().size_of())
-            .sum()
     }
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
@@ -218,6 +215,7 @@ impl TimedCache {
                 return Some(result.data.clone());
             }
         }
+
         debug!("END cache retrieve");
         None
     }
@@ -227,6 +225,7 @@ impl TimedCache {
         self.clean().await;
 
         debug!("BEGIN cache put");
+
         let key = record.get_full_binary_id();
 
         // special case for AZKS
@@ -249,6 +248,7 @@ impl TimedCache {
         self.clean().await;
 
         debug!("BEGIN cache put batch");
+
         for record in records.iter() {
             if let DbRecord::Azks(azks_ref) = &record {
                 let mut azks_guard = self.azks.write().await;
@@ -262,20 +262,24 @@ impl TimedCache {
                 self.map.insert(key, item);
             }
         }
+
         debug!("END cache put batch");
     }
 
     /// Flush the cache
     pub async fn flush(&self) {
         debug!("BEGIN cache flush");
+
         self.map.clear();
-        let mut azks_guard = self.azks.write().await;
-        *azks_guard = None;
+        *(self.azks.write().await) = None;
+
         debug!("END cache flush");
     }
 
     /// Retrieve all of the cached items
     pub async fn get_all(&self) -> Vec<DbRecord> {
+        debug!("BEGIN cache get all");
+
         self.clean().await;
 
         let mut items = vec![];
@@ -285,18 +289,20 @@ impl TimedCache {
         for kv in self.map.iter() {
             items.push(kv.value().data.clone());
         }
+
+        debug!("END cache get all");
         items
     }
 
     /// Disable cache-cleaning (i.e. during a transaction)
     pub fn disable_clean(&self) {
-        debug!("Disabling MySQL object cache cleaning");
+        debug!("Disabling cache cleaning");
         self.can_clean.store(false, Ordering::Relaxed);
     }
 
     /// Re-enable cache cleaning (i.e. when a transaction is over)
     pub fn enable_clean(&self) {
-        debug!("Enabling MySQL object cache cleaning");
+        debug!("Enabling cache cleaning");
         self.can_clean.store(true, Ordering::Relaxed);
     }
 }
