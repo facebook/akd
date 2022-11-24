@@ -86,7 +86,11 @@ impl Database for AsyncInMemoryDatabase {
         Ok(())
     }
 
-    async fn batch_set(&self, records: Vec<DbRecord>, _is_committing_transaction: bool) -> Result<(), StorageError> {
+    async fn batch_set(
+        &self,
+        records: Vec<DbRecord>,
+        _is_committing_transaction: bool,
+    ) -> Result<(), StorageError> {
         if records.is_empty() {
             // nothing to do, save the cycles
             return Ok(());

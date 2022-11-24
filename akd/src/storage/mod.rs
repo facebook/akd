@@ -95,7 +95,11 @@ pub trait Database: Clone {
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 
     /// Set multiple records in the database with a minimal set of operations
-    async fn batch_set(&self, records: Vec<DbRecord>, is_committing_transaction: bool) -> Result<(), StorageError>;
+    async fn batch_set(
+        &self,
+        records: Vec<DbRecord>,
+        is_committing_transaction: bool,
+    ) -> Result<(), StorageError>;
 
     /// Retrieve a stored record from the database
     async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError>;
