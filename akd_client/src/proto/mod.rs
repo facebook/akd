@@ -9,7 +9,9 @@
 use protobuf::MessageField;
 use std::convert::{TryFrom, TryInto};
 
-pub mod types;
+/// This is the auto-generated types from protobuf specifications
+pub mod raw;
+use crate::proto::raw::types;
 
 #[cfg(test)]
 mod tests;
@@ -345,10 +347,7 @@ impl From<&crate::UpdateProof> for types::UpdateProof {
             version: Some(input.version),
             existence_vrf_proof: Some(input.existence_vrf_proof.clone()),
             existence_at_ep: MessageField::some((&input.existence_at_ep).into()),
-            previous_version_vrf_proof: input
-                .previous_version_vrf_proof
-                .as_ref()
-                .map(|p| p.clone()),
+            previous_version_vrf_proof: input.previous_version_vrf_proof.as_ref().cloned(),
             previous_version_stale_at_ep: MessageField::from_option(
                 input
                     .previous_version_stale_at_ep

@@ -8,12 +8,11 @@ edition = "2018"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/novifinancial/akd"
 readme = "../README.md"
-## Uncomment for automated building of the protobuf Rust sources. Necessary if the .proto specs change
-# build = "src/build.rs"
+build = "src/build.rs"
 
-# [build-dependencies]
-# protobuf-codegen = "=3.2.0"
-# protoc-bin-vendored = "3"
+[build-dependencies]
+protobuf-codegen = "3.2"
+protobuf-parse = "3.2"
 
 [features]
 bench = ["public-tests"]

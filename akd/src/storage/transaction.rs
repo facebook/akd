@@ -249,12 +249,12 @@ impl Transaction {
             .await
             .remove(username)
             .unwrap_or_default();
-        let out = Self::find_appropriate_item(intermediate, flag);
+
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
-        out
+        Self::find_appropriate_item(intermediate, flag)
     }
 
     /// Retrieve the batch of specified users user_state's based on the filtering flag provided

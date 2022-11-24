@@ -429,7 +429,7 @@ pub mod serialization;
 pub mod storage;
 pub mod tree_node;
 
-#[cfg(feature = "protobuf")]
+#[cfg(all(feature = "protobuf", feature = "thiserror"))]
 pub mod proto;
 
 mod utils;

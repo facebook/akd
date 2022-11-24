@@ -17,7 +17,10 @@ use protobuf::MessageField;
 use std::convert::{TryFrom, TryInto};
 use thiserror::Error;
 
-pub mod audit;
+/// This is the auto-generated types from protobuf specifications
+pub mod raw;
+use crate::proto::raw::audit;
+
 // Forget the generics, we're hardcoding to blake3
 use winter_crypto::hashers::Blake3_256;
 use winter_math::fields::f128::BaseElement;
