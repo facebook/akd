@@ -23,7 +23,8 @@ use crate::{
     },
     HistoryParams, HistoryVerificationParams,
 };
-use winter_crypto::{Digest, Hasher};
+use winter_crypto::Digest;
+use winter_crypto::Hasher;
 use winter_math::fields::f128::BaseElement;
 type Blake3 = winter_crypto::hashers::Blake3_256<BaseElement>;
 type Sha3 = winter_crypto::hashers::Sha3_256<BaseElement>;
@@ -1165,7 +1166,6 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
 /*
 =========== Test Helpers ===========
 */
-
 async fn async_poll_helper_proof<T: Database + Sync + Send, V: VRFKeyStorage, H: Hasher>(
     reader: &Directory<T, V, H>,
     value: AkdValue,

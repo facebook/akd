@@ -18,6 +18,7 @@ use crate::storage::{Database, Storable, StorageUtil};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 type Epoch = u64;
 type UserValueMap = HashMap<Epoch, ValueState>;
@@ -28,8 +29,8 @@ type UserStates = HashMap<Vec<u8>, UserValueMap>;
 /// This struct represents a basic in-memory database.
 #[derive(Debug)]
 pub struct AsyncInMemoryDatabase {
-    db: Arc<tokio::sync::RwLock<HashMap<Vec<u8>, DbRecord>>>,
-    user_info: Arc<tokio::sync::RwLock<UserStates>>,
+    db: Arc<RwLock<HashMap<Vec<u8>, DbRecord>>>,
+    user_info: Arc<RwLock<UserStates>>,
 }
 
 unsafe impl Send for AsyncInMemoryDatabase {}
@@ -39,8 +40,8 @@ impl AsyncInMemoryDatabase {
     /// Creates a new in memory db
     pub fn new() -> Self {
         Self {
-            db: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            user_info: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            db: Arc::new(RwLock::new(HashMap::new())),
+            user_info: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }

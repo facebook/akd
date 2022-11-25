@@ -15,6 +15,7 @@ use crate::{
     EMPTY_LABEL, EMPTY_VALUE,
 };
 use std::collections::HashSet;
+// use std::sync::Arc;
 use winter_crypto::{Digest, Hasher};
 
 // Builds a set of all prefixes of the input labels
@@ -95,4 +96,12 @@ pub(crate) fn commit_value<H: Hasher>(
 // Used by the client to supply a commitment proof and value to reconstruct the commitment
 pub(crate) fn bind_commitment<H: Hasher>(value: &AkdValue, proof: &[u8]) -> H::Digest {
     H::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
+}
+
+/// "Swap" values in a RwLock, reading the current value and writing a new value into the lock
+pub(crate) async fn rwlock_swap<T: Clone>(lock: &tokio::sync::RwLock<T>, new_value: T) -> T {
+    let mut guard = lock.write().await;
+    let old = guard.clone();
+    *guard = new_value;
+    old
 }
