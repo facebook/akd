@@ -7,5 +7,6 @@ members = [
     "integration_tests",
     "akd_client",
     "akd_test_tools",
-    "akd_local_auditor"
+    "akd_local_auditor",
+    "akd_core"
 ]

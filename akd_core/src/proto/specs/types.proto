@@ -7,13 +7,8 @@
 
 // This contains the protobuf definition for inter-node messaging structures
 
-// Note: install a proper version of protobuf-codegen before re-generating
-// protobuf-codegen --version 2.8.1
-// Instructions: https://github.com/stepancheg/rust-protobuf/tree/master/protobuf-codegen
-// MAKE SURE to cargo install the right version: cargo install protobuf-codegen --version =2.8.1
-
-// Command to re-generate (from 'proto' directory):
-// protoc --rust_out . types.proto
+// To re-generate the protobuf specifications, utilize the build.rs script in this
+// crate (See Cargo.toml file)
 
 syntax = "proto2";
 
@@ -99,4 +94,10 @@ message HistoryProof {
     repeated NonMembershipProof non_existence_of_next_few = 3;
     repeated bytes future_marker_vrf_proofs = 4;
     repeated NonMembershipProof non_existence_of_future_markers = 5;
+}
+
+/* SingleEncodedProof represents a proof that no leaves were changed or removed between epoch t and t + 1 */
+message SingleAppendOnlyProof {
+    repeated Node inserted = 1;
+    repeated Node unchanged_nodes = 2;
 }

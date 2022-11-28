@@ -9,9 +9,10 @@
 //! to verify any of the following AKD proofs
 //!
 //! 1. Lookup
-//!
-//! Append-only and history proofs to come
+//! 2: Key history
+//! 3: Audit (append-only)
 
+use crate::hash::Digest;
 use crate::ARITY;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -28,9 +29,6 @@ pub type Direction = Option<usize>;
 pub type AkdLabel = Vec<u8>;
 /// The value of a particular entry in the AKD
 pub type AkdValue = Vec<u8>;
-/// A hash digest (size will depend on hashing algorithm specified
-/// at compilation time)
-pub type Digest = [u8; crate::hash::DIGEST_BYTES];
 
 /// The value to be hashed every time an empty node's hash is to be considered
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
@@ -66,14 +64,15 @@ pub struct NodeLabel {
 }
 
 impl NodeLabel {
-    pub(crate) fn hash(&self) -> Digest {
+    /// Hash a node-label into a digest
+    pub fn hash(&self) -> Digest {
         let hash_input = [&self.label_len.to_be_bytes()[..], &self.label_val].concat();
         crate::hash::hash(&hash_input)
     }
 
     /// Takes as input a pointer to the caller and another NodeLabel,
     /// returns a NodeLabel that is the longest common prefix of the two.
-    pub(crate) fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
+    pub fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
         let shorter_len = if self.label_len < other.label_len {
             self.label_len
         } else {
@@ -105,7 +104,7 @@ impl NodeLabel {
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
-    pub(crate) fn get_prefix(&self, len: u32) -> Self {
+    pub fn get_prefix(&self, len: u32) -> Self {
         if len >= self.label_len {
             return *self;
         }
@@ -294,4 +293,22 @@ pub struct VerifyResult {
     pub version: u64,
     /// The plaintext value associated with the record
     pub value: AkdValue,
+}
+
+/// Proof that no leaves were deleted from the initial epoch.
+/// This means that unchanged_nodes should hash to the initial root hash
+/// and the vec of inserted is the set of leaves inserted between these epochs.
+/// If we built the tree using the nodes in inserted and the nodes in unchanged_nodes
+/// as the leaves with the correct epoch of insertion,
+/// it should result in the final root hash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+pub struct SingleAppendOnlyProof {
+    /// The inserted nodes & digests
+    pub inserted: Vec<Node>,
+    /// The unchanged nodes & digests
+    pub unchanged_nodes: Vec<Node>,
 }

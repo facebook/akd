@@ -1,18 +1,53 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 //
+// This source code is licensed under both the MIT license found in the
+// LICENSE-MIT file in the root directory of this source tree and the Apache
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! This module contains all the type conversions between internal AKD & message types
-//! with the protobuf types
+//! This module contains all the protobuf types for type conversion between internal and external
+//! types. NOTE: Protobuf encoding is NOT supported in nostd environments. The generated code is using vector
+//! too heavily to be nostd compliant
 
-use protobuf::MessageField;
-use std::convert::{TryFrom, TryInto};
-
-pub mod types;
+// Setup the protobuf specs
+#[allow(missing_docs)]
+pub mod specs;
 
 #[cfg(test)]
 mod tests;
+
+use crate::hash::Digest;
+
+use core::convert::{TryFrom, TryInto};
+use protobuf::MessageField;
+
+/// An error converting a protobuf proof
+#[derive(Debug)]
+pub enum ConversionError {
+    /// Error deserializing from a protobuf structure/proof
+    Deserialization(String),
+    /// A core protobuf error occurred
+    Protobuf(String),
+}
+
+impl From<protobuf::Error> for ConversionError {
+    fn from(err: protobuf::Error) -> Self {
+        Self::Protobuf(format!(
+            "An error occurred in protobuf serialization/deserialization {}",
+            err
+        ))
+    }
+}
+
+impl core::fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
+        let code = match &self {
+            ConversionError::Deserialization(msg) => format!("(Deserialization) - {}", msg),
+            ConversionError::Protobuf(msg) => format!("(Protobuf) - {}", msg),
+        };
+        write!(f, "Type conversion error {}", code)
+    }
+}
 
 // ************************ Converter macros ************************ //
 
@@ -22,14 +57,11 @@ mod tests;
 macro_rules! require {
     ($obj:ident, $has_field:ident) => {
         if !$obj.$has_field() {
-            return Err(crate::VerificationError::build(
-                Some(crate::VerificationErrorType::ProofDeserializationFailed),
-                Some(format!(
-                    "Required field {} missing. '{}'",
-                    stringify!($obj).to_string(),
-                    stringify!($has_field).to_string(),
-                )),
-            ));
+            return Err(ConversionError::Deserialization(format!(
+                "Required field {} missing. '{}'",
+                stringify!($obj).to_string(),
+                stringify!($has_field).to_string(),
+            )));
         }
     };
 }
@@ -37,14 +69,11 @@ macro_rules! require {
 macro_rules! require_messagefield {
     ($obj:ident, $field:ident) => {
         if $obj.$field.is_none() {
-            return Err(crate::VerificationError::build(
-                Some(crate::VerificationErrorType::ProofDeserializationFailed),
-                Some(format!(
-                    "Required field {} missing. '{}'",
-                    stringify!($obj).to_string(),
-                    stringify!($field).to_string(),
-                )),
-            ));
+            return Err(ConversionError::Deserialization(format!(
+                "Required field {} missing. '{}'",
+                stringify!($obj).to_string(),
+                stringify!($field).to_string(),
+            )));
         }
     };
 }
@@ -75,7 +104,7 @@ macro_rules! convert_from_vector {
 // NodeLabel
 // ==============================================================
 
-impl From<&crate::NodeLabel> for types::NodeLabel {
+impl From<&crate::NodeLabel> for specs::types::NodeLabel {
     fn from(input: &crate::NodeLabel) -> Self {
         Self {
             label_len: Some(input.label_len),
@@ -85,10 +114,10 @@ impl From<&crate::NodeLabel> for types::NodeLabel {
     }
 }
 
-impl TryFrom<&types::NodeLabel> for crate::NodeLabel {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::NodeLabel> for crate::NodeLabel {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::NodeLabel) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_label_len);
         require!(input, has_label_val);
         // get the raw data & it's length, but at most 32 bytes
@@ -110,7 +139,7 @@ impl TryFrom<&types::NodeLabel> for crate::NodeLabel {
 // Node
 // ==============================================================
 
-impl From<&crate::Node> for types::Node {
+impl From<&crate::Node> for specs::types::Node {
     fn from(input: &crate::Node) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
@@ -120,10 +149,10 @@ impl From<&crate::Node> for types::Node {
     }
 }
 
-impl TryFrom<&types::Node> for crate::Node {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::Node> for crate::Node {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::Node) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::Node) -> Result<Self, Self::Error> {
         require_messagefield!(input, label);
         require!(input, has_hash);
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
@@ -142,7 +171,7 @@ impl TryFrom<&types::Node> for crate::Node {
 // LayerProof
 // ==============================================================
 
-impl From<&crate::LayerProof> for types::LayerProof {
+impl From<&crate::LayerProof> for specs::types::LayerProof {
     fn from(input: &crate::LayerProof) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
@@ -153,19 +182,18 @@ impl From<&crate::LayerProof> for types::LayerProof {
     }
 }
 
-impl TryFrom<&types::LayerProof> for crate::LayerProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::LayerProof> for crate::LayerProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::LayerProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::LayerProof) -> Result<Self, Self::Error> {
         require_messagefield!(input, label);
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
 
         // get the raw data & it's length, but at most crate::hash::DIGEST_BYTES bytes
         let sibling = input.siblings.get(0);
         if sibling.is_none() {
-            return Err(crate::VerificationError::build(
-                Some(crate::VerificationErrorType::ProofDeserializationFailed),
-                Some("Required field siblings missing".to_string()),
+            return Err(ConversionError::Deserialization(
+                "Required field siblings missing".to_string(),
             ));
         }
 
@@ -183,7 +211,7 @@ impl TryFrom<&types::LayerProof> for crate::LayerProof {
 // MembershipProof
 // ==============================================================
 
-impl From<&crate::MembershipProof> for types::MembershipProof {
+impl From<&crate::MembershipProof> for specs::types::MembershipProof {
     fn from(input: &crate::MembershipProof) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
@@ -198,15 +226,15 @@ impl From<&crate::MembershipProof> for types::MembershipProof {
     }
 }
 
-impl TryFrom<&types::MembershipProof> for crate::MembershipProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::MembershipProof> for crate::MembershipProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::MembershipProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::MembershipProof) -> Result<Self, Self::Error> {
         require_messagefield!(input, label);
         require!(input, has_hash_val);
 
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
-        let hash_val: crate::Digest = hash_from_bytes!(input.hash_val());
+        let hash_val: Digest = hash_from_bytes!(input.hash_val());
 
         let mut layer_proofs = vec![];
         for proof in input.layer_proofs.iter() {
@@ -225,7 +253,7 @@ impl TryFrom<&types::MembershipProof> for crate::MembershipProof {
 // NonMembershipProof
 // ==============================================================
 
-impl From<&crate::NonMembershipProof> for types::NonMembershipProof {
+impl From<&crate::NonMembershipProof> for specs::types::NonMembershipProof {
     fn from(input: &crate::NonMembershipProof) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
@@ -243,10 +271,10 @@ impl From<&crate::NonMembershipProof> for types::NonMembershipProof {
     }
 }
 
-impl TryFrom<&types::NonMembershipProof> for crate::NonMembershipProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::NonMembershipProof> for crate::NonMembershipProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::NonMembershipProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::NonMembershipProof) -> Result<Self, Self::Error> {
         require_messagefield!(input, label);
         require_messagefield!(input, longest_prefix);
         require_messagefield!(input, longest_prefix_membership_proof);
@@ -268,12 +296,8 @@ impl TryFrom<&types::NonMembershipProof> for crate::NonMembershipProof {
             label,
             longest_prefix,
             longest_prefix_children: longest_prefix_children.try_into().map_err(|_| {
-                crate::VerificationError::build(
-                    Some(crate::VerificationErrorType::ProofDeserializationFailed),
-                    Some(
-                        "Required field longest_prefix_children must be 2 elements long"
-                            .to_string(),
-                    ),
+                ConversionError::Deserialization(
+                    "Required field longest_prefix_children must be 2 elements long".to_string(),
                 )
             })?,
             longest_prefix_membership_proof,
@@ -285,7 +309,7 @@ impl TryFrom<&types::NonMembershipProof> for crate::NonMembershipProof {
 // LookupProof
 // ==============================================================
 
-impl From<&crate::LookupProof> for types::LookupProof {
+impl From<&crate::LookupProof> for specs::types::LookupProof {
     fn from(input: &crate::LookupProof) -> Self {
         Self {
             epoch: Some(input.epoch),
@@ -303,10 +327,10 @@ impl From<&crate::LookupProof> for types::LookupProof {
     }
 }
 
-impl TryFrom<&types::LookupProof> for crate::LookupProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::LookupProof> for crate::LookupProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::LookupProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::LookupProof) -> Result<Self, Self::Error> {
         require!(input, has_epoch);
         require!(input, has_plaintext_value);
         require!(input, has_version);
@@ -337,7 +361,7 @@ impl TryFrom<&types::LookupProof> for crate::LookupProof {
 // UpdateProof
 // ==============================================================
 
-impl From<&crate::UpdateProof> for types::UpdateProof {
+impl From<&crate::UpdateProof> for specs::types::UpdateProof {
     fn from(input: &crate::UpdateProof) -> Self {
         Self {
             epoch: Some(input.epoch),
@@ -361,10 +385,10 @@ impl From<&crate::UpdateProof> for types::UpdateProof {
     }
 }
 
-impl TryFrom<&types::UpdateProof> for crate::UpdateProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::UpdateProof> for crate::UpdateProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::UpdateProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::UpdateProof) -> Result<Self, Self::Error> {
         require!(input, has_epoch);
         require!(input, has_plaintext_value);
         require!(input, has_version);
@@ -398,7 +422,7 @@ impl TryFrom<&types::UpdateProof> for crate::UpdateProof {
 // HistoryProof
 // ==============================================================
 
-impl From<&crate::HistoryProof> for types::HistoryProof {
+impl From<&crate::HistoryProof> for specs::types::HistoryProof {
     fn from(input: &crate::HistoryProof) -> Self {
         Self {
             update_proofs: input
@@ -423,10 +447,10 @@ impl From<&crate::HistoryProof> for types::HistoryProof {
     }
 }
 
-impl TryFrom<&types::HistoryProof> for crate::HistoryProof {
-    type Error = crate::VerificationError;
+impl TryFrom<&specs::types::HistoryProof> for crate::HistoryProof {
+    type Error = ConversionError;
 
-    fn try_from(input: &types::HistoryProof) -> Result<Self, Self::Error> {
+    fn try_from(input: &specs::types::HistoryProof) -> Result<Self, Self::Error> {
         let update_proofs = convert_from_vector!(input.update_proofs, crate::UpdateProof);
 
         let next_few_vrf_proofs = input
@@ -453,6 +477,41 @@ impl TryFrom<&types::HistoryProof> for crate::HistoryProof {
             non_existence_of_next_few,
             future_marker_vrf_proofs,
             non_existence_of_future_markers,
+        })
+    }
+}
+
+// ==============================================================
+// SingleAppendOnlyProof
+// ==============================================================
+
+impl From<&crate::SingleAppendOnlyProof> for specs::types::SingleAppendOnlyProof {
+    fn from(input: &crate::SingleAppendOnlyProof) -> Self {
+        Self {
+            inserted: input
+                .inserted
+                .iter()
+                .map(|node| node.into())
+                .collect::<Vec<_>>(),
+            unchanged_nodes: input
+                .unchanged_nodes
+                .iter()
+                .map(|node| node.into())
+                .collect::<Vec<_>>(),
+            ..Default::default()
+        }
+    }
+}
+
+impl TryFrom<&specs::types::SingleAppendOnlyProof> for crate::SingleAppendOnlyProof {
+    type Error = ConversionError;
+
+    fn try_from(input: &specs::types::SingleAppendOnlyProof) -> Result<Self, Self::Error> {
+        let inserted = convert_from_vector!(input.inserted, crate::Node);
+        let unchanged_nodes = convert_from_vector!(input.unchanged_nodes, crate::Node);
+        Ok(Self {
+            inserted,
+            unchanged_nodes,
         })
     }
 }
