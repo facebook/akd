@@ -56,7 +56,7 @@ pub use crate::hash::sha3::DIGEST_BYTES;
 mod tests;
 
 /// An error occurred while hashing data
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum HashError {
     /// No direction was present when expected
     NoDirection(String),

@@ -22,7 +22,7 @@ use core::convert::{TryFrom, TryInto};
 use protobuf::MessageField;
 
 /// An error converting a protobuf proof
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ConversionError {
     /// Error deserializing from a protobuf structure/proof
     Deserialization(String),
@@ -313,7 +313,7 @@ impl From<&crate::LookupProof> for specs::types::LookupProof {
     fn from(input: &crate::LookupProof) -> Self {
         Self {
             epoch: Some(input.epoch),
-            plaintext_value: Some(input.plaintext_value.clone()),
+            plaintext_value: Some(input.plaintext_value.0.clone()),
             version: Some(input.version),
             existence_vrf_proof: Some(input.existence_vrf_proof.clone()),
             existence_proof: MessageField::some((&input.existence_proof).into()),
@@ -344,7 +344,7 @@ impl TryFrom<&specs::types::LookupProof> for crate::LookupProof {
 
         Ok(Self {
             epoch: input.epoch(),
-            plaintext_value: input.plaintext_value().to_vec(),
+            plaintext_value: crate::AkdValue(input.plaintext_value().to_vec()),
             version: input.version(),
             existence_vrf_proof: input.existence_vrf_proof().to_vec(),
             existence_proof: input.existence_proof.as_ref().unwrap().try_into()?,
@@ -365,7 +365,7 @@ impl From<&crate::UpdateProof> for specs::types::UpdateProof {
     fn from(input: &crate::UpdateProof) -> Self {
         Self {
             epoch: Some(input.epoch),
-            plaintext_value: Some(input.plaintext_value.clone()),
+            plaintext_value: Some(input.plaintext_value.0.clone()),
             version: Some(input.version),
             existence_vrf_proof: Some(input.existence_vrf_proof.clone()),
             existence_at_ep: MessageField::some((&input.existence_at_ep).into()),
@@ -407,7 +407,7 @@ impl TryFrom<&specs::types::UpdateProof> for crate::UpdateProof {
 
         Ok(Self {
             epoch: input.epoch(),
-            plaintext_value: input.plaintext_value().to_vec(),
+            plaintext_value: crate::AkdValue(input.plaintext_value().to_vec()),
             version: input.version(),
             existence_vrf_proof: input.existence_vrf_proof().to_vec(),
             existence_at_ep: input.existence_at_ep.as_ref().unwrap().try_into()?,
@@ -512,6 +512,33 @@ impl TryFrom<&specs::types::SingleAppendOnlyProof> for crate::SingleAppendOnlyPr
         Ok(Self {
             inserted,
             unchanged_nodes,
+        })
+    }
+}
+
+// ==============================================================
+// SingleAppendOnlyProof
+// ==============================================================
+
+impl From<&crate::AppendOnlyProof> for specs::types::AppendOnlyProof {
+    fn from(input: &crate::AppendOnlyProof) -> Self {
+        Self {
+            proofs: input.proofs.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            epochs: input.epochs.clone(),
+            ..Default::default()
+        }
+    }
+}
+
+impl TryFrom<&specs::types::AppendOnlyProof> for crate::AppendOnlyProof {
+    type Error = ConversionError;
+
+    fn try_from(input: &specs::types::AppendOnlyProof) -> Result<Self, Self::Error> {
+        let proofs = input.proofs.iter().map(|proof| proof.try_into()).collect::<Result<Vec<_>,_>>()?;
+        let epochs =input.epochs.clone();
+        Ok(Self {
+            proofs,
+            epochs,
         })
     }
 }

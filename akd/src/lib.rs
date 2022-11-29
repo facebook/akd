@@ -42,13 +42,12 @@
 //!
 //! ## Setup
 //! A [`Directory`] represents an AKD. To set up a [`Directory`], we first need to pick on
-//! a database, a hash function, and a VRF. For this example, we use [`Blake3`] as the hash function,
+//! a database, a hash function, and a VRF. For this example, we use [blake3] as the hash function,
 //! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
 //! The [`Directory::new`] function also takes as input a third parameter indicating whether or not it is "read-only".
 //! Note that a read-only directory cannot be updated, and so we most likely will want to keep this variable set
 //! as `false`.
 //! ```
-//! use akd::Blake3;
 //! use akd::storage::StorageManager;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! use akd::ecvrf::HardCodedAkdVRF;
@@ -59,7 +58,7 @@
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
+//! let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -70,7 +69,6 @@
 //! with a list of the pairs. In the following example, we derive the labels and values from strings. After publishing,
 //! the new epoch number and root hash are returned.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -80,8 +78,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! use akd::EpochHash;
-//! use akd::storage::types::{AkdLabel, AkdValue};
-//! use akd::winter_crypto::Digest;
+//! use akd::{AkdLabel, AkdValue};
+//! use akd::Digest;
 //!
 //! let entries = vec![
 //!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -92,10 +90,10 @@
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
-//! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash.as_bytes()));
+//! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash));
 //! # });
 //! ```
 //! This function can be called repeatedly to add entries to the directory, with each invocation
@@ -105,7 +103,6 @@
 //! We can call [`Directory::lookup`] to generate a [`LookupProof`] that proves the correctness
 //! of a client lookup for an existing entry.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -115,8 +112,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -127,7 +124,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let lookup_proof = akd.lookup(
@@ -139,7 +136,6 @@
 //! To verify a valid proof, we call [`client::lookup_verify`], with respect to the root hash and
 //! the server's public key.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -149,8 +145,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -161,7 +157,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let lookup_proof = akd.lookup(
@@ -170,7 +166,7 @@
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
 //! let lookup_result = akd::client::lookup_verify(
-//!     &public_key,
+//!     public_key.as_bytes(),
 //!     root_hash,
 //!     AkdLabel::from_utf8_str("first entry"),
 //!     lookup_proof,
@@ -194,7 +190,6 @@
 //! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch. The [HistoryParams] field
 //! can be used to limit the history that we issue proofs for, but in this example we default to a complete history.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -204,8 +199,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -216,7 +211,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! use akd::HistoryParams;
@@ -235,7 +230,6 @@
 //! returns a list of values that have been associated with the specified entry, in
 //! reverse chronological order.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -246,8 +240,8 @@
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::HistoryParams;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -258,7 +252,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let EpochHash(epoch2, root_hash2) = akd.publish(
@@ -270,7 +264,7 @@
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //! let key_history_result = akd::client::key_history_verify(
-//!     &public_key,
+//!     public_key.as_bytes(),
 //!     root_hash2,
 //!     epoch,
 //!     AkdLabel::from_utf8_str("first entry"),
@@ -300,7 +294,6 @@
 //! In addition to the client API calls, the AKD also provides proofs to auditors that its commitments evolved correctly.
 //! Below we illustrate how the server responds to an audit query between two epochs.
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -310,8 +303,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -322,7 +315,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -340,7 +333,6 @@
 //! ```
 //! The auditor then verifies the above [`AppendOnlyProof`] using [`auditor::audit_verify`].
 //! ```
-//! # use akd::Blake3;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -350,8 +342,8 @@
 //! # let storage_manager = StorageManager::new_no_cache(&db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::storage::types::{AkdLabel, AkdValue};
-//! # use akd::winter_crypto::Digest;
+//! # use akd::{AkdLabel, AkdValue};
+//! # use akd::Digest;
 //! #
 //! # let entries = vec![
 //! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
@@ -362,7 +354,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
@@ -420,17 +412,17 @@ pub mod append_only_zks;
 pub mod auditor;
 pub mod client;
 pub mod directory;
-pub mod ecvrf;
 pub mod errors;
 pub mod helper_structs;
-pub mod node_label;
-pub mod proof_structs;
-pub mod serialization;
 pub mod storage;
 pub mod tree_node;
 
 #[cfg(feature = "protobuf")]
 pub mod proto;
+
+pub use akd_core::verify;
+pub use akd_core::*;
+pub use akd_core::hash::Digest as Digest;
 
 mod utils;
 
@@ -438,15 +430,8 @@ mod utils;
 pub use append_only_zks::Azks;
 pub use client::HistoryVerificationParams;
 pub use directory::{Directory, HistoryParams};
-pub use helper_structs::{EpochHash, Node};
-pub use node_label::NodeLabel;
-pub use proof_structs::{AppendOnlyProof, HistoryProof, LookupProof, VerifyResult};
-pub use storage::types::{AkdLabel, AkdValue};
-pub use winter_crypto;
-/// The [Blake3](https://github.com/BLAKE3-team/BLAKE3) hash function
-pub type Blake3 = winter_crypto::hashers::Blake3_256<winter_math::fields::f128::BaseElement>;
-/// The [Sha3](https://en.wikipedia.org/wiki/SHA-3) hash function
-pub type Sha3 = winter_crypto::hashers::Sha3_256<winter_math::fields::f128::BaseElement>;
+pub use helper_structs::EpochHash;
+
 
 // ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public-tests"))]
@@ -454,32 +439,11 @@ pub mod test_utils;
 #[cfg(test)]
 mod tests;
 
-/// The arity of the underlying tree structure of the akd.
-pub const ARITY: usize = 2;
 /// The length of a leaf node's label (in bits)
 pub const LEAF_LEN: u32 = 256;
 
-/// The value to be hashed every time an empty node's hash is to be considered
-pub const EMPTY_VALUE: [u8; 1] = [0u8];
-
-/// The label used for an empty node
-pub const EMPTY_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
-    label_val: [1u8; 32],
-    label_len: 0,
-};
-
 /// The label used for a root node
-pub const ROOT_LABEL: crate::node_label::NodeLabel = crate::node_label::NodeLabel {
+pub const ROOT_LABEL: crate::node_label::NodeLabel = crate::NodeLabel {
     label_val: [0u8; 32],
     label_len: 0,
 };
-/// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
-/// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
-/// verify the raw value. We utilize an empty array to save space in the storage layer
-///
-/// See [GitHub issue #130](https://github.com/novifinancial/akd/issues/130) for more context
-pub const TOMBSTONE: &[u8] = &[];
-
-/// This type is used to indicate a direction for a
-/// particular node relative to its parent.
-pub type Direction = Option<usize>;

@@ -149,7 +149,7 @@ fn verify_single_update_proof(
     let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let value_hash_valid = match (params, &proof.plaintext_value) {
-        (HistoryVerificationParams::AllowMissingValues, bytes) if bytes == crate::TOMBSTONE => {
+        (HistoryVerificationParams::AllowMissingValues, bytes) if bytes.0 == crate::TOMBSTONE => {
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
             // the real value available

@@ -101,3 +101,9 @@ message SingleAppendOnlyProof {
     repeated Node inserted = 1;
     repeated Node unchanged_nodes = 2;
 }
+
+/* An append-only proof is a proof that no nodes were changes from epochs[0] to epochs[end], epoch-by-epoch */
+message AppendOnlyProof {
+    repeated SingleAppendOnlyProof proofs = 1;
+    repeated uint64 epochs = 2;
+}

@@ -43,7 +43,7 @@ use alloc::vec::Vec;
 mod tests;
 
 /// A error related to verifiable random functions
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum VrfError {
     /// A problem retrieving or decoding the VRF public key
     PublicKey(String),

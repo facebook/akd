@@ -131,11 +131,11 @@ pub fn lookup_verify(
     // protobuf encoded proof
     lookup_proof: &[u8],
 ) -> Result<LookupResult, String> {
-    match fallable_lookup_verify(vrf_public_key, root_hash_ref, label.to_vec(), lookup_proof) {
+    match fallable_lookup_verify(vrf_public_key, root_hash_ref, crate::AkdLabel(label.to_vec()), lookup_proof) {
         Ok(verification) => Ok(LookupResult::new(
             verification.epoch,
             verification.version,
-            hex::encode(verification.value),
+            hex::encode(verification.value.0),
         )),
         Err(error) => Err(error.to_string()),
     }

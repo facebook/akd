@@ -10,7 +10,7 @@
 
 use super::{CachedItem, DEFAULT_CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
 use crate::storage::DbRecord;
-use crate::storage::SizeOf;
+use akd_core::SizeOf;
 use crate::storage::Storable;
 use dashmap::DashMap;
 #[cfg(not(feature = "runtime_metrics"))]

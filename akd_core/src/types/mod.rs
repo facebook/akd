@@ -14,9 +14,26 @@
 
 use crate::hash::Digest;
 use crate::ARITY;
+#[cfg(feature = "serde_serialization")]
+use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
-use core::convert::TryInto;
+#[cfg(feature = "rand")]
+use rand::{CryptoRng, Rng};
+
+pub mod node_label;
+pub use node_label::*;
+
+// ============================================
+// Traits
+// ============================================
+
+/// Retrieve the in-memory size of a structure
+pub trait SizeOf {
+    /// Retrieve the in-memory size of a structure
+    fn size_of(&self) -> usize;
+}
 
 // ============================================
 // Typedefs and constants
@@ -25,19 +42,106 @@ use core::convert::TryInto;
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent.
 pub type Direction = Option<usize>;
+impl SizeOf for Direction {
+    fn size_of(&self) -> usize {
+        self.as_ref().map_or(8, |_v| core::mem::size_of::<usize>() + 8)
+    }
+}
+
 /// The label of a particular entry in the AKD
-pub type AkdLabel = Vec<u8>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub struct AkdLabel(
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
+    pub Vec<u8>
+);
+
+impl SizeOf for AkdLabel {
+    fn size_of(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl core::ops::Deref for AkdLabel {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl core::ops::DerefMut for AkdLabel {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AkdLabel {
+    /// Build an [`AkdLabel`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+
+    #[cfg(feature = "rand")]
+    /// Gets a random value for a AKD
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
+        Self::from_utf8_str(&crate::utils::get_random_str(rng))
+    }
+}
+
 /// The value of a particular entry in the AKD
-pub type AkdValue = Vec<u8>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub struct AkdValue(pub Vec<u8>);
+
+impl SizeOf for AkdValue {
+    fn size_of(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl core::ops::Deref for AkdValue {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl core::ops::DerefMut for AkdValue {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AkdValue {
+    /// Build an [`AkdValue`] struct from an UTF8 string
+    pub fn from_utf8_str(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+
+    #[cfg(feature = "rand")]
+    /// Gets a random value for a AKD
+    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
+        Self::from_utf8_str(&crate::utils::get_random_str(rng))
+    }
+}
 
 /// The value to be hashed every time an empty node's hash is to be considered
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
-
-/// The label used for an empty node
-pub const EMPTY_LABEL: NodeLabel = NodeLabel {
-    label_val: [1u8; 32],
-    label_len: 0,
-};
 
 /// A "tombstone" is a false value in an AKD ValueState denoting that a real value has been removed (e.g. data rentention policies).
 /// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
@@ -50,86 +154,6 @@ pub const TOMBSTONE: &[u8] = &[];
 // Structs
 // ============================================
 
-/// Represents the label of a AKD node
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
-pub struct NodeLabel {
-    /// val stores a binary string as a u64
-    pub label_val: [u8; 32],
-    /// len keeps track of how long the binary string is
-    pub label_len: u32,
-}
-
-impl NodeLabel {
-    /// Hash a node-label into a digest
-    pub fn hash(&self) -> Digest {
-        let hash_input = [&self.label_len.to_be_bytes()[..], &self.label_val].concat();
-        crate::hash::hash(&hash_input)
-    }
-
-    /// Takes as input a pointer to the caller and another NodeLabel,
-    /// returns a NodeLabel that is the longest common prefix of the two.
-    pub fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
-        let shorter_len = if self.label_len < other.label_len {
-            self.label_len
-        } else {
-            other.label_len
-        };
-
-        let mut prefix_len = 0;
-        while prefix_len <= shorter_len
-            && self.get_bit_at(prefix_len) == other.get_bit_at(prefix_len)
-        {
-            prefix_len += 1;
-        }
-        if *self == EMPTY_LABEL || other == EMPTY_LABEL {
-            return EMPTY_LABEL;
-        }
-        self.get_prefix(prefix_len)
-    }
-
-    /// Returns the bit at a specified index, and a 0 on an out of range index
-    fn get_bit_at(&self, index: u32) -> u8 {
-        if index >= self.label_len {
-            return 0;
-        }
-
-        let usize_index: usize = index.try_into().unwrap();
-        let index_full_blocks = usize_index / 8;
-        let index_remainder = usize_index % 8;
-        (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1
-    }
-
-    /// Returns the prefix of a specified length, and the entire value on an out of range length
-    pub fn get_prefix(&self, len: u32) -> Self {
-        if len >= self.label_len {
-            return *self;
-        }
-        if len == 0 {
-            return Self {
-                label_val: [0u8; 32],
-                label_len: 0,
-            };
-        }
-
-        let usize_len: usize = (len - 1).try_into().unwrap();
-        let len_remainder = usize_len % 8;
-        let len_div = usize_len / 8;
-
-        let mut out_val = [0u8; 32];
-        out_val[..len_div].clone_from_slice(&self.label_val[..len_div]);
-        out_val[len_div] = (self.label_val[len_div] >> (7 - len_remainder)) << (7 - len_remainder);
-
-        Self {
-            label_val: out_val,
-            label_len: len,
-        }
-    }
-}
-
 /// Represents a node (label + hash) in the AKD
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
@@ -141,6 +165,12 @@ pub struct Node {
     pub label: NodeLabel,
     /// The associated hash of the node
     pub hash: Digest,
+}
+
+impl SizeOf for Node {
+    fn size_of(&self) -> usize {
+        self.label.size_of() + self.hash.len()
+    }
 }
 
 /// Represents a specific level of the tree with the parental sibling and the direction
@@ -227,6 +257,7 @@ pub struct LookupProof {
     pub commitment_proof: Vec<u8>,
 }
 
+
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
 /// For each version of the value associated with the key, the verifier must check that:
 /// * the version was included in the claimed epoch,
@@ -311,4 +342,20 @@ pub struct SingleAppendOnlyProof {
     pub inserted: Vec<Node>,
     /// The unchanged nodes & digests
     pub unchanged_nodes: Vec<Node>,
+}
+
+/// Proof that no leaves were deleted from the initial epoch.
+/// This is done using a list of SingleAppendOnly proofs, one proof
+/// for each epoch between the initial epoch and final epochs which are
+/// being audited.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Deserialize, serde::Serialize)
+)]
+pub struct AppendOnlyProof {
+    /// Proof for a single epoch being append-only
+    pub proofs: Vec<SingleAppendOnlyProof>,
+    /// Epochs over which this audit is being performed
+    pub epochs: Vec<u64>,
 }

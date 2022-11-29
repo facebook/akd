@@ -19,7 +19,7 @@ use alloc::string::String;
 use alloc::string::ToString;
 
 /// Proof verification error types
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum VerificationError {
     /// Error verifying a membership proof
     MembershipProof(String),
@@ -89,3 +89,4 @@ impl From<protobuf::Error> for VerificationError {
 // Re-export the necessary verification functions
 pub use history::{key_history_verify, HistoryVerificationParams};
 pub use lookup::lookup_verify;
+pub use base::{verify_membership, verify_nonmembership, verify_vrf};

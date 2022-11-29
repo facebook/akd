@@ -7,10 +7,10 @@
 
 //! The implementation of a node for a history patricia tree
 
+use crate::Digest;
 use crate::errors::{AkdError, StorageError, TreeNodeError};
 #[cfg(feature = "serde_serialization")]
-use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
-use crate::serialization::{from_digest, to_digest};
+use akd_core::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
@@ -20,7 +20,6 @@ use log::debug;
 use std::cmp::min;
 use std::convert::TryInto;
 use std::marker::{Send, Sync};
-use winter_crypto::Hasher;
 
 /// There are three types of nodes: root, leaf and interior.
 /// This enum is used to mark nodes using the node_type variable
@@ -43,7 +42,7 @@ pub enum NodeType {
     Interior = 3,
 }
 
-impl crate::storage::SizeOf for NodeType {
+impl akd_core::SizeOf for NodeType {
     fn size_of(&self) -> usize {
         1
     }
@@ -90,7 +89,7 @@ pub struct TreeNodeWithPreviousValue {
     pub previous_node: Option<TreeNode>,
 }
 
-impl crate::storage::SizeOf for TreeNodeWithPreviousValue {
+impl akd_core::SizeOf for TreeNodeWithPreviousValue {
     fn size_of(&self) -> usize {
         self.label.size_of()
             + self.latest_node.size_of()
@@ -251,10 +250,10 @@ pub struct TreeNode {
         feature = "serde_serialization",
         serde(deserialize_with = "bytes_deserialize_hex")
     )]
-    pub hash: [u8; 32],
+    pub hash: [u8; akd_core::hash::DIGEST_BYTES],
 }
 
-impl crate::storage::SizeOf for TreeNode {
+impl akd_core::SizeOf for TreeNode {
     fn size_of(&self) -> usize {
         self.label.size_of()
             + std::mem::size_of::<u64>() * 2
@@ -410,7 +409,7 @@ impl TreeNode {
     /// This function is only used in testing, since in general, we want to update the hashes of nodes
     /// in a batch to prevent repeated work.
     #[cfg(test)]
-    pub(crate) async fn insert_single_leaf_and_hash<S: Database + Sync + Send, H: Hasher>(
+    pub(crate) async fn insert_single_leaf_and_hash<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         new_leaf: Self,
@@ -418,7 +417,7 @@ impl TreeNode {
         num_nodes: &mut u64,
         include_ep: Option<bool>,
     ) -> Result<(), AkdError> {
-        self.insert_single_leaf_helper::<_, H>(
+        self.insert_single_leaf_helper::<_>(
             storage, new_leaf, epoch, num_nodes, true, include_ep,
         )
         .await
@@ -429,7 +428,7 @@ impl TreeNode {
     /// TreeNode is used but not the hash stored in updated parts of this Trei.
     /// This is used for batch inserting leaves, so that hashes can be updated
     /// in an amortized way, at a later time.
-    pub(crate) async fn insert_leaf<S: Database + Sync + Send, H: Hasher>(
+    pub(crate) async fn insert_leaf<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         new_leaf: Self,
@@ -437,7 +436,7 @@ impl TreeNode {
         num_nodes: &mut u64,
         include_ep: Option<bool>,
     ) -> Result<(), AkdError> {
-        self.insert_single_leaf_helper::<_, H>(
+        self.insert_single_leaf_helper::<_>(
             storage, new_leaf, epoch, num_nodes, false, include_ep,
         )
         .await
@@ -448,7 +447,7 @@ impl TreeNode {
     /// This is used to both batch insert leaves in a Patricia Trei as well as
     /// for the single leaf insertions for testing.
     #[async_recursion]
-    pub(crate) async fn insert_single_leaf_helper<S: Database + Sync + Send, H: Hasher>(
+    pub(crate) async fn insert_single_leaf_helper<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         new_leaf: Self,
@@ -470,7 +469,7 @@ impl TreeNode {
                 // when you are actually instantiating the tree. Initially the tree only
                 // consists of the root node. Then, a left child and a right child are inserted relatively soon.
                 return self
-                    .insert_single_leaf_helper_root_handler::<S, H>(
+                    .insert_single_leaf_helper_root_handler::<S>(
                         storage, new_leaf, epoch, hashing, exclude_ep, dir_leaf,
                     )
                     .await;
@@ -484,7 +483,7 @@ impl TreeNode {
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
                 // in the tree and replaced with a new node whose label is equal to the longest common prefix.
-                self.insert_single_leaf_helper_base_case_handler::<S, H>(
+                self.insert_single_leaf_helper_base_case_handler::<S>(
                     storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, lcs_label, dir_leaf,
                     dir_self,
                 )
@@ -495,7 +494,7 @@ impl TreeNode {
             None => {
                 // This is the case where the calling node is the longest common prefix of itself
                 // and the inserted leaf, so we just need to modify the tree structure further down the tree.
-                self.insert_single_leaf_helper_recursive_case_handler::<S, H>(
+                self.insert_single_leaf_helper_recursive_case_handler::<S>(
                     storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, dir_leaf,
                 )
                 .await
@@ -507,7 +506,6 @@ impl TreeNode {
     /// at least one of the root's (left or right) children is None.
     pub(crate) async fn insert_single_leaf_helper_root_handler<
         S: Database + Sync + Send,
-        H: Hasher,
     >(
         &mut self,
         storage: &StorageManager<S>,
@@ -526,10 +524,10 @@ impl TreeNode {
         if hashing {
             // Update the hash of the leaf first since the parent hash will rely on the fact.
             new_leaf
-                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .update_node_hash::<_>(storage, epoch, exclude_ep)
                 .await?;
 
-            self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
+            self.update_node_hash::<_>(storage, epoch, exclude_ep)
                 .await?;
         } else {
             // If no hashing, we need to manually save the nodes.
@@ -549,7 +547,6 @@ impl TreeNode {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn insert_single_leaf_helper_base_case_handler<
         S: Database + Sync + Send,
-        H: Hasher,
     >(
         &mut self,
         storage: &StorageManager<S>,
@@ -606,13 +603,13 @@ impl TreeNode {
             // node itself, since it's not changing.
             debug!("BEGIN update hashes");
             new_leaf
-                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .update_node_hash::<_>(storage, epoch, exclude_ep)
                 .await?;
             new_node
-                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .update_node_hash::<_>(storage, epoch, exclude_ep)
                 .await?;
             parent
-                .update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                .update_node_hash::<_>(storage, epoch, exclude_ep)
                 .await?;
         } else {
             // If no hashing, we need to manually save the nodes (new leaf already saved above).
@@ -629,7 +626,6 @@ impl TreeNode {
     #[async_recursion]
     pub(crate) async fn insert_single_leaf_helper_recursive_case_handler<
         S: Database + Sync + Send,
-        H: Hasher,
     >(
         &mut self,
         storage: &StorageManager<S>,
@@ -646,7 +642,7 @@ impl TreeNode {
         match child_node {
             Some(mut child_node) => {
                 child_node
-                    .insert_single_leaf_helper::<_, H>(
+                    .insert_single_leaf_helper::<_>(
                         storage, new_leaf, epoch, num_nodes, hashing, exclude_ep,
                     )
                     .await?;
@@ -655,7 +651,7 @@ impl TreeNode {
                     *self =
                         TreeNode::get_from_storage(storage, &NodeKey(self.label), epoch).await?;
                     if self.node_type != NodeType::Leaf {
-                        self.update_node_hash::<_, H>(storage, epoch, exclude_ep)
+                        self.update_node_hash::<_>(storage, epoch, exclude_ep)
                             .await?;
                     }
                 } else {
@@ -674,7 +670,7 @@ impl TreeNode {
     }
 
     /// Updates the node hash and saves it in storage.
-    pub(crate) async fn update_node_hash<S: Database + Sync + Send, H: Hasher>(
+    pub(crate) async fn update_node_hash<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -697,12 +693,12 @@ impl TreeNode {
                 let right_child_state = self.get_child_state(storage, Some(1), epoch).await?;
 
                 // Get merged hashes for the children.
-                let child_hashes = H::merge(&[
-                    optional_child_state_label_hash::<H>(&left_child_state, exclude_ep_val)?,
-                    optional_child_state_label_hash::<H>(&right_child_state, exclude_ep_val)?,
+                let child_hashes = akd_core::hash::merge(&[
+                    optional_child_state_label_hash(&left_child_state, exclude_ep_val),
+                    optional_child_state_label_hash(&right_child_state, exclude_ep_val),
                 ]);
                 // Store the hash
-                self.hash = from_digest::<H>(child_hashes);
+                self.hash = child_hashes;
             }
         }
 
@@ -855,11 +851,11 @@ impl TreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn hash_u8_with_label<H: Hasher>(
-    digest: &[u8],
+pub(crate) fn hash_u8_with_label(
+    digest: &Digest,
     label: NodeLabel,
-) -> Result<H::Digest, AkdError> {
-    Ok(H::merge(&[to_digest::<H>(digest)?, hash_label::<H>(label)]))
+) -> Digest {
+    akd_core::hash::merge(&[*digest, label.hash()])
 }
 
 pub(crate) fn optional_child_state_to_label(input: &Option<TreeNode>) -> NodeLabel {
@@ -869,51 +865,48 @@ pub(crate) fn optional_child_state_to_label(input: &Option<TreeNode>) -> NodeLab
     }
 }
 
-pub(crate) fn optional_child_state_label_hash<H: Hasher>(
+pub(crate) fn optional_child_state_label_hash(
     input: &Option<TreeNode>,
     exclude_ep_val: bool,
-) -> Result<H::Digest, AkdError> {
+) -> Digest {
     match input {
         Some(child_state) => {
-            let mut hash = to_digest::<H>(&child_state.hash)?;
+            let mut hash = child_state.hash;
             if child_state.is_leaf() && !exclude_ep_val {
-                hash = H::merge_with_int(hash, child_state.last_epoch);
+                hash = akd_core::hash::merge_with_int(hash, child_state.last_epoch);
             }
-            Ok(H::merge(&[hash, hash_label::<H>(child_state.label)]))
+            akd_core::hash::merge(&[hash, child_state.label.hash()])
         }
-        None => Ok(H::merge(&[
-            crate::utils::empty_node_hash::<H>(),
-            hash_label::<H>(EMPTY_LABEL),
-        ])),
+        None => akd_core::hash::merge(&[
+            crate::utils::empty_node_hash(),
+            EMPTY_LABEL.hash(),
+        ]),
     }
 }
 
-pub(crate) fn optional_child_state_hash<H: Hasher>(
+pub(crate) fn optional_child_state_hash(
     input: &Option<TreeNode>,
-) -> Result<H::Digest, AkdError> {
+) -> Digest {
     match input {
         Some(child_state) => {
             if child_state.is_leaf() {
-                Ok(H::merge_with_int(
-                    to_digest::<H>(&child_state.hash)?,
-                    child_state.last_epoch,
-                ))
+                akd_core::hash::merge_with_int(child_state.hash, child_state.last_epoch)
             } else {
-                to_digest::<H>(&child_state.hash)
+                child_state.hash
             }
         }
-        None => Ok(crate::utils::empty_node_hash::<H>()),
+        None => crate::utils::empty_node_hash(),
     }
 }
 
 /// Create an empty root node.
-pub async fn create_empty_root<H: Hasher, S: Database + Sync + Send>(
+pub async fn create_empty_root<S: Database + Sync + Send>(
     storage: &StorageManager<S>,
     ep: Option<u64>,
     least_descendant_ep: Option<u64>,
 ) -> Result<TreeNode, StorageError> {
     // Empty root hash is the same as empty node hash
-    let empty_root_hash = from_digest::<H>(crate::utils::empty_node_hash_no_label::<H>());
+    let empty_root_hash = crate::utils::empty_node_hash_no_label();
     let mut node = TreeNode::new(
         storage,
         NodeLabel::root(),
@@ -937,10 +930,10 @@ pub async fn create_empty_root<H: Hasher, S: Database + Sync + Send>(
 }
 
 /// Create a specific leaf node.
-pub async fn create_leaf_node<H: Hasher, S: Database + Sync + Send>(
+pub async fn create_leaf_node<S: Database + Sync + Send>(
     storage: &StorageManager<S>,
     label: NodeLabel,
-    value: &H::Digest,
+    value: &Digest,
     parent: NodeLabel,
     birth_epoch: u64,
 ) -> Result<TreeNode, StorageError> {
@@ -953,7 +946,7 @@ pub async fn create_leaf_node<H: Hasher, S: Database + Sync + Send>(
         birth_epoch,
         None,
         None,
-        from_digest::<H>(*value),
+        *value,
     )
     .await?;
     Ok(new_node)
@@ -963,46 +956,47 @@ pub async fn create_leaf_node<H: Hasher, S: Database + Sync + Send>(
 mod tests {
     use super::*;
     use crate::{
-        node_label::{byte_arr_from_u64, hash_label, NodeLabel},
+        NodeLabel,
         EMPTY_VALUE,
     };
     use std::convert::TryInto;
-    use winter_crypto::{hashers::Blake3_256, Hasher};
-    use winter_math::fields::f128::BaseElement;
-
-    type Blake3 = Blake3_256<BaseElement>;
+    use crate::utils::byte_arr_from_u64;
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::manager::StorageManager;
+
+    fn hash_label(label: NodeLabel) -> Digest {
+        label.hash()
+    }
 
     #[tokio::test]
     async fn test_least_descendant_ep() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
-        let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
+        let new_leaf = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-            &Blake3::hash(&EMPTY_VALUE),
+            &akd_core::hash::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
         )
         .await?;
 
-        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
-            &Blake3::hash(&[1u8]),
+            &akd_core::hash::hash(&[1u8]),
             NodeLabel::root(),
             2,
         )
         .await?;
 
-        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
-            &Blake3::hash(&[1u8, 1u8]),
+            &akd_core::hash::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             3,
         )
@@ -1011,7 +1005,7 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(
+        root.insert_single_leaf_and_hash::<_>(
             &db,
             new_leaf.clone(),
             1,
@@ -1020,10 +1014,10 @@ mod tests {
         )
         .await?;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
         let stored_root = db
@@ -1083,7 +1077,7 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
 
         let mut root =
-            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
         root.write_to_storage(&db).await?;
 
@@ -1091,47 +1085,47 @@ mod tests {
         let mut num_nodes = 1;
 
         // Prepare the leaf to be inserted with label 0.
-        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
-            &Blake3::hash(&EMPTY_VALUE),
+            &akd_core::hash::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
         )
         .await?;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 0, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_0.clone(), 0, &mut num_nodes, None)
             .await?;
         assert_eq!(num_nodes, 2);
 
         // Prepare another leaf to insert with label 1.
-        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
-            &Blake3::hash(&[1u8]),
+            &akd_core::hash::hash(&[1u8]),
             NodeLabel::root(),
             0,
         )
         .await?;
 
         // Insert leaf 1.
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 0, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_1.clone(), 0, &mut num_nodes, None)
             .await?;
 
         // Calculate expected root hash.
-        let leaf_0_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&EMPTY_VALUE), 0),
-            hash_label::<Blake3>(leaf_0.label),
+        let leaf_0_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&EMPTY_VALUE), 0),
+            hash_label(leaf_0.label),
         ]);
 
-        let leaf_1_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[1u8]), 0),
-            hash_label::<Blake3>(leaf_1.label),
+        let leaf_1_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[1u8]), 0),
+            hash_label(leaf_1.label),
         ]);
 
         // Merge leaves hash along with the root label.
-        let leaves_hash = Blake3::merge(&[leaf_0_hash, leaf_1_hash]);
-        let expected = Blake3::merge(&[leaves_hash, hash_label::<Blake3>(root.label)]);
+        let leaves_hash = akd_core::hash::merge(&[leaf_0_hash, leaf_1_hash]);
+        let expected = akd_core::hash::merge(&[leaves_hash, hash_label(root.label)]);
 
         // Get root hash
         let stored_root = db
@@ -1139,7 +1133,7 @@ mod tests {
             .await?;
         let root_digest = match stored_root {
             DbRecord::TreeNode(node) => {
-                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+                hash_u8_with_label(&node.latest_node.hash, node.label)
             }
             _ => panic!("Root not found in storage."),
         };
@@ -1154,65 +1148,65 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
-        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-            &Blake3::hash(&EMPTY_VALUE),
+            &akd_core::hash::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             1,
         )
         .await?;
 
-        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
-            &Blake3::hash(&[1u8]),
+            &akd_core::hash::hash(&[1u8]),
             NodeLabel::root(),
             2,
         )
         .await?;
 
-        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
-            &Blake3::hash(&[1u8, 1u8]),
+            &akd_core::hash::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             3,
         )
         .await?;
 
-        let leaf_0_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&EMPTY_VALUE), 1),
-            hash_label::<Blake3>(leaf_0.label),
+        let leaf_0_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&EMPTY_VALUE), 1),
+            hash_label(leaf_0.label),
         ]);
 
-        let leaf_1_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[0b1u8]), 2),
-            hash_label::<Blake3>(leaf_1.label),
+        let leaf_1_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[0b1u8]), 2),
+            hash_label(leaf_1.label),
         ]);
 
-        let leaf_2_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[1u8, 1u8]), 3),
-            hash_label::<Blake3>(leaf_2.label),
+        let leaf_2_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[1u8, 1u8]), 3),
+            hash_label(leaf_2.label),
         ]);
 
-        let right_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[leaf_2_hash, leaf_1_hash]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
+        let right_child_expected_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[leaf_2_hash, leaf_1_hash]),
+            hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
         ]);
 
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
 
         let stored_root = db
@@ -1220,14 +1214,14 @@ mod tests {
             .await?;
         let root_digest = match stored_root {
             DbRecord::TreeNode(node) => {
-                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+                hash_u8_with_label(&node.latest_node.hash, node.label)
             }
             _ => panic!("Root not found in storage."),
         };
 
-        let expected = Blake3::merge(&[
-            Blake3::merge(&[leaf_0_hash, right_child_expected_hash]),
-            hash_label::<Blake3>(root.label),
+        let expected = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[leaf_0_hash, right_child_expected_hash]),
+            hash_label(root.label),
         ]);
         assert!(root_digest == expected, "Root hash not equal to expected");
         Ok(())
@@ -1238,87 +1232,87 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
 
-        let leaf_0 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_0 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
-            &Blake3::hash(&EMPTY_VALUE),
+            &akd_core::hash::hash(&EMPTY_VALUE),
             NodeLabel::root(),
             0,
         )
         .await?;
 
-        let leaf_1 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_1 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
-            &Blake3::hash(&[1u8]),
+            &akd_core::hash::hash(&[1u8]),
             NodeLabel::root(),
             0,
         )
         .await?;
 
-        let leaf_2 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_2 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
-            &Blake3::hash(&[1u8, 1u8]),
+            &akd_core::hash::hash(&[1u8, 1u8]),
             NodeLabel::root(),
             0,
         )
         .await?;
 
-        let leaf_3 = create_leaf_node::<Blake3, InMemoryDb>(
+        let leaf_3 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
-            &Blake3::hash(&[0u8, 1u8]),
+            &akd_core::hash::hash(&[0u8, 1u8]),
             NodeLabel::root(),
             0,
         )
         .await?;
 
-        let leaf_0_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&EMPTY_VALUE), 1),
-            hash_label::<Blake3>(leaf_0.label),
+        let leaf_0_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&EMPTY_VALUE), 1),
+            hash_label(leaf_0.label),
         ]);
 
-        let leaf_1_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[1u8]), 2),
-            hash_label::<Blake3>(leaf_1.label),
+        let leaf_1_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[1u8]), 2),
+            hash_label(leaf_1.label),
         ]);
-        let leaf_2_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[1u8, 1u8]), 3),
-            hash_label::<Blake3>(leaf_2.label),
+        let leaf_2_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[1u8, 1u8]), 3),
+            hash_label(leaf_2.label),
         ]);
 
-        let leaf_3_hash = Blake3::merge(&[
-            Blake3::merge_with_int(Blake3::hash(&[0u8, 1u8]), 4),
-            hash_label::<Blake3>(leaf_3.label),
+        let leaf_3_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge_with_int(akd_core::hash::hash(&[0u8, 1u8]), 4),
+            hash_label(leaf_3.label),
         ]);
 
         // Children: left: leaf2, right: leaf1, label: 1
-        let right_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[leaf_2_hash, leaf_1_hash]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
+        let right_child_expected_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[leaf_2_hash, leaf_1_hash]),
+            hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
         ]);
 
         // Children: left: new_leaf, right: leaf3, label: 0
-        let left_child_expected_hash = Blake3::merge(&[
-            Blake3::merge(&[leaf_0_hash, leaf_3_hash]),
-            hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
+        let left_child_expected_hash = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[leaf_0_hash, leaf_3_hash]),
+            hash_label(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
         ]);
 
         // Insert nodes.
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_0.clone(), 1, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_2.clone(), 3, &mut num_nodes, None)
             .await?;
-        root.insert_single_leaf_and_hash::<_, Blake3>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
+        root.insert_single_leaf_and_hash::<_>(&db, leaf_3.clone(), 4, &mut num_nodes, None)
             .await?;
 
         let stored_root = db
@@ -1326,14 +1320,14 @@ mod tests {
             .await?;
         let root_digest = match stored_root {
             DbRecord::TreeNode(node) => {
-                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+                hash_u8_with_label(&node.latest_node.hash, node.label)
             }
             _ => panic!("Root not found in storage."),
         };
 
-        let expected = Blake3::merge(&[
-            Blake3::merge(&[left_child_expected_hash, right_child_expected_hash]),
-            hash_label::<Blake3>(root.label),
+        let expected = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[left_child_expected_hash, right_child_expected_hash]),
+            hash_label(root.label),
         ]);
         assert!(root_digest == expected, "Root hash not equal to expected");
 
@@ -1345,7 +1339,7 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<Blake3, InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
                 .await?;
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
@@ -1353,17 +1347,17 @@ mod tests {
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i << 61;
-            let new_leaf = create_leaf_node::<Blake3, InMemoryDb>(
+            let new_leaf = create_leaf_node::<InMemoryDb>(
                 &db,
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
-                &Blake3::hash(&leaf_u64.to_be_bytes()),
+                &akd_core::hash::hash(&leaf_u64.to_be_bytes()),
                 NodeLabel::root(),
                 7 - i,
             )
             .await?;
-            leaf_hashes.push(Blake3::merge(&[
-                Blake3::merge_with_int(Blake3::hash(&leaf_u64.to_be_bytes()), 8 - i),
-                hash_label::<Blake3>(new_leaf.label),
+            leaf_hashes.push(akd_core::hash::merge(&[
+                akd_core::hash::merge_with_int(akd_core::hash::hash(&leaf_u64.to_be_bytes()), 8 - i),
+                hash_label(new_leaf.label),
             ]));
             leaves.push(new_leaf);
         }
@@ -1373,9 +1367,9 @@ mod tests {
         for i in 0..4 {
             let left_child_hash = leaf_hashes[2 * i];
             let right_child_hash = leaf_hashes[2 * i + 1];
-            layer_1_hashes.push(Blake3::merge(&[
-                Blake3::merge(&[left_child_hash, right_child_hash]),
-                hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
+            layer_1_hashes.push(akd_core::hash::merge(&[
+                akd_core::hash::merge(&[left_child_hash, right_child_hash]),
+                hash_label(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
             ]));
             j += 1;
         }
@@ -1385,21 +1379,21 @@ mod tests {
         for i in 0..2 {
             let left_child_hash = layer_1_hashes[2 * i];
             let right_child_hash = layer_1_hashes[2 * i + 1];
-            layer_2_hashes.push(Blake3::merge(&[
-                Blake3::merge(&[left_child_hash, right_child_hash]),
-                hash_label::<Blake3>(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
+            layer_2_hashes.push(akd_core::hash::merge(&[
+                akd_core::hash::merge(&[left_child_hash, right_child_hash]),
+                hash_label(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
             ]));
             j += 1;
         }
 
-        let expected = Blake3::merge(&[
-            Blake3::merge(&[layer_2_hashes[0], layer_2_hashes[1]]),
-            hash_label::<Blake3>(root.label),
+        let expected = akd_core::hash::merge(&[
+            akd_core::hash::merge(&[layer_2_hashes[0], layer_2_hashes[1]]),
+            hash_label(root.label),
         ]);
 
         for i in 0..8 {
             let ep: u64 = i.try_into().unwrap();
-            root.insert_single_leaf_and_hash::<_, Blake3>(
+            root.insert_single_leaf_and_hash::<_>(
                 &db,
                 leaves[7 - i].clone(),
                 ep + 1,
@@ -1414,7 +1408,7 @@ mod tests {
             .await?;
         let root_digest = match stored_root {
             DbRecord::TreeNode(node) => {
-                hash_u8_with_label::<Blake3>(&node.latest_node.hash, node.label)?
+                hash_u8_with_label(&node.latest_node.hash, node.label)
             }
             _ => panic!("Root not found in storage."),
         };

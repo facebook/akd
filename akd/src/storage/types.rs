@@ -6,8 +6,8 @@
 // of this source tree.
 
 //! Various storage and representation related types
-#[cfg(feature = "serde_serialization")]
-use crate::serialization::{bytes_deserialize_hex, bytes_serialize_hex};
+
+use crate::{AkdLabel, AkdValue};
 use crate::storage::Storable;
 use crate::tree_node::{NodeType, TreeNode, TreeNodeWithPreviousValue};
 use crate::{Azks, NodeLabel};
@@ -24,82 +24,6 @@ pub enum StorageType {
     /// Better to keep ValueState = 4 as is?
     /// ValueState
     ValueState = 4,
-}
-
-/// The keys for this key-value store
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-pub struct AkdLabel(
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(serialize_with = "bytes_serialize_hex")
-    )]
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(deserialize_with = "bytes_deserialize_hex")
-    )]
-    pub Vec<u8>,
-);
-
-impl crate::storage::SizeOf for AkdLabel {
-    fn size_of(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl AkdLabel {
-    /// Build an [`AkdLabel`] struct from an UTF8 string
-    pub fn from_utf8_str(value: &str) -> Self {
-        Self(value.as_bytes().to_vec())
-    }
-}
-
-impl core::ops::Deref for AkdLabel {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-/// The types of value used in the key-value pairs of a AKD
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-#[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
-pub struct AkdValue(
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(serialize_with = "bytes_serialize_hex")
-    )]
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(deserialize_with = "bytes_deserialize_hex")
-    )]
-    pub Vec<u8>,
-);
-
-impl crate::storage::SizeOf for AkdValue {
-    fn size_of(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl AkdValue {
-    /// Build an [`AkdValue`] struct from an UTF8 string
-    pub fn from_utf8_str(value: &str) -> Self {
-        Self(value.as_bytes().to_vec())
-    }
-}
-
-impl core::ops::Deref for AkdValue {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }
 
 /// State for a value at a given version for that key
@@ -130,7 +54,7 @@ pub struct ValueState {
     pub username: AkdLabel,
 }
 
-impl super::SizeOf for ValueState {
+impl akd_core::SizeOf for ValueState {
     fn size_of(&self) -> usize {
         self.plaintext_val.size_of()
             + std::mem::size_of::<u64>()
@@ -238,7 +162,7 @@ pub enum DbRecord {
     ValueState(ValueState),
 }
 
-impl super::SizeOf for DbRecord {
+impl akd_core::SizeOf for DbRecord {
     fn size_of(&self) -> usize {
         match &self {
             DbRecord::Azks(azks) => azks.size_of(),

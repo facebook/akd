@@ -9,9 +9,10 @@
 //! an in-memory implementation which contains some caching implementations for
 //! benchmarking
 
+use crate::{AkdLabel, AkdValue};
 use crate::errors::StorageError;
 use crate::storage::types::{
-    AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateKey,
+    DbRecord, KeyData, StorageType, ValueState, ValueStateKey,
     ValueStateRetrievalFlag,
 };
 use crate::storage::{Database, Storable, StorageUtil};

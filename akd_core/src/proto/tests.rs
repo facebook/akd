@@ -103,7 +103,7 @@ fn test_convert_lookup_proof() {
     let mut rng = thread_rng();
     let original = crate::LookupProof {
         epoch: rng.gen(),
-        plaintext_value: random_hash().to_vec(),
+        plaintext_value: crate::AkdValue(random_hash().to_vec()),
         version: rng.gen(),
         existence_vrf_proof: random_hash().to_vec(),
         existence_proof: crate::MembershipProof {
@@ -152,7 +152,7 @@ fn test_convert_update_proof() {
     let mut rng = thread_rng();
     let original = crate::UpdateProof {
         epoch: rng.gen(),
-        plaintext_value: random_hash().to_vec(),
+        plaintext_value: crate::AkdValue(random_hash().to_vec()),
         version: rng.gen(),
         existence_vrf_proof: random_hash().to_vec(),
         existence_at_ep: crate::MembershipProof {
@@ -204,7 +204,7 @@ fn test_convert_history_proof() {
         let mut rng = thread_rng();
         crate::UpdateProof {
             epoch: rng.gen(),
-            plaintext_value: random_hash().to_vec(),
+            plaintext_value: crate::AkdValue(random_hash().to_vec()),
             version: rng.gen(),
             existence_vrf_proof: random_hash().to_vec(),
             existence_at_ep: crate::MembershipProof {
