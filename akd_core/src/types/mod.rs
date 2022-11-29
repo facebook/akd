@@ -106,7 +106,17 @@ impl AkdLabel {
     feature = "serde_serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
-pub struct AkdValue(pub Vec<u8>);
+pub struct AkdValue(
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(serialize_with = "bytes_serialize_hex")
+    )]
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "bytes_deserialize_hex")
+    )]
+    pub Vec<u8>
+);
 
 impl SizeOf for AkdValue {
     fn size_of(&self) -> usize {
