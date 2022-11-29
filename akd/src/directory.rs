@@ -7,14 +7,17 @@
 
 //! Implementation of a auditable key directory
 
-use crate::{AkdLabel, AkdValue, Node, LookupProof, HistoryProof, UpdateProof, AppendOnlyProof, NonMembershipProof, Digest, EpochHash};
 use crate::append_only_zks::Azks;
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
+use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
-use crate::helper_structs::LookupInfo;
+use crate::{
+    AkdLabel, AkdValue, AppendOnlyProof, Digest, EpochHash, HistoryProof, LookupProof, Node,
+    NonMembershipProof, UpdateProof,
+};
 
 use log::{debug, error, info};
 
@@ -81,10 +84,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Updates the directory to include the updated key-value pairs.
-    pub async fn publish(
-        &self,
-        updates: Vec<(AkdLabel, AkdValue)>,
-    ) -> Result<EpochHash, AkdError> {
+    pub async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
         if self.read_only {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
                 "Cannot publish while in read-only mode".to_string(),
@@ -132,8 +132,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add =
-                        akd_core::utils::commit_value(&commitment_key, &label, &val);
+                    let value_to_add = akd_core::utils::commit_value(&commitment_key, &label, &val);
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -158,11 +157,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &fresh_label,
-                        &val,
-                    );
+                    let fresh_value_to_add =
+                        akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
                     update_set.push(Node {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -251,10 +247,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .vrf
             .get_label_proof(&uname, false, current_version)
             .await?;
-        let commitment_label = self
-            .vrf
-            .get_node_label_from_vrf_pf(existence_vrf)
-            .await?;
+        let commitment_label = self.vrf.get_node_label_from_vrf_pf(existence_vrf).await?;
         let lookup_proof = LookupProof {
             epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
@@ -368,8 +361,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     .vrf
                     .get_node_label(&uname, false, marker_version)
                     .await?;
-                let non_existent_label =
-                    self.vrf.get_node_label(&uname, true, version).await?;
+                let non_existent_label = self.vrf.get_node_label(&uname, true, version).await?;
                 Ok(LookupInfo {
                     value_state: latest_st,
                     marker_version,
@@ -517,8 +509,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     self.storage.flush_cache().await;
                     // re-fetch the azks to load it into cache so when we release the cache lock
                     // others will see the new AZKS loaded up and ready
-                    last =
-                        Directory::<S, V>::get_azks_from_storage(&self.storage, false).await?;
+                    last = Directory::<S, V>::get_azks_from_storage(&self.storage, false).await?;
 
                     // notify change occurred
                     if let Some(channel) = &change_detected {
@@ -618,20 +609,14 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_azks = self.retrieve_current_azks().await?;
         let existence_vrf = self.vrf.get_label_proof(uname, false, version).await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
-        let existence_label = self
-            .vrf
-            .get_node_label_from_vrf_pf(existence_vrf)
-            .await?;
+        let existence_label = self.vrf.get_node_label_from_vrf_pf(existence_vrf).await?;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
         let mut previous_version_stale_at_ep = Option::None;
         let mut previous_version_vrf_proof = Option::None;
         if version > 1 {
-            let prev_label_at_ep = self
-                .vrf
-                .get_node_label(uname, true, version - 1)
-                .await?;
+            let prev_label_at_ep = self.vrf.get_node_label(uname, true, version - 1).await?;
             previous_version_stale_at_ep = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
@@ -721,10 +706,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<
-    S: Database + Sync + Send,
-    V: VRFKeyStorage,
->(
+pub async fn get_directory_root_hash_and_ep<S: Database + Sync + Send, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -765,10 +747,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         if let PublishCorruption::MarkVersionStale(ref uname, version_number) = corruption {
             // In the malicious case, sometimes the server may not mark the old version stale immediately.
             // If this is the case, it may want to do this marking at a later time.
-            let stale_label = self
-                .vrf
-                .get_node_label(uname, true, version_number)
-                .await?;
+            let stale_label = self.vrf.get_node_label(uname, true, version_number).await?;
             let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
             update_set.push(Node {
                 label: stale_label,
@@ -813,8 +792,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add =
-                        akd_core::utils::commit_value(&commitment_key, &label, &val);
+                    let value_to_add = akd_core::utils::commit_value(&commitment_key, &label, &val);
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -839,11 +817,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &fresh_label,
-                        &val,
-                    );
+                    let fresh_value_to_add =
+                        akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
                     match &corruption {
                         // Some malicious server might not want to mark an old and compromised key as stale.
                         // Thus, you only push the key if either the corruption is for some other username,

@@ -17,7 +17,6 @@ use super::*;
 use crate::common_test::AuditInformation;
 use crate::storage::s3;
 use crate::storage::AuditProofStorage;
-use crate::Hasher;
 use anyhow::Result;
 use aws_sdk_dynamodb::types::Blob;
 use aws_smithy_http::byte_stream::ByteStream;
@@ -154,12 +153,10 @@ async fn integration_test_dynamo_audit_verification() {
             epoch.name.epoch,
             epoch.name.epoch + 1
         );
-        crate::auditor::audit_epoch::<Hasher>(proof_blob.clone(), false)
+        crate::auditor::audit_epoch(proof_blob.clone(), false)
             .await
             .unwrap();
-        crate::auditor::audit_epoch::<Hasher>(proof_blob, true)
-            .await
-            .unwrap();
+        crate::auditor::audit_epoch(proof_blob, true).await.unwrap();
     }
 
     // if the test is successful, try a cleanup of the storage now
@@ -274,7 +271,7 @@ async fn populate_test_storage(
     {
         // Generate the s3 compat format
         let blobs = akd::proto::generate_audit_blobs(vec![phash, chash], proof)
-            .map_err(|err| anyhow::anyhow!("Error generating audit blob {}", err))?;
+            .map_err(|err| anyhow::anyhow!("Error generating audit blob {:?}", err))?;
         // Grab the blob + upload it
         if let Some(blob) = blobs.first() {
             let byte_stream = ByteStream::from(blob.data.clone());

@@ -13,9 +13,9 @@
 //! 3: Audit (append-only)
 
 use crate::hash::Digest;
-use crate::ARITY;
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+use crate::ARITY;
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -44,7 +44,8 @@ pub trait SizeOf {
 pub type Direction = Option<usize>;
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {
-        self.as_ref().map_or(8, |_v| core::mem::size_of::<usize>() + 8)
+        self.as_ref()
+            .map_or(8, |_v| core::mem::size_of::<usize>() + 8)
     }
 }
 
@@ -63,7 +64,7 @@ pub struct AkdLabel(
         feature = "serde_serialization",
         serde(deserialize_with = "bytes_deserialize_hex")
     )]
-    pub Vec<u8>
+    pub Vec<u8>,
 );
 
 impl SizeOf for AkdLabel {
@@ -256,7 +257,6 @@ pub struct LookupProof {
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
     pub commitment_proof: Vec<u8>,
 }
-
 
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
 /// For each version of the value associated with the key, the verifier must check that:

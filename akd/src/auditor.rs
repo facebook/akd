@@ -8,18 +8,13 @@
 //! Code for an auditor of a authenticated key directory
 
 use crate::{
-    Digest,
     errors::{AkdError, AuditorError, AzksError},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
-    Azks,
-    AppendOnlyProof, SingleAppendOnlyProof,
+    AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
-pub async fn audit_verify(
-    hashes: Vec<Digest>,
-    proof: AppendOnlyProof,
-) -> Result<(), AkdError> {
+pub async fn audit_verify(hashes: Vec<Digest>, proof: AppendOnlyProof) -> Result<(), AkdError> {
     if proof.epochs.len() + 1 != hashes.len() {
         return Err(AkdError::AuditErr(AuditorError::VerifyAuditProof(format!(
             "The proof has a different number of epochs than needed for hashes. 
@@ -39,13 +34,8 @@ pub async fn audit_verify(
     for i in 0..hashes.len() - 1 {
         let start_hash = hashes[i];
         let end_hash = hashes[i + 1];
-        verify_consecutive_append_only(
-            &proof.proofs[i],
-            start_hash,
-            end_hash,
-            proof.epochs[i] + 1,
-        )
-        .await?;
+        verify_consecutive_append_only(&proof.proofs[i], start_hash, end_hash, proof.epochs[i] + 1)
+            .await?;
     }
     Ok(())
 }

@@ -9,10 +9,7 @@
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
 // 3. If so, add child label to batch set
 
-use crate::{
-    NodeLabel,
-    EMPTY_LABEL, EMPTY_VALUE,
-};
+use crate::{NodeLabel, EMPTY_LABEL, EMPTY_VALUE};
 use std::collections::HashSet;
 
 // Builds a set of all prefixes of the input labels
@@ -51,7 +48,6 @@ pub(crate) fn empty_node_hash() -> crate::Digest {
 pub(crate) fn empty_node_hash_no_label() -> crate::Digest {
     akd_core::hash::hash(&EMPTY_VALUE)
 }
-
 
 // Creates a byte array of 32 bytes from a u64
 // Note that this representation is big-endian, and

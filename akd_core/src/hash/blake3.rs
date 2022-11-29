@@ -12,5 +12,5 @@ pub const DIGEST_BYTES: usize = 32;
 
 /// Hash a single byte array
 pub fn hash(item: &[u8]) -> crate::hash::Digest {
-    return ::blake3::hash(item).into();
+    ::blake3::hash(item).into()
 }

@@ -10,13 +10,12 @@ use akd::errors::AkdError;
 use akd::storage::types::*;
 use akd::storage::{Database, StorageManager};
 use akd::HistoryParams;
+use akd::{AkdLabel, AkdValue, Digest};
 use akd::{Directory, EpochHash};
 use log::{debug, error, info};
 use std::marker::{Send, Sync};
 use tokio::sync::mpsc::*;
 use tokio::time::Instant;
-use winter_crypto::Digest;
-use winter_crypto::Hasher;
 
 pub(crate) struct Rpc(
     pub(crate) DirectoryCommand,
@@ -34,12 +33,9 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, H, V>(
-    directory: &mut Directory<S, V, H>,
-) -> Option<Result<H::Digest, AkdError>>
+async fn get_root_hash<S, V>(directory: &mut Directory<S, V>) -> Option<Result<Digest, AkdError>>
 where
     S: Database + Sync + Send,
-    H: Hasher,
     V: VRFKeyStorage,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -49,10 +45,9 @@ where
     }
 }
 
-pub(crate) async fn init_host<S, H, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V, H>)
+pub(crate) async fn init_host<S, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
 where
     S: Database + Sync + Send,
-    H: Hasher,
     V: VRFKeyStorage,
 {
     info!("Starting the verifiable directory host");
@@ -79,7 +74,7 @@ where
                             b,
                             toc.as_secs_f64(),
                             epoch,
-                            hex::encode(hash.as_bytes())
+                            hex::encode(hash)
                         );
                         response.send(Ok(msg)).unwrap()
                     }
@@ -120,12 +115,12 @@ where
             (DirectoryCommand::Lookup(a), Some(response)) => {
                 match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
                     Ok(proof) => {
-                        let hash = get_root_hash::<_, H, V>(directory).await;
+                        let hash = get_root_hash::<_, V>(directory).await;
                         match hash {
                             Some(Ok(root_hash)) => {
                                 let vrf_pk = directory.get_public_key().await.unwrap();
-                                let verification = akd::client::lookup_verify::<H>(
-                                    &vrf_pk,
+                                let verification = akd::client::lookup_verify(
+                                    vrf_pk.as_bytes(),
                                     root_hash,
                                     AkdLabel::from_utf8_str(&a),
                                     proof,
@@ -181,10 +176,10 @@ where
                 }
             }
             (DirectoryCommand::RootHash, Some(response)) => {
-                let hash = get_root_hash::<_, H, V>(directory).await;
+                let hash = get_root_hash::<_, V>(directory).await;
                 match hash {
                     Some(Ok(hash)) => {
-                        let msg = format!("Retrieved root hash {}", hex::encode(hash.as_bytes()));
+                        let msg = format!("Retrieved root hash {}", hex::encode(hash));
                         response.send(Ok(msg)).unwrap();
                     }
                     Some(Err(error)) => {

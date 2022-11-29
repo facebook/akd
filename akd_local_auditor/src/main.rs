@@ -45,12 +45,6 @@ pub(crate) mod common_test;
 use anyhow::Result;
 use clap::{ArgEnum, Parser};
 use log::debug;
-use winter_crypto::hashers::Blake3_256;
-use winter_math::fields::f128::BaseElement;
-/// The hashing type (currently Blake3 256)
-pub type Hasher = Blake3_256<BaseElement>;
-/// The hash digest format (currently 32-byte digests)
-pub type Digest = <Blake3_256<BaseElement> as winter_crypto::Hasher>::Digest;
 
 #[derive(ArgEnum, Clone, Debug)]
 enum PublicLogLevel {

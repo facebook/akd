@@ -7,14 +7,14 @@
 
 //! The implementation of a node for a history patricia tree
 
-use crate::Digest;
 use crate::errors::{AkdError, StorageError, TreeNodeError};
-#[cfg(feature = "serde_serialization")]
-use akd_core::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
+use crate::Digest;
 use crate::{node_label::*, Direction, EMPTY_LABEL};
+#[cfg(feature = "serde_serialization")]
+use akd_core::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 use async_recursion::async_recursion;
 use log::debug;
 use std::cmp::min;
@@ -417,10 +417,8 @@ impl TreeNode {
         num_nodes: &mut u64,
         include_ep: Option<bool>,
     ) -> Result<(), AkdError> {
-        self.insert_single_leaf_helper::<_>(
-            storage, new_leaf, epoch, num_nodes, true, include_ep,
-        )
-        .await
+        self.insert_single_leaf_helper::<_>(storage, new_leaf, epoch, num_nodes, true, include_ep)
+            .await
     }
 
     /// Inserts a single leaf node without hashing, creates new nodes where needed
@@ -436,10 +434,8 @@ impl TreeNode {
         num_nodes: &mut u64,
         include_ep: Option<bool>,
     ) -> Result<(), AkdError> {
-        self.insert_single_leaf_helper::<_>(
-            storage, new_leaf, epoch, num_nodes, false, include_ep,
-        )
-        .await
+        self.insert_single_leaf_helper::<_>(storage, new_leaf, epoch, num_nodes, false, include_ep)
+            .await
     }
 
     /// Inserts a single leaf node and updates the required hashes,
@@ -504,9 +500,7 @@ impl TreeNode {
 
     /// This handler is used to handle the case when the tree is just starting out and
     /// at least one of the root's (left or right) children is None.
-    pub(crate) async fn insert_single_leaf_helper_root_handler<
-        S: Database + Sync + Send,
-    >(
+    pub(crate) async fn insert_single_leaf_helper_root_handler<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         mut new_leaf: Self,
@@ -545,9 +539,7 @@ impl TreeNode {
     /// in the tree and replaced with a new node whose label is equal to the longest common prefix.
     #[async_recursion]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn insert_single_leaf_helper_base_case_handler<
-        S: Database + Sync + Send,
-    >(
+    pub(crate) async fn insert_single_leaf_helper_base_case_handler<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         mut new_leaf: Self,
@@ -851,10 +843,7 @@ impl TreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn hash_u8_with_label(
-    digest: &Digest,
-    label: NodeLabel,
-) -> Digest {
+pub(crate) fn hash_u8_with_label(digest: &Digest, label: NodeLabel) -> Digest {
     akd_core::hash::merge(&[*digest, label.hash()])
 }
 
@@ -877,16 +866,11 @@ pub(crate) fn optional_child_state_label_hash(
             }
             akd_core::hash::merge(&[hash, child_state.label.hash()])
         }
-        None => akd_core::hash::merge(&[
-            crate::utils::empty_node_hash(),
-            EMPTY_LABEL.hash(),
-        ]),
+        None => akd_core::hash::merge(&[crate::utils::empty_node_hash(), EMPTY_LABEL.hash()]),
     }
 }
 
-pub(crate) fn optional_child_state_hash(
-    input: &Option<TreeNode>,
-) -> Digest {
+pub(crate) fn optional_child_state_hash(input: &Option<TreeNode>) -> Digest {
     match input {
         Some(child_state) => {
             if child_state.is_leaf() {
@@ -955,12 +939,9 @@ pub async fn create_leaf_node<S: Database + Sync + Send>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        NodeLabel,
-        EMPTY_VALUE,
-    };
-    use std::convert::TryInto;
     use crate::utils::byte_arr_from_u64;
+    use crate::{NodeLabel, EMPTY_VALUE};
+    use std::convert::TryInto;
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::manager::StorageManager;
 
@@ -973,8 +954,7 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
-                .await?;
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
         let new_leaf = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
@@ -1005,14 +985,8 @@ mod tests {
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
 
-        root.insert_single_leaf_and_hash::<_>(
-            &db,
-            new_leaf.clone(),
-            1,
-            &mut num_nodes,
-            None,
-        )
-        .await?;
+        root.insert_single_leaf_and_hash::<_>(&db, new_leaf.clone(), 1, &mut num_nodes, None)
+            .await?;
 
         root.insert_single_leaf_and_hash::<_>(&db, leaf_1.clone(), 2, &mut num_nodes, None)
             .await?;
@@ -1077,8 +1051,7 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
 
         let mut root =
-            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
-                .await?;
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
         root.write_to_storage(&db).await?;
 
         // Num nodes in total (currently only the root).
@@ -1132,9 +1105,7 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => {
-                hash_u8_with_label(&node.latest_node.hash, node.label)
-            }
+            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
             _ => panic!("Root not found in storage."),
         };
 
@@ -1148,8 +1119,7 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
-                .await?;
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
         let leaf_0 = create_leaf_node::<InMemoryDb>(
             &db,
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
@@ -1213,9 +1183,7 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => {
-                hash_u8_with_label(&node.latest_node.hash, node.label)
-            }
+            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
             _ => panic!("Root not found in storage."),
         };
 
@@ -1232,8 +1200,7 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
-                .await?;
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
 
         let leaf_0 = create_leaf_node::<InMemoryDb>(
             &db,
@@ -1319,9 +1286,7 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => {
-                hash_u8_with_label(&node.latest_node.hash, node.label)
-            }
+            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
             _ => panic!("Root not found in storage."),
         };
 
@@ -1339,8 +1304,7 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(&database);
         let mut root =
-            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64))
-                .await?;
+            create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
         root.write_to_storage(&db).await?;
         let mut num_nodes = 1;
         let mut leaves = Vec::<TreeNode>::new();
@@ -1356,7 +1320,10 @@ mod tests {
             )
             .await?;
             leaf_hashes.push(akd_core::hash::merge(&[
-                akd_core::hash::merge_with_int(akd_core::hash::hash(&leaf_u64.to_be_bytes()), 8 - i),
+                akd_core::hash::merge_with_int(
+                    akd_core::hash::hash(&leaf_u64.to_be_bytes()),
+                    8 - i,
+                ),
                 hash_label(new_leaf.label),
             ]));
             leaves.push(new_leaf);
@@ -1407,9 +1374,7 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => {
-                hash_u8_with_label(&node.latest_node.hash, node.label)
-            }
+            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
             _ => panic!("Root not found in storage."),
         };
 

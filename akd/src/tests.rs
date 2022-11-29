@@ -14,15 +14,8 @@ use crate::{
     directory::{Directory, PublishCorruption},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
-    VerifyResult,
-    storage::{
-        manager::StorageManager,
-        memory::AsyncInMemoryDatabase,
-        types::DbRecord,
-        Database,
-    },
-    HistoryParams, HistoryVerificationParams,
-    AkdLabel, AkdValue
+    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, Database},
+    AkdLabel, AkdValue, HistoryParams, HistoryVerificationParams, VerifyResult,
 };
 
 // A simple test to ensure that the empty tree hashes to the correct value
@@ -1144,8 +1137,12 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let vrf_pk = vrf.get_vrf_public_key().await?;
 
     // perform the "traditional" AKD verification
-    let akd_result =
-        crate::client::lookup_verify(vrf_pk.as_bytes(), root_hash, target_label.clone(), lookup_proof)?;
+    let akd_result = crate::client::lookup_verify(
+        vrf_pk.as_bytes(),
+        root_hash,
+        target_label.clone(),
+        lookup_proof,
+    )?;
 
     // check the two results to make sure they both verify
     assert_eq!(

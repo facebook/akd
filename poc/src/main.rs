@@ -10,7 +10,6 @@
 
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::{Database, StorageManager};
-use akd::Blake3;
 use akd::Directory;
 use akd_mysql::mysql::AsyncMySqlDatabase;
 use clap::{ArgEnum, Parser};
@@ -141,14 +140,14 @@ async fn main() {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let storage_manager = StorageManager::new_no_cache(&db);
-        let mut directory = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
+        let mut directory = Directory::<_, _>::new(&storage_manager, &vrf, false)
             .await
             .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
         tokio::spawn(async move {
-            directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
+            directory_host::init_host::<_, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, None).await;
     } else {
@@ -171,11 +170,11 @@ async fn main() {
             None,
             Some(Duration::from_secs(15)),
         );
-        let mut directory = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
+        let mut directory = Directory::<_, _>::new(&storage_manager, &vrf, false)
             .await
             .unwrap();
         tokio::spawn(async move {
-            directory_host::init_host::<_, Blake3, HardCodedAkdVRF>(&mut rx, &mut directory).await
+            directory_host::init_host::<_, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, Some(&storage_manager)).await;
     }

@@ -7,15 +7,14 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::storage::manager::StorageManager;
+use crate::storage::types::StorageType;
+use crate::{errors::*, tree_node::TreeNode, ARITY, *};
 use crate::{
-    Digest,
     errors::{DirectoryError, TreeNodeError},
     storage::{Database, Storable},
     tree_node::*,
-    AppendOnlyProof, MembershipProof, NonMembershipProof, SingleAppendOnlyProof,
+    AppendOnlyProof, Digest, MembershipProof, NonMembershipProof, SingleAppendOnlyProof,
 };
-use crate::storage::types::StorageType;
-use crate::{errors::*, tree_node::TreeNode, ARITY, *};
 
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
@@ -121,13 +120,7 @@ impl Azks {
         )
         .await?;
         root_node
-            .insert_single_leaf_and_hash::<S>(
-                storage,
-                new_leaf,
-                epoch,
-                &mut self.num_nodes,
-                None,
-            )
+            .insert_single_leaf_and_hash::<S>(storage, new_leaf, epoch, &mut self.num_nodes, None)
             .await?;
 
         Ok(())
@@ -260,11 +253,7 @@ impl Azks {
             )
             .await?;
             next_node
-                .update_node_hash::<_>(
-                    storage,
-                    self.latest_epoch,
-                    Some(append_only_exclude_usage),
-                )
+                .update_node_hash::<_>(storage, self.latest_epoch, Some(append_only_exclude_usage))
                 .await?;
             if !next_node.is_root() {
                 match hash_q.entry(next_node.parent) {
@@ -665,13 +654,13 @@ type AppendOnlyHelper = (Vec<Node>, Vec<Node>);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::byte_arr_from_u64;
     use crate::{
         auditor::audit_verify,
         client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
-    use crate::utils::byte_arr_from_u64;
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
@@ -698,9 +687,7 @@ mod tests {
         let db2 = StorageManager::new_no_cache(&database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
-        azks2
-            .batch_insert_leaves::<_>(&db2, insertion_set)
-            .await?;
+        azks2.batch_insert_leaves::<_>(&db2, insertion_set).await?;
 
         assert_eq!(
             azks1.get_root_hash::<_>(&db).await?,
@@ -737,9 +724,7 @@ mod tests {
         let db2 = StorageManager::new_no_cache(&database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
-        azks2
-            .batch_insert_leaves::<_>(&db2, insertion_set)
-            .await?;
+        azks2.batch_insert_leaves::<_>(&db2, insertion_set).await?;
 
         assert_eq!(
             azks1.get_root_hash::<_>(&db).await?,
@@ -792,7 +777,10 @@ mod tests {
             let mut label_arr = [0u8; 32];
             label_arr[0] = i;
             let label = NodeLabel::new(label_arr, 256u32);
-            let node = Node { label, hash: [0u8; akd_core::hash::DIGEST_BYTES] };
+            let node = Node {
+                label,
+                hash: [0u8; akd_core::hash::DIGEST_BYTES],
+            };
             insertion_set.push(node);
         }
 
@@ -844,8 +832,7 @@ mod tests {
             layer_proofs: proof.layer_proofs,
         };
         assert!(
-            verify_membership(azks.get_root_hash::<_>(&db).await?, &proof)
-                .is_err(),
+            verify_membership(azks.get_root_hash::<_>(&db).await?, &proof).is_err(),
             "Membership proof does verify, despite being wrong"
         );
 
@@ -879,13 +866,11 @@ mod tests {
             hash: akd_core::hash::hash(&EMPTY_VALUE),
         });
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set)
-            .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set).await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
         assert!(
-            verify_nonmembership(azks.get_root_hash::<_>(&db).await?, &proof)
-                .is_ok(),
+            verify_nonmembership(azks.get_root_hash::<_>(&db).await?, &proof).is_ok(),
             "Nonmembership proof does not verify"
         );
         Ok(())
@@ -940,11 +925,8 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = insertion_set[num_nodes - 1].label;
-        azks.batch_insert_leaves::<_>(
-            &db,
-            insertion_set.clone()[0..num_nodes - 1].to_vec(),
-        )
-        .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec())
+            .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
         verify_nonmembership(azks.get_root_hash::<_>(&db).await?, &proof)?;
@@ -970,11 +952,8 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = insertion_set[num_nodes - 1].label;
-        azks.batch_insert_leaves::<_>(
-            &db,
-            insertion_set.clone()[0..num_nodes - 1].to_vec(),
-        )
-        .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec())
+            .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
         verify_nonmembership(azks.get_root_hash::<_>(&db).await?, &proof)?;
@@ -993,8 +972,7 @@ mod tests {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
             hash: akd_core::hash::hash(&EMPTY_VALUE),
         });
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1)
-            .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
         let mut insertion_set_2: Vec<Node> = vec![];
@@ -1003,8 +981,7 @@ mod tests {
             hash: akd_core::hash::hash(&EMPTY_VALUE),
         });
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2)
-            .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
@@ -1029,8 +1006,7 @@ mod tests {
             hash: akd_core::hash::hash(&EMPTY_VALUE),
         });
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1)
-            .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
         let mut insertion_set_2: Vec<Node> = vec![];
@@ -1043,8 +1019,7 @@ mod tests {
             hash: akd_core::hash::hash(&EMPTY_VALUE),
         });
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2)
-            .await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;

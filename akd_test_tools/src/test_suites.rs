@@ -8,9 +8,9 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::ecvrf::VRFKeyStorage;
-use akd::storage::types::{AkdLabel, AkdValue};
 use akd::Directory;
-use akd::{Blake3, HistoryParams};
+use akd::HistoryParams;
+use akd::{AkdLabel, AkdValue};
 use rand::distributions::Alphanumeric;
 use rand::seq::IteratorRandom;
 use rand::{thread_rng, Rng};
@@ -38,7 +38,7 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
     }
     let mut root_hashes = vec![];
     // create & test the directory
-    let maybe_dir = Directory::<_, _, Blake3>::new(mysql_db, vrf, false).await;
+    let maybe_dir = Directory::<_, _>::new(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -70,7 +70,7 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
                     Ok(proof) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify(&vrf_pk, root_hash, key, proof)
+                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, key, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -85,12 +85,12 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
                         let (root_hash, current_epoch) =
-                            akd::directory::get_directory_root_hash_and_ep::<_, Blake3, _>(&dir)
+                            akd::directory::get_directory_root_hash_and_ep::<_, _>(&dir)
                                 .await
                                 .unwrap();
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify(
-                            &vrf_pk,
+                            vrf_pk.as_bytes(),
                             root_hash,
                             current_epoch,
                             key,

@@ -7,9 +7,9 @@
 
 //! Various storage and representation related types
 
-use crate::{AkdLabel, AkdValue};
 use crate::storage::Storable;
 use crate::tree_node::{NodeType, TreeNode, TreeNodeWithPreviousValue};
+use crate::{AkdLabel, AkdValue};
 use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
 

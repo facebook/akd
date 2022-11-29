@@ -28,8 +28,6 @@ rustyrepl = { version = "0.1", features = ["async"] }
 thread-id = "3"
 tokio = { version = "1.10", features = ["full"] }
 tokio-stream = "0.1"
-winter-crypto = "0.2"
-winter-math = "0.2"
 
 akd = { path = "../akd", features = ["public-tests", "public_auditing"] }
 

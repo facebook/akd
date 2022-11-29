@@ -7,8 +7,8 @@
 
 //! Utility functions
 
-use crate::{NodeLabel, AkdValue};
 use crate::hash::Digest;
+use crate::{AkdValue, NodeLabel};
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -37,11 +37,7 @@ pub fn generate_commitment_from_proof_client(
 }
 
 /// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue
-pub fn get_commitment_proof(
-    commitment_key: &[u8],
-    label: &NodeLabel,
-    value: &AkdValue,
-) -> Digest {
+pub fn get_commitment_proof(commitment_key: &[u8], label: &NodeLabel, value: &AkdValue) -> Digest {
     crate::hash::hash(&[commitment_key, &label.label_val, &i2osp_array(value)].concat())
 }
 
@@ -55,11 +51,7 @@ pub fn get_commitment_proof(
 /// value (even though the binding to value is somewhat optional).
 ///
 /// Note that this commitment needs to be a hash function (random oracle) output
-pub fn commit_value(
-    commitment_key: &[u8],
-    label: &NodeLabel,
-    value: &AkdValue,
-) -> Digest {
+pub fn commit_value(commitment_key: &[u8], label: &NodeLabel, value: &AkdValue) -> Digest {
     let proof = get_commitment_proof(commitment_key, label, value);
     crate::hash::hash(&[i2osp_array(value), i2osp_array(&proof)].concat())
 }

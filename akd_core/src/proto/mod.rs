@@ -369,10 +369,7 @@ impl From<&crate::UpdateProof> for specs::types::UpdateProof {
             version: Some(input.version),
             existence_vrf_proof: Some(input.existence_vrf_proof.clone()),
             existence_at_ep: MessageField::some((&input.existence_at_ep).into()),
-            previous_version_vrf_proof: input
-                .previous_version_vrf_proof
-                .as_ref()
-                .map(|p| p.clone()),
+            previous_version_vrf_proof: input.previous_version_vrf_proof.as_ref().cloned(),
             previous_version_stale_at_ep: MessageField::from_option(
                 input
                     .previous_version_stale_at_ep
@@ -523,7 +520,11 @@ impl TryFrom<&specs::types::SingleAppendOnlyProof> for crate::SingleAppendOnlyPr
 impl From<&crate::AppendOnlyProof> for specs::types::AppendOnlyProof {
     fn from(input: &crate::AppendOnlyProof) -> Self {
         Self {
-            proofs: input.proofs.iter().map(|proof| proof.into()).collect::<Vec<_>>(),
+            proofs: input
+                .proofs
+                .iter()
+                .map(|proof| proof.into())
+                .collect::<Vec<_>>(),
             epochs: input.epochs.clone(),
             ..Default::default()
         }
@@ -534,11 +535,12 @@ impl TryFrom<&specs::types::AppendOnlyProof> for crate::AppendOnlyProof {
     type Error = ConversionError;
 
     fn try_from(input: &specs::types::AppendOnlyProof) -> Result<Self, Self::Error> {
-        let proofs = input.proofs.iter().map(|proof| proof.try_into()).collect::<Result<Vec<_>,_>>()?;
-        let epochs =input.epochs.clone();
-        Ok(Self {
-            proofs,
-            epochs,
-        })
+        let proofs = input
+            .proofs
+            .iter()
+            .map(|proof| proof.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+        let epochs = input.epochs.clone();
+        Ok(Self { proofs, epochs })
     }
 }

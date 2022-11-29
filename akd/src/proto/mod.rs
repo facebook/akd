@@ -10,9 +10,9 @@
 //! public-storage safe blob types encoded with Protobuf. Download and upload
 //! to the blob storage medium is left to the new application crate akd_local_auditor
 
+use crate::Digest;
 use protobuf::Message;
 use std::convert::{TryFrom, TryInto};
-use crate::Digest;
 
 /// Local audit processing errors
 #[derive(Debug)]
@@ -39,7 +39,6 @@ impl From<protobuf::Error> for LocalAuditorError {
 
 // ************************ Converters ************************ //
 
-
 macro_rules! hash_from_ref {
     ($obj:expr) => {
         if $obj.len() == akd_core::hash::DIGEST_BYTES {
@@ -47,11 +46,14 @@ macro_rules! hash_from_ref {
             v.copy_from_slice($obj);
             Ok(v)
         } else {
-            Err(akd_core::proto::ConversionError::Deserialization(format!("Hash didn't have correct length (expected {} != got {})", akd_core::hash::DIGEST_BYTES, $obj.len())))
+            Err(akd_core::proto::ConversionError::Deserialization(format!(
+                "Hash didn't have correct length (expected {} != got {})",
+                akd_core::hash::DIGEST_BYTES,
+                $obj.len()
+            )))
         }
     };
 }
-
 
 // ************************ Helper Functions ************************ //
 
@@ -155,16 +157,9 @@ impl AuditBlob {
     /// Decode a protobuf encoded AuditBlob into it's components (phash, chash, epoch, proof)
     pub fn decode(
         &self,
-    ) -> Result<
-        (
-            u64,
-            Digest,
-            Digest,
-            crate::SingleAppendOnlyProof,
-        ),
-        LocalAuditorError,
-    > {
-        let proof = akd_core::proto::specs::types::SingleAppendOnlyProof::parse_from_bytes(&self.data)?;
+    ) -> Result<(u64, Digest, Digest, crate::SingleAppendOnlyProof), LocalAuditorError> {
+        let proof =
+            akd_core::proto::specs::types::SingleAppendOnlyProof::parse_from_bytes(&self.data)?;
         let local_proof: crate::SingleAppendOnlyProof = (&proof).try_into()?;
 
         Ok((

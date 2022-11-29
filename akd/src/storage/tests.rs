@@ -7,14 +7,14 @@
 
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
-use crate::{AkdLabel, AkdValue};
 use crate::errors::StorageError;
 use crate::storage::types::*;
 use crate::storage::Database;
 use crate::storage::StorageManager;
 use crate::tree_node::*;
-use crate::NodeLabel;
 use crate::utils::byte_arr_from_u64;
+use crate::NodeLabel;
+use crate::{AkdLabel, AkdValue};
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};

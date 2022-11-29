@@ -177,6 +177,20 @@ impl DynamoDbAuditStorage {
         }
     }
 
+    fn convert_digest(data: &[u8]) -> Result<akd::Digest> {
+        if data.len() == akd::DIGEST_BYTES {
+            let mut v = [0u8; akd::DIGEST_BYTES];
+            v.copy_from_slice(data);
+            Ok(v)
+        } else {
+            Err(anyhow::anyhow!(
+                "Digest is not of correct size (expected {} != got {})",
+                akd::DIGEST_BYTES,
+                data.len()
+            ))
+        }
+    }
+
     fn parse_summary(
         dynamo_attribute_values: &HashMap<String, AttributeValue>,
     ) -> Result<Option<EpochSummary>> {
@@ -191,14 +205,12 @@ impl DynamoDbAuditStorage {
             dynamo_attribute_values.get("current_hash"),
             dynamo_attribute_values.get("blob"),
         ) {
-            let phash_digest = akd::serialization::to_digest::<crate::Hasher>(phash.as_ref())
-                .map_err(|err| anyhow::anyhow!("Error converting digest {}", err))?;
-            let chash_digest = akd::serialization::to_digest::<crate::Hasher>(chash.as_ref())
-                .map_err(|err| anyhow::anyhow!("Error converting digest {}", err))?;
+            let phash_digest = Self::convert_digest(phash.as_ref())?;
+            let chash_digest = Self::convert_digest(chash.as_ref())?;
             let audit_blob_name = akd::proto::AuditBlobName {
                 epoch: epoch.parse()?,
-                previous_hash: akd::serialization::from_digest::<crate::Hasher>(phash_digest),
-                current_hash: akd::serialization::from_digest::<crate::Hasher>(chash_digest),
+                previous_hash: phash_digest,
+                current_hash: chash_digest,
             };
             Ok(Some(EpochSummary {
                 key: blob_key.clone(),

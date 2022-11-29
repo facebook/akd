@@ -306,12 +306,12 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AkdLabel, AkdValue};
     use crate::append_only_zks::*;
     use crate::node_label::*;
     use crate::storage::types::*;
     use crate::tree_node::*;
     use crate::utils::byte_arr_from_u64;
+    use crate::{AkdLabel, AkdValue};
     use rand::{rngs::OsRng, seq::SliceRandom};
 
     #[tokio::test]

@@ -1,4 +1,3 @@
-
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
@@ -9,12 +8,12 @@
 //! This module contains the specifics for NodeLabel only, other types don't have the
 //! same level of detail and aren't broken into sub-modules
 
-use crate::{Direction, SizeOf};
 use crate::hash::Digest;
+use crate::{Direction, SizeOf};
 
-use core::convert::TryInto;
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+use core::convert::TryInto;
 
 #[cfg(test)]
 mod tests;

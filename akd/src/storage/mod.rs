@@ -7,9 +7,9 @@
 
 //! Storage module for a auditable key directory
 
-use crate::{AkdLabel, AkdValue};
 use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
+use crate::{AkdLabel, AkdValue};
 
 use async_trait::async_trait;
 #[cfg(feature = "serde_serialization")]
@@ -116,10 +116,7 @@ pub trait Database: Clone {
     /* User data searching */
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(
-        &self,
-        username: &AkdLabel,
-    ) -> Result<types::KeyData, StorageError>;
+    async fn get_user_data(&self, username: &AkdLabel) -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(

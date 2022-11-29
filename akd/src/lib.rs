@@ -420,9 +420,10 @@ pub mod tree_node;
 #[cfg(feature = "protobuf")]
 pub mod proto;
 
+pub use akd_core::hash::Digest;
+pub use akd_core::hash::DIGEST_BYTES;
 pub use akd_core::verify;
 pub use akd_core::*;
-pub use akd_core::hash::Digest as Digest;
 
 mod utils;
 
@@ -431,7 +432,6 @@ pub use append_only_zks::Azks;
 pub use client::HistoryVerificationParams;
 pub use directory::{Directory, HistoryParams};
 pub use helper_structs::EpochHash;
-
 
 // ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public-tests"))]

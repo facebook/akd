@@ -1,4 +1,3 @@
-
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 //
 // This source code is licensed under both the MIT license found in the
@@ -9,9 +8,9 @@
 //! Tests for node labels
 
 use super::*;
-use rand::{thread_rng, Rng};
 #[cfg(feature = "nostd")]
 use alloc::vec;
+use rand::{thread_rng, Rng};
 
 // ================= Test helpers ================= //
 
@@ -482,9 +481,7 @@ pub fn test_get_dir_example() {
 #[test]
 pub fn test_get_prefix_small() {
     let label_1 = NodeLabel::new(
-        byte_arr_from_u64(
-            0b1000101101110110110000000000110101110001000000000110011001000101u64,
-        ),
+        byte_arr_from_u64(0b1000101101110110110000000000110101110001000000000110011001000101u64),
         64u32,
     );
     let prefix_len = 10u32;
@@ -514,9 +511,7 @@ pub fn test_get_sibling_prefix() {
 
     // Our hand-coded random string to be parsed with len 30
     let label_rand_len_30 = NodeLabel::new(
-        byte_arr_from_u64(
-            0b1010000000000110001111001000001000001000110100101010111111001110u64,
-        ),
+        byte_arr_from_u64(0b1010000000000110001111001000001000001000110100101010111111001110u64),
         30,
     );
     // Another hand-coded random string of length 15 with common prefix 1010 0000 0000 01
@@ -542,7 +537,5 @@ pub fn test_get_sibling_prefix() {
         256,
     );
 
-    assert!(
-        label_rand_len_256.get_sibling_prefix(256) == label_rand_len_256_prefix_256_sibling
-    );
+    assert!(label_rand_len_256.get_sibling_prefix(256) == label_rand_len_256_prefix_256_sibling);
 }

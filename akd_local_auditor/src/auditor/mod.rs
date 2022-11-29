@@ -8,43 +8,36 @@
 //! This module holds the auditor operations based on binary-encoded AuditProof blobs
 
 use super::storage::{EpochSummary, ProofIndexCacheOption};
+
+use akd::Digest;
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use log::{error, info, warn};
 use rustyrepl::ReplCommandProcessor;
-use std::marker::{Send, Sync};
 use std::sync::Arc;
 
 pub(crate) const HISTORY_FILE: &str = ".akd_local_auditor_history";
 
-fn format_qr_record<H>(p_hash: H::Digest, c_hash: H::Digest, epoch: u64) -> Vec<u8>
-where
-    H: winter_crypto::Hasher,
-{
-    let p_bytes = akd::serialization::from_digest::<H>(p_hash);
-    let c_bytes = akd::serialization::from_digest::<H>(c_hash);
+fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Vec<u8> {
     let epoch_bytes = epoch.to_le_bytes();
     let header = "WA_AKD_VERIFY".as_bytes();
 
     let mut result = vec![];
     result.extend(header);
     result.extend(epoch_bytes);
-    result.extend(p_bytes);
-    result.extend(c_bytes);
+    result.extend(p_hash);
+    result.extend(c_hash);
     result
 }
 
-pub async fn audit_epoch<H>(blob: akd::proto::AuditBlob, qr: bool) -> Result<()>
-where
-    H: winter_crypto::Hasher + Sync + Send,
-{
+pub async fn audit_epoch(blob: akd::proto::AuditBlob, qr: bool) -> Result<()> {
     // decode the proof
-    let (epoch, p_hash, c_hash, proof) = blob.decode().map_err(|err| anyhow!("{}", err))?;
+    let (epoch, p_hash, c_hash, proof) = blob.decode().map_err(|err| anyhow!("{:?}", err))?;
 
     // verify it
     if let Err(akd_error) = akd::auditor::audit_verify(
         vec![p_hash, c_hash],
-        akd::proof_structs::AppendOnlyProof::<crate::Hasher> {
+        akd::AppendOnlyProof {
             proofs: vec![proof],
             epochs: vec![epoch],
         },
@@ -60,7 +53,7 @@ where
         info!("Audit proof for epoch {} has verified!", epoch);
         if qr {
             info!("Generating scan-able QR code for the verification on device");
-            let qr_code_data = format_qr_record::<crate::Hasher>(p_hash, c_hash, epoch);
+            let qr_code_data = format_qr_record(p_hash, c_hash, epoch);
             if let Err(error) = qr2term::print_qr(&qr_code_data) {
                 error!("Error generating QR code {}", error);
                 bail!("Error generating QR code {}", error);
@@ -155,7 +148,7 @@ impl ReplCommandProcessor<AuditArgs> for AuditProcessor {
                 let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == *epoch);
                 if let Some(epoch_summary) = maybe_proof {
                     let proof = self.storage.get_proof(epoch_summary).await?;
-                    audit_epoch::<crate::Hasher>(proof, *qr).await?;
+                    audit_epoch(proof, *qr).await?;
                 }
             }
             AuditCommand::ShowEpochs { force_refresh } => {

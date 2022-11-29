@@ -9,12 +9,11 @@
 
 use crate::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
-use akd::storage::types::{
-    AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag,
-};
+use akd::storage::types::{DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
 use akd::storage::{Database, Storable};
 use akd::tree_node::TreeNodeWithPreviousValue;
 use akd::NodeLabel;
+use akd::{AkdLabel, AkdValue};
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
 use mysql_async::prelude::*;
@@ -916,8 +915,8 @@ impl Database for AsyncMySqlDatabase {
                                     label_val,
                                     label_len: node_label_len,
                                 },
-                                plaintext_val: akd::storage::types::AkdValue(data),
-                                username: akd::storage::types::AkdLabel(username),
+                                plaintext_val: AkdValue(data),
+                                username: AkdLabel(username),
                             });
                         }
                     }
@@ -1008,8 +1007,8 @@ impl Database for AsyncMySqlDatabase {
                                     label_val,
                                     label_len: node_label_len,
                                 },
-                                plaintext_val: akd::storage::types::AkdValue(data),
-                                username: akd::storage::types::AkdLabel(username),
+                                plaintext_val: AkdValue(data),
+                                username: AkdLabel(username),
                             });
                         }
                     }
