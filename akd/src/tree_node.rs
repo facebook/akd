@@ -389,7 +389,7 @@ impl TreeNode {
         least_descendant_ep: u64,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
-        hash: [u8; 32],
+        hash: [u8; crate::DIGEST_BYTES],
     ) -> Result<Self, StorageError> {
         let new_node = TreeNode {
             label,
@@ -567,7 +567,7 @@ impl TreeNode {
             min(self.least_descendant_ep, epoch),
             None,
             None,
-            [0u8; 32],
+            [0u8; crate::DIGEST_BYTES],
         )
         .await?;
         // Set up child-parent connections from top to bottom

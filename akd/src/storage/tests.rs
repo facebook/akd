@@ -85,7 +85,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         node_type: NodeType::Leaf,
         left_child: None,
         right_child: None,
-        hash: [0; 32],
+        hash: [0; crate::DIGEST_BYTES],
     };
     let mut node2 = node.clone();
     node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);

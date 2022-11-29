@@ -328,7 +328,7 @@ mod tests {
             node_type: NodeType::Root,
             left_child: None,
             right_child: None,
-            hash: [0u8; 32],
+            hash: [0u8; crate::DIGEST_BYTES],
         }));
         let node2 = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
@@ -338,7 +338,7 @@ mod tests {
             node_type: NodeType::Leaf,
             left_child: None,
             right_child: None,
-            hash: [0u8; 32],
+            hash: [0u8; crate::DIGEST_BYTES],
         }));
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),

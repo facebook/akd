@@ -14,7 +14,9 @@
 
 use crate::hash::Digest;
 #[cfg(feature = "serde_serialization")]
-use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+use crate::utils::serde_helpers::{
+    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
+};
 use crate::ARITY;
 
 #[cfg(feature = "nostd")]
@@ -115,7 +117,7 @@ pub struct AkdValue(
         feature = "serde_serialization",
         serde(deserialize_with = "bytes_deserialize_hex")
     )]
-    pub Vec<u8>
+    pub Vec<u8>,
 );
 
 impl SizeOf for AkdValue {
@@ -175,6 +177,13 @@ pub struct Node {
     /// The label of the node
     pub label: NodeLabel,
     /// The associated hash of the node
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(
+            serialize_with = "digest_serialize",
+            deserialize_with = "digest_deserialize"
+        )
+    )]
     pub hash: Digest,
 }
 
@@ -211,6 +220,13 @@ pub struct MembershipProof {
     /// The node label
     pub label: NodeLabel,
     /// The hash of the value
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(
+            serialize_with = "digest_serialize",
+            deserialize_with = "digest_deserialize"
+        )
+    )]
     pub hash_val: Digest,
     /// The parents of the node in question
     pub layer_proofs: Vec<LayerProof>,

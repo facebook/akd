@@ -28,7 +28,7 @@ sha3_512 = ["sha3"]
 # Include the VRF verification logic
 vrf = ["ed25519-dalek", "curve25519-dalek/std"]
 
-serde_serialization = ["serde", "ed25519-dalek/serde"]
+serde_serialization = ["serde", "serde_bytes", "ed25519-dalek/serde"]
 
 [dependencies]
 # ======== Required Dependencies ======== #
@@ -44,6 +44,7 @@ rand = { version = "0.7", optional = true }
 sha2 = { version = "0.10", optional = true, default-features = false }
 sha3 = { version = "0.10", optional = true, default-features = false }
 serde = { version = "1", features = ["derive"], optional = true }
+serde_bytes = { version = "0.11", optional = true }
 
 [dev-dependencies]
 bincode = "1"

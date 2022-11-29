@@ -95,4 +95,34 @@ pub mod serde_helpers {
         let hex_str = String::deserialize(deserializer)?;
         T::from_hex(&hex_str).map_err(serde::de::Error::custom)
     }
+
+    /// Serialize a digest
+    pub fn digest_serialize<S>(x: &[u8], s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde_bytes::Serialize;
+        x.to_vec().serialize(s)
+    }
+
+    /// Deserialize a digest
+    pub fn digest_deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<[u8; crate::hash::DIGEST_BYTES], D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let buf = <Vec<u8> as serde_bytes::Deserialize>::deserialize(deserializer)?;
+        if buf.len() == crate::hash::DIGEST_BYTES {
+            let mut v = [0u8; crate::hash::DIGEST_BYTES];
+            v.copy_from_slice(&buf);
+            Ok(v)
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "Digest of unexpected size (expected {} != got {})",
+                crate::hash::DIGEST_BYTES,
+                buf.len()
+            )))
+        }
+    }
 }

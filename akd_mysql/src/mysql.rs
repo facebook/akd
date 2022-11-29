@@ -310,11 +310,15 @@ impl<'a> AsyncMySqlDatabase {
             + " `least_descendant_ep` BIGINT UNSIGNED NOT NULL, `parent_label_len` INT UNSIGNED NOT NULL,"
             + " `parent_label_val` VARBINARY(32) NOT NULL, `node_type` SMALLINT UNSIGNED NOT NULL,"
             + " `left_child_len` INT UNSIGNED, `left_child_label_val` VARBINARY(32),"
-            + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32), `hash` VARBINARY(32) NOT NULL,"
+            + " `right_child_len` INT UNSIGNED, `right_child_label_val` VARBINARY(32), `hash` VARBINARY("
+            + &akd::DIGEST_BYTES.to_string()
+            + ") NOT NULL,"
             + " `p_last_epoch` BIGINT UNSIGNED, `p_least_descendant_ep` BIGINT UNSIGNED, "
             + " `p_parent_label_len` INT UNSIGNED, `p_parent_label_val` VARBINARY(32), "
             + " `p_node_type` SMALLINT UNSIGNED, `p_left_child_len` INT UNSIGNED, `p_left_child_label_val` VARBINARY(32), "
-            + " `p_right_child_len` INT UNSIGNED, `p_right_child_label_val` VARBINARY(32), `p_hash` VARBINARY(32),"
+            + " `p_right_child_len` INT UNSIGNED, `p_right_child_label_val` VARBINARY(32), `p_hash` VARBINARY("
+            + &akd::DIGEST_BYTES.to_string()
+            + "),"
             + " PRIMARY KEY (`label_len`, `label_val`))";
         tx.query_drop(command).await?;
 

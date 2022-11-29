@@ -37,11 +37,17 @@ jobs:
           command: test
           args: --package akd_core --features nostd,blake3,vrf --no-default-features
 
-      - name: Test the core crate (akd_core) with protobuf enabled
+      - name: Test the core crate (akd_core) with protobuf and serde enabled
         ses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_core --features protobuf
+          args: --package akd_core --features protobuf,serde_serialization
+
+      - name: Test the core crate (akd_core) with no standard library
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_core --features nostd,sha3_512,vrf --no-default-features
 
       - name: Test the base library, with default features
         uses: actions-rs/cargo@v1
@@ -103,11 +109,6 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-
-      - name: Set up protoc
-        uses: arduino/setup-protoc@v1.1.2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Clippy
         uses: actions-rs/cargo@v1

@@ -27,12 +27,45 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
     let akd = Directory::<_, _>::new(&storage, &vrf, false).await?;
 
     let current_azks = akd.retrieve_current_azks().await?;
+    #[allow(unused)]
     let hash = akd.get_root_hash(&current_azks).await?;
     // Ensuring that the root hash of an empty tree is equal to the following constant
+    #[cfg(feature = "blake3")]
     assert_eq!(
         "f48ded419214732a2c610c1e280543744bab3c17aec33e444997fa2d8f79792a",
         hex::encode(hash)
     );
+    #[cfg(feature = "sha256")]
+    assert_eq!(
+        "e60055537d90faaccb2be51f744b9b4a759ff758c1fe1f361d773294dae4f03f",
+        hex::encode(hash)
+    );
+    #[cfg(feature = "sha512")]
+    assert_eq!(
+        "720a0846fab801639e172ebe779c3212e9c1802e9fc94454a66285ed168db950c79bb1085fd72b076736412a06a7de37b861ace95317e5dd3a42e7d1fe3ee97d",
+        hex::encode(hash)
+    );
+    #[cfg(feature = "sha3_256")]
+    assert_eq!(
+        "fb0fac36b999155471cd9f5b075685a04bf345b82e248242ee3b396d9d001845",
+        hex::encode(hash)
+    );
+    #[cfg(feature = "sha3_512")]
+    assert_eq!(
+        "09db818bf21f53f5443011d4e17d58f011fd64aaacb52ef484102e03ecd3bc6d47b2152dd8404e6e80d1052156635370621c08792b85373e810346948ac7632a",
+        hex::encode(hash)
+    );
+
+    #[cfg(not(any(
+        feature = "blake3",
+        feature = "sha256",
+        feature = "sha3_256",
+        feature = "sha512",
+        feature = "sha3_512"
+    )))]
+    panic!("Unsupported hashing function");
+
+    #[allow(unreachable_code)]
     Ok(())
 }
 
