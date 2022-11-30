@@ -38,9 +38,10 @@ sha3_512 = ["akd_core/sha3_512"]
 blake3 = ["akd_core/blake3"]
 # Enable web assembly compilation of the AKD client crate
 wasm = ["wasm-bindgen", "protobuf", "akd_core/protobuf"]
+protobuf_serialization = ["protobuf", "akd_core/protobuf"]
 
 # Default feature mix (blake3)
-default = ["blake3", "wasm"]
+default = ["blake3"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
