@@ -373,6 +373,7 @@ mod tests {
             let mut running_priority = 0;
             for record in txn.commit_transaction().await? {
                 let priority = record.transaction_priority();
+                #[allow(clippy::comparison_chain)]
                 if priority > running_priority {
                     running_priority = priority;
                 } else if priority < running_priority {

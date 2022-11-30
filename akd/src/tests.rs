@@ -1062,11 +1062,11 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
         history_proof,
         HistoryVerificationParams::AllowMissingValues,
     )?;
-    assert_eq!(false, results[0].value.0 == crate::TOMBSTONE);
-    assert_eq!(false, results[1].value.0 == crate::TOMBSTONE);
-    assert_eq!(false, results[2].value.0 == crate::TOMBSTONE);
-    assert_eq!(true, results[3].value.0 == crate::TOMBSTONE);
-    assert_eq!(true, results[4].value.0 == crate::TOMBSTONE);
+    assert_ne!(crate::TOMBSTONE, results[0].value.0);
+    assert_ne!(crate::TOMBSTONE, results[1].value.0);
+    assert_ne!(crate::TOMBSTONE, results[2].value.0);
+    assert_eq!(crate::TOMBSTONE, results[3].value.0);
+    assert_eq!(crate::TOMBSTONE, results[4].value.0);
 
     Ok(())
 }

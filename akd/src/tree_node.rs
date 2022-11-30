@@ -1330,27 +1330,23 @@ mod tests {
         }
 
         let mut layer_1_hashes = Vec::new();
-        let mut j = 0u64;
-        for i in 0..4 {
+        for (i, j) in (0u64..4).enumerate() {
             let left_child_hash = leaf_hashes[2 * i];
             let right_child_hash = leaf_hashes[2 * i + 1];
             layer_1_hashes.push(akd_core::hash::merge(&[
                 akd_core::hash::merge(&[left_child_hash, right_child_hash]),
                 hash_label(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
             ]));
-            j += 1;
         }
 
         let mut layer_2_hashes = Vec::new();
-        let mut j = 0u64;
-        for i in 0..2 {
+        for (i, j) in (0u64..2).enumerate() {
             let left_child_hash = layer_1_hashes[2 * i];
             let right_child_hash = layer_1_hashes[2 * i + 1];
             layer_2_hashes.push(akd_core::hash::merge(&[
                 akd_core::hash::merge(&[left_child_hash, right_child_hash]),
                 hash_label(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
             ]));
-            j += 1;
         }
 
         let expected = akd_core::hash::merge(&[

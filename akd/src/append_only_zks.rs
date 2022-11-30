@@ -861,27 +861,29 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
 
-        let mut insertion_set: Vec<Node> = vec![];
-        insertion_set.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
+        let insertion_set: Vec<Node> = vec![
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+        ];
+
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_leaves::<_>(&db, insertion_set).await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
@@ -984,19 +986,17 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
 
-        let mut insertion_set_1: Vec<Node> = vec![];
-        insertion_set_1.push(Node {
+        let insertion_set_1: Vec<Node> = vec![Node {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
             hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
+        }];
         azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let mut insertion_set_2: Vec<Node> = vec![];
-        insertion_set_2.push(Node {
+        let insertion_set_2: Vec<Node> = vec![Node {
             label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
             hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
+        }];
 
         azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
@@ -1013,28 +1013,30 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
 
-        let mut insertion_set_1: Vec<Node> = vec![];
-        insertion_set_1.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set_1.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
+        let insertion_set_1: Vec<Node> = vec![
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+        ];
 
         azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let mut insertion_set_2: Vec<Node> = vec![];
-        insertion_set_2.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b1 << 62), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
-        insertion_set_2.push(Node {
-            label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
-        });
+        let insertion_set_2: Vec<Node> = vec![
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b1 << 62), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+            Node {
+                label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
+                hash: akd_core::hash::hash(&EMPTY_VALUE),
+            },
+        ];
 
         azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;

@@ -16,9 +16,8 @@ use rand::{thread_rng, Rng};
 fn random_hash() -> [u8; DIGEST_BYTES] {
     let mut results = [0u8; DIGEST_BYTES];
     let mut rng = thread_rng();
-    for i in 0..DIGEST_BYTES {
-        let byte = rng.gen::<u8>();
-        results[i] = byte;
+    for b in results.iter_mut().take(DIGEST_BYTES) {
+        *b = rng.gen::<u8>();
     }
     results
 }

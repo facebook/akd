@@ -60,14 +60,13 @@ pub fn test_get_bit_at_small() {
     let val = 0b1010u64 << 60;
     let expected = vec![1, 0, 1, 0];
     let label = NodeLabel::new(byte_arr_from_u64(val), 4);
-    for index in 0..4 {
-        let index_32: u32 = index.try_into().unwrap();
+    for (index, item) in expected.iter().enumerate().take(4) {
         assert!(
-            expected[index] == label.get_bit_at(index_32),
+            *item == label.get_bit_at(index as u32),
             "get_bit_at({}) wrong for the 4 digit label 0b1010! Expected {:?} and got {:?}",
             index,
-            expected[index],
-            label.get_bit_at(index_32)
+            *item,
+            label.get_bit_at(index as u32)
         )
     }
     for index in 4u32..256u32 {
@@ -132,13 +131,13 @@ pub fn test_get_bit_at_large() {
     ];
 
     // the vector expected covers the first 24 indices.
-    for index in 0..24 {
-        let index_32: u32 = index.try_into().unwrap();
+    for (index, item) in expected.iter().enumerate().take(24) {
+        let index_32 = index as u32;
         assert!(
-            expected[index] == label.get_bit_at(index_32),
+            *item == label.get_bit_at(index_32),
             "get_bit_at({}) wrong for the 256 digit label 0000 0000 0000 0000 1010 0000! Expected {:?} and got {:?}",
             index,
-            expected[index],
+            *item,
             label.get_bit_at(index_32)
         )
     }
