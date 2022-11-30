@@ -22,13 +22,14 @@ use log::{debug, error, warn};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 /// Implements a basic cahce with timing information which automatically flushes
 /// expired entries and removes them
 pub struct TimedCache {
-    azks: Arc<tokio::sync::RwLock<Option<DbRecord>>>,
+    azks: Arc<RwLock<Option<DbRecord>>>,
     map: Arc<DashMap<Vec<u8>, CachedItem>>,
-    last_clean: Arc<tokio::sync::RwLock<Instant>>,
+    last_clean: Arc<RwLock<Instant>>,
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
     memory_limit_bytes: Option<usize>,
@@ -38,7 +39,7 @@ pub struct TimedCache {
 
 impl TimedCache {
     /// Log cache access metrics along with size information
-    pub async fn log_metrics(&self, _level: log::Level) {
+    pub fn log_metrics(&self, _level: log::Level) {
         #[cfg(feature = "runtime_metrics")]
         {
             let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
@@ -164,9 +165,9 @@ impl TimedCache {
             _ => Duration::from_millis(DEFAULT_CACHE_CLEAN_FREQUENCY_MS),
         };
         Self {
-            azks: Arc::new(tokio::sync::RwLock::new(None)),
+            azks: Arc::new(RwLock::new(None)),
             map: Arc::new(DashMap::new()),
-            last_clean: Arc::new(tokio::sync::RwLock::new(Instant::now())),
+            last_clean: Arc::new(RwLock::new(Instant::now())),
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
             memory_limit_bytes: o_memory_limit_bytes,

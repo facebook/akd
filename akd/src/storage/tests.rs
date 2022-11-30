@@ -16,7 +16,7 @@ use crate::tree_node::*;
 use crate::NodeLabel;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use tokio::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 
 type Azks = crate::append_only_zks::Azks;
 type TreeNode = crate::tree_node::TreeNode;

@@ -15,9 +15,9 @@ use crate::storage::Storable;
 
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
-use std::sync::Arc;
+use tokio::sync::RwLock;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct TransactionState {
     mods: HashMap<Vec<u8>, DbRecord>,
     active: bool,
@@ -27,12 +27,11 @@ struct TransactionState {
 /// of the changes. When you "commit" this transaction, you return the
 /// collection of values which need to be written to the storage layer
 /// including all mutations. Rollback simply empties the transaction state.
-#[derive(Default)]
 pub struct Transaction {
-    state: Arc<tokio::sync::RwLock<TransactionState>>,
+    state: RwLock<TransactionState>,
 
-    num_reads: Arc<tokio::sync::RwLock<u64>>,
-    num_writes: Arc<tokio::sync::RwLock<u64>>,
+    num_reads: RwLock<u64>,
+    num_writes: RwLock<u64>,
 }
 
 unsafe impl Send for Transaction {}
@@ -44,31 +43,32 @@ impl std::fmt::Debug for Transaction {
     }
 }
 
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Transaction {
     /// Instantiate a new transaction instance
     pub fn new() -> Self {
         Self {
-            state: Arc::new(tokio::sync::RwLock::new(TransactionState {
+            state: RwLock::new(TransactionState {
                 mods: HashMap::new(),
                 active: false,
-            })),
+            }),
 
-            num_reads: Arc::new(tokio::sync::RwLock::new(0)),
-            num_writes: Arc::new(tokio::sync::RwLock::new(0)),
+            num_reads: RwLock::new(0),
+            num_writes: RwLock::new(0),
         }
     }
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
-        let mut r = self.num_reads.write().await;
-        let mut w = self.num_writes.write().await;
+        let r = crate::utils::rwlock_swap(&self.num_reads, 0).await;
+        let w = crate::utils::rwlock_swap(&self.num_writes, 0).await;
 
-        let msg = format!("Transaction writes: {}, Transaction reads: {}", *w, *r);
-
-        *r = 0;
-        *w = 0;
-        drop(r);
-        drop(w);
+        let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
 
         match level {
             log::Level::Trace => trace!("{}", msg),

@@ -104,7 +104,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
     /// Log metrics from the storage manager (cache, transaction, and storage hit rates etc)
     pub async fn log_metrics(&self, level: log::Level) {
         if let Some(cache) = &self.cache {
-            cache.log_metrics(level).await
+            cache.log_metrics(level)
         }
 
         self.transaction.log_metrics(level).await;
@@ -204,7 +204,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             self.db.batch_set(records, DbSetState::TransactionCommit),
         )
         .await?;
-        self.increment_metric(METRIC_BATCH_SET).await;
+        self.increment_metric(METRIC_BATCH_SET);
         Ok(())
     }
 
@@ -239,7 +239,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
 
         // write to the database
         self.tic_toc(METRIC_WRITE_TIME, self.db.set(record)).await?;
-        self.increment_metric(METRIC_SET).await;
+        self.increment_metric(METRIC_SET);
         Ok(())
     }
 
@@ -267,7 +267,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             self.db.batch_set(records, DbSetState::General),
         )
         .await?;
-        self.increment_metric(METRIC_BATCH_SET).await;
+        self.increment_metric(METRIC_BATCH_SET);
         Ok(())
     }
 
@@ -280,7 +280,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         let record = self
             .tic_toc(METRIC_READ_TIME, self.db.get::<St>(id))
             .await?;
-        self.increment_metric(METRIC_GET).await;
+        self.increment_metric(METRIC_GET);
         Ok(record)
     }
 
@@ -309,7 +309,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             // cache the result
             cache.put(&record).await;
         }
-        self.increment_metric(METRIC_GET).await;
+        self.increment_metric(METRIC_GET);
         Ok(record)
     }
 
@@ -357,7 +357,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                 .tic_toc(METRIC_READ_TIME, self.db.batch_get::<St>(&keys))
                 .await?;
             map.append(&mut results);
-            self.increment_metric(METRIC_BATCH_GET).await;
+            self.increment_metric(METRIC_BATCH_GET);
         }
         Ok(map)
     }
@@ -392,7 +392,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         if !new_data.is_empty() {
             debug!("Tombstoning {} entries", new_data.len());
             self.batch_set(new_data).await?;
-            self.increment_metric(METRIC_TOMBSTONE).await;
+            self.increment_metric(METRIC_TOMBSTONE);
         }
 
         Ok(())
@@ -412,7 +412,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             Ok(something) => Ok(Some(something)),
             Err(other) => Err(other),
         }?;
-        self.increment_metric(METRIC_GET_USER_STATE).await;
+        self.increment_metric(METRIC_GET_USER_STATE);
 
         // in the event we are in a transaction, there may be an updated object in the
         // transactional storage. Therefore we should update the db retrieved value if
@@ -456,7 +456,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             Ok(something) => Ok(Some(something)),
             Err(other) => Err(other),
         }?;
-        self.increment_metric(METRIC_GET_USER_DATA).await;
+        self.increment_metric(METRIC_GET_USER_DATA);
 
         if self.is_transaction_active().await {
             // there are transaction-based values in the current transaction, they should override database-retrieved values
@@ -506,7 +506,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                 self.db.get_user_state_versions(usernames, flag),
             )
             .await?;
-        self.increment_metric(METRIC_GET_USER_STATE_VERSIONS).await;
+        self.increment_metric(METRIC_GET_USER_STATE_VERSIONS);
 
         // in the event we are in a transaction, there may be an updated object in the
         // transactional storage. Therefore we should update the db retrieved value if
@@ -569,7 +569,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         None
     }
 
-    async fn increment_metric(&self, _metric: Metric) {
+    fn increment_metric(&self, _metric: Metric) {
         #[cfg(feature = "runtime_metrics")]
         {
             self.metrics[_metric].fetch_add(1, Ordering::Relaxed);
