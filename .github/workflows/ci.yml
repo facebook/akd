@@ -95,7 +95,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --features protobuf
+          args: --package akd_client --features protobuf_serialization
 
   clippy:
     name: Clippy
