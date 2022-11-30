@@ -12,7 +12,7 @@ use colored::*;
 use log::{Level, Metadata, Record};
 use once_cell::sync::OnceCell;
 use std::sync::Once;
-use tokio::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 
 static EPOCH: OnceCell<Instant> = OnceCell::new();
 static LOGGER: TestConsoleLogger = TestConsoleLogger {};

@@ -28,15 +28,15 @@ runtime_metrics = []
 [dependencies]
 ## Required dependencies ##
 akd_core = { path = "../akd_core", version = "^0.8", default-features = false, features = ["vrf"] }
-hex = "0.4"
-async-trait = "0.1"
-dashmap = { version = "5" }
-tokio = { version = "1.10", features = ["full"] }
 async-recursion = "0.3"
-log = { version = "0.4.8", features = ["kv_unstable"] }
-keyed_priority_queue = "0.3"
+async-trait = "0.1"
 curve25519-dalek = "3"
+dashmap = { version = "5" }
 ed25519-dalek = "1"
+hex = "0.4"
+keyed_priority_queue = "0.3"
+log = { version = "0.4.8", features = ["kv_unstable"] }
+tokio = { version = "1.10", features = ["sync", "time"] }
 
 ## Optional Dependencies ##
 bincode = { version = "1", optional = true }
@@ -55,7 +55,7 @@ colored = { version = "2" }
 once_cell = { version = "1" }
 ctor = "0.1"
 tokio-test = "0.4"
-
+tokio = { version = "1.10", features = ["rt", "sync", "time", "macros"] }
 akd = { path = ".", features = ["public-tests"] }
 
 [[bench]]

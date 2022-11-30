@@ -20,9 +20,9 @@ use crate::{
 };
 
 use log::{debug, error, info};
-
 use std::marker::{Send, Sync};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// The representation of a auditable key directory
 pub struct Directory<S: Database + Sync + Send, V> {
@@ -35,7 +35,7 @@ pub struct Directory<S: Database + Sync + Send, V> {
     /// to make sure no generations are underway when a cache flush occurs
     /// (in this case we do utilize the write() lock which can only occur 1
     /// at a time and gates further read() locks being acquired during write()).
-    cache_lock: Arc<tokio::sync::RwLock<()>>,
+    cache_lock: Arc<RwLock<()>>,
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
@@ -78,7 +78,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         Ok(Directory {
             storage: storage.clone(),
             read_only,
-            cache_lock: Arc::new(tokio::sync::RwLock::new(())),
+            cache_lock: Arc::new(RwLock::new(())),
             vrf: vrf.clone(),
         })
     }
@@ -205,7 +205,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         debug!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
             // ignore any rollback error(s)
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             return Err(AkdError::Storage(err));
         } else {
             debug!("Transaction committed");
@@ -486,6 +486,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// that new objects are retrieved from the storage layer against
     /// the "latest" epoch. There is a "special" flow in the storage layer
     /// to do a storage-layer retrieval which ignores the cache
+    ///
+    /// NOTE: Due to the use of std::thread::sleep(.) this will BLOCK
+    /// the polling thread, and should be allocated it's own thread since it won't
+    /// yield
     pub async fn poll_for_azks_changes(
         &self,
         period: tokio::time::Duration,
@@ -879,7 +883,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         debug!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
             // ignore any rollback error(s)
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             return Err(AkdError::Storage(err));
         } else {
             debug!("Transaction committed");
