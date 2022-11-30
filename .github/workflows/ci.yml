@@ -129,6 +129,12 @@ jobs:
           components: rustfmt
           override: true
 
+      - name: Build library (make sure all build.rs files have generated necessary code)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --package akd_core
+
       - name: Run rustfmt
         uses: actions-rs/cargo@v1
         with:
