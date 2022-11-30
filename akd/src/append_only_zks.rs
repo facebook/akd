@@ -21,13 +21,24 @@ use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::{debug, info};
 use std::marker::{Send, Sync};
-use std::time::Instant;
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use std::collections::HashSet;
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
+
+async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>) {
+    #[cfg(feature = "runtime_metrics")]
+    {
+        let tic = std::time::Instant::now();
+        let out = f.await;
+        let toc = std::time::Instant::now() - tic;
+        (out, Some(toc.as_secs_f64()))
+    }
+    #[cfg(not(feature = "runtime_metrics"))]
+    (f.await, None)
+}
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
@@ -200,16 +211,16 @@ impl Azks {
         insertion_set: Vec<Node>,
         append_only_exclude_usage: bool,
     ) -> Result<(), AkdError> {
-        let tic = Instant::now();
-        let load_count = self
-            .preload_nodes_for_insertion::<S>(storage, &insertion_set)
-            .await?;
-        let toc = Instant::now() - tic;
-        info!(
-            "Preload of tree ({} objects loaded), took {} s",
-            load_count,
-            toc.as_secs_f64()
-        );
+        let (fallable_load_count, time_s) =
+            tic_toc(self.preload_nodes_for_insertion::<S>(storage, &insertion_set)).await;
+        let load_count = fallable_load_count?;
+
+        if let Some(time) = time_s {
+            info!(
+                "Preload of tree ({} objects loaded), took {} s",
+                load_count, time,
+            );
+        }
 
         self.increment_epoch();
 
@@ -371,16 +382,20 @@ impl Azks {
         .await?;
 
         for ep in start_epoch..end_epoch {
-            let tic = Instant::now();
-            let num_records = self
-                .gather_audit_proof_nodes::<_>(vec![node.clone()], storage, ep, ep + 1)
-                .await?;
-            let toc = Instant::now() - tic;
-            info!(
-                "Preload of nodes for audit ({} objects loaded), took {} s",
-                num_records,
-                toc.as_secs_f64()
-            );
+            let (fallable_load_count, time_s) = tic_toc(self.gather_audit_proof_nodes::<_>(
+                vec![node.clone()],
+                storage,
+                ep,
+                ep + 1,
+            ))
+            .await;
+            let load_count = fallable_load_count?;
+            if let Some(time) = time_s {
+                info!(
+                    "Preload of nodes for audit ({} objects loaded), took {} s",
+                    load_count, time,
+                );
+            }
             storage.log_metrics(log::Level::Info).await;
 
             let (unchanged, leaves) = self
