@@ -280,37 +280,6 @@ impl fmt::Display for StorageError {
     }
 }
 
-// /// Represents a VRF related error (key retrieval,
-// /// parsing, verification of a VRF proof, etc)
-// #[cfg_attr(test, derive(PartialEq, Eq))]
-// #[derive(Debug)]
-// pub enum VrfError {
-//     /// An error occurred when getting a key
-//     PublicKey(String),
-//     /// An error occurred getting the secret key
-//     SigningKey(String),
-//     /// An error in proving verifying
-//     Verification(String),
-// }
-
-// impl std::error::Error for VrfError {}
-
-// impl fmt::Display for VrfError {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             Self::SigningKey(error_string) => {
-//                 write!(f, "VRF signing key: {}", error_string)
-//             }
-//             Self::PublicKey(error_string) => {
-//                 write!(f, "VRF public key: {}", error_string)
-//             }
-//             Self::Verification(error_string) => {
-//                 write!(f, "VRF proving or verifying: {}", error_string)
-//             }
-//         }
-//     }
-// }
-
 /// The errors thrown by various algorithms in [crate::directory::Directory]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug)]

@@ -8,12 +8,13 @@
 //! An implementation of an append-only zero knowledge set
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
-use crate::{errors::*, tree_node::TreeNode, ARITY, *};
+// use crate::{errors::*, tree_node::TreeNode, ARITY, *};
 use crate::{
-    errors::{DirectoryError, TreeNodeError},
+    errors::{AkdError, DirectoryError, TreeNodeError},
     storage::{Database, Storable},
     tree_node::*,
-    AppendOnlyProof, Digest, MembershipProof, NonMembershipProof, SingleAppendOnlyProof,
+    AppendOnlyProof, Digest, Direction, LayerProof, MembershipProof, Node, NodeLabel,
+    NonMembershipProof, SingleAppendOnlyProof, ARITY, EMPTY_LABEL,
 };
 
 use akd_core::SizeOf;
@@ -659,6 +660,7 @@ mod tests {
         auditor::audit_verify,
         client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
+        EMPTY_VALUE,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
 
