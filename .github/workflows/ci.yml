@@ -38,7 +38,7 @@ jobs:
           args: --package akd_core --features nostd,blake3,vrf --no-default-features
 
       - name: Test the core crate (akd_core) with protobuf and serde enabled
-        ses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1
         with:
           command: test
           args: --package akd_core --features protobuf,serde_serialization
