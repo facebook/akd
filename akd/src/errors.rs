@@ -74,6 +74,14 @@ impl From<akd_core::verify::VerificationError> for AkdError {
     }
 }
 
+#[cfg(feature = "public_auditing")]
+impl From<akd_core::proto::ConversionError> for AkdError {
+    fn from(err: akd_core::proto::ConversionError) -> Self {
+        let verif_err: akd_core::verify::VerificationError = err.into();
+        Self::Directory(verif_err.into())
+    }
+}
+
 impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {

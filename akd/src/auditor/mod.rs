@@ -13,6 +13,9 @@ use crate::{
     AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
 };
 
+#[cfg(feature = "wasm")]
+pub mod wasm;
+
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
 pub async fn audit_verify(hashes: Vec<Digest>, proof: AppendOnlyProof) -> Result<(), AkdError> {
     if proof.epochs.len() + 1 != hashes.len() {

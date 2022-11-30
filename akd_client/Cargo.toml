@@ -19,7 +19,7 @@ hex = "0.4"
 
 # ======== Optional Dependencies ======== #
 protobuf = { version = "3.2", optional = true }
-wasm-bindgen = { version = "0.2.79", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 # compared to the default allocator's ~10K. It is slower than the default
 # allocator, however.

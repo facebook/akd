@@ -25,13 +25,11 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-use core::convert::TryInto;
-
-use protobuf::Message;
-use wasm_bindgen::prelude::*;
-
 use akd_core::proto::specs::types::LookupProof;
 use akd_core::verify::VerificationError;
+use core::convert::TryInto;
+use protobuf::Message;
+use wasm_bindgen::prelude::*;
 
 /// The result of a lookup proof validation. The value is hexadecimal encoded
 /// binary
