@@ -14,12 +14,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # ======== Required Dependencies ======== #
-akd_core = { path = "../akd_core", version = "^0.8", default-features = false, features = ["vrf"] }
+akd_core = { path = "../akd_core", version = "0.8.0", default-features = false, features = ["vrf"] }
 hex = "0.4"
 
 # ======== Optional Dependencies ======== #
 protobuf = { version = "3.2", optional = true }
-wasm-bindgen = { version = "0.2.79", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 # compared to the default allocator's ~10K. It is slower than the default
 # allocator, however.
@@ -44,7 +44,7 @@ protobuf_serialization = ["protobuf", "akd_core/protobuf"]
 default = ["blake3"]
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.13"
+wasm-bindgen-test = "0.3"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
