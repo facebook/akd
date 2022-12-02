@@ -210,116 +210,29 @@ pub fn generate_audit_blobs(
     Ok(results)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::{AuditBlob, AuditBlobName, LocalAuditorError};
-//     use std::convert::TryInto;
-//     use winter_crypto::hashers::Blake3_256;
-//     use winter_crypto::Hasher;
-//     use winter_math::fields::f128::BaseElement;
-//     type TestHasher = Blake3_256<BaseElement>;
+#[cfg(test)]
+mod tests {
+    use super::{AuditBlobName, LocalAuditorError};
+    use std::convert::TryInto;
 
-//     #[test]
-//     fn test_audit_proof_naming_conventions() -> Result<(), LocalAuditorError> {
-//         let expected_name = "54/0101010101010101010101010101010101010101010101010101010101010101/0000000000000000000000000000000000000000000000000000000000000000";
+    #[test]
+    fn test_audit_proof_naming_conventions() -> Result<(), LocalAuditorError> {
+        let expected_name = "54/0101010101010101010101010101010101010101010101010101010101010101/0000000000000000000000000000000000000000000000000000000000000000";
 
-//         let blob_name = AuditBlobName {
-//             current_hash: [0u8; 32],
-//             previous_hash: [1u8; 32],
-//             epoch: 54,
-//         };
+        let blob_name = AuditBlobName {
+            current_hash: [0u8; 32],
+            previous_hash: [1u8; 32],
+            epoch: 54,
+        };
 
-//         let name = blob_name.to_string();
-//         assert_ne!(String::new(), name);
+        let name = blob_name.to_string();
+        assert_ne!(String::new(), name);
 
-//         assert_eq!(expected_name.to_string(), blob_name.to_string());
+        assert_eq!(expected_name.to_string(), blob_name.to_string());
 
-//         let blob_name_ref: &str = name.as_ref();
-//         let decomposed: AuditBlobName = blob_name_ref.try_into()?;
-//         assert_eq!(blob_name, decomposed);
-//         Ok(())
-//     }
-
-//     #[test]
-//     fn test_audit_proof_conversions() -> Result<(), LocalAuditorError> {
-//         let digest = TestHasher::hash(b"hello, world!");
-//         let digest_2 = TestHasher::hash(b"hello, worlds!");
-//         let digest_3 = TestHasher::hash(b"a'hoy, world!");
-
-//         let node_1 = crate::helper_structs::Node::<TestHasher> {
-//             label: crate::node_label::NodeLabel {
-//                 label_val: crate::serialization::from_digest::<TestHasher>(digest),
-//                 label_len: 1,
-//             },
-//             hash: digest,
-//         };
-//         let node_2 = crate::helper_structs::Node::<TestHasher> {
-//             label: crate::node_label::NodeLabel {
-//                 label_val: crate::serialization::from_digest::<TestHasher>(digest_2),
-//                 label_len: 2,
-//             },
-//             hash: digest_2,
-//         };
-//         let node_3 = crate::helper_structs::Node::<TestHasher> {
-//             label: crate::node_label::NodeLabel {
-//                 label_val: crate::serialization::from_digest::<TestHasher>(digest_3),
-//                 label_len: 2,
-//             },
-//             hash: digest_3,
-//         };
-
-//         let mut inodes: Vec<_> = vec![];
-//         let mut unodes: Vec<_> = vec![];
-//         for i in 4..10 {
-//             let mut node = match i % 3 {
-//                 0 => node_1,
-//                 1 => node_2,
-//                 _ => node_3,
-//             };
-
-//             node.label.label_len = i;
-//             inodes.push(node);
-
-//             node.label.label_len = i + 10;
-//             unodes.push(node);
-//         }
-
-//         let proof_1 = crate::proof_structs::SingleAppendOnlyProof::<TestHasher> {
-//             inserted: inodes.clone(),
-//             unchanged_nodes: unodes.clone(),
-//         };
-
-//         let mut full_nodes = inodes.clone();
-//         full_nodes.append(&mut unodes);
-//         let proof_2 = crate::proof_structs::SingleAppendOnlyProof::<TestHasher> {
-//             inserted: inodes,
-//             unchanged_nodes: full_nodes,
-//         };
-
-//         let full_proof = crate::proof_structs::AppendOnlyProof {
-//             proofs: vec![proof_1.clone(), proof_2.clone()],
-//             epochs: vec![0, 1],
-//         };
-
-//         let blobs = super::generate_audit_blobs(vec![digest, digest_2, digest_3], full_proof)?;
-//         assert_eq!(2, blobs.len());
-
-//         let first_blob: AuditBlob = blobs.first().unwrap().clone();
-//         let (epoch, phash, chash, proof) = first_blob.decode()?;
-
-//         assert_eq!(0, epoch);
-//         assert_eq!(digest, phash);
-//         assert_eq!(digest_2, chash);
-//         assert_eq!(proof_1, proof);
-
-//         let second_blob: AuditBlob = blobs[1..].first().unwrap().clone();
-//         let (epoch, phash, chash, proof) = second_blob.decode()?;
-
-//         assert_eq!(1, epoch);
-//         assert_eq!(digest_2, phash);
-//         assert_eq!(digest_3, chash);
-//         assert_eq!(proof_2, proof);
-
-//         Ok(())
-//     }
-// }
+        let blob_name_ref: &str = name.as_ref();
+        let decomposed: AuditBlobName = blob_name_ref.try_into()?;
+        assert_eq!(blob_name, decomposed);
+        Ok(())
+    }
+}

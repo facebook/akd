@@ -31,13 +31,13 @@ vrf = ["ed25519-dalek", "curve25519-dalek/std"]
 serde_serialization = ["serde", "serde_bytes", "ed25519-dalek/serde"]
 
 [dependencies]
-# ======== Required Dependencies ======== #
+## Required dependencies ##
 async-trait = "0.1"
 curve25519-dalek = { version = "3", default-features = false, features = ["u64_backend"], optional = true }
 ed25519-dalek = { version = "1", optional = true }
 hex = "0.4"
 
-# ======== Optional Dependencies ======== #
+## Optional dependencies ##
 blake3 = { version = "1.3", optional = true, default-features = false }
 protobuf = { version = "3.2", optional = true }
 rand = { version = "0.7", optional = true }

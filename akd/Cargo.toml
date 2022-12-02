@@ -38,7 +38,7 @@ keyed_priority_queue = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }
 tokio = { version = "1.10", features = ["sync", "time"] }
 
-## Optional Dependencies ##
+## Optional dependencies ##
 bincode = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 rand = { version = "0.7", optional = true }

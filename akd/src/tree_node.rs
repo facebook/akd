@@ -389,7 +389,7 @@ impl TreeNode {
         least_descendant_ep: u64,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
-        hash: [u8; crate::DIGEST_BYTES],
+        hash: crate::Digest,
     ) -> Result<Self, StorageError> {
         let new_node = TreeNode {
             label,

@@ -227,7 +227,7 @@ impl DbRecord {
         node_type: u8,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
-        hash: [u8; crate::DIGEST_BYTES],
+        hash: crate::Digest,
         p_last_epoch: Option<u64>,
         p_least_descendant_ep: Option<u64>,
         p_parent_label_val: Option<[u8; 32]>,
@@ -235,7 +235,7 @@ impl DbRecord {
         p_node_type: Option<u8>,
         p_left_child: Option<NodeLabel>,
         p_right_child: Option<NodeLabel>,
-        p_hash: Option<[u8; crate::DIGEST_BYTES]>,
+        p_hash: Option<crate::Digest>,
     ) -> TreeNodeWithPreviousValue {
         let label = NodeLabel::new(label_val, label_len);
         let p_node = match (

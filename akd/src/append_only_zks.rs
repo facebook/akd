@@ -8,7 +8,6 @@
 //! An implementation of an append-only zero knowledge set
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
-// use crate::{errors::*, tree_node::TreeNode, ARITY, *};
 use crate::{
     errors::{AkdError, DirectoryError, TreeNodeError},
     storage::{Database, Storable},

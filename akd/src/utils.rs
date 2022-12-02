@@ -59,7 +59,8 @@ pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     output_arr
 }
 
-#[cfg(any(test, feature = "public_tests"))]
+#[allow(dead_code)]
+#[cfg(any(test, feature = "public-tests"))]
 pub(crate) fn random_label(rng: &mut rand::rngs::OsRng) -> crate::NodeLabel {
     use crate::rand::Rng;
     crate::NodeLabel {
