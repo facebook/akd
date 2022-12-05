@@ -314,14 +314,14 @@ impl StorageSettings {
             label,
             move |is_checked| {
                 let setting = clone_1.clone();
-                fn_arc(is_checked, setting.unwrap_or("".to_string()))
+                fn_arc(is_checked, setting.unwrap_or_default())
             },
         ));
 
         if the_setting.is_some() {
             row = row.push(TextInput::new(
                 hint,
-                &clone_2.unwrap_or("".to_string()),
+                &clone_2.unwrap_or_default(),
                 move |new_setting| fn_clone(clone_3.is_some(), new_setting),
             ));
         }
