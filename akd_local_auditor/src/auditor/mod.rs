@@ -18,16 +18,14 @@ use std::sync::Arc;
 
 pub(crate) const HISTORY_FILE: &str = ".akd_local_auditor_history";
 
-fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Vec<u8> {
-    let epoch_bytes = epoch.to_le_bytes();
-    let header = "WA_AKD_VERIFY".as_bytes();
-
-    let mut result = vec![];
-    result.extend(header);
-    result.extend(epoch_bytes);
-    result.extend(p_hash);
-    result.extend(c_hash);
-    result
+pub(crate) fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Vec<u8> {
+    let qr_msg = format!(
+        "AKD_VERIFY:{}/{}/{}",
+        epoch,
+        hex::encode(c_hash),
+        hex::encode(p_hash)
+    );
+    qr_msg.as_bytes().to_vec()
 }
 
 pub async fn audit_epoch(blob: akd::proto::AuditBlob, qr: bool) -> Result<()> {
@@ -84,6 +82,9 @@ pub enum AuditCommand {
         #[clap(long)]
         force_refresh: bool,
     },
+
+    /// Show the user interface for auditing
+    Ui,
 }
 
 /// Audit opertions supported by the client
@@ -96,7 +97,7 @@ pub struct AuditArgs {
 /// Audit processing crate
 #[derive(Debug)]
 pub struct AuditProcessor {
-    pub storage: Box<dyn crate::storage::AuditProofStorage>,
+    pub storage: Arc<Box<dyn crate::storage::AuditProofStorage>>,
     pub last_summaries: Arc<tokio::sync::RwLock<Option<Vec<EpochSummary>>>>,
 }
 
@@ -105,7 +106,7 @@ impl AuditProcessor {
         storage: Box<dyn crate::storage::AuditProofStorage>,
     ) -> Box<dyn rustyrepl::ReplCommandProcessor<AuditArgs>> {
         Box::new(crate::auditor::AuditProcessor {
-            storage,
+            storage: Arc::new(storage),
             last_summaries: Arc::new(tokio::sync::RwLock::new(None)),
         })
     }
@@ -162,6 +163,7 @@ impl ReplCommandProcessor<AuditArgs> for AuditProcessor {
                 *self.last_summaries.write().await = Some(proofs.clone());
                 display_audit_proofs_info(&mut proofs)?;
             }
+            AuditCommand::Ui => crate::ui::UserInterface::execute(Some(self.storage.clone()))?,
         }
         Ok(())
     }

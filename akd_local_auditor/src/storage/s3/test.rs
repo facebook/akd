@@ -350,12 +350,19 @@ async fn expensive_audit_verification() {
         .expect("Failed to flush storage");
 }
 
+/// Populates the test bucket for use with the command-line REPL via the command
+/// Populate the bucket with
+/// ```bash
+/// cargo test -p akd_local_auditor populate_test_bucket -- --ignored
+/// ```
+///
+/// Connect to teh bucket with
+/// ```bash
+/// cargo run -p akd_local_auditor -- s3 --bucket populatetestbucket --region us-east-2 --endpoint http://127.0.0.1:9000 --access-key test --secret-key someLongAccessKey
+/// ```
 #[tokio::test]
 #[ignore]
 async fn populate_test_bucket() {
-    // Populates the test bucket for use with the command-line REPL via the command
-    // cargo run -p akd_local_auditor -- s3 --bucket populatetestbucket --region us-east-2 --endpoint http://127.0.0.1:9000 --access-key test --secret-key someLongAccessKey
-
     // make sure we have a valid bucket name, that's "somewhat" unique
     let bucket = crate::common_test::alphanumeric_function_name!();
     log::debug!("Test bucket name is {}", bucket);
@@ -366,7 +373,7 @@ async fn populate_test_bucket() {
     let shared_config = storage.get_shared_config().await;
 
     // Populate the test storage
-    populate_test_storage(&shared_config, &bucket, 50, false)
+    populate_test_storage(&shared_config, &bucket, 1000, false)
         .await
         .expect("Failed to populate test storage");
 }

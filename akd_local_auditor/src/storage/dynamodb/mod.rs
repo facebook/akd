@@ -58,39 +58,76 @@ fn validate_table_name(s: &str) -> Result<String, String> {
 /// Connect to DynamoDb which holds the "listing" information
 /// on audit proofs, but the true blobs are stored in S3. (It's just
 /// indexed lookups of S3)
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DynamoDbClapSettings {
     /// The dynamoDb table name
     #[clap(long, short,
         value_parser = validate_table_name)]
-    table: String,
+    pub table: String,
 
     /// The AWS region where the dynamo db cluster lives
     #[clap(long, short)]
-    region: String,
+    pub region: String,
 
     /// The S3 bucket where the audit proofs are stored
     #[clap(
         long,
         value_parser = super::s3::validate_bucket_name
     )]
-    bucket: String,
+    pub bucket: String,
 
     /// (OPTIONAL) AWS DynamoDb custom endpoint
     #[clap(long, value_parser = super::s3::validate_uri)]
-    dynamo_endpoint: Option<String>,
+    pub dynamo_endpoint: Option<String>,
 
     /// (OPTIONAL) AWS S3 bucket custom endpoint
     #[clap(long, value_parser = super::s3::validate_uri)]
-    s3_endpoint: Option<String>,
+    pub s3_endpoint: Option<String>,
 
     /// (OPTIONAL) AWS Access key for the session
     #[clap(long)]
-    access_key: Option<String>,
+    pub access_key: Option<String>,
 
     /// (OPTIONAL) AWS secret key for the session
     #[clap(long)]
-    secret_key: Option<String>,
+    pub secret_key: Option<String>,
+}
+
+impl super::CommonStorageClapSettings for DynamoDbClapSettings {
+    fn bucket(&self) -> String {
+        self.bucket.clone()
+    }
+
+    fn region(&self) -> String {
+        self.region.clone()
+    }
+
+    fn s3_endpoint(&self) -> Option<String> {
+        self.s3_endpoint.clone()
+    }
+
+    fn access_key(&self) -> Option<String> {
+        self.access_key.clone()
+    }
+
+    fn secret_key(&self) -> Option<String> {
+        self.secret_key.clone()
+    }
+    fn set_bucket(&mut self, v: String) {
+        self.bucket = v;
+    }
+    fn set_region(&mut self, v: String) {
+        self.region = v;
+    }
+    fn set_s3_endpoint(&mut self, v: Option<String>) {
+        self.s3_endpoint = v;
+    }
+    fn set_access_key(&mut self, v: Option<String>) {
+        self.access_key = v;
+    }
+    fn set_secret_key(&mut self, v: Option<String>) {
+        self.secret_key = v;
+    }
 }
 
 #[derive(Debug)]

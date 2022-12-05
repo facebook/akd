@@ -65,30 +65,68 @@ pub(crate) fn validate_uri(s: &str) -> Result<String, String> {
     }
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct S3ClapSettings {
     /// The S3 bucket where the audit proofs are stored
     #[clap(
         long,
         value_parser = validate_bucket_name
     )]
-    bucket: String,
+    pub(crate) bucket: String,
 
     /// The AWS region to operate in
     #[clap(long)]
-    region: String,
+    pub(crate) region: String,
 
     /// (OPTIONAL) An custom URI for the AWS endpoint
     #[clap(long, value_parser = validate_uri)]
-    endpoint: Option<String>,
+    pub(crate) endpoint: Option<String>,
 
     /// (OPTIONAL) AWS Access key for the session
     #[clap(long)]
-    access_key: Option<String>,
+    pub(crate) access_key: Option<String>,
 
     /// (OPTIONAL) AWS secret key for the session
     #[clap(long)]
-    secret_key: Option<String>,
+    pub(crate) secret_key: Option<String>,
+}
+
+impl super::CommonStorageClapSettings for S3ClapSettings {
+    fn bucket(&self) -> String {
+        self.bucket.clone()
+    }
+
+    fn region(&self) -> String {
+        self.region.clone()
+    }
+
+    fn s3_endpoint(&self) -> Option<String> {
+        self.endpoint.clone()
+    }
+
+    fn access_key(&self) -> Option<String> {
+        self.access_key.clone()
+    }
+
+    fn secret_key(&self) -> Option<String> {
+        self.secret_key.clone()
+    }
+
+    fn set_bucket(&mut self, v: String) {
+        self.bucket = v;
+    }
+    fn set_region(&mut self, v: String) {
+        self.region = v;
+    }
+    fn set_s3_endpoint(&mut self, v: Option<String>) {
+        self.endpoint = v;
+    }
+    fn set_access_key(&mut self, v: Option<String>) {
+        self.access_key = v;
+    }
+    fn set_secret_key(&mut self, v: Option<String>) {
+        self.secret_key = v;
+    }
 }
 
 #[derive(Debug)]
@@ -323,7 +361,7 @@ impl super::AuditProofStorage for S3AuditStorage {
                 let bytes = result.body.collect().await?.into_bytes();
                 Ok(akd::proto::AuditBlob {
                     data: bytes.into_iter().collect::<Vec<u8>>(),
-                    name: epoch.name.clone(),
+                    name: epoch.name,
                 })
             }
         }

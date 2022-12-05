@@ -12,7 +12,6 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use clap::Subcommand;
 use std::convert::TryFrom;
 
 // ************************************ Implementations ************************************ //
@@ -20,16 +19,21 @@ use std::convert::TryFrom;
 pub mod dynamodb;
 pub mod s3;
 
-/// Storage options for retrieving audit proofs
-#[derive(Subcommand, Clone, Debug)]
-pub enum StorageSubcommand {
-    /// Amazon S3 compatible storage
-    S3(s3::S3ClapSettings),
-    /// DynamoDB
-    DynamoDb(dynamodb::DynamoDbClapSettings),
-}
-
 // ************************************ Trait and Type Definitions ************************************ //
+
+pub trait CommonStorageClapSettings {
+    fn bucket(&self) -> String;
+    fn region(&self) -> String;
+    fn s3_endpoint(&self) -> Option<String>;
+    fn access_key(&self) -> Option<String>;
+    fn secret_key(&self) -> Option<String>;
+
+    fn set_bucket(&mut self, v: String);
+    fn set_region(&mut self, v: String);
+    fn set_s3_endpoint(&mut self, v: Option<String>);
+    fn set_access_key(&mut self, v: Option<String>);
+    fn set_secret_key(&mut self, v: Option<String>);
+}
 
 /// Represents the summary of an epoch, and a unique key referring to the raw object in native storage (if needed)
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
