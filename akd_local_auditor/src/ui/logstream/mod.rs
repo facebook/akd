@@ -10,7 +10,7 @@
 use super::{AuditorTab, Message, DEFAULT_SPACING};
 
 use chrono::prelude::*;
-use iced::widget::{container, scrollable, text, Column};
+use iced::widget::{button, column, container, scrollable, text, Column};
 use iced::{Command, Element, Length};
 
 #[derive(Debug, Clone)]
@@ -33,12 +33,13 @@ impl std::fmt::Display for LogEntry {
 }
 
 impl LogEntry {
-    fn get_color(&self) -> iced::Color {
+    fn get_color(&self, theme: &iced::Theme) -> iced::Color {
+        let palette = theme.palette();
         match self.level {
-            log::Level::Error => iced::Color::from_rgb8(123, 36, 28),
-            log::Level::Warn => iced::Color::from_rgb8(212, 172, 13),
-            log::Level::Info => iced::Color::from_rgb8(31, 97, 141),
-            _ => iced::Color::BLACK,
+            log::Level::Error => palette.danger.clone(),
+            log::Level::Warn => palette.primary.clone(),
+            log::Level::Info => palette.success.clone(),
+            _ => palette.text.clone(),
         }
     }
 }
@@ -68,6 +69,7 @@ pub fn debug(message: String) -> Command<Message> {
 
 pub struct LogStream {
     messages: Vec<LogEntry>,
+    theme: iced::Theme,
 }
 
 #[derive(Debug, Clone)]
@@ -77,8 +79,8 @@ pub enum LoggerMessage {
 }
 
 impl LogStream {
-    pub fn new() -> Self {
-        Self { messages: vec![] }
+    pub fn new(theme: iced::Theme) -> Self {
+        Self { messages: vec![], theme }
     }
 
     pub fn push(&mut self, msg: LogEntry) {
@@ -109,15 +111,22 @@ impl AuditorTab for LogStream {
         let data_column = Column::with_children(
             self.messages
                 .iter()
-                .map(|msg| text(msg.to_string()).size(16).style(msg.get_color()))
+                .map(|msg| {
+                    text(msg.to_string())
+                    .size(16)
+                    .style(msg.get_color(&self.theme))
+                })
                 .map(Element::from)
                 .collect(),
         );
-        scrollable(
-            container(data_column)
-                .width(Length::Fill)
-                .padding(DEFAULT_SPACING),
-        )
+        column![
+            scrollable(
+                container(data_column)
+                    .width(Length::Fill)
+                    .padding(DEFAULT_SPACING),
+            ),
+            button("Clear").on_press(Message::Logs(LoggerMessage::Clear))
+        ]
         .into()
     }
 }

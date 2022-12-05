@@ -10,7 +10,7 @@
 // TODO:
 // 1. filter to only show a few breadcrumbs (i.e. 5)
 
-use super::super::{Message, DEFAULT_SPACING};
+use super::super::Message;
 use super::AuditorMessage;
 
 use std::fmt::{Debug, Display};
@@ -19,10 +19,12 @@ use iced::widget::{button, container, horizontal_space, scrollable, text, Row};
 use iced::{Alignment, Command, Element, Length};
 
 const DEFAULT_FONT_SIZE: u16 = 12;
+const DEFAULT_SPACING: u16 = 5;
 
 pub struct Breadcrumbs<T: Display + Debug + Clone> {
     crumbs: Vec<T>,
     current: usize,
+    theme: iced::Theme
 }
 
 #[derive(Debug, Clone)]
@@ -36,10 +38,11 @@ pub enum BreadcrumbMessage<T> {
 }
 
 impl<T: Display + Debug + Clone> Breadcrumbs<T> {
-    pub fn new() -> Self {
+    pub fn new(theme: iced::Theme) -> Self {
         Self {
             crumbs: vec![],
             current: 0,
+            theme,
         }
     }
 
@@ -126,12 +129,10 @@ impl<T: Display + Debug + Clone> Breadcrumbs<T> {
                         let mut crumb_text = text(crumb.to_string()).size(DEFAULT_FONT_SIZE);
                         if crumb_id == self.current {
                             // color the selected item RED
-                            crumb_text = crumb_text.style(iced::theme::Text::Color(
-                                iced::Color::from_rgb(199.0, 0.0, 57.0),
-                            ));
+                            crumb_text = crumb_text.style(self.theme.palette().primary.clone());
                         } else {
                             crumb_text =
-                                crumb_text.style(iced::theme::Text::Color(iced::Color::BLACK));
+                                crumb_text.style(self.theme.palette().text.clone());
                         }
                         let mut crumb_set = Row::with_children(vec![button(crumb_text)
                             .style(iced::theme::Button::Text)
@@ -162,7 +163,7 @@ impl<T: Display + Debug + Clone> Breadcrumbs<T> {
         the_row = the_row.push(
             button("Last")
                 .style(iced::theme::Button::Text)
-                .padding(10)
+                .padding(DEFAULT_SPACING)
                 .on_press(Message::Auditor(AuditorMessage::Breadcrumb(
                     BreadcrumbMessage::Last,
                 ))),

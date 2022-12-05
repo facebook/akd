@@ -53,11 +53,14 @@ pub(crate) struct UserInterface {
     settings: StorageSettings,
     auditor: auditor::Auditor,
     logs: logstream::LogStream,
+    theme: Theme,
 }
 
 impl UserInterface {
     pub(crate) fn execute(processor: Option<Storage>) -> anyhow::Result<()> {
-        let mut settings = Settings::with_flags(processor);
+        let theme = Theme::Dark;
+        
+        let mut settings = Settings::with_flags((theme, processor));
         settings.window = window::Settings {
             size: (800, 800),
             ..window::Settings::default()
@@ -82,21 +85,22 @@ impl Application for UserInterface {
     type Message = Message;
     type Theme = Theme;
     type Executor = iced::executor::Default;
-    type Flags = Option<Storage>;
+    type Flags = (Theme, Option<Storage>);
 
-    fn new(flags: Self::Flags) -> (Self, Command<Message>) {
-        let active_tab = if flags.is_some() {
+    fn new((theme, optional_settings): Self::Flags) -> (Self, Command<Message>) {
+        let active_tab = if optional_settings.is_some() {
             AUDITOR_INTERFACE_TAB
         } else {
             SETTINGS_INTERFACE_TAB
         };
         (
             Self {
-                auditor: auditor::Auditor::new(flags),
+                auditor: auditor::Auditor::new(optional_settings, theme.clone()),
                 should_exit: false,
                 active_tab,
-                settings: StorageSettings::default(),
-                logs: logstream::LogStream::new(),
+                settings: StorageSettings::new(),
+                logs: logstream::LogStream::new(theme.clone()),
+                theme,
             },
             // try and load the previous state
             Command::perform(settings::StorageSettings::load(), |r| {
@@ -184,5 +188,9 @@ impl Application for UserInterface {
             ) => Some(Message::Auditor(auditor::AuditorMessage::RefreshEpochs)),
             _ => None,
         })
+    }
+
+    fn theme(&self) -> Self::Theme {
+        self.theme.clone()
     }
 }

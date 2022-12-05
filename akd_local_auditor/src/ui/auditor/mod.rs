@@ -18,7 +18,7 @@ use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, qr_code, row, scrollable, text,
     Column, Row,
 };
-use iced::{Alignment, Color, Command, Element, Length};
+use iced::{Alignment, Command, Element, Length};
 use std::collections::HashMap;
 
 mod breadcrumb;
@@ -26,13 +26,13 @@ mod breadcrumb;
 const CRUMB_SUMMARY_CUTOFF: usize = 10;
 const CRUMB_SUMMARY_COLUMNS: usize = 3;
 
-fn empty_message(message: &str) -> Element<'_, Message> {
+fn empty_message<'a>(message: &str, theme: &'a iced::Theme) -> Element<'a, Message> {
     container(
         text(message)
             .width(Length::Fill)
             .size(30)
             .horizontal_alignment(alignment::Horizontal::Center)
-            .style(Color::from([0.7, 0.7, 0.7])),
+            .style(theme.extended_palette().secondary.weak.text.clone()),
     )
     .width(Length::Fill)
     .height(Length::Units(200))
@@ -52,6 +52,7 @@ pub struct Auditor {
     qr_codes: HashMap<EpochSummary, Result<qr_code::State, String>>,
     crumbs: Breadcrumbs<BreadcrumbValue>,
     processing_mode: ProcessingMode,
+    theme: iced::Theme,
 }
 
 #[derive(Clone, Debug)]
@@ -99,14 +100,15 @@ impl Auditor {
         self.storage = Some(std::sync::Arc::new(storage));
     }
 
-    pub fn new(storage: Option<Storage>) -> Self {
+    pub fn new(storage: Option<Storage>, theme: iced::Theme) -> Self {
         Self {
             storage,
-            crumbs: Breadcrumbs::new(),
+            crumbs: Breadcrumbs::new(theme.clone()),
             proofs: vec![],
             // qr: None,
             qr_codes: HashMap::new(),
             processing_mode: ProcessingMode::None,
+            theme,
         }
     }
 
@@ -212,10 +214,14 @@ impl Auditor {
                         log::info!("Audit succeeded! Generating QR code...");
                         if let Ok(state) = qr_code::State::new(msg) {
                             self.qr_codes.insert(epoch_summary, Ok(state));
+                            command
                         } else {
-                            log::warn!("Failed to generate auditor verification QR code")
+                            log::warn!("Failed to generate auditor verification QR code");
+                            Command::batch([
+                                command,
+                                super::logstream::warn(format!("Failed to generate auditor verification QR code, but audit was successful for epoch {}", epoch_summary.name.epoch))
+                            ])
                         }
-                        command
                     }
                     Err(err) => {
                         let command = super::logstream::error(format!(
@@ -278,6 +284,7 @@ impl Auditor {
                                             high: *end,
                                         }),
                                     )))
+                                    .style(iced::theme::Button::Secondary)
                                     .into()
                             })
                             .collect(),
@@ -295,10 +302,10 @@ impl Auditor {
     fn generate_regular_view(&self) -> Element<Message> {
         match self.processing_mode {
             ProcessingMode::Auditing => {
-                return empty_message("Processing audit...");
+                return empty_message("Processing audit...", &self.theme);
             }
             ProcessingMode::Refreshing => {
-                return empty_message("Refreshing epochs...");
+                return empty_message("Refreshing epochs...", &self.theme);
             }
             _ => {}
         }
@@ -320,16 +327,18 @@ impl Auditor {
                     .map(|proof| {
                         let mut data_row = row![
                             text(format!(
-                                "Epoch {} -> {}",
+                                "Epoch {} -> {}:",
                                 proof.name.epoch,
                                 proof.name.epoch + 1
-                            )),
+                            ))
+                            .style(self.theme.palette().primary.clone()),
                             button("Verify")
                                 .width(Length::Shrink)
                                 .padding(DEFAULT_SPACING)
                                 .on_press(Message::Auditor(AuditorMessage::AuditEpoch(
                                     proof.clone()
-                                ))),
+                                )))
+                                .style(iced::theme::Button::Primary),
                             horizontal_space(Length::Fill),
                         ];
 
@@ -351,7 +360,7 @@ impl Auditor {
                             .padding(DEFAULT_SPACING)
                             .spacing(DEFAULT_SPACING)
                             .width(Length::Fill)
-                            .align_items(Alignment::Start)
+                            .align_items(Alignment::Center)
                     })
                     .map(Element::from)
                     .collect(),

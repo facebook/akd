@@ -139,12 +139,6 @@ impl CommonStorageClapSettings for StorageSettings {
     }
 }
 
-impl Default for StorageSettings {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl StorageSettings {
     pub fn new() -> Self {
         Self::S3(S3ClapSettings {
@@ -452,12 +446,14 @@ impl super::AuditorTab for StorageSettings {
                 button("Cancel")
                     .width(Length::Shrink)
                     .padding(DEFAULT_SPACING)
-                    .on_press(Message::Settings(SettingsMessage::CancelSettings)),
+                    .on_press(Message::Settings(SettingsMessage::CancelSettings))
+                    .style(iced::theme::Button::Destructive),
                 horizontal_space(Length::Fill),
                 button("Save")
                     .width(Length::Shrink)
                     .padding(DEFAULT_SPACING)
-                    .on_press(Message::Settings(SettingsMessage::SaveSettings)),
+                    .on_press(Message::Settings(SettingsMessage::SaveSettings))
+                    .style(iced::theme::Button::Positive),
             ]
             .width(Length::Fill)
             .padding(DEFAULT_SPACING)
