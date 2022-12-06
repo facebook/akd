@@ -245,10 +245,8 @@ impl VRFPublicKey {
         self.verify(&proof, &hashed_label)?;
 
         let output: Output = (&proof).into();
-        if (NodeLabel {
-            label_len: 256u32,
-            label_val: output.to_truncated_bytes(),
-        }) == label
+        
+        if NodeLabel::new(output.to_truncated_bytes(), 256u32) == label
         {
             Ok(())
         } else {

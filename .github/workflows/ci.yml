@@ -43,7 +43,7 @@ jobs:
           command: test
           args: --package akd_core --features protobuf,serde_serialization
 
-      - name: Test the core crate (akd_core) with no standard library
+      - name: Test the core crate (akd_core) with no standard library and Sha3 512 hashing
         uses: actions-rs/cargo@v1
         with:
           command: test

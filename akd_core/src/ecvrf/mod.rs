@@ -38,7 +38,6 @@ use alloc::string::ToString;
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
 
-// #[cfg(all(not(feature = "nostd"), test))]
 #[cfg(test)]
 mod tests;
 
