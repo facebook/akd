@@ -14,23 +14,24 @@
 const PROTOBUF_BASE_DIRECTORY: &str = "src/proto/specs";
 /// The list of protobuf files to generate inside PROBUF_BASE_DIRECTORY
 const PROTOBUF_FILES: [&str; 1] = ["types"];
+/// The output directory in the cargo build folder to emit the generated sources to
+const PROTOS_OUTPUT_DIR: &str = "protos";
 
 fn build_protobufs() {
     let mut protobuf_files = Vec::with_capacity(PROTOBUF_FILES.len());
 
     for file in PROTOBUF_FILES.iter() {
-        let rs_file = format!("{}/{}.rs", PROTOBUF_BASE_DIRECTORY, file);
-        println!("cargo:rerun-if-changed={}", rs_file);
         let proto_file = format!("{}/{}.proto", PROTOBUF_BASE_DIRECTORY, file);
         println!("cargo:rerun-if-changed={}", proto_file);
         protobuf_files.push(proto_file);
     }
 
+    // Code generator writes to the output directory
     protobuf_codegen::Codegen::new()
         .pure()
         .includes([PROTOBUF_BASE_DIRECTORY])
         .inputs(&protobuf_files)
-        .out_dir(PROTOBUF_BASE_DIRECTORY)
+        .cargo_out_dir(PROTOS_OUTPUT_DIR)
         .run_from_script();
 }
 
