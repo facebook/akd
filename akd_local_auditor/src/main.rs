@@ -38,12 +38,13 @@
 pub mod auditor;
 mod console_log;
 pub mod storage;
+pub mod ui;
 
 #[cfg(test)]
 pub(crate) mod common_test;
 
 use anyhow::Result;
-use clap::{ArgEnum, Parser};
+use clap::{ArgEnum, Parser, Subcommand};
 use log::debug;
 
 #[derive(ArgEnum, Clone, Debug)]
@@ -67,6 +68,19 @@ impl From<&PublicLogLevel> for log::Level {
     }
 }
 
+/// What mode to open the tool in
+#[derive(Subcommand, Clone, Debug)]
+pub enum Mode {
+    /// Launch the user-interface tool (built with Iced)
+    Ui,
+
+    /// Amazon S3 compatible storage
+    S3(storage::s3::S3ClapSettings),
+
+    /// DynamoDB
+    DynamoDb(storage::dynamodb::DynamoDbClapSettings),
+}
+
 /// AKD audit proof verification utility
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -81,7 +95,7 @@ pub struct Arguments {
 
     /// Storage configuration for audit proofs
     #[clap(subcommand)]
-    storage: storage::StorageSubcommand,
+    command: Mode,
 }
 
 // MAIN //
@@ -95,23 +109,29 @@ async fn main() -> Result<()> {
 
     debug!("Parsed args: {:?}", args);
 
-    let storage: Box<dyn storage::AuditProofStorage> = match &args.storage {
-        storage::StorageSubcommand::S3(s3_settings) => {
-            let imp: storage::s3::S3AuditStorage = s3_settings.into();
-            Box::new(imp)
-        }
-        storage::StorageSubcommand::DynamoDb(dynamo_settings) => {
-            let imp: storage::dynamodb::DynamoDbAuditStorage = dynamo_settings.into();
-            Box::new(imp)
-        }
-    };
+    match args.command {
+        Mode::Ui => crate::ui::UserInterface::execute(None),
+        other => {
+            let storage: Box<dyn storage::AuditProofStorage> = match &other {
+                Mode::S3(s3_settings) => {
+                    let imp: storage::s3::S3AuditStorage = s3_settings.into();
+                    Box::new(imp)
+                }
+                Mode::DynamoDb(dynamo_settings) => {
+                    let imp: storage::dynamodb::DynamoDbAuditStorage = dynamo_settings.into();
+                    Box::new(imp)
+                }
+                _ => panic!("Unsupported storage mode?"),
+            };
 
-    let command_processor = crate::auditor::AuditProcessor::new_repl_processor(storage);
+            let command_processor = crate::auditor::AuditProcessor::new_repl_processor(storage);
 
-    let mut repl = rustyrepl::Repl::<auditor::AuditArgs>::new(
-        command_processor,
-        Some(auditor::HISTORY_FILE.to_string()),
-        Some("$ ".to_string()),
-    )?;
-    repl.process().await
+            let mut repl = rustyrepl::Repl::<auditor::AuditArgs>::new(
+                command_processor,
+                Some(auditor::HISTORY_FILE.to_string()),
+                Some("$ ".to_string()),
+            )?;
+            repl.process().await
+        }
+    }
 }
