@@ -15,7 +15,7 @@ const PROTOBUF_BASE_DIRECTORY: &str = "src/proto/specs";
 /// The list of protobuf files to generate inside PROBUF_BASE_DIRECTORY
 const PROTOBUF_FILES: [&str; 1] = ["types"];
 /// The output directory in the cargo build folder to emit the generated sources to
-const OUTPUT_RELATIVE_DIR: &str = "protos";
+const PROTOS_OUTPUT_DIR: &str = "protos";
 
 fn build_protobufs() {
     let mut protobuf_files = Vec::with_capacity(PROTOBUF_FILES.len());
@@ -31,7 +31,7 @@ fn build_protobufs() {
         .pure()
         .includes([PROTOBUF_BASE_DIRECTORY])
         .inputs(&protobuf_files)
-        .cargo_out_dir(OUTPUT_RELATIVE_DIR)
+        .cargo_out_dir(PROTOS_OUTPUT_DIR)
         .run_from_script();
 }
 
