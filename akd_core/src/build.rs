@@ -26,7 +26,7 @@ fn build_protobufs() {
         protobuf_files.push(proto_file);
     }
 
-    // Code generator writes to the output directory 
+    // Code generator writes to the output directory
     protobuf_codegen::Codegen::new()
         .pure()
         .includes([PROTOBUF_BASE_DIRECTORY])
