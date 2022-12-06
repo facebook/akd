@@ -10,7 +10,6 @@
 //! too heavily to be nostd compliant
 
 // Setup the protobuf specs
-#[allow(missing_docs)]
 pub mod specs;
 
 #[cfg(test)]
