@@ -8,12 +8,14 @@
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
 use crate::errors::StorageError;
-use crate::node_label::byte_arr_from_u64;
 use crate::storage::types::*;
 use crate::storage::Database;
 use crate::storage::StorageManager;
 use crate::tree_node::*;
+use crate::utils::byte_arr_from_u64;
 use crate::NodeLabel;
+use crate::{AkdLabel, AkdValue};
+
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::time::{Duration, Instant};
@@ -83,7 +85,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         node_type: NodeType::Leaf,
         left_child: None,
         right_child: None,
-        hash: [0; 32],
+        hash: [0; crate::DIGEST_BYTES],
     };
     let mut node2 = node.clone();
     node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);

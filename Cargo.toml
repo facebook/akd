@@ -1,11 +1,13 @@
 [workspace]
 
 members = [
+    "akd_core",
     "akd",
+    "akd_client",
     "akd_mysql",
+    "akd_test_tools",
+    "akd_local_auditor",
+    
     "poc",
     "integration_tests",
-    "akd_client",
-    "akd_test_tools",
-    "akd_local_auditor"
 ]

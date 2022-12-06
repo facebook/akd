@@ -1,7 +1,7 @@
 [package]
 name = "akd_local_auditor"
 default-run = "akd_local_auditor"
-version = "0.7.7"
+version = "0.8.0"
 authors = ["Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
 publish = false
@@ -28,8 +28,6 @@ rustyrepl = { version = "0.1", features = ["async"] }
 thread-id = "3"
 tokio = { version = "1.10", features = ["full"] }
 tokio-stream = "0.1"
-winter-crypto = "0.2"
-winter-math = "0.2"
 
 akd = { path = "../akd", features = ["public-tests", "public_auditing"] }
 

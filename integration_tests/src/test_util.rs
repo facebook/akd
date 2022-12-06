@@ -8,8 +8,8 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::ecvrf::VRFKeyStorage;
-use akd::storage::types::{AkdLabel, AkdValue};
 use akd::storage::StorageManager;
+use akd::{AkdLabel, AkdValue};
 use akd::{Directory, HistoryParams};
 use log::{info, Level, Metadata, Record};
 use once_cell::sync::OnceCell;
@@ -22,10 +22,6 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
 use tokio::time::{Duration, Instant};
-
-use winter_crypto::hashers::Blake3_256;
-use winter_math::fields::f128::BaseElement;
-type Blake3 = Blake3_256<BaseElement>;
 
 static EPOCH: OnceCell<Instant> = OnceCell::new();
 
@@ -154,7 +150,7 @@ pub(crate) async fn directory_test_suite<
     let mut root_hashes = vec![];
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _, Blake3>::new(mysql_db, vrf, false).await;
+    let maybe_dir = Directory::<_, _>::new(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -190,7 +186,7 @@ pub(crate) async fn directory_test_suite<
                     Ok(proof) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify(&vrf_pk, root_hash, key, proof)
+                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, key, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -206,12 +202,12 @@ pub(crate) async fn directory_test_suite<
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok(proof) => {
                         let (root_hash, current_epoch) =
-                            akd::directory::get_directory_root_hash_and_ep::<_, Blake3, V>(&dir)
+                            akd::directory::get_directory_root_hash_and_ep::<_, V>(&dir)
                                 .await
                                 .unwrap();
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify(
-                            &vrf_pk,
+                            vrf_pk.as_bytes(),
                             root_hash,
                             current_epoch,
                             key,
@@ -276,7 +272,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _, Blake3>::new(mysql_db, vrf, false).await;
+    let maybe_dir = Directory::<_, _>::new(mysql_db, vrf, false).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -321,7 +317,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
                     Ok(proof) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) =
-                            akd::client::lookup_verify(&vrf_pk, root_hash, label, proof)
+                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, label, proof)
                         {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
@@ -349,7 +345,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
                         let label = labels[i].clone();
                         let proof = proofs[i].clone();
                         if let Err(error) =
-                            akd::client::lookup_verify(&vrf_pk, root_hash, label, proof)
+                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, label, proof)
                         {
                             panic!("Batch lookup failed to verify for index {} {:?}", i, error);
                         }

@@ -8,8 +8,6 @@ publish = false
 [features]
 
 [dependencies]
-winter-crypto = "0.2"
-winter-math = "0.2"
 akd = { path = "../akd", features = ["public-tests", "rand", "serde_serialization", "runtime_metrics"] }
 
 [dev-dependencies]

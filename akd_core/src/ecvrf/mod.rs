@@ -27,9 +27,41 @@ mod traits;
 // export the functionality we want visible
 pub use crate::ecvrf::ecvrf_impl::{Proof, VRFPrivateKey, VRFPublicKey};
 pub use crate::ecvrf::traits::VRFKeyStorage;
+#[cfg(feature = "nostd")]
+use alloc::boxed::Box;
+#[cfg(feature = "nostd")]
+use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::String;
+#[cfg(feature = "nostd")]
+use alloc::string::ToString;
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
 
 #[cfg(test)]
 mod tests;
+
+/// A error related to verifiable random functions
+#[derive(Debug, Eq, PartialEq)]
+pub enum VrfError {
+    /// A problem retrieving or decoding the VRF public key
+    PublicKey(String),
+    /// A problem retrieving or decoding the VRF signing key
+    SigningKey(String),
+    /// A problem verifying the VRF proof
+    Verification(String),
+}
+
+impl core::fmt::Display for VrfError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let code = match &self {
+            VrfError::PublicKey(msg) => format!("(Public Key) - {}", msg),
+            VrfError::SigningKey(msg) => format!("(Signing Key) - {}", msg),
+            VrfError::Verification(msg) => format!("(Verification) - {}", msg),
+        };
+        write!(f, "Verifiable random function error {}", code)
+    }
+}
 
 /// This is a version of VRFKeyStorage for testing purposes, which uses the example from the VRF crate.
 ///
@@ -42,8 +74,8 @@ unsafe impl Send for HardCodedAkdVRF {}
 
 #[async_trait::async_trait]
 impl VRFKeyStorage for HardCodedAkdVRF {
-    async fn retrieve(&self) -> Result<Vec<u8>, crate::errors::VrfError> {
+    async fn retrieve(&self) -> Result<Vec<u8>, VrfError> {
         hex::decode("c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721")
-            .map_err(|hex_err| crate::errors::VrfError::PublicKey(hex_err.to_string()))
+            .map_err(|hex_err| VrfError::PublicKey(hex_err.to_string()))
     }
 }

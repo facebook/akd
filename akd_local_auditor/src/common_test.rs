@@ -8,13 +8,13 @@
 //! This module implements some common test functionality (i.e. proof generation and whatnot)
 //! for use in test infra
 
-use crate::{Digest, Hasher};
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::storage::StorageManager;
 use akd::AkdLabel;
 use akd::AkdValue;
+use akd::Digest;
 
 /// Generate a aws-safe bucket/table name from the test function name
 ///
@@ -47,7 +47,7 @@ macro_rules! alphanumeric_function_name {
 pub(crate) use alphanumeric_function_name;
 
 pub struct AuditInformation {
-    pub proof: akd::proof_structs::AppendOnlyProof<Hasher>,
+    pub proof: akd::AppendOnlyProof,
     pub phash: Digest,
     pub chash: Digest,
 }
@@ -63,7 +63,7 @@ pub async fn generate_audit_proofs(
     let db = AsyncInMemoryDatabase::new();
     let storage_manager = StorageManager::new_no_cache(&db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _, Hasher>::new(&storage_manager, &vrf, false).await?;
+    let akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await?;
     let mut proofs = vec![];
     // gather the hash + azks for epoch "0" (init)
     let mut azks = akd.retrieve_current_azks().await?;

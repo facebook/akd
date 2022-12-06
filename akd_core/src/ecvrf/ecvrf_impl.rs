@@ -6,15 +6,19 @@
 // of this source tree.
 
 //! This module contains the raw implementation implements the ECVRF functionality for use in the AKD crate
+use super::VrfError;
+use crate::{AkdLabel, NodeLabel};
 
-use crate::{errors::VrfError, node_label::NodeLabel, storage::types::AkdLabel};
+#[cfg(feature = "nostd")]
+use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::ToString;
 use core::convert::TryFrom;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT,
     edwards::{CompressedEdwardsY, EdwardsPoint},
     scalar::Scalar as ed25519_Scalar,
 };
-use winter_crypto::Hasher;
 
 /// The length of a node-label's value field in bytes.
 /// This is used for truncation of the hash to this many bytes
@@ -59,7 +63,7 @@ impl core::ops::Deref for VRFPrivateKey {
     }
 }
 
-impl std::clone::Clone for VRFPrivateKey {
+impl Clone for VRFPrivateKey {
     fn clone(&self) -> Self {
         // In theory, creating a key from bytes could be a DecodingError, except
         // we just copied these bytes out of the source key, so ...
@@ -126,7 +130,7 @@ impl VRFExpandedPrivateKey {
 impl TryFrom<&[u8]> for VRFPrivateKey {
     type Error = VrfError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<VRFPrivateKey, VrfError> {
+    fn try_from(bytes: &[u8]) -> Result<VRFPrivateKey, VrfError> {
         match ed25519_PrivateKey::from_bytes(bytes) {
             Ok(result) => Ok(VRFPrivateKey(result)),
             Err(sig_err) => Err(VrfError::SigningKey(format!("Signature error {}", sig_err))),
@@ -137,7 +141,7 @@ impl TryFrom<&[u8]> for VRFPrivateKey {
 impl TryFrom<&[u8]> for VRFPublicKey {
     type Error = VrfError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<VRFPublicKey, Self::Error> {
+    fn try_from(bytes: &[u8]) -> Result<VRFPublicKey, Self::Error> {
         if bytes.len() != ed25519_dalek::PUBLIC_KEY_LENGTH {
             return Err(VrfError::PublicKey("Wrong length".to_string()));
         }
@@ -218,7 +222,7 @@ impl VRFPublicKey {
     /// This function is called to verify that a given NodeLabel is indeed
     /// the VRF for a given version (fresh or stale) for a username.
     /// Hence, it also takes as input the server's public key.
-    pub fn verify_label<H: Hasher>(
+    pub fn verify_label(
         &self,
         uname: &AkdLabel,
         stale: bool,
@@ -228,21 +232,20 @@ impl VRFPublicKey {
     ) -> Result<(), VrfError> {
         // Initialization of VRF context by providing a curve
 
-        let name_hash_bytes = H::hash(uname);
+        let name_hash_bytes = crate::hash::hash(uname);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
-        let hashed_label = H::merge(&[
+        let hashed_label = crate::hash::merge(&[
             name_hash_bytes,
-            H::merge_with_int(H::hash(stale_bytes), version),
+            crate::hash::merge_with_int(crate::hash::hash(stale_bytes), version),
         ]);
-        let message_vec = crate::serialization::from_digest::<H>(hashed_label);
-        let message: &[u8] = message_vec.as_slice();
 
         // VRF proof verification (returns VRF hash output)
         let proof = Proof::try_from(proof)?;
-        self.verify(&proof, message)?;
+        self.verify(&proof, &hashed_label)?;
 
         let output: Output = (&proof).into();
+
         if NodeLabel::new(output.to_truncated_bytes(), 256u32) == label {
             Ok(())
         } else {
@@ -313,7 +316,7 @@ impl Proof {
 impl TryFrom<&[u8]> for Proof {
     type Error = VrfError;
 
-    fn try_from(bytes: &[u8]) -> std::result::Result<Proof, VrfError> {
+    fn try_from(bytes: &[u8]) -> Result<Proof, VrfError> {
         let mut c_buf = [0u8; 32];
         c_buf[..16].copy_from_slice(&bytes[32..48]);
         let mut s_buf = [0u8; 32];
@@ -341,9 +344,9 @@ pub struct Output([u8; OUTPUT_LENGTH]);
 
 impl Output {
     /// Converts an Output into bytes
-    #[inline]
     #[cfg(test)]
-    pub fn to_bytes(&self) -> [u8; OUTPUT_LENGTH] {
+    #[allow(dead_code)]
+    pub(crate) fn to_bytes(&self) -> [u8; OUTPUT_LENGTH] {
         self.0
     }
 

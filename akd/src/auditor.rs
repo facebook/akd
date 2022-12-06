@@ -7,22 +7,14 @@
 
 //! Code for an auditor of a authenticated key directory
 
-use std::marker::{Send, Sync};
-
-use winter_crypto::Hasher;
-
 use crate::{
     errors::{AkdError, AuditorError, AzksError},
-    proof_structs::{AppendOnlyProof, SingleAppendOnlyProof},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
-    Azks,
+    AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
-pub async fn audit_verify<H: Hasher + Send + Sync>(
-    hashes: Vec<H::Digest>,
-    proof: AppendOnlyProof<H>,
-) -> Result<(), AkdError> {
+pub async fn audit_verify(hashes: Vec<Digest>, proof: AppendOnlyProof) -> Result<(), AkdError> {
     if proof.epochs.len() + 1 != hashes.len() {
         return Err(AkdError::AuditErr(AuditorError::VerifyAuditProof(format!(
             "The proof has a different number of epochs than needed for hashes. 
@@ -42,22 +34,17 @@ pub async fn audit_verify<H: Hasher + Send + Sync>(
     for i in 0..hashes.len() - 1 {
         let start_hash = hashes[i];
         let end_hash = hashes[i + 1];
-        verify_consecutive_append_only::<H>(
-            &proof.proofs[i],
-            start_hash,
-            end_hash,
-            proof.epochs[i] + 1,
-        )
-        .await?;
+        verify_consecutive_append_only(&proof.proofs[i], start_hash, end_hash, proof.epochs[i] + 1)
+            .await?;
     }
     Ok(())
 }
 
 /// Helper for audit, verifies an append-only proof
-pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
-    proof: &SingleAppendOnlyProof<H>,
-    start_hash: H::Digest,
-    end_hash: H::Digest,
+pub async fn verify_consecutive_append_only(
+    proof: &SingleAppendOnlyProof,
+    start_hash: Digest,
+    end_hash: Digest,
     epoch: u64,
 ) -> Result<(), AkdError> {
     // FIXME: Need to get rid of the clone here. Will need modifications to the functions called here.
@@ -67,23 +54,23 @@ pub async fn verify_consecutive_append_only<H: Hasher + Send + Sync>(
     let db = AsyncInMemoryDatabase::new();
     let manager = StorageManager::new_no_cache(&db);
 
-    let mut azks = Azks::new::<_, H>(&manager).await?;
-    azks.batch_insert_leaves_helper::<_, H>(&manager, unchanged_nodes, true)
+    let mut azks = Azks::new::<_>(&manager).await?;
+    azks.batch_insert_leaves_helper::<_>(&manager, unchanged_nodes, true)
         .await?;
-    let computed_start_root_hash: H::Digest = azks.get_root_hash::<_, H>(&manager).await?;
+    let computed_start_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
     azks.latest_epoch = epoch - 1;
     let updated_inserted = inserted
         .iter()
         .map(|x| {
             let mut y = *x;
-            y.hash = H::merge_with_int(x.hash, epoch);
+            y.hash = akd_core::hash::merge_with_int(x.hash, epoch);
             y
         })
         .collect();
-    azks.batch_insert_leaves_helper::<_, H>(&manager, updated_inserted, true)
+    azks.batch_insert_leaves_helper::<_>(&manager, updated_inserted, true)
         .await?;
-    let computed_end_root_hash: H::Digest = azks.get_root_hash::<_, H>(&manager).await?;
+    let computed_end_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {
         return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));

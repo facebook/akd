@@ -25,10 +25,29 @@ jobs:
           toolchain: ${{matrix.toolchain}}
           override: true
 
-      - name: Set up protoc
-        uses: arduino/setup-protoc@v1.1.2
+      - name: Test the core crate (akd_core)
+        uses: actions-rs/cargo@v1
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          command: test
+          args: --package akd_core
+
+      - name: Test the core crate (akd_core) with no standard library
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_core --features nostd,blake3,vrf --no-default-features
+
+      - name: Test the core crate (akd_core) with protobuf and serde enabled
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_core --features protobuf,serde_serialization
+
+      - name: Test the core crate (akd_core) with no standard library and Sha3 512 hashing
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_core --features nostd,sha3_512,vrf --no-default-features
 
       - name: Test the base library, with default features
         uses: actions-rs/cargo@v1
@@ -76,7 +95,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --features protobuf
+          args: --package akd_client --features protobuf_serialization
 
   clippy:
     name: Clippy
@@ -90,11 +109,6 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-
-      - name: Set up protoc
-        uses: arduino/setup-protoc@v1.1.2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Clippy
         uses: actions-rs/cargo@v1
@@ -114,6 +128,12 @@ jobs:
           toolchain: stable
           components: rustfmt
           override: true
+
+      - name: Build library (make sure all build.rs files have generated necessary code)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --package akd_core
 
       - name: Run rustfmt
         uses: actions-rs/cargo@v1

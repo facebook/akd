@@ -13,7 +13,6 @@ use akd::{
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     storage::{memory::AsyncInMemoryDatabase, Database, StorageManager, StorageUtil},
-    Blake3,
 };
 
 use crate::fixture_generator::reader::yaml::YamlFileReader;
@@ -37,7 +36,7 @@ async fn test_use_fixture() {
         .unwrap();
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(&db);
-    let akd = Directory::<_, _, Blake3>::new(&storage_manager, &vrf, false)
+    let akd = Directory::<_, _>::new(&storage_manager, &vrf, false)
         .await
         .unwrap();
 

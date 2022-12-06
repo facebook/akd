@@ -24,7 +24,7 @@ pub(crate) struct CachedItem {
     pub(crate) data: DbRecord,
 }
 
-impl super::SizeOf for CachedItem {
+impl akd_core::SizeOf for CachedItem {
     fn size_of(&self) -> usize {
         // the size of an "Instant" varies based on the underlying implementation, so
         // we assume the largest which is 16 bytes on linux

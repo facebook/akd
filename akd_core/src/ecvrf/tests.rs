@@ -8,22 +8,24 @@
 //! This module contains tests on the Elliptic curve VRF implemented within the
 //! AKD crate. Adapted from [here](https://github.com/diem/diem/blob/502936fbd59e35276e2cf455532b143796d68a16/crypto/nextgen_crypto/src/vrf/unit_tests/vrf_test.rs)
 
+use crate::ecvrf::ecvrf_impl::*;
+
+#[cfg(feature = "nostd")]
+use alloc::format;
 use bincode::serialize;
 use core::convert::TryFrom;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY,
     scalar::Scalar as ed25519_Scalar,
 };
+use ed25519_dalek::{self, PublicKey as ed25519_PublicKey, SecretKey as ed25519_PrivateKey};
+#[cfg(feature = "serde_serialization")]
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
+#[cfg(feature = "serde_serialization")]
 use rand::rngs::StdRng;
-use serde::{Deserialize, Serialize};
-
 use rand::{CryptoRng, RngCore};
-
-use ed25519_dalek::{self, PublicKey as ed25519_PublicKey, SecretKey as ed25519_PrivateKey};
-
-use crate::ecvrf::ecvrf_impl::*;
+use serde::{Deserialize, Serialize};
 
 /// A type family for schemes which know how to generate key material from
 /// a cryptographically-secure [`CryptoRng`][::rand::CryptoRng].
@@ -87,12 +89,12 @@ where
     }
 }
 
-impl<Priv, Pub> std::fmt::Debug for KeyPair<Priv, Pub>
+impl<Priv, Pub> core::fmt::Debug for KeyPair<Priv, Pub>
 where
     Priv: Serialize,
     Pub: Serialize + for<'a> From<&'a Priv>,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut v = serialize(&self.private_key).unwrap();
         v.extend(&serialize(&self.public_key).unwrap());
         write!(f, "{}", hex::encode(&v[..]))
@@ -180,7 +182,6 @@ const TESTVECTORS : [VRFTestVector; 3] = [
 fn test_expand_secret_key() {
     for tv in TESTVECTORS.iter() {
         let sk = from_string!(VRFPrivateKey, tv.SK);
-        println!("{:?}", sk);
         let esk = VRFExpandedPrivateKey::from(&sk);
         let pk = VRFPublicKey::try_from(&sk).unwrap();
         assert_eq!(tv.PK, to_string!(pk));
@@ -291,6 +292,7 @@ fn test_privatekey_clone() {
     }
 }
 
+#[cfg(feature = "serde_serialization")]
 proptest! {
     #[test]
     fn test_prove_and_verify(
@@ -308,6 +310,7 @@ proptest! {
     }
 }
 
+#[cfg(feature = "serde_serialization")]
 /// Produces a uniformly random keypair from a seed
 fn uniform_keypair_strategy<Priv, Pub>() -> impl Strategy<Value = KeyPair<Priv, Pub>>
 where

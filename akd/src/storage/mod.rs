@@ -9,6 +9,7 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{DbRecord, StorageType};
+use crate::{AkdLabel, AkdValue};
 
 use async_trait::async_trait;
 #[cfg(feature = "serde_serialization")]
@@ -38,12 +39,6 @@ pub enum DbSetState {
     TransactionCommit,
     /// Being called as a general, in-line operation
     General,
-}
-
-/// Support getting the size of a struct or item in bytes
-pub trait SizeOf {
-    /// Retrieve the size of the item in bytes
-    fn size_of(&self) -> usize;
 }
 
 /// Storable represents an _item_ which can be stored in the storage layer
@@ -121,24 +116,21 @@ pub trait Database: Clone {
     /* User data searching */
 
     /// Retrieve the user data for a given user
-    async fn get_user_data(
-        &self,
-        username: &types::AkdLabel,
-    ) -> Result<types::KeyData, StorageError>;
+    async fn get_user_data(&self, username: &AkdLabel) -> Result<types::KeyData, StorageError>;
 
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,
-        username: &types::AkdLabel,
+        username: &AkdLabel,
         flag: types::ValueStateRetrievalFlag,
     ) -> Result<types::ValueState, StorageError>;
 
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
     async fn get_user_state_versions(
         &self,
-        usernames: &[types::AkdLabel],
+        usernames: &[AkdLabel],
         flag: types::ValueStateRetrievalFlag,
-    ) -> Result<HashMap<types::AkdLabel, (u64, types::AkdValue)>, StorageError>;
+    ) -> Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError>;
 }
 
 /// Optional storage layer utility functions for debug and test purposes

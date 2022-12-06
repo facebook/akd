@@ -310,6 +310,8 @@ mod tests {
     use crate::node_label::*;
     use crate::storage::types::*;
     use crate::tree_node::*;
+    use crate::utils::byte_arr_from_u64;
+    use crate::{AkdLabel, AkdValue};
     use rand::{rngs::OsRng, seq::SliceRandom};
 
     #[tokio::test]
@@ -326,7 +328,7 @@ mod tests {
             node_type: NodeType::Root,
             left_child: None,
             right_child: None,
-            hash: [0u8; 32],
+            hash: [0u8; crate::DIGEST_BYTES],
         }));
         let node2 = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
@@ -336,7 +338,7 @@ mod tests {
             node_type: NodeType::Leaf,
             left_child: None,
             right_child: None,
-            hash: [0u8; 32],
+            hash: [0u8; crate::DIGEST_BYTES],
         }));
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),
@@ -371,6 +373,7 @@ mod tests {
             let mut running_priority = 0;
             for record in txn.commit_transaction().await? {
                 let priority = record.transaction_priority();
+                #[allow(clippy::comparison_chain)]
                 if priority > running_priority {
                     running_priority = priority;
                 } else if priority < running_priority {

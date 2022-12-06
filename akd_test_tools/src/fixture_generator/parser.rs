@@ -7,7 +7,7 @@
 
 //! This module contains the CLI argument definitions and parser.
 
-use akd::storage::types::{AkdLabel, AkdValue};
+use akd::{AkdLabel, AkdValue};
 use clap::{AppSettings, Parser};
 use regex::Regex;
 use serde::{Deserialize, Serialize};

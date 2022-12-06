@@ -7,13 +7,15 @@
 
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
-use super::{Proof, VRFPrivateKey, VRFPublicKey};
-use crate::serialization::from_digest;
-use crate::{errors::VrfError, node_label::NodeLabel, storage::types::AkdLabel};
+use super::{Proof, VRFPrivateKey, VRFPublicKey, VrfError};
+use crate::{AkdLabel, NodeLabel};
 
+#[cfg(feature = "nostd")]
+use alloc::boxed::Box;
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
 use async_trait::async_trait;
-use std::convert::TryInto;
-use winter_crypto::Hasher;
+use core::convert::TryInto;
 
 /// Represents a secure storage of the VRF private key. Since the VRF private key
 /// should change never (if it does, the entire tree is no longer a consistent mapping
@@ -50,46 +52,41 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     /// Returns the tree nodelabel that corresponds to a version of the uname argument.
     /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
     /// or a version that we are retiring.
-    async fn get_node_label<H: Hasher>(
+    async fn get_node_label(
         &self,
         uname: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Result<NodeLabel, VrfError> {
-        let proof = self.get_label_proof::<H>(uname, stale, version).await?;
+        let proof = self.get_label_proof(uname, stale, version).await?;
         let output: super::ecvrf_impl::Output = (&proof).into();
         Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
-    async fn get_node_label_from_vrf_pf<H: Hasher>(
-        &self,
-        proof: Proof,
-    ) -> Result<NodeLabel, VrfError> {
+    async fn get_node_label_from_vrf_pf(&self, proof: Proof) -> Result<NodeLabel, VrfError> {
         let output: super::ecvrf_impl::Output = (&proof).into();
         Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
     }
 
     /// Retrieve the proof for a specific label
-    async fn get_label_proof<H: Hasher>(
+    async fn get_label_proof(
         &self,
         uname: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Result<Proof, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        let name_hash_bytes = H::hash(uname);
+        let name_hash_bytes = crate::hash::hash(uname);
         let stale_bytes = if stale { &[0u8] } else { &[1u8] };
 
-        let hashed_label = H::merge(&[
+        let hashed_label = crate::hash::merge(&[
             name_hash_bytes,
-            H::merge_with_int(H::hash(stale_bytes), version),
+            crate::hash::merge_with_int(crate::hash::hash(stale_bytes), version),
         ]);
-        let message_vec = from_digest::<H>(hashed_label);
-        let message: &[u8] = message_vec.as_slice();
 
         // VRF proof and hash output
-        let proof = key.prove(message);
+        let proof = key.prove(&hashed_label);
         Ok(proof)
     }
 }

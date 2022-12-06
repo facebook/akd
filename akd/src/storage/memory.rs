@@ -11,10 +11,10 @@
 
 use crate::errors::StorageError;
 use crate::storage::types::{
-    AkdLabel, AkdValue, DbRecord, KeyData, StorageType, ValueState, ValueStateKey,
-    ValueStateRetrievalFlag,
+    DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
 };
 use crate::storage::{Database, Storable, StorageUtil};
+use crate::{AkdLabel, AkdValue};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;

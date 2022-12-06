@@ -9,14 +9,8 @@
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
 // 3. If so, add child label to batch set
 
-use crate::{
-    node_label::{hash_label, NodeLabel},
-    storage::types::AkdValue,
-    EMPTY_LABEL, EMPTY_VALUE,
-};
+use crate::{NodeLabel, EMPTY_LABEL, EMPTY_VALUE};
 use std::collections::HashSet;
-// use std::sync::Arc;
-use winter_crypto::{Digest, Hasher};
 
 // Builds a set of all prefixes of the input labels
 pub(crate) fn build_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLabel> {
@@ -47,55 +41,32 @@ pub(crate) fn build_lookup_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLab
     lookup_prefixes_set
 }
 
-pub(crate) fn empty_node_hash<H: Hasher>() -> H::Digest {
-    H::merge(&[H::hash(&EMPTY_VALUE), hash_label::<H>(EMPTY_LABEL)])
+pub(crate) fn empty_node_hash() -> crate::Digest {
+    akd_core::hash::merge(&[akd_core::hash::hash(&EMPTY_VALUE), EMPTY_LABEL.hash()])
 }
 
-pub(crate) fn empty_node_hash_no_label<H: Hasher>() -> H::Digest {
-    H::hash(&EMPTY_VALUE)
+pub(crate) fn empty_node_hash_no_label() -> crate::Digest {
+    akd_core::hash::hash(&EMPTY_VALUE)
 }
 
-// Corresponds to the I2OSP() function from RFC8017, prepending the length of
-// a byte array to the byte array (so that it is ready for serialization and hashing)
-//
-// Input byte array cannot be > 2^64-1 in length
-pub(crate) fn i2osp_array(input: &[u8]) -> Vec<u8> {
-    [&(input.len() as u64).to_be_bytes(), input].concat()
+// Creates a byte array of 32 bytes from a u64
+// Note that this representation is big-endian, and
+// places the bits to the front of the output byte_array.
+pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
+    let mut output_arr = [0u8; 32];
+    let input_arr = input_int.to_be_bytes();
+    output_arr[..8].clone_from_slice(&input_arr[..8]);
+    output_arr
 }
 
-// Commitment helper functions
-
-// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue
-pub(crate) fn get_commitment_proof<H: Hasher>(
-    commitment_key: &[u8],
-    label: &NodeLabel,
-    value: &AkdValue,
-) -> H::Digest {
-    H::hash(&[commitment_key, &label.label_val, &i2osp_array(value)].concat())
-}
-
-// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
-//
-// proof = H(commitment_key, label, version, value)
-// commmitment = H(value, proof)
-//
-// The proof value is a nonce used to create a hiding and binding commitment using a
-// cryptographic hash function. Note that it is derived from the label, version, and
-// value (even though the binding to value is somewhat optional).
-//
-// Note that this commitment needs to be a hash function (random oracle) output
-pub(crate) fn commit_value<H: Hasher>(
-    commitment_key: &[u8],
-    label: &NodeLabel,
-    value: &AkdValue,
-) -> H::Digest {
-    let proof = get_commitment_proof::<H>(commitment_key, label, value);
-    H::hash(&[i2osp_array(value), i2osp_array(&proof.as_bytes())].concat())
-}
-
-// Used by the client to supply a commitment proof and value to reconstruct the commitment
-pub(crate) fn bind_commitment<H: Hasher>(value: &AkdValue, proof: &[u8]) -> H::Digest {
-    H::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
+#[allow(dead_code)]
+#[cfg(any(test, feature = "public-tests"))]
+pub(crate) fn random_label(rng: &mut rand::rngs::OsRng) -> crate::NodeLabel {
+    use crate::rand::Rng;
+    crate::NodeLabel {
+        label_val: rng.gen::<[u8; 32]>(),
+        label_len: 256,
+    }
 }
 
 /// "Swap" values in a RwLock, reading the current value and writing a new value into the lock
