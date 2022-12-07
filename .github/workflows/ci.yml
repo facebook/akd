@@ -25,6 +25,9 @@ jobs:
           toolchain: ${{matrix.toolchain}}
           override: true
 
+      - name: Install wasm32-unknown-unknown (for testing wasm compatibility)
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Test the core crate (akd_core)
         uses: actions-rs/cargo@v1
         with:
@@ -77,7 +80,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,sha3_256
+          args: --package akd_client --target=wasm32-unknown-unknown --no-default-features --features wasm,sha3_256
 
       - name: Test AKD with protobuf serialization of the audit proofs
         uses: actions-rs/cargo@v1
@@ -89,7 +92,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --package akd_client --no-default-features --features wasm,blake3
+          args: --package akd_client --target=wasm32-unknown-unknown --no-default-features --features wasm,blake3
 
       - name: Test the lean client with protobuf serialization
         uses: actions-rs/cargo@v1
