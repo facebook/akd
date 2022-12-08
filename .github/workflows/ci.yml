@@ -140,3 +140,32 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  wasm-tests:
+    name: WASM tests
+    runs-on: ${{matrix.os}}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable]
+        os: [ubuntu]
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{matrix.toolchain}}
+          override: true
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Run test (Chrome profile)
+        working-directory: ./akd_client
+        run: wasm-pack test --headless --chrome --features wasm
+
+      - name: Run test (Firefox profile)
+        working-directory: ./akd_client  
+        run: wasm-pack test --headless --firefox --features wasm
