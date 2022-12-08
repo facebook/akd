@@ -115,7 +115,6 @@ where
             (DirectoryCommand::Lookup(a), Some(response)) => {
                 match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
                     Ok((proof, root_hash)) => {
-                        let hash = get_root_hash::<_, V>(directory).await;
                         let vrf_pk = directory.get_public_key().await.unwrap();
                         let verification = akd::client::lookup_verify(
                             vrf_pk.as_bytes(),

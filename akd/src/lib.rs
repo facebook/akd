@@ -160,14 +160,14 @@
 //! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! #     let (lookup_proof, root_hash) = akd.lookup(
+//! #     let (lookup_proof, epoch_hash) = akd.lookup(
 //! #         AkdLabel::from_utf8_str("first entry")
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
 //! let lookup_result = akd::client::lookup_verify(
 //!     public_key.as_bytes(),
-//!     root_hash.hash(),
+//!     epoch_hash.hash(),
 //!     AkdLabel::from_utf8_str("first entry"),
 //!     lookup_proof,
 //! ).expect("Could not verify lookup proof");
@@ -258,15 +258,15 @@
 //! #     let _ = akd.publish(
 //! #         vec![(AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("updated value"))],
 //! #     ).await.expect("Error with publishing");
-//! #     let (history_proof, root_hash) = akd.key_history(
+//! #     let (history_proof, epoch_hash) = akd.key_history(
 //! #         &AkdLabel::from_utf8_str("first entry"),
 //! #         HistoryParams::default(),
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //! let key_history_result = akd::client::key_history_verify(
 //!     public_key.as_bytes(),
-//!     root_hash.hash(),
-//!     root_hash.epoch(),
+//!     epoch_hash.hash(),
+//!     epoch_hash.epoch(),
 //!     AkdLabel::from_utf8_str("first entry"),
 //!     history_proof,
 //!     akd::HistoryVerificationParams::default(),

@@ -114,7 +114,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     // Verify the lookup proof
     lookup_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
@@ -157,8 +157,8 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // Verify the key history proof
     let result = key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
-        root_hash.0,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         key_history_proof,
         HistoryVerificationParams::default(),
@@ -475,7 +475,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -497,7 +497,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -518,7 +518,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -841,8 +841,8 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
     let vrf_pk = akd.get_public_key().await?;
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
-        root_hash.0,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         history_proof,
         HistoryVerificationParams::default(),
@@ -1088,7 +1088,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     // perform the "traditional" AKD verification
     let akd_result = crate::client::lookup_verify(
         vrf_pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         target_label.clone(),
         lookup_proof,
     )?;
@@ -1177,7 +1177,7 @@ async fn async_poll_helper_proof<T: Database + Sync + Send, V: VRFKeyStorage>(
     let pk = reader.get_public_key().await?;
     lookup_verify(
         pk.as_bytes(),
-        root_hash.1,
+        root_hash.hash(),
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
