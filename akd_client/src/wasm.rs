@@ -151,11 +151,6 @@ pub mod tests {
     use crate::ecvrf::HardCodedAkdVRF;
 
     #[wasm_bindgen_test]
-    fn test_build_pipeline_failure() {
-        assert_eq!(true, false);
-    }
-
-    #[wasm_bindgen_test]
     async fn test_simple_wasm_lookup() {
         let db = AsyncInMemoryDatabase::new();
         let storage = StorageManager::new_no_cache(&db);
