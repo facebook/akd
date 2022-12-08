@@ -182,9 +182,12 @@ pub(crate) async fn directory_test_suite<
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash.hash(), key, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            key,
+                            proof,
+                        ) {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -307,9 +310,12 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash.hash(), label, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            label,
+                            proof,
+                        ) {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -335,9 +341,12 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
                     for i in 0..proofs.len() {
                         let label = labels[i].clone();
                         let proof = proofs[i].clone();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash.hash(), label, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            label,
+                            proof,
+                        ) {
                             panic!("Batch lookup failed to verify for index {} {:?}", i, error);
                         }
                     }
