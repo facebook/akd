@@ -312,7 +312,10 @@ impl super::AuditProofStorage for S3AuditStorage {
         Ok(results)
     }
 
-    async fn get_proof(&self, epoch: &super::EpochSummary) -> Result<akd::proto::AuditBlob> {
+    async fn get_proof(
+        &self,
+        epoch: &super::EpochSummary,
+    ) -> Result<akd::local_auditing::AuditBlob> {
         let client = self.get_object(&epoch.key).await?;
         match client.send().await {
             Err(some_err) => {
@@ -321,7 +324,7 @@ impl super::AuditProofStorage for S3AuditStorage {
             }
             Ok(result) => {
                 let bytes = result.body.collect().await?.into_bytes();
-                Ok(akd::proto::AuditBlob {
+                Ok(akd::local_auditing::AuditBlob {
                     data: bytes.into_iter().collect::<Vec<u8>>(),
                     name: epoch.name.clone(),
                 })

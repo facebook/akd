@@ -418,7 +418,7 @@ pub mod storage;
 pub mod tree_node;
 
 #[cfg(feature = "protobuf")]
-pub mod proto;
+pub mod local_auditing;
 
 pub use akd_core::hash::Digest;
 pub use akd_core::hash::DIGEST_BYTES;

@@ -10,6 +10,7 @@
 //! passing the boxed implementations around. This is required for the async nature of the command and Rust's
 //! type inference engine
 
+use akd::local_auditing::{AuditBlob, AuditBlobName};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use clap::Subcommand;
@@ -35,7 +36,7 @@ pub enum StorageSubcommand {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub struct EpochSummary {
     /// The name of the audit-blob decomposed into parts
-    pub name: akd::proto::AuditBlobName,
+    pub name: AuditBlobName,
     /// Unique idenfier for the blob in question
     pub key: String,
 }
@@ -44,8 +45,7 @@ impl TryFrom<&str> for EpochSummary {
     type Error = anyhow::Error;
 
     fn try_from(potential_key: &str) -> Result<Self, Self::Error> {
-        let name = akd::proto::AuditBlobName::try_from(potential_key)
-            .map_err(|err| anyhow!("{:?}", err))?;
+        let name = AuditBlobName::try_from(potential_key).map_err(|err| anyhow!("{:?}", err))?;
 
         Ok(Self {
             name,
@@ -75,7 +75,7 @@ pub trait AuditProofStorage: Sync + Send + std::fmt::Debug {
     /// Retrieve an audit proof from the storage medium. If the underlying storage implementation
     /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
     /// implementation to cache the information. Example: See the AWS S3 implementation
-    async fn get_proof(&self, epoch: &EpochSummary) -> Result<akd::proto::AuditBlob>;
+    async fn get_proof(&self, epoch: &EpochSummary) -> Result<AuditBlob>;
 }
 
 // We need to implement the trait for a Box<dyn Trait> in order to utilize a box further downstream
@@ -102,7 +102,7 @@ where
     /// Retrieve an audit proof from the storage medium. If the underlying storage implementation
     /// requires the epoch summaries in order to re-retrieve a specific epoch, it is up to that
     /// implementation to cache the information. Example: See the AWS S3 implementation
-    async fn get_proof(&self, epoch: &EpochSummary) -> Result<akd::proto::AuditBlob> {
+    async fn get_proof(&self, epoch: &EpochSummary) -> Result<AuditBlob> {
         self.get_proof(epoch).await
     }
 }
