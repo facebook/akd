@@ -169,3 +169,7 @@ jobs:
       - name: Run test (Firefox profile)
         working-directory: ./akd_client  
         run: wasm-pack test --headless --firefox --features wasm
+
+      - name: Run SHA3_256 test (Chrome profile)
+        working-directory: ./akd_client
+        run: wasm-pack test --headless --chrome --no-default-features --features wasm,sha3_256
