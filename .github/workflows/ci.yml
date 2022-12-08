@@ -162,6 +162,10 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
+      - name: Build WASM compatible binary
+        working-directory: ./akd_client
+        run: wasm-pack build --features wasm
+
       - name: Test default profile (blake3)
         working-directory: ./akd_client
         run: wasm-pack test --node --features wasm
