@@ -270,7 +270,7 @@ async fn populate_test_storage(
     } in proofs
     {
         // Generate the s3 compat format
-        let blobs = akd::proto::generate_audit_blobs(vec![phash, chash], proof)
+        let blobs = akd::local_auditing::generate_audit_blobs(vec![phash, chash], proof)
             .map_err(|err| anyhow::anyhow!("Error generating audit blob {:?}", err))?;
         // Grab the blob + upload it
         if let Some(blob) = blobs.first() {

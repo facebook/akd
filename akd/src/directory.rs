@@ -221,7 +221,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Provides proof for correctness of latest version
-    pub async fn lookup(&self, uname: AkdLabel) -> Result<LookupProof, AkdError> {
+    pub async fn lookup(&self, uname: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
@@ -229,8 +229,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
         let lookup_info = self.get_lookup_info(uname.clone(), current_epoch).await?;
 
-        self.lookup_with_info(uname, &current_azks, current_epoch, lookup_info)
-            .await
+        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+
+        let proof = self
+            .lookup_with_info(uname, &current_azks, current_epoch, lookup_info)
+            .await?;
+        Ok((proof, root_hash))
     }
 
     async fn lookup_with_info(
@@ -287,7 +291,13 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
     // TODO(eoz): Call proof generations async
     /// Allows efficient batch lookups by preloading necessary nodes for the lookups.
-    pub async fn batch_lookup(&self, unames: &[AkdLabel]) -> Result<Vec<LookupProof>, AkdError> {
+    pub async fn batch_lookup(
+        &self,
+        unames: &[AkdLabel],
+    ) -> Result<(Vec<LookupProof>, EpochHash), AkdError> {
+        // The guard will be dropped at the end of the proof generation
+        let _guard = self.cache_lock.read().await;
+
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
@@ -316,6 +326,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         // Ensure we have got all lookup infos needed.
         assert_eq!(unames.len(), lookup_infos.len());
 
+        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+
         let mut lookup_proofs = Vec::new();
         for i in 0..unames.len() {
             lookup_proofs.push(
@@ -329,7 +341,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
         }
 
-        Ok(lookup_proofs)
+        Ok((lookup_proofs, root_hash))
     }
 
     async fn get_lookup_info(&self, uname: AkdLabel, epoch: u64) -> Result<LookupInfo, AkdError> {
@@ -382,7 +394,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         &self,
         uname: &AkdLabel,
         params: HistoryParams,
-    ) -> Result<HistoryProof, AkdError> {
+    ) -> Result<(HistoryProof, EpochHash), AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
@@ -471,13 +483,18 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
         }
 
-        Ok(HistoryProof {
-            update_proofs,
-            next_few_vrf_proofs,
-            non_existence_of_next_few,
-            future_marker_vrf_proofs,
-            non_existence_of_future_markers,
-        })
+        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+
+        Ok((
+            HistoryProof {
+                update_proofs,
+                next_few_vrf_proofs,
+                non_existence_of_next_few,
+                future_marker_vrf_proofs,
+                non_existence_of_future_markers,
+            },
+            root_hash,
+        ))
     }
 
     /// Poll for changes in the epoch number of the AZKS struct

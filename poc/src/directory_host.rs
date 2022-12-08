@@ -114,32 +114,20 @@ where
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
                 match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
-                    Ok(proof) => {
-                        let hash = get_root_hash::<_, V>(directory).await;
-                        match hash {
-                            Some(Ok(root_hash)) => {
-                                let vrf_pk = directory.get_public_key().await.unwrap();
-                                let verification = akd::client::lookup_verify(
-                                    vrf_pk.as_bytes(),
-                                    root_hash,
-                                    AkdLabel::from_utf8_str(&a),
-                                    proof,
-                                );
-                                if verification.is_err() {
-                                    let msg = format!(
-                                        "WARN: Lookup proof failed verification for '{}'",
-                                        a
-                                    );
-                                    response.send(Err(msg)).unwrap();
-                                } else {
-                                    let msg = format!("Lookup proof verified for user '{}'", a);
-                                    response.send(Ok(msg)).unwrap();
-                                }
-                            }
-                            _ => {
-                                let msg = format!("GOT lookup proof for '{}', but unable to verify proof due to missing root hash", a);
-                                response.send(Err(msg)).unwrap();
-                            }
+                    Ok((proof, root_hash)) => {
+                        let vrf_pk = directory.get_public_key().await.unwrap();
+                        let verification = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            AkdLabel::from_utf8_str(&a),
+                            proof,
+                        );
+                        if verification.is_err() {
+                            let msg = format!("WARN: Lookup proof failed verification for '{}'", a);
+                            response.send(Err(msg)).unwrap();
+                        } else {
+                            let msg = format!("Lookup proof verified for user '{}'", a);
+                            response.send(Ok(msg)).unwrap();
                         }
                     }
                     Err(error) => {

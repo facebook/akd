@@ -30,7 +30,7 @@ fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Vec<u8> {
     result
 }
 
-pub async fn audit_epoch(blob: akd::proto::AuditBlob, qr: bool) -> Result<()> {
+pub async fn audit_epoch(blob: akd::local_auditing::AuditBlob, qr: bool) -> Result<()> {
     // decode the proof
     let (epoch, p_hash, c_hash, proof) = blob.decode().map_err(|err| anyhow!("{:?}", err))?;
 

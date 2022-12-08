@@ -197,7 +197,7 @@ impl DynamoDbAuditStorage {
         ) {
             let phash_digest = Self::convert_digest(phash.as_ref())?;
             let chash_digest = Self::convert_digest(chash.as_ref())?;
-            let audit_blob_name = akd::proto::AuditBlobName {
+            let audit_blob_name = akd::local_auditing::AuditBlobName {
                 epoch: epoch.parse()?,
                 previous_hash: phash_digest,
                 current_hash: chash_digest,
@@ -281,7 +281,10 @@ impl super::AuditProofStorage for DynamoDbAuditStorage {
         Ok(results)
     }
 
-    async fn get_proof(&self, epoch: &super::EpochSummary) -> Result<akd::proto::AuditBlob> {
+    async fn get_proof(
+        &self,
+        epoch: &super::EpochSummary,
+    ) -> Result<akd::local_auditing::AuditBlob> {
         let s3_storage: crate::storage::s3::S3AuditStorage = self.into();
         s3_storage.get_proof(epoch).await
     }

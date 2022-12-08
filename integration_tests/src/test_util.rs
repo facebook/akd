@@ -176,18 +176,18 @@ pub(crate) async fn directory_test_suite<
             }
 
             // Perform 10 random lookup proofs on the published users
-            let azks = dir.retrieve_current_azks().await.unwrap();
-            let root_hash = dir.get_root_hash(&azks).await.unwrap();
-
             for user in users.iter().choose_multiple(&mut rng, 10) {
                 let key = AkdLabel::from_utf8_str(user);
                 match dir.lookup(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
-                    Ok(proof) => {
+                    Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, key, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            key,
+                            proof,
+                        ) {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -200,16 +200,12 @@ pub(crate) async fn directory_test_suite<
                 let key = AkdLabel::from_utf8_str(user);
                 match dir.key_history(&key, HistoryParams::default()).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
-                    Ok(proof) => {
-                        let (root_hash, current_epoch) =
-                            akd::directory::get_directory_root_hash_and_ep::<_, V>(&dir)
-                                .await
-                                .unwrap();
+                    Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify(
                             vrf_pk.as_bytes(),
-                            root_hash,
-                            current_epoch,
+                            root_hash.hash(),
+                            root_hash.epoch(),
                             key,
                             proof,
                             akd::HistoryVerificationParams::default(),
@@ -296,8 +292,6 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
             }
 
             // Perform `num_lookup` random lookup proofs on the published users
-            let azks = dir.retrieve_current_azks().await.unwrap();
-            let root_hash = dir.get_root_hash(&azks).await.unwrap();
 
             // Pick a set of users to lookup
             let mut labels = Vec::new();
@@ -314,11 +308,14 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
             for label in labels.clone() {
                 match dir.lookup(label.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
-                    Ok(proof) => {
+                    Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, label, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            label,
+                            proof,
+                        ) {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -337,16 +334,19 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
             // Bulk lookup selected users
             match dir.batch_lookup(&labels).await {
                 Err(error) => panic!("Error batch looking up user information {:?}", error),
-                Ok(proofs) => {
+                Ok((proofs, root_hash)) => {
                     assert_eq!(labels.len(), proofs.len());
 
                     let vrf_pk = dir.get_public_key().await.unwrap();
                     for i in 0..proofs.len() {
                         let label = labels[i].clone();
                         let proof = proofs[i].clone();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, label, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            label,
+                            proof,
+                        ) {
                             panic!("Batch lookup failed to verify for index {} {:?}", i, error);
                         }
                     }
