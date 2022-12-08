@@ -45,6 +45,7 @@ default = ["blake3"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+akd = { path = "../akd" }
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.

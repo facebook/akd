@@ -21,6 +21,8 @@ use core::slice;
 
 /// A hash digest of a specified number of bytes
 pub type Digest = [u8; DIGEST_BYTES];
+/// Represents an empty digest, with no data contained
+pub const EMPTY_DIGEST: [u8; DIGEST_BYTES] = [0u8; DIGEST_BYTES];
 
 // =========================================
 // ========== Blake3 settings ==============
@@ -68,6 +70,22 @@ impl core::fmt::Display for HashError {
             HashError::NoDirection(msg) => format!("(No Direction) - {}", msg),
         };
         write!(f, "Hashing error {}", code)
+    }
+}
+
+/// Try and parse a digest from an unknown length of bytes. Helpful for converting a Vec<u8>
+/// to a Digest
+pub fn try_parse_digest(value: &[u8]) -> Result<Digest, String> {
+    if value.len() != DIGEST_BYTES {
+        Err(format!(
+            "Failed to parse Digest. Expected {} bytes but the value has {} bytes",
+            DIGEST_BYTES,
+            value.len()
+        ))
+    } else {
+        let mut arr = EMPTY_DIGEST;
+        arr.copy_from_slice(value);
+        Ok(arr)
     }
 }
 

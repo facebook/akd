@@ -79,13 +79,7 @@ macro_rules! require_messagefield {
 
 macro_rules! hash_from_bytes {
     ($obj:expr) => {{
-        // get the raw data & it's length, but at most crate::hash::DIGEST_BYTES bytes
-        let len = std::cmp::min($obj.len(), crate::hash::DIGEST_BYTES);
-        // construct the output buffer
-        let mut out_val = [0u8; crate::hash::DIGEST_BYTES];
-        // copy into the output buffer the raw data up to the computed length
-        out_val[..len].clone_from_slice(&$obj[..len]);
-        out_val
+        crate::hash::try_parse_digest($obj).map_err(Self::Error::Deserialization)?
     }};
 }
 

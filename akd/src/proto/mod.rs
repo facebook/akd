@@ -41,17 +41,8 @@ impl From<protobuf::Error> for LocalAuditorError {
 
 macro_rules! hash_from_ref {
     ($obj:expr) => {
-        if $obj.len() == akd_core::hash::DIGEST_BYTES {
-            let mut v = [0u8; akd_core::hash::DIGEST_BYTES];
-            v.copy_from_slice($obj);
-            Ok(v)
-        } else {
-            Err(akd_core::proto::ConversionError::Deserialization(format!(
-                "Hash didn't have correct length (expected {} != got {})",
-                akd_core::hash::DIGEST_BYTES,
-                $obj.len()
-            )))
-        }
+        crate::hash::try_parse_digest($obj)
+            .map_err(akd_core::proto::ConversionError::Deserialization)
     };
 }
 
@@ -220,8 +211,8 @@ mod tests {
         let expected_name = "54/0101010101010101010101010101010101010101010101010101010101010101/0000000000000000000000000000000000000000000000000000000000000000";
 
         let blob_name = AuditBlobName {
-            current_hash: [0u8; 32],
-            previous_hash: [1u8; 32],
+            current_hash: crate::hash::EMPTY_DIGEST,
+            previous_hash: [1u8; crate::hash::DIGEST_BYTES],
             epoch: 54,
         };
 

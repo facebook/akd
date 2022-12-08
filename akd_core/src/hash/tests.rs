@@ -14,7 +14,7 @@ use alloc::vec;
 use rand::{thread_rng, Rng};
 
 fn random_hash() -> [u8; DIGEST_BYTES] {
-    let mut results = [0u8; DIGEST_BYTES];
+    let mut results = crate::hash::EMPTY_DIGEST;
     let mut rng = thread_rng();
     for b in results.iter_mut().take(DIGEST_BYTES) {
         *b = rng.gen::<u8>();

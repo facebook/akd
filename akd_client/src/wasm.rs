@@ -101,17 +101,8 @@ fn fallable_lookup_verify(
     // protobuf encoded proof
     lookup_proof: &[u8],
 ) -> Result<akd_core::VerifyResult, VerificationError> {
-    let root_hash = if root_hash_ref.len() == akd_core::hash::DIGEST_BYTES {
-        let mut h = [0u8; akd_core::hash::DIGEST_BYTES];
-        h.copy_from_slice(root_hash_ref);
-        Ok(h)
-    } else {
-        Err(VerificationError::LookupProof(format!(
-            "Root hash is of incorrect length! (expected {} != got {})",
-            akd_core::hash::DIGEST_BYTES,
-            root_hash_ref.len()
-        )))
-    }?;
+    let root_hash =
+        crate::hash::try_parse_digest(root_hash_ref).map_err(VerificationError::LookupProof)?;
 
     let proto_proof = LookupProof::parse_from_bytes(lookup_proof)?;
     crate::verify::lookup_verify(
@@ -143,5 +134,74 @@ pub fn lookup_verify(
             hex::encode(verification.value.0),
         )),
         Err(error) => Err(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    extern crate wasm_bindgen_test;
+
+    use akd::storage::memory::AsyncInMemoryDatabase;
+    use akd::storage::StorageManager;
+    use akd::{AkdLabel, AkdValue, Directory};
+    use protobuf::Message;
+    use wasm_bindgen_test::*;
+
+    use super::*;
+    use crate::ecvrf::HardCodedAkdVRF;
+
+    #[wasm_bindgen_test]
+    async fn test_simple_wasm_lookup() {
+        let db = AsyncInMemoryDatabase::new();
+        let storage = StorageManager::new_no_cache(&db);
+        let vrf = HardCodedAkdVRF {};
+        let akd = Directory::<_, _>::new(&storage, &vrf, false)
+            .await
+            .expect("Failed to construct directory");
+
+        let target_label = AkdLabel::from_utf8_str("hello");
+
+        // Add two labels and corresponding values to the akd
+        akd.publish(vec![
+            (target_label.clone(), AkdValue::from_utf8_str("world")),
+            (
+                AkdLabel::from_utf8_str("hello2"),
+                AkdValue::from_utf8_str("world2"),
+            ),
+        ])
+        .await
+        .expect("Failed to publish test data");
+        // Get the lookup proof
+        let lookup_proof = akd
+            .lookup(target_label.clone())
+            .await
+            .expect("Failed to lookup target");
+        // Get the root hash with respect to which lookup_proof should verify
+        let current_azks = akd
+            .retrieve_current_azks()
+            .await
+            .expect("Failed to retrieve AZKS");
+        let root_hash = akd
+            .get_root_hash(&current_azks)
+            .await
+            .expect("Failed to get root hash");
+        // Get the VRF public key
+        let vrf_pk = akd
+            .get_public_key()
+            .await
+            .expect("Failed to get VRF public key");
+
+        let encoded_proof_bytes = crate::proto::specs::types::LookupProof::from(&lookup_proof)
+            .write_to_bytes()
+            .expect("Failed to encode lookup proof");
+
+        // Verify the lookup proof
+        let result = lookup_verify(
+            vrf_pk.as_bytes(),
+            &root_hash,
+            &target_label,
+            &encoded_proof_bytes,
+        );
+        assert!(result.is_ok());
     }
 }
