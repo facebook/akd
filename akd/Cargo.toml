@@ -20,10 +20,12 @@ blake3 = ["akd_core/blake3"]
 bench = ["public-tests"]
 public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization", "akd_core/rand"]
 public_auditing = ["protobuf", "akd_core/protobuf"]
-default = ["blake3", "public_auditing"]
 serde_serialization = ["serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
 runtime_metrics = []
+
+# Default features mix (blake3 + audit-proof protobuf mgmt support)
+default = ["blake3", "public_auditing"]
 
 [dependencies]
 ## Required dependencies ##

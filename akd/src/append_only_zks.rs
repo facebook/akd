@@ -691,7 +691,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut input = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut input = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut input);
             let hash = akd_core::hash::hash(&input);
             let node = Node { label, hash };
@@ -726,7 +726,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -760,7 +760,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -795,7 +795,7 @@ mod tests {
             let label = NodeLabel::new(label_arr, 256u32);
             let node = Node {
                 label,
-                hash: [0u8; akd_core::hash::DIGEST_BYTES],
+                hash: crate::hash::EMPTY_DIGEST,
             };
             insertion_set.push(node);
         }
@@ -824,7 +824,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -905,7 +905,7 @@ mod tests {
             let mut label_arr = [0u8; 32];
             label_arr[31] = i;
             let label = NodeLabel::new(label_arr, 256u32);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             hash[31] = i;
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -934,7 +934,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -961,7 +961,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
@@ -1054,7 +1054,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set_1.push(node);
@@ -1072,7 +1072,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set_2.push(node);
@@ -1087,7 +1087,7 @@ mod tests {
 
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
-            let mut hash = [0u8; akd_core::hash::DIGEST_BYTES];
+            let mut hash = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set_3.push(node);

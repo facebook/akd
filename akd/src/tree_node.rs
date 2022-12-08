@@ -567,7 +567,7 @@ impl TreeNode {
             min(self.least_descendant_ep, epoch),
             None,
             None,
-            [0u8; crate::DIGEST_BYTES],
+            crate::hash::EMPTY_DIGEST,
         )
         .await?;
         // Set up child-parent connections from top to bottom

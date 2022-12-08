@@ -113,16 +113,6 @@ pub mod serde_helpers {
         D: serde::Deserializer<'de>,
     {
         let buf = <Vec<u8> as serde_bytes::Deserialize>::deserialize(deserializer)?;
-        if buf.len() == crate::hash::DIGEST_BYTES {
-            let mut v = [0u8; crate::hash::DIGEST_BYTES];
-            v.copy_from_slice(&buf);
-            Ok(v)
-        } else {
-            Err(serde::de::Error::custom(format!(
-                "Digest of unexpected size (expected {} != got {})",
-                crate::hash::DIGEST_BYTES,
-                buf.len()
-            )))
-        }
+        crate::hash::try_parse_digest(&buf).map_err(serde::de::Error::custom)
     }
 }

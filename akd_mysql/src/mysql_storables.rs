@@ -739,27 +739,15 @@ impl MySqlStorable for DbRecord {
                             Some(v) => Some(v.try_into().map_err(|_| cast_err())?),
                             None => None,
                         };
-                    let massaged_hash_vec: [u8; akd::DIGEST_BYTES] =
-                        if hash_vec.len() == akd::DIGEST_BYTES {
-                            let mut arr = [0u8; akd::DIGEST_BYTES];
-                            arr.copy_from_slice(&hash_vec);
-                            arr
-                        } else {
-                            return Err(cast_err());
-                        };
-                    let massaged_prev_hash_vec: Option<[u8; akd::DIGEST_BYTES]> =
-                        match prev_hash_vec {
-                            Some(v) => {
-                                if v.len() == akd::DIGEST_BYTES {
-                                    let mut arr = [0u8; akd::DIGEST_BYTES];
-                                    arr.copy_from_slice(&v);
-                                    Some(arr)
-                                } else {
-                                    return Err(cast_err());
-                                }
-                            }
-                            None => None,
-                        };
+                    let massaged_hash_vec: akd::Digest =
+                        akd::hash::try_parse_digest(&hash_vec).map_err(|_| cast_err())?;
+                    let massaged_prev_hash_vec: Option<akd::Digest> = match prev_hash_vec {
+                        Some(v) => match akd::hash::try_parse_digest(&v).map_err(|_| cast_err()) {
+                            Ok(r) => Some(r),
+                            Err(err) => return Err(err),
+                        },
+                        None => None,
+                    };
 
                     let node = DbRecord::build_tree_node_with_previous_value(
                         label_val_vec.try_into().map_err(|_| cast_err())?,

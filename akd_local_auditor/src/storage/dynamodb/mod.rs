@@ -178,17 +178,7 @@ impl DynamoDbAuditStorage {
     }
 
     fn convert_digest(data: &[u8]) -> Result<akd::Digest> {
-        if data.len() == akd::DIGEST_BYTES {
-            let mut v = [0u8; akd::DIGEST_BYTES];
-            v.copy_from_slice(data);
-            Ok(v)
-        } else {
-            Err(anyhow::anyhow!(
-                "Digest is not of correct size (expected {} != got {})",
-                akd::DIGEST_BYTES,
-                data.len()
-            ))
-        }
+        akd::hash::try_parse_digest(data).map_err(|msg| anyhow::anyhow!(msg))
     }
 
     fn parse_summary(

@@ -52,6 +52,7 @@ pub(crate) fn empty_node_hash_no_label() -> crate::Digest {
 // Creates a byte array of 32 bytes from a u64
 // Note that this representation is big-endian, and
 // places the bits to the front of the output byte_array.
+#[allow(dead_code)]
 pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
     let input_arr = input_int.to_be_bytes();
