@@ -162,14 +162,10 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Run test (Chrome profile)
+      - name: Test default profile (blake3)
         working-directory: ./akd_client
-        run: wasm-pack test --headless --chrome --features wasm
+        run: wasm-pack test --node --features wasm
 
-      - name: Run test (Firefox profile)
-        working-directory: ./akd_client  
-        run: wasm-pack test --headless --firefox --features wasm
-
-      - name: Run SHA3_256 test (Chrome profile)
+      - name: Test SHA3_256 and no default features
         working-directory: ./akd_client
-        run: wasm-pack test --headless --chrome --no-default-features --features wasm,sha3_256
+        run: wasm-pack test --node --no-default-features --features wasm,sha3_256
