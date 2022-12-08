@@ -60,18 +60,18 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
             }
 
             // Perform 10 random lookup proofs on the published users
-            let azks = dir.retrieve_current_azks().await.unwrap();
-            let root_hash = dir.get_root_hash(&azks).await.unwrap();
-
             for user in users.iter().choose_multiple(&mut rng, 10) {
                 let key = AkdLabel::from_utf8_str(user);
                 match dir.lookup(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
-                    Ok(proof) => {
+                    Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) =
-                            akd::client::lookup_verify(vrf_pk.as_bytes(), root_hash, key, proof)
-                        {
+                        if let Err(error) = akd::client::lookup_verify(
+                            vrf_pk.as_bytes(),
+                            root_hash.hash(),
+                            key,
+                            proof,
+                        ) {
                             panic!("Lookup proof failed to verify {:?}", error);
                         }
                     }
@@ -83,16 +83,12 @@ pub async fn directory_test_suite<S: akd::storage::Database + Sync + Send, V: VR
                 let key = AkdLabel::from_utf8_str(user);
                 match dir.key_history(&key, HistoryParams::default()).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
-                    Ok(proof) => {
-                        let (root_hash, current_epoch) =
-                            akd::directory::get_directory_root_hash_and_ep::<_, _>(&dir)
-                                .await
-                                .unwrap();
+                    Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify(
                             vrf_pk.as_bytes(),
-                            root_hash,
-                            current_epoch,
+                            root_hash.hash(),
+                            root_hash.epoch(),
                             key,
                             proof,
                             akd::HistoryVerificationParams::default(),

@@ -108,16 +108,13 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     ])
     .await?;
     // Get the lookup proof
-    let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
-    // Get the root hash with respect to which lookup_proof should verify
-    let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash(&current_azks).await?;
+    let (lookup_proof, root_hash) = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the lookup proof
     lookup_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
@@ -152,20 +149,16 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     .await?;
 
     // Get the key_history_proof for the label "hello"
-    let key_history_proof = akd
+    let (key_history_proof, root_hash) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
-    // Get the latest root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the key history proof
     let result = key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.1,
+        root_hash.0,
         AkdLabel::from_utf8_str("hello"),
         key_history_proof,
         HistoryVerificationParams::default(),
@@ -267,7 +260,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     ])
     .await?;
     // Get the key history proof for the label "hello". This should have 4 versions.
-    let key_history_proof = akd
+    let (key_history_proof, _) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
     // Check that the correct number of proofs are sent
@@ -293,7 +286,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     )?;
 
     // Key history proof for "hello2"
-    let key_history_proof = akd
+    let (key_history_proof, _) = akd
         .key_history(&AkdLabel::from_utf8_str("hello2"), HistoryParams::default())
         .await?;
     // Check that the correct number of proofs are sent
@@ -313,7 +306,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     )?;
 
     // Key history proof for "hello3"
-    let key_history_proof = akd
+    let (key_history_proof, _) = akd
         .key_history(&AkdLabel::from_utf8_str("hello3"), HistoryParams::default())
         .await?;
     // Check that the correct number of proofs are sent
@@ -333,7 +326,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     )?;
 
     // Key history proof for "hello4"
-    let key_history_proof = akd
+    let (key_history_proof, _) = akd
         .key_history(&AkdLabel::from_utf8_str("hello4"), HistoryParams::default())
         .await?;
     // Check that the correct number of proofs are sent
@@ -468,10 +461,9 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Get the current epoch and the current root hash for this akd.
     let current_azks = akd.retrieve_current_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
 
     // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
-    let history_proof = akd
+    let (history_proof, root_hash) = akd
         .key_history(
             &AkdLabel::from_utf8_str("hello"),
             HistoryParams::MostRecent(1),
@@ -483,7 +475,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -491,7 +483,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     )?;
 
     // Take the top 3 results, and check that we're getting the right epoch updates
-    let history_proof = akd
+    let (history_proof, root_hash) = akd
         .key_history(
             &AkdLabel::from_utf8_str("hello"),
             HistoryParams::MostRecent(3),
@@ -505,7 +497,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -513,7 +505,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     )?;
 
     // "hello" was updated in epochs 1,2,3,5. Pull the updates since epoch 3 (inclusive)
-    let history_proof = akd
+    let (history_proof, root_hash) = akd
         .key_history(
             &AkdLabel::from_utf8_str("hello"),
             HistoryParams::SinceEpoch(3),
@@ -526,7 +518,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     // Now check that the key history verifies
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         current_epoch,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
@@ -569,21 +561,17 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     .await?;
 
     // Get the key_history_proof for the label "hello"
-    let key_history_proof = akd
+    let (key_history_proof, root_hash) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
-    // Get the latest root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the key history proof: This should fail since the server did not mark the version 1 for
     // this username as stale, upon adding version 2.
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         key_history_proof,
         HistoryVerificationParams::default(),
@@ -602,20 +590,16 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     .await?;
 
     // Get the key_history_proof for the label "hello"
-    let key_history_proof = akd
+    let (key_history_proof, root_hash) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
-    // Get the latest root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     // Verify the key history proof: This should still fail, since the server added the version number too late.
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         key_history_proof,
         HistoryVerificationParams::default(),
@@ -850,32 +834,29 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         .expect("Error resetting directory to previous epoch");
 
     // History proof should not contain the third epoch's update but still verify
-    let history_proof = akd
+    let (history_proof, root_hash) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
     key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.1,
+        root_hash.0,
         AkdLabel::from_utf8_str("hello"),
         history_proof,
         HistoryVerificationParams::default(),
     )?;
 
     // Lookup proof should contain the checkpoint epoch's value and still verify
-    let lookup_proof = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
+    let (lookup_proof, root_hash) = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(
         AkdValue::from_utf8_str("world_2"),
         lookup_proof.plaintext_value
     );
     lookup_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.hash(),
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
@@ -1032,20 +1013,16 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     storage.tombstone_value_states(&tombstones).await?;
 
     // Now get a history proof for this key
-    let history_proof = akd
+    let (history_proof, root_hash) = akd
         .key_history(&AkdLabel::from_utf8_str("hello"), HistoryParams::default())
         .await?;
     assert_eq!(5, history_proof.update_proofs.len());
 
-    // Get the current epoch and the current root hash for this akd.
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
     // If we request a proof with tombstones but without saying we're OK with tombstones, throw an err
     let tombstones = key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         history_proof.clone(),
         HistoryVerificationParams::default(),
@@ -1056,8 +1033,8 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     // of tombstoned states
     let results = key_history_verify(
         vrf_pk.as_bytes(),
-        root_hash,
-        current_epoch,
+        root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from_utf8_str("hello"),
         history_proof,
         HistoryVerificationParams::AllowMissingValues,
@@ -1103,11 +1080,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let target_label = AkdLabel(format!("hello1{}", 0).as_bytes().to_vec());
 
     // retrieve the lookup proof
-    let lookup_proof = akd.lookup(target_label.clone()).await?;
-
-    // retrieve the root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash(&current_azks).await?;
+    let (lookup_proof, root_hash) = akd.lookup(target_label.clone()).await?;
 
     // Get the VRF public key
     let vrf_pk = vrf.get_vrf_public_key().await?;
@@ -1115,7 +1088,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     // perform the "traditional" AKD verification
     let akd_result = crate::client::lookup_verify(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         target_label.clone(),
         lookup_proof,
     )?;
@@ -1199,14 +1172,12 @@ async fn async_poll_helper_proof<T: Database + Sync + Send, V: VRFKeyStorage>(
     value: AkdValue,
 ) -> Result<(), AkdError> {
     // reader should read "hello" and this will populate the "cache" a log
-    let lookup_proof = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
+    let (lookup_proof, root_hash) = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
     assert_eq!(value, lookup_proof.plaintext_value);
-    let current_azks = reader.retrieve_current_azks().await?;
-    let root_hash = reader.get_root_hash(&current_azks).await?;
     let pk = reader.get_public_key().await?;
     lookup_verify(
         pk.as_bytes(),
-        root_hash,
+        root_hash.1,
         AkdLabel::from_utf8_str("hello"),
         lookup_proof,
     )?;
