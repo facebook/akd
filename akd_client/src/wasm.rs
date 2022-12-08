@@ -172,19 +172,10 @@ pub mod tests {
         .await
         .expect("Failed to publish test data");
         // Get the lookup proof
-        let lookup_proof = akd
+        let (lookup_proof, root_hash) = akd
             .lookup(target_label.clone())
             .await
             .expect("Failed to lookup target");
-        // Get the root hash with respect to which lookup_proof should verify
-        let current_azks = akd
-            .retrieve_current_azks()
-            .await
-            .expect("Failed to retrieve AZKS");
-        let root_hash = akd
-            .get_root_hash(&current_azks)
-            .await
-            .expect("Failed to get root hash");
         // Get the VRF public key
         let vrf_pk = akd
             .get_public_key()
@@ -198,7 +189,7 @@ pub mod tests {
         // Verify the lookup proof
         let result = lookup_verify(
             vrf_pk.as_bytes(),
-            &root_hash,
+            &root_hash.hash(),
             &target_label,
             &encoded_proof_bytes,
         );
