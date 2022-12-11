@@ -127,7 +127,7 @@ impl MySqlStorable for DbRecord {
                 "label_val" => node.label.label_val,
                 // "Latest" node values
                 "last_epoch" => node.latest_node.last_epoch,
-                "least_descendant_ep" => node.latest_node.least_descendant_ep,
+                "least_descendant_ep" => node.latest_node.min_descendant_epoch,
                 "parent_label_len" => node.latest_node.parent.label_len,
                 "parent_label_val" => node.latest_node.parent.label_val,
                 "node_type" => node.latest_node.node_type as u8,
@@ -138,7 +138,7 @@ impl MySqlStorable for DbRecord {
                 "hash" => node.latest_node.hash,
                 // "Previous" node values
                 "p_last_epoch" => node.previous_node.clone().map(|a| a.last_epoch),
-                "p_least_descendant_ep" => node.previous_node.clone().map(|a| a.least_descendant_ep),
+                "p_least_descendant_ep" => node.previous_node.clone().map(|a| a.min_descendant_epoch),
                 "p_parent_label_len" => node.previous_node.clone().map(|a| a.parent.label_len),
                 "p_parent_label_val" => node.previous_node.clone().map(|a| a.parent.label_val),
                 "p_node_type" => node.previous_node.clone().map(|a| a.node_type as u8),
@@ -276,7 +276,7 @@ impl MySqlStorable for DbRecord {
                         ),
                         (
                             format!("least_descendant_ep{}", idx),
-                            Value::from(node.latest_node.least_descendant_ep),
+                            Value::from(node.latest_node.min_descendant_epoch),
                         ),
                         (
                             format!("parent_label_len{}", idx),
@@ -313,7 +313,7 @@ impl MySqlStorable for DbRecord {
                         ),
                         (
                             format!("p_least_descendant_ep{}", idx),
-                            Value::from(pnode.clone().map(|a| a.least_descendant_ep)),
+                            Value::from(pnode.clone().map(|a| a.min_descendant_epoch)),
                         ),
                         (
                             format!("p_parent_label_len{}", idx),

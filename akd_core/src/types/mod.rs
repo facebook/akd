@@ -42,7 +42,8 @@ pub trait SizeOf {
 // ============================================
 
 /// This type is used to indicate a direction for a
-/// particular node relative to its parent.
+/// particular node relative to its parent. We use
+/// 0 to represent "left" and 1 to represent "right".
 pub type Direction = Option<usize>;
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {

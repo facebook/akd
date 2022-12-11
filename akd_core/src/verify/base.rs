@@ -107,7 +107,7 @@ pub fn verify_nonmembership(
     Ok(())
 }
 
-/// Hash a leaf epoch and proof with a given AkdValue
+/// Hash a leaf epoch and proof with a given [AkdValue]
 pub fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
     let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
     merge_with_int(single_hash, epoch)

@@ -39,9 +39,9 @@ pub struct NodeLabel {
         feature = "serde_serialization",
         serde(deserialize_with = "bytes_deserialize_hex")
     )]
-    /// val stores a binary string as a u64
+    /// Stores a binary string as a 32-byte array of `u8`s
     pub label_val: [u8; 32],
-    /// len keeps track of how long the binary string is
+    /// len keeps track of how long the binary string is in bits
     pub label_len: u32,
 }
 
@@ -59,7 +59,7 @@ impl PartialOrd for NodeLabel {
 
 impl Ord for NodeLabel {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        //`label_len`, `label_val`
+        // `label_len`, `label_val`
         let len_cmp = self.label_len.cmp(&other.label_len);
         if let core::cmp::Ordering::Equal = len_cmp {
             self.label_val.cmp(&other.label_val)
@@ -76,13 +76,13 @@ impl core::fmt::Display for NodeLabel {
 }
 
 impl NodeLabel {
-    /// Hash a node-label into a digest
+    /// Hash a [NodeLabel] into a digest, length-prefixing the label's value
     pub fn hash(&self) -> Digest {
         let hash_input = [&self.label_len.to_le_bytes()[..], &self.label_val].concat();
         crate::hash::hash(&hash_input)
     }
 
-    /// Takes as input a pointer to the caller and another NodeLabel,
+    /// Takes as input a pointer to the caller and another [NodeLabel],
     /// returns a NodeLabel that is the longest common prefix of the two.
     pub fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
         let shorter_len = if self.label_len < other.label_len {

@@ -29,7 +29,7 @@ default = ["blake3", "public_auditing"]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { path = "../akd_core", version = "0.8.0", default-features = false, features = ["vrf"] }
+akd_core = { path = "../akd_core", version = "0.8.1", default-features = false, features = ["vrf"] }
 async-recursion = "0.3"
 async-trait = "0.1"
 curve25519-dalek = "3"

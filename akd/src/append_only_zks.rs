@@ -18,7 +18,7 @@ use crate::{
 
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
-use log::{debug, info};
+use log::info;
 use std::marker::{Send, Sync};
 
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
@@ -240,7 +240,6 @@ impl Azks {
                 self.latest_epoch,
             )
             .await?;
-            debug!("BEGIN insert leaf");
             root_node
                 .insert_leaf::<_>(
                     storage,
@@ -250,7 +249,6 @@ impl Azks {
                     Some(append_only_exclude_usage),
                 )
                 .await?;
-            debug!("END insert leaf");
 
             hash_q.push(node.label, priorities);
             priorities -= 1;
@@ -266,7 +264,7 @@ impl Azks {
             next_node
                 .update_node_hash::<_>(storage, self.latest_epoch, Some(append_only_exclude_usage))
                 .await?;
-            if !next_node.is_root() {
+            if next_node.node_type != NodeType::Root {
                 match hash_q.entry(next_node.parent) {
                     Entry::Vacant(entry) => {
                         entry.set_priority(priorities);
@@ -323,7 +321,6 @@ impl Azks {
                 .await?;
             match child {
                 None => {
-                    debug!("i = {}, empty", i);
                     continue;
                 }
                 Some(child) => {
@@ -333,7 +330,6 @@ impl Azks {
                         self.get_latest_epoch(),
                     )
                     .await?;
-                    debug!("Label of child {} is {:?}", i, unwrapped_child.label);
                     longest_prefix_children[i] = Node {
                         label: unwrapped_child.label,
                         hash: optional_child_state_hash(&Some(unwrapped_child)),
@@ -342,7 +338,6 @@ impl Azks {
             }
         }
 
-        debug!("Lcp label = {:?}", longest_prefix);
         Ok(NonMembershipProof {
             label,
             longest_prefix,
@@ -415,7 +410,7 @@ impl Azks {
         start_epoch: u64,
         end_epoch: u64,
     ) -> Vec<NodeLabel> {
-        if node.is_leaf() {
+        if node.node_type == NodeType::Leaf {
             return vec![];
         }
 
@@ -423,7 +418,7 @@ impl Azks {
             return vec![];
         }
 
-        if node.least_descendant_ep > end_epoch {
+        if node.min_descendant_epoch > end_epoch {
             return vec![];
         }
 
@@ -478,7 +473,7 @@ impl Azks {
         let mut leaves = Vec::<Node>::new();
 
         if node.get_latest_epoch() <= start_epoch {
-            if node.is_root() {
+            if node.node_type == NodeType::Root {
                 // this is the case where the root is unchanged since the last epoch
                 return Ok((unchanged, leaves));
             }
@@ -490,11 +485,11 @@ impl Azks {
             return Ok((unchanged, leaves));
         }
 
-        if node.least_descendant_ep > end_epoch {
+        if node.min_descendant_epoch > end_epoch {
             return Ok((unchanged, leaves));
         }
 
-        if node.is_leaf() {
+        if node.node_type == NodeType::Leaf {
             leaves.push(Node {
                 label: node.label,
                 hash: node.hash,
@@ -572,7 +567,7 @@ impl Azks {
 
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
-    /// This is meant to be used in both, getting membership proofs and getting non-membership proofs.
+    /// This is meant to be used in both getting membership proofs and getting non-membership proofs.
     pub async fn get_membership_proof_and_node<S: Database + Sync + Send>(
         &self,
         storage: &StorageManager<S>,
@@ -647,8 +642,8 @@ impl Azks {
 
             layer_proofs.pop();
         }
-        let hash_val = if curr_node.is_leaf() {
-            akd_core::hash::merge_with_int(curr_node.hash, curr_node.last_epoch)
+        let hash_val = if curr_node.node_type == NodeType::Leaf {
+            crate::hash::merge_with_int(curr_node.hash, curr_node.last_epoch)
         } else {
             curr_node.hash
         };
@@ -693,7 +688,7 @@ mod tests {
             let label = crate::utils::random_label(&mut rng);
             let mut input = crate::hash::EMPTY_DIGEST;
             rng.fill_bytes(&mut input);
-            let hash = akd_core::hash::hash(&input);
+            let hash = crate::hash::hash(&input);
             let node = Node { label, hash };
             insertion_set.push(node);
             azks1.insert_leaf::<_>(&db, node, 1).await?;
@@ -841,7 +836,7 @@ mod tests {
         let mut proof = azks
             .get_membership_proof(&db, insertion_set[0].label, 1)
             .await?;
-        let hash_val = akd_core::hash::hash(&EMPTY_VALUE);
+        let hash_val = crate::hash::hash(&EMPTY_VALUE);
         proof = MembershipProof {
             label: proof.label,
             hash_val,
@@ -863,23 +858,23 @@ mod tests {
         let insertion_set: Vec<Node> = vec![
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
         ];
 
@@ -987,14 +982,14 @@ mod tests {
 
         let insertion_set_1: Vec<Node> = vec![Node {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
+            hash: crate::hash::hash(&EMPTY_VALUE),
         }];
         azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
         let insertion_set_2: Vec<Node> = vec![Node {
             label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            hash: akd_core::hash::hash(&EMPTY_VALUE),
+            hash: crate::hash::hash(&EMPTY_VALUE),
         }];
 
         azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
@@ -1015,11 +1010,11 @@ mod tests {
         let insertion_set_1: Vec<Node> = vec![
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
         ];
 
@@ -1029,11 +1024,11 @@ mod tests {
         let insertion_set_2: Vec<Node> = vec![
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 62), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
             Node {
                 label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-                hash: akd_core::hash::hash(&EMPTY_VALUE),
+                hash: crate::hash::hash(&EMPTY_VALUE),
             },
         ];
 

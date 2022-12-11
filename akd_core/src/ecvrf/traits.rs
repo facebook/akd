@@ -64,7 +64,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
-    async fn get_node_label_from_vrf_pf(&self, proof: Proof) -> Result<NodeLabel, VrfError> {
+    async fn get_node_label_from_vrf_proof(&self, proof: Proof) -> Result<NodeLabel, VrfError> {
         let output: super::ecvrf_impl::Output = (&proof).into();
         Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
     }
