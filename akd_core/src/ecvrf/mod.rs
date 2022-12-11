@@ -25,7 +25,7 @@
 mod ecvrf_impl;
 mod traits;
 // export the functionality we want visible
-pub use crate::ecvrf::ecvrf_impl::{Proof, VRFPrivateKey, VRFPublicKey};
+pub use crate::ecvrf::ecvrf_impl::{Output, Proof, VRFPrivateKey, VRFPublicKey};
 pub use crate::ecvrf::traits::VRFKeyStorage;
 #[cfg(feature = "nostd")]
 use alloc::boxed::Box;

@@ -7,7 +7,6 @@
 
 //! This module contains the raw implementation implements the ECVRF functionality for use in the AKD crate
 use super::VrfError;
-use crate::{AkdLabel, NodeLabel};
 
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -217,43 +216,6 @@ impl VRFPublicKey {
         }
 
         wrapped_point.unwrap().mul_by_cofactor()
-    }
-
-    /// This function is called to verify that a given NodeLabel is indeed
-    /// the VRF for a given version (fresh or stale) for a username.
-    /// Hence, it also takes as input the server's public key.
-    pub fn verify_label(
-        &self,
-        uname: &AkdLabel,
-        stale: bool,
-        version: u64,
-        proof: &[u8],
-        label: NodeLabel,
-    ) -> Result<(), VrfError> {
-        // Initialization of VRF context by providing a curve
-
-        let name_hash_bytes = crate::hash::hash(uname);
-        let stale_bytes = if stale { &[0u8] } else { &[1u8] };
-
-        let hashed_label = crate::hash::merge(&[
-            name_hash_bytes,
-            crate::hash::merge_with_int(crate::hash::hash(stale_bytes), version),
-        ]);
-
-        // VRF proof verification (returns VRF hash output)
-        let proof = Proof::try_from(proof)?;
-        self.verify(&proof, &hashed_label)?;
-
-        let output: Output = (&proof).into();
-
-        if NodeLabel::new(output.to_truncated_bytes(), 256u32) == label {
-            Ok(())
-        } else {
-            Err(VrfError::Verification(
-                "Expected first 32 bytes of the proof output did NOT match the supplied label"
-                    .to_string(),
-            ))
-        }
     }
 }
 

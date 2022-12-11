@@ -106,7 +106,7 @@ impl Storable for TreeNodeWithPreviousValue {
 
     fn get_full_binary_key_id(key: &NodeKey) -> Vec<u8> {
         let mut result = vec![StorageType::TreeNode as u8];
-        result.extend_from_slice(&key.0.label_len.to_le_bytes());
+        result.extend_from_slice(&key.0.label_len.to_be_bytes());
         result.extend_from_slice(&key.0.label_val);
         result
     }
@@ -122,7 +122,7 @@ impl Storable for TreeNodeWithPreviousValue {
 
         let len_bytes: [u8; 4] = bin[1..=4].try_into().expect("Slice with incorrect length");
         let val_bytes: [u8; 32] = bin[5..=36].try_into().expect("Slice with incorrect length");
-        let len = u32::from_le_bytes(len_bytes);
+        let len = u32::from_be_bytes(len_bytes);
 
         Ok(NodeKey(NodeLabel::new(val_bytes, len)))
     }
@@ -383,7 +383,7 @@ impl TreeNode {
         parent: NodeLabel,
         node_type: NodeType,
         birth_epoch: u64,
-        smallest_descendant_ep: u64,
+        min_descendant_epoch: u64,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
         hash: crate::Digest,
@@ -391,7 +391,7 @@ impl TreeNode {
         let new_node = TreeNode {
             label,
             last_epoch: birth_epoch,
-            min_descendant_epoch: smallest_descendant_ep,
+            min_descendant_epoch,
             parent, // Root node is its own parent
             node_type,
             left_child,

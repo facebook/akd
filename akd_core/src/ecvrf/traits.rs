@@ -49,41 +49,34 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         self.get_vrf_private_key().await.map(|key| (&key).into())
     }
 
-    /// Returns the tree nodelabel that corresponds to a version of the uname argument.
-    /// The stale boolean here is to indicate whether we are getting the nodelabel for a fresh version,
+    /// Returns the [NodeLabel] that corresponds to a version of the label argument.
+    /// The stale boolean here is to indicate whether we are getting the [NodeLabel] for a fresh version,
     /// or a version that we are retiring.
     async fn get_node_label(
         &self,
-        uname: &AkdLabel,
+        label: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Result<NodeLabel, VrfError> {
-        let proof = self.get_label_proof(uname, stale, version).await?;
-        let output: super::ecvrf_impl::Output = (&proof).into();
-        Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
+        let proof = self.get_label_proof(label, stale, version).await?;
+        self.get_node_label_from_vrf_proof(proof).await
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
     async fn get_node_label_from_vrf_proof(&self, proof: Proof) -> Result<NodeLabel, VrfError> {
         let output: super::ecvrf_impl::Output = (&proof).into();
-        Ok(NodeLabel::new(output.to_truncated_bytes(), 256u32))
+        Ok(NodeLabel::new(output.to_truncated_bytes(), 256))
     }
 
     /// Retrieve the proof for a specific label
     async fn get_label_proof(
         &self,
-        uname: &AkdLabel,
+        label: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Result<Proof, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        let name_hash_bytes = crate::hash::hash(uname);
-        let stale_bytes = if stale { &[0u8] } else { &[1u8] };
-
-        let hashed_label = crate::hash::merge(&[
-            name_hash_bytes,
-            crate::hash::merge_with_int(crate::hash::hash(stale_bytes), version),
-        ]);
+        let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
 
         // VRF proof and hash output
         let proof = key.prove(&hashed_label);

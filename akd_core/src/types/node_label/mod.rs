@@ -13,6 +13,8 @@ use crate::{Direction, SizeOf};
 
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+#[cfg(feature = "nostd")]
+use alloc::vec::Vec;
 use core::convert::{TryFrom, TryInto};
 
 #[cfg(test)]
@@ -78,8 +80,11 @@ impl core::fmt::Display for NodeLabel {
 impl NodeLabel {
     /// Hash a [NodeLabel] into a digest, length-prefixing the label's value
     pub fn hash(&self) -> Digest {
-        let hash_input = [&self.label_len.to_le_bytes()[..], &self.label_val].concat();
-        crate::hash::hash(&hash_input)
+        crate::hash::hash(&self.to_bytes())
+    }
+
+    pub(crate) fn to_bytes(self) -> Vec<u8> {
+        [&self.label_len.to_be_bytes(), &self.label_val[..]].concat()
     }
 
     /// Takes as input a pointer to the caller and another [NodeLabel],
@@ -159,7 +164,7 @@ impl NodeLabel {
         Self::new([0u8; 32], 0)
     }
 
-    /// Creates a new NodeLabel with the given value and len.
+    /// Creates a new NodeLabel with the given value and len (in bits).
     pub fn new(val: [u8; 32], len: u32) -> Self {
         NodeLabel {
             label_val: val,
@@ -167,7 +172,7 @@ impl NodeLabel {
         }
     }
 
-    /// Gets the length of a NodeLabel.
+    /// Gets the length of a NodeLabel in bits.
     pub fn get_len(&self) -> u32 {
         self.label_len
     }
