@@ -80,7 +80,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         label: NodeLabel::new(byte_arr_from_u64(13), 4),
         last_epoch: 34,
         // FIXME: what should least_child_ep really be?
-        least_descendant_ep: 1,
+        min_descendant_epoch: 1,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
         node_type: NodeType::Leaf,
         left_child: None,

@@ -143,10 +143,7 @@ fn verify_single_update_proof(
 ) -> Result<VerifyResult, VerificationError> {
     let epoch = proof.epoch;
     let version = proof.version;
-
     let existence_at_ep = &proof.existence_at_ep;
-
-    let previous_version_stale_at_ep = &proof.previous_version_stale_at_ep;
 
     let value_hash_valid = match (params, &proof.plaintext_value) {
         (HistoryVerificationParams::AllowMissingValues, bytes) if bytes.0 == crate::TOMBSTONE => {
@@ -178,47 +175,42 @@ fn verify_single_update_proof(
         existence_at_ep.label,
     )?;
     verify_membership(root_hash, existence_at_ep)?;
+
     // ***** PART 2 ***************************
     // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
     if version > 1 {
         // Verify the membership proof the for stale label of the previous version
-        let err_str = format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
-            (version - 1),
-            epoch
-        );
-        let previous_null_err = VerificationError::HistoryProof(err_str);
-
-        let previous_version_stale_at_ep = previous_version_stale_at_ep
-            .as_ref()
-            .ok_or(previous_null_err)?;
+        let previous_version_stale_at_ep =
+            proof.previous_version_stale_at_ep.as_ref().ok_or_else(|| {
+                VerificationError::HistoryProof(format!(
+                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+                    uname,
+                    (version - 1),
+                    epoch
+                ))
+            })?;
         // Check that the correct value is included in the previous stale proof
         if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_stale_at_ep.hash_val
         {
-            let former_err_str = format!(
+            return Err(VerificationError::HistoryProof(format!(
                 "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
                 uname,
                 (version - 1),
                 epoch
-            );
-            return Err(VerificationError::HistoryProof(former_err_str));
+            )));
         }
         verify_membership(root_hash, previous_version_stale_at_ep)?;
 
-        let vrf_err_str = format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
-            (version - 1),
-            epoch
-        );
-
         // Verify the VRF for the stale label corresponding to the previous version for this username
-        let vrf_previous_null_err = VerificationError::HistoryProof(vrf_err_str);
-        let previous_version_vrf_proof = proof
-            .previous_version_vrf_proof
-            .as_ref()
-            .ok_or(vrf_previous_null_err)?;
+        let previous_version_vrf_proof =
+            proof.previous_version_vrf_proof.as_ref().ok_or_else(|| {
+                VerificationError::HistoryProof(format!(
+                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+                    uname,
+                    (version - 1),
+                    epoch
+                ))
+            })?;
         verify_vrf(
             vrf_public_key,
             uname,

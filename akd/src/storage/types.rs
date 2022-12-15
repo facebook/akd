@@ -249,7 +249,7 @@ impl DbRecord {
             (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => Some(TreeNode {
                 label,
                 last_epoch: a,
-                least_descendant_ep: b,
+                min_descendant_epoch: b,
                 parent: NodeLabel::new(c, d),
                 node_type: NodeType::from_u8(e),
                 left_child: p_left_child,
@@ -263,7 +263,7 @@ impl DbRecord {
             latest_node: TreeNode {
                 label,
                 last_epoch,
-                least_descendant_ep,
+                min_descendant_epoch: least_descendant_ep,
                 parent: NodeLabel::new(parent_label_val, parent_label_len),
                 node_type: NodeType::from_u8(node_type),
                 left_child,

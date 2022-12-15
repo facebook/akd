@@ -25,9 +25,9 @@ async-recursion = "0.3"
 mysql_async = "0.31"
 mysql_common = "0.29.1"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-akd = { path = "../akd", version = "0.8.0", features = ["serde_serialization"] }
+akd = { path = "../akd", version = "0.8.1", features = ["serde_serialization"] }
 
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
-akd = { path = "../akd", version = "0.8.0", features = ["public-tests"] }
+akd = { path = "../akd", version = "0.8.1", features = ["public-tests"] }

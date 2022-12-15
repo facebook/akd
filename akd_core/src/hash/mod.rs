@@ -97,7 +97,7 @@ pub fn merge(items: &[Digest]) -> Digest {
     hash(data)
 }
 
-/// Take a hash and merge it with an integer and hash the resulting bytes
+/// Takes the hash of a value and merges it with a `u64`, hashing the result.
 pub fn merge_with_int(digest: Digest, value: u64) -> Digest {
     let mut data = [0; DIGEST_BYTES + 8];
     data[..DIGEST_BYTES].copy_from_slice(&digest);
@@ -108,7 +108,7 @@ pub fn merge_with_int(digest: Digest, value: u64) -> Digest {
 }
 
 /// Hashes all the children of a node, as well as their labels
-pub fn build_and_hash_layer(
+pub(crate) fn build_and_hash_layer(
     hashes: Vec<Digest>,
     dir: Direction,
     ancestor_hash: Digest,
@@ -123,7 +123,7 @@ pub fn build_and_hash_layer(
 }
 
 /// Helper for build_and_hash_layer
-pub fn hash_layer(hashes: Vec<Digest>, parent_label: NodeLabel) -> Digest {
+fn hash_layer(hashes: Vec<Digest>, parent_label: NodeLabel) -> Digest {
     let new_hash = merge(&[hashes[0], hashes[1]]);
     merge(&[new_hash, parent_label.hash()])
 }

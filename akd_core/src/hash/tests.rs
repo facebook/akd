@@ -108,11 +108,11 @@ fn test_merge_validity() {
 
 #[test]
 fn test_merge_int_validity() {
-    let random_int = thread_rng().gen::<u64>();
+    let random_epoch = thread_rng().gen::<u64>();
     let random_hash = random_hash();
-    let merged = merge_with_int(random_hash, random_int);
+    let merged = merge_with_int(random_hash, random_epoch);
 
-    let data = vec![random_hash.to_vec(), random_int.to_le_bytes().to_vec()].concat();
+    let data = vec![random_hash.to_vec(), random_epoch.to_le_bytes().to_vec()].concat();
     let expected = hash(&data);
 
     assert_eq!(expected, merged);

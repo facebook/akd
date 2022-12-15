@@ -156,7 +156,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .vrf
                         .get_node_label(&uname, false, latest_version)
                         .await?;
-                    let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
+                    let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add =
                         akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
                     update_set.push(Node {
@@ -251,7 +251,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .vrf
             .get_label_proof(&uname, false, current_version)
             .await?;
-        let commitment_label = self.vrf.get_node_label_from_vrf_pf(existence_vrf).await?;
+        let commitment_label = self
+            .vrf
+            .get_node_label_from_vrf_proof(existence_vrf)
+            .await?;
         let lookup_proof = LookupProof {
             epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
@@ -630,7 +633,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_azks = self.retrieve_current_azks().await?;
         let existence_vrf = self.vrf.get_label_proof(uname, false, version).await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
-        let existence_label = self.vrf.get_node_label_from_vrf_pf(existence_vrf).await?;
+        let existence_label = self
+            .vrf
+            .get_node_label_from_vrf_proof(existence_vrf)
+            .await?;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -696,7 +702,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     // key, we should derive this properly from a server secret.
     async fn derive_commitment_key(&self) -> Result<Digest, AkdError> {
         let raw_key = self.vrf.retrieve().await?;
-        let commitment_key = akd_core::hash::hash(&raw_key);
+        let commitment_key = crate::hash::hash(&raw_key);
         Ok(commitment_key)
     }
 }
@@ -769,7 +775,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             // In the malicious case, sometimes the server may not mark the old version stale immediately.
             // If this is the case, it may want to do this marking at a later time.
             let stale_label = self.vrf.get_node_label(uname, true, version_number).await?;
-            let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
+            let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
             update_set.push(Node {
                 label: stale_label,
                 hash: stale_value_to_add,
@@ -837,7 +843,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .vrf
                         .get_node_label(&uname, false, latest_version)
                         .await?;
-                    let stale_value_to_add = akd_core::hash::hash(&crate::EMPTY_VALUE);
+                    let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add =
                         akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
                     match &corruption {

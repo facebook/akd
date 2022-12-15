@@ -42,11 +42,7 @@ pub(crate) fn build_lookup_prefixes_set(labels: &[NodeLabel]) -> HashSet<NodeLab
 }
 
 pub(crate) fn empty_node_hash() -> crate::Digest {
-    akd_core::hash::merge(&[akd_core::hash::hash(&EMPTY_VALUE), EMPTY_LABEL.hash()])
-}
-
-pub(crate) fn empty_node_hash_no_label() -> crate::Digest {
-    akd_core::hash::hash(&EMPTY_VALUE)
+    crate::hash::merge(&[crate::hash::hash(&EMPTY_VALUE), EMPTY_LABEL.hash()])
 }
 
 // Creates a byte array of 32 bytes from a u64
