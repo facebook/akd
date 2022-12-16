@@ -93,7 +93,7 @@ pub mod serde_helpers {
         <T as FromHex>::Error: core::fmt::Display,
     {
         let hex_str = String::deserialize(deserializer)?;
-        T::from_hex(&hex_str).map_err(serde::de::Error::custom)
+        T::from_hex(hex_str).map_err(serde::de::Error::custom)
     }
 
     /// Serialize a digest
