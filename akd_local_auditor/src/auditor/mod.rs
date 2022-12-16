@@ -54,7 +54,7 @@ pub async fn audit_epoch(blob: akd::local_auditing::AuditBlob, qr: bool) -> Resu
         if qr {
             info!("Generating scan-able QR code for the verification on device");
             let qr_code_data = format_qr_record(p_hash, c_hash, epoch);
-            if let Err(error) = qr2term::print_qr(&qr_code_data) {
+            if let Err(error) = qr2term::print_qr(qr_code_data) {
                 error!("Error generating QR code {}", error);
                 bail!("Error generating QR code {}", error);
             }

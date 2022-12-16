@@ -480,7 +480,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             }
 
             return Ok(KeyData {
-                states: map.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
+                states: map.into_values().collect::<Vec<_>>(),
             });
         }
 

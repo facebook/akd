@@ -88,7 +88,6 @@ impl TimedCache {
         };
         if do_clean {
             let mut last_clean_write = self.last_clean.write().await;
-            debug!("BEGIN clean cache");
 
             let now = Instant::now();
             if let Some(memory_limit_bytes) = self.memory_limit_bytes {
@@ -110,8 +109,6 @@ impl TimedCache {
                 debug!("Retained cache size is {} bytes", retained_size);
 
                 if retained_size > memory_limit_bytes {
-                    debug!("BEGIN cache memory pressure clean");
-
                     info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
                     // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
                     let percent_clean =
@@ -140,8 +137,6 @@ impl TimedCache {
                 // memory pressure analysis is disabled, simply utilize timed cache cleaning
                 self.map.retain(|_, v| v.expiration >= now);
             }
-
-            debug!("END clean cache");
 
             // update last clean time
             *last_clean_write = Instant::now();
@@ -180,8 +175,6 @@ impl TimedCache {
     pub async fn hit_test<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         self.clean().await;
 
-        debug!("BEGIN cache retrieve {:?}", key);
-
         let full_key = St::get_full_binary_key_id(key);
 
         // special case for AZKS
@@ -192,8 +185,6 @@ impl TimedCache {
         {
             // someone's requesting the AZKS object, return it from the special "cache" storage
             let record = self.azks.read().await.clone();
-
-            debug!("END cache retrieve");
 
             #[cfg(feature = "runtime_metrics")]
             self.hit_count.fetch_add(1, Ordering::Relaxed);
@@ -212,20 +203,16 @@ impl TimedCache {
             // of an in-memory transaction and should ignore expiration
             // of cache items until this flag is disabled again
             if ignore_clean || result.expiration > Instant::now() {
-                debug!("END cache retrieve");
                 return Some(result.data.clone());
             }
         }
 
-        debug!("END cache retrieve");
         None
     }
 
     /// Put an item into the cache
     pub async fn put(&self, record: &DbRecord) {
         self.clean().await;
-
-        debug!("BEGIN cache put");
 
         let key = record.get_full_binary_id();
 
@@ -240,15 +227,11 @@ impl TimedCache {
             };
             self.map.insert(key, item);
         }
-
-        debug!("END cache put");
     }
 
     /// Put a batch of items into the cache, utilizing a single write lock
     pub async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
-
-        debug!("BEGIN cache put batch");
 
         for record in records.iter() {
             if let DbRecord::Azks(azks_ref) = &record {
@@ -263,24 +246,16 @@ impl TimedCache {
                 self.map.insert(key, item);
             }
         }
-
-        debug!("END cache put batch");
     }
 
     /// Flush the cache
     pub async fn flush(&self) {
-        debug!("BEGIN cache flush");
-
         self.map.clear();
         *(self.azks.write().await) = None;
-
-        debug!("END cache flush");
     }
 
     /// Retrieve all of the cached items
     pub async fn get_all(&self) -> Vec<DbRecord> {
-        debug!("BEGIN cache get all");
-
         self.clean().await;
 
         let mut items = vec![];
@@ -291,7 +266,6 @@ impl TimedCache {
             items.push(kv.value().data.clone());
         }
 
-        debug!("END cache get all");
         items
     }
 

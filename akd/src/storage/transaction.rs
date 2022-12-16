@@ -81,21 +81,18 @@ impl Transaction {
 
     /// Start a transaction in the storage layer
     pub async fn begin_transaction(&self) -> bool {
-        debug!("BEGIN begin transaction");
         let mut guard = self.state.write().await;
-        let out = if guard.active {
+
+        if guard.active {
             false
         } else {
             guard.active = true;
             true
-        };
-        debug!("END begin transaction");
-        out
+        }
     }
 
     /// Commit a transaction in the storage layer
     pub async fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
-        debug!("BEGIN commit transaction");
         let mut guard = self.state.write().await;
 
         if !guard.active {
@@ -114,13 +111,11 @@ impl Transaction {
         guard.mods.clear();
 
         guard.active = false;
-        debug!("END commit transaction");
         Ok(records)
     }
 
     /// Rollback a transaction
     pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
-        debug!("BEGIN rollback transaction");
         let mut guard = self.state.write().await;
 
         if !guard.active {
@@ -133,21 +128,16 @@ impl Transaction {
         guard.mods.clear();
         guard.active = false;
 
-        debug!("END rollback transaction");
         Ok(())
     }
 
     /// Retrieve a flag determining if there is a transaction active
     pub async fn is_transaction_active(&self) -> bool {
-        debug!("BEGIN is transaction active");
-        let out = self.state.read().await.active;
-        debug!("END is transaction active");
-        out
+        self.state.read().await.active
     }
 
     /// Hit test the current transaction to see if it is currently active
     pub async fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
-        debug!("BEGIN transaction get {:?}", key);
         let bin_id = St::get_full_binary_key_id(key);
 
         let guard = self.state.read().await;
@@ -156,14 +146,11 @@ impl Transaction {
         if out.is_some() {
             *(self.num_reads.write().await) += 1;
         }
-        debug!("END transaction get");
         out
     }
 
     /// Set a batch of values into the cache
     pub async fn batch_set(&self, records: &[DbRecord]) {
-        debug!("BEGIN transaction set");
-
         let mut guard = self.state.write().await;
         for record in records {
             guard
@@ -175,13 +162,10 @@ impl Transaction {
         {
             *(self.num_writes.write().await) += 1;
         }
-
-        debug!("END transaction set");
     }
 
     /// Set a value in the transaction to be committed at transaction commit time
     pub async fn set(&self, record: &DbRecord) {
-        debug!("BEGIN transaction set");
         let bin_id = record.get_full_binary_id();
 
         let mut guard = self.state.write().await;
@@ -191,8 +175,6 @@ impl Transaction {
         {
             *(self.num_writes.write().await) += 1;
         }
-
-        debug!("END transaction set");
     }
 
     /// Retrieve all of the user data for a given username
@@ -202,7 +184,6 @@ impl Transaction {
         &self,
         usernames: &[crate::AkdLabel],
     ) -> HashMap<crate::AkdLabel, Vec<ValueState>> {
-        debug!("BEGIN transaction user version scan");
         let mut results: HashMap<crate::AkdLabel, Vec<ValueState>> = HashMap::new();
 
         let mut set = std::collections::HashSet::with_capacity(usernames.len());
@@ -232,7 +213,6 @@ impl Transaction {
             v.sort_unstable_by(|a, b| a.epoch.cmp(&b.epoch));
         }
 
-        debug!("END transaction user version scan");
         results
     }
 

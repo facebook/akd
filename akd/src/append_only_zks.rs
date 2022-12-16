@@ -219,6 +219,8 @@ impl Azks {
                 "Preload of tree ({} objects loaded), took {} s",
                 load_count, time,
             );
+        } else {
+            info!("Preload of tree ({} objects loaded) completed", load_count);
         }
 
         self.increment_epoch();
@@ -253,6 +255,8 @@ impl Azks {
             hash_q.push(node.label, priorities);
             priorities -= 1;
         }
+
+        info!("Completed inserting new nodes");
         // Now hash up the tree, the highest priority items will be closer to the leaves.
         while let Some((next_node_label, _)) = hash_q.pop() {
             let mut next_node: TreeNode = TreeNode::get_from_storage(
@@ -277,6 +281,7 @@ impl Azks {
                 priorities -= 1;
             }
         }
+        info!("Completed evaluating updated hashes");
         Ok(())
     }
 
@@ -388,6 +393,11 @@ impl Azks {
                 info!(
                     "Preload of nodes for audit ({} objects loaded), took {} s",
                     load_count, time,
+                );
+            } else {
+                info!(
+                    "Preload of nodes for audit ({} objects loaded) completed.",
+                    load_count
                 );
             }
             storage.log_metrics(log::Level::Info).await;

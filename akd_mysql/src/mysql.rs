@@ -224,7 +224,6 @@ impl<'a> AsyncMySqlDatabase {
             *is_healthy_guard = false;
         }
         warn!("Refreshing MySql connection pool.");
-        debug!("BEGIN refresh mysql connection pool");
 
         // Grab early write lock so no new queries can be initiated before
         // connection pool is refreshed.
@@ -232,7 +231,6 @@ impl<'a> AsyncMySqlDatabase {
         let pool = Self::new_connection_pool(&self.opts, &self.is_healthy).await?;
         *connection_pool_guard = pool;
 
-        debug!("END refresh mysql connection pool");
         Ok(())
     }
 
@@ -382,7 +380,6 @@ impl<'a> AsyncMySqlDatabase {
         self.record_call_stats('w', "internal_set".to_string(), "".to_string())
             .await;
 
-        debug!("BEGIN MySQL set");
         let statement_text = record.set_statement();
         let params = record
             .set_params()
@@ -400,7 +397,6 @@ impl<'a> AsyncMySqlDatabase {
         };
         self.check_for_infra_error(out)?;
 
-        debug!("END MySQL set");
         Ok(())
     }
 
@@ -417,7 +413,6 @@ impl<'a> AsyncMySqlDatabase {
         self.record_call_stats('w', "internal_batch_set".to_string(), "".to_string())
             .await;
 
-        debug!("BEGIN Computing mysql parameters");
         #[allow(clippy::needless_collect)]
         let chunked = records
             .chunks(self.tunable_insert_depth)
@@ -432,9 +427,7 @@ impl<'a> AsyncMySqlDatabase {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
-        debug!("END Computing mysql parameters");
 
-        debug!("BEGIN MySQL set batch");
         let head = &records[0];
         let statement = |i: usize| -> String {
             match &head {
@@ -474,7 +467,6 @@ impl<'a> AsyncMySqlDatabase {
             self.check_for_infra_error(out)?;
         }
 
-        debug!("END MySQL set batch");
         Ok(trans)
     }
 
@@ -598,7 +590,6 @@ impl<'a> AsyncMySqlDatabase {
         )
         .await;
 
-        debug!("BEGIN MySQL get {:?}", id);
         let result = async {
             let mut conn = self.get_connection().await?;
             let statement = DbRecord::get_specific_statement::<St>();
@@ -623,7 +614,6 @@ impl<'a> AsyncMySqlDatabase {
             Ok::<Option<DbRecord>, MySqlError>(None)
         };
 
-        debug!("END MySQL get");
         match result.await {
             Ok(Some(r)) => Ok(r),
             Ok(None) => Err(StorageError::NotFound(format!(
@@ -757,7 +747,6 @@ impl Database for AsyncMySqlDatabase {
         let result = async {
             let key_set_vec: Vec<_> = ids.to_vec();
 
-            debug!("BEGIN MySQL get batch");
             let mut conn = self.get_connection().await?;
 
             let results = if let Some(create_table_cmd) =
@@ -844,8 +833,6 @@ impl Database for AsyncMySqlDatabase {
                 vec![]
             };
 
-            debug!("END MySQL get batch");
-
             Ok::<Vec<DbRecord>, mysql_async::Error>(results)
         };
 
@@ -881,7 +868,6 @@ impl Database for AsyncMySqlDatabase {
             .await;
 
         // DO NOT log the user info, it's PII in the future
-        debug!("BEGIN MySQL get user data");
         let result = async {
             let mut conn = self.get_connection().await?;
             let statement_text =
@@ -935,7 +921,6 @@ impl Database for AsyncMySqlDatabase {
             })
         };
 
-        debug!("END MySQL get user data");
         match result.await {
             Ok(output) => Ok(output),
             Err(error) => {
@@ -953,7 +938,6 @@ impl Database for AsyncMySqlDatabase {
         self.record_call_stats('r', "get_user_state".to_string(), "".to_string())
             .await;
 
-        debug!("BEGIN MySQL get user state (flag {:?})", flag);
         let result = async {
             let mut conn = self.get_connection().await?;
             let mut statement_text =
@@ -1025,7 +1009,6 @@ impl Database for AsyncMySqlDatabase {
             let item = selected_record.into_iter().next();
             Ok::<Option<ValueState>, MySqlError>(item)
         };
-        debug!("END MySQL get user state");
         match result.await {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::NotFound(format!("ValueState {:?}", username))),
@@ -1046,7 +1029,6 @@ impl Database for AsyncMySqlDatabase {
 
         let mut results = HashMap::new();
 
-        debug!("BEGIN MySQL get user state versions (flag {:?})", flag);
         let result = async {
             let mut conn = self.get_connection().await?;
 
@@ -1218,7 +1200,6 @@ impl Database for AsyncMySqlDatabase {
 
             Ok::<(), MySqlError>(())
         };
-        debug!("END MySQL get user states");
         match result.await {
             Ok(()) => Ok(results),
             Err(error) => {
