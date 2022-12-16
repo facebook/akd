@@ -46,6 +46,9 @@ const METRIC_GET_USER_STATE_VERSIONS: Metric = 9;
 
 const NUM_METRICS: usize = 10;
 
+#[cfg(test)]
+mod tests;
+
 /// Represents the manager of the storage mediums, including caching
 /// and transactional operations (creating the transaction, commiting it, etc)
 pub struct StorageManager<Db: Database + Sync + Send> {
@@ -356,6 +359,12 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             let mut results = self
                 .tic_toc(METRIC_READ_TIME, self.db.batch_get::<St>(&keys))
                 .await?;
+
+            // cache the db returned results
+            if let Some(cache) = &self.cache {
+                cache.batch_put(&results).await;
+            }
+
             map.append(&mut results);
             self.increment_metric(METRIC_BATCH_GET);
         }

@@ -33,7 +33,7 @@ mod memory_storage_tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_v2_in_memory_db() {
+    async fn test_in_memory_db() {
         let db = AsyncInMemoryDatabase::new();
         crate::storage::tests::run_test_cases_for_storage_impl(&db).await;
     }

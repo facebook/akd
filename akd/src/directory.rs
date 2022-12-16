@@ -188,27 +188,33 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 "Transaction is already active".to_string(),
             )));
         }
-        info!("Starting database insertion");
+        info!("Starting inserting new leaves");
 
-        current_azks
+        if let Err(err) = current_azks
             .batch_insert_leaves::<_>(&self.storage, insertion_set)
-            .await?;
+            .await
+        {
+            // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
+            // Only fails if transaction is not currently active.
+            let _ = self.storage.rollback_transaction().await;
+            // bubble up the err
+            return Err(err);
+        }
 
-        // batch all the inserts into a single transactional write to storage
+        // batch all the inserts into a single write to storage (in this case it insert's into the transaction log)
         let mut updates = vec![DbRecord::Azks(current_azks.clone())];
         for update in user_data_update_set.into_iter() {
             updates.push(DbRecord::ValueState(update));
         }
         self.storage.batch_set(updates).await?;
 
-        // now commit the transaction
-        debug!("Committing transaction");
+        // Commit the transaction
+        info!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
-            // ignore any rollback error(s)
-            let _ = self.storage.rollback_transaction();
+            let _ = self.storage.rollback_transaction().await;
             return Err(AkdError::Storage(err));
         } else {
-            debug!("Transaction committed");
+            info!("Transaction committed");
         }
 
         let root_hash = current_azks
