@@ -44,6 +44,12 @@ impl AsyncInMemoryDatabase {
             user_info: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+
+    #[cfg(test)]
+    pub async fn clear(&self) {
+        let mut guard = self.db.write().await;
+        guard.clear();
+    }
 }
 
 impl Default for AsyncInMemoryDatabase {

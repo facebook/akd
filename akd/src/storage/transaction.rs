@@ -63,6 +63,12 @@ impl Transaction {
         }
     }
 
+    /// Get the current number of items currently in the transaction modifications set
+    pub async fn count(&self) -> usize {
+        let lock = self.state.read().await;
+        lock.mods.len()
+    }
+
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
         let r = crate::utils::rwlock_swap(&self.num_reads, 0).await;

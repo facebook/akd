@@ -1,6 +1,6 @@
 [package]
 name = "akd_mysql"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "A MySQL storage layer implementation for an auditable key directory (AKD)"
 license = "MIT OR Apache-2.0"
