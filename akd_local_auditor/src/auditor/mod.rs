@@ -19,7 +19,7 @@ use std::sync::Arc;
 pub(crate) const HISTORY_FILE: &str = ".akd_local_auditor_history";
 
 fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Vec<u8> {
-    let epoch_bytes = epoch.to_le_bytes();
+    let epoch_bytes = epoch.to_be_bytes();
     let header = "WA_AKD_VERIFY".as_bytes();
 
     let mut result = vec![];

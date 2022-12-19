@@ -101,9 +101,7 @@ pub fn merge(items: &[Digest]) -> Digest {
 pub fn merge_with_int(digest: Digest, value: u64) -> Digest {
     let mut data = [0; DIGEST_BYTES + 8];
     data[..DIGEST_BYTES].copy_from_slice(&digest);
-    // this comes from winter_crypto::Hasher. We stick with little-endian bytes everywhere
-    // to avoid system-specific implementation headaches
-    data[DIGEST_BYTES..].copy_from_slice(&value.to_le_bytes());
+    data[DIGEST_BYTES..].copy_from_slice(&value.to_be_bytes());
     hash(&data)
 }
 

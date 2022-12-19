@@ -19,7 +19,7 @@ use crate::{
     NonMembershipProof, UpdateProof,
 };
 
-use log::{debug, error, info};
+use log::{error, info};
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -132,7 +132,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add = akd_core::utils::commit_value(&commitment_key, &label, &val);
+                    let value_to_add = akd_core::utils::commit_value(
+                        &commitment_key,
+                        &label,
+                        latest_version,
+                        &val,
+                    );
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -157,8 +162,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add =
-                        akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
+                    let fresh_value_to_add = akd_core::utils::commit_value(
+                        &commitment_key,
+                        &fresh_label,
+                        latest_version,
+                        &val,
+                    );
                     update_set.push(Node {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -290,6 +299,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             commitment_proof: akd_core::utils::get_commitment_proof(
                 &commitment_key,
                 &commitment_label,
+                lookup_info.value_state.version,
                 &plaintext_value,
             )
             .to_vec(),
@@ -668,6 +678,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let commitment_proof = akd_core::utils::get_commitment_proof(
             &commitment_key,
             &existence_label,
+            version,
             plaintext_value,
         )
         .to_vec();
@@ -759,9 +770,10 @@ pub enum PublishCorruption {
     MarkVersionStale(AkdLabel, u64),
 }
 
+#[cfg(test)]
 impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
-    pub async fn publish_malicious_update(
+    pub(crate) async fn publish_malicious_update(
         &self,
         updates: Vec<(AkdLabel, AkdValue)>,
         corruption: PublishCorruption,
@@ -825,7 +837,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
 
-                    let value_to_add = akd_core::utils::commit_value(&commitment_key, &label, &val);
+                    let value_to_add = akd_core::utils::commit_value(
+                        &commitment_key,
+                        &label,
+                        latest_version,
+                        &val,
+                    );
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -850,8 +867,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add =
-                        akd_core::utils::commit_value(&commitment_key, &fresh_label, &val);
+                    let fresh_value_to_add = akd_core::utils::commit_value(
+                        &commitment_key,
+                        &fresh_label,
+                        latest_version,
+                        &val,
+                    );
                     match &corruption {
                         // Some malicious server might not want to mark an old and compromised key as stale.
                         // Thus, you only push the key if either the corruption is for some other username,
@@ -909,13 +930,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         self.storage.batch_set(updates).await?;
 
         // now commit the transaction
-        debug!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
             // ignore any rollback error(s)
             let _ = self.storage.rollback_transaction();
             return Err(AkdError::Storage(err));
-        } else {
-            debug!("Transaction committed");
         }
 
         let root_hash = current_azks

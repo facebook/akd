@@ -7,8 +7,9 @@
 
 //! Verification of lookup proofs
 
-use super::base::{hash_leaf_with_value, verify_membership, verify_nonmembership, verify_vrf};
+use super::base::{verify_label, verify_membership, verify_nonmembership};
 use super::VerificationError;
+use crate::utils::hash_leaf_with_value;
 
 use crate::hash::Digest;
 use crate::{AkdLabel, LookupProof, VerifyResult};
@@ -39,7 +40,7 @@ pub fn lookup_verify(
         ));
     }
 
-    verify_vrf(
+    verify_label(
         vrf_public_key,
         &akd_key,
         false,
@@ -50,7 +51,7 @@ pub fn lookup_verify(
     verify_membership(root_hash, &existence_proof)?;
 
     let marker_label = marker_proof.label;
-    verify_vrf(
+    verify_label(
         vrf_public_key,
         &akd_key,
         false,
@@ -62,7 +63,7 @@ pub fn lookup_verify(
     verify_membership(root_hash, &marker_proof)?;
 
     let stale_label = freshness_proof.label;
-    verify_vrf(
+    verify_label(
         vrf_public_key,
         &akd_key,
         true,

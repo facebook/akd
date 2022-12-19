@@ -38,7 +38,7 @@ fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
 // places the bits to the front of the output byte_array.
 fn byte_arr_from_u64_le(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
-    let input_arr = input_int.to_le_bytes();
+    let input_arr = input_int.to_be_bytes();
     output_arr[..8].clone_from_slice(&input_arr[..8]);
     output_arr
 }

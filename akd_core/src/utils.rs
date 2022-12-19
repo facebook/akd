@@ -8,7 +8,7 @@
 //! Utility functions
 
 use crate::hash::Digest;
-use crate::{AkdValue, NodeLabel};
+use crate::{AkdLabel, AkdValue, NodeLabel};
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -17,7 +17,7 @@ use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
 /// Retrieve the marker version
 pub fn get_marker_version(version: u64) -> u64 {
-    64u64 - (version.leading_zeros() as u64) - 1u64
+    64 - (version.leading_zeros() as u64) - 1
 }
 
 /// Corresponds to the I2OSP() function from RFC8017, prepending the length of
@@ -28,37 +28,80 @@ pub fn i2osp_array(input: &[u8]) -> Vec<u8> {
     [&(input.len() as u64).to_be_bytes(), input].concat()
 }
 
-/// Generate a commitproof from the client proof
-pub fn generate_commitment_from_proof_client(
+/// Used by the client to supply a commitment proof and value to reconstruct the commitment, via:
+/// commitment = H(value, proof)
+pub(crate) fn generate_commitment_from_proof_client(
     value: &crate::AkdValue,
     proof: &[u8],
 ) -> crate::hash::Digest {
     crate::hash::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
 }
 
-/// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue
-pub fn get_commitment_proof(commitment_key: &[u8], label: &NodeLabel, value: &AkdValue) -> Digest {
-    crate::hash::hash(&[commitment_key, &label.label_val, &i2osp_array(value)].concat())
+/// Hash a leaf epoch and proof with a given [AkdValue]
+pub(crate) fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
+    let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
+    crate::hash::merge_with_int(single_hash, epoch)
+}
+
+/// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue.
+/// Computes proof = H(commitment key || label || version || i2osp_array(value))
+pub fn get_commitment_proof(
+    commitment_key: &[u8],
+    label: &NodeLabel,
+    version: u64,
+    value: &AkdValue,
+) -> Digest {
+    crate::hash::hash(
+        &[
+            commitment_key,
+            &label.to_bytes(),
+            &version.to_be_bytes(),
+            &i2osp_array(value),
+        ]
+        .concat(),
+    )
+}
+
+/// To convert a regular label (arbitrary string of bytes) into a [NodeLabel], we compute the
+/// output as: H(label || stale || version)
+///
+/// Specifically, we concatenate the following together:
+/// - I2OSP(len(label) as u64, label)
+/// - A single byte encoded as 0u8 if "stale", 1u8 if "fresh"
+/// - A u64 representing the version
+/// These are all interpreted as a single byte array and hashed together, with the output
+/// of the hash returned.
+pub(crate) fn get_hash_from_label_input(label: &AkdLabel, stale: bool, version: u64) -> Vec<u8> {
+    let stale_bytes = if stale { &[0u8] } else { &[1u8] };
+    let hashed_label = crate::hash::hash(
+        &[
+            &crate::utils::i2osp_array(label)[..],
+            stale_bytes,
+            &version.to_be_bytes(),
+        ]
+        .concat(),
+    );
+    hashed_label.to_vec()
 }
 
 /// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
 ///
-/// proof = H(commitment_key, label, version, value)
-/// commmitment = H(value, proof)
+/// proof = H(commitment_key, label, version, i2osp_array(value))
+/// commmitment = H(i2osp_array(value), i2osp_array(value))
 ///
 /// The proof value is a nonce used to create a hiding and binding commitment using a
 /// cryptographic hash function. Note that it is derived from the label, version, and
 /// value (even though the binding to value is somewhat optional).
 ///
 /// Note that this commitment needs to be a hash function (random oracle) output
-pub fn commit_value(commitment_key: &[u8], label: &NodeLabel, value: &AkdValue) -> Digest {
-    let proof = get_commitment_proof(commitment_key, label, value);
+pub fn commit_value(
+    commitment_key: &[u8],
+    label: &NodeLabel,
+    version: u64,
+    value: &AkdValue,
+) -> Digest {
+    let proof = get_commitment_proof(commitment_key, label, version, value);
     crate::hash::hash(&[i2osp_array(value), i2osp_array(&proof)].concat())
-}
-
-/// Used by the client to supply a commitment proof and value to reconstruct the commitment
-pub fn bind_commitment(value: &AkdValue, proof: &[u8]) -> Digest {
-    crate::hash::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
 }
 
 #[cfg(feature = "rand")]

@@ -9,7 +9,8 @@
 
 use super::VerificationError;
 
-use crate::hash::{build_and_hash_layer, merge, merge_with_int, Digest};
+use crate::ecvrf::{Proof, VrfError};
+use crate::hash::{build_and_hash_layer, merge, Digest};
 use crate::{AkdLabel, MembershipProof, NodeLabel, NonMembershipProof, ARITY, EMPTY_LABEL};
 
 #[cfg(feature = "nostd")]
@@ -107,24 +108,30 @@ pub fn verify_nonmembership(
     Ok(())
 }
 
-/// Hash a leaf epoch and proof with a given [AkdValue]
-pub fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
-    let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
-    merge_with_int(single_hash, epoch)
-}
-
-/// This function is called to verify that a given NodeLabel is indeed
+/// This function is called to verify that a given [NodeLabel] is indeed
 /// the VRF for a given version (fresh or stale) for a username.
 /// Hence, it also takes as input the server's public key.
-pub fn verify_vrf(
+pub(crate) fn verify_label(
     vrf_public_key: &[u8],
-    uname: &AkdLabel,
+    akd_label: &AkdLabel,
     stale: bool,
     version: u64,
     pi: &[u8],
-    label: NodeLabel,
+    node_label: NodeLabel,
 ) -> Result<(), VerificationError> {
     let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
-    vrf_pk.verify_label(uname, stale, version, pi, label)?;
+    let hashed_label = crate::utils::get_hash_from_label_input(akd_label, stale, version);
+
+    // VRF proof verification (returns VRF hash output)
+    let proof = Proof::try_from(pi)?;
+    vrf_pk.verify(&proof, &hashed_label)?;
+    let output: crate::ecvrf::Output = (&proof).into();
+
+    if NodeLabel::new(output.to_truncated_bytes(), 256) != node_label {
+        return Err(VerificationError::Vrf(VrfError::Verification(
+            "Expected first 32 bytes of the proof output did NOT match the supplied label"
+                .to_string(),
+        )));
+    }
     Ok(())
 }
