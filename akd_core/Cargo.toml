@@ -21,6 +21,8 @@ nostd = []
 # Supported SHA-based hash functions
 sha512 = ["sha2"]
 sha256 = ["sha2"]
+# truncated Sha512 hash to 256 bits
+sha512_256 = ["sha2"]
 sha3_256 = ["sha3"]
 sha3_512 = ["sha3"]
 # Include the VRF verification logic
@@ -28,7 +30,7 @@ vrf = ["ed25519-dalek", "curve25519-dalek/std"]
 serde_serialization = ["serde", "serde_bytes", "ed25519-dalek/serde"]
 
 # Default features mix (Blake3 + VRFs)
-default = ["vrf", "blake3"]
+default = ["vrf"]
 
 [dependencies]
 ## Required dependencies ##

@@ -43,6 +43,12 @@ jobs:
           command: test
           args: --package akd_core --features protobuf,serde_serialization
 
+      - name: Test the core crate (akd_core) with truncated SHA512 (sha512_256) in no-std environment
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd_core --features nostd,sha512_256,vrf --no-default-features
+
       - name: Test the core crate (akd_core) with no standard library and Sha3 512 hashing
         uses: actions-rs/cargo@v1
         with:
@@ -54,6 +60,12 @@ jobs:
         with:
           command: test
           args: --package akd
+
+      - name: Test the base library, with truncated SHA512 hashing (sha512_256)
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --package akd --features sha512_256,public_auditing --no-default-features
 
       - name: Test the base library, enabling runtime metrics processing
         uses: actions-rs/cargo@v1
