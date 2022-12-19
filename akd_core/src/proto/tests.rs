@@ -9,6 +9,7 @@
 
 use super::specs::types::*;
 use super::*;
+use crate::Direction;
 use rand::{thread_rng, Rng};
 
 // ================= Test helpers ================= //
@@ -54,7 +55,7 @@ fn test_convert_layer_proof() {
     let original = crate::LayerProof {
         label: random_label(),
         siblings: [random_node()],
-        direction: Some(1),
+        direction: Direction::Right,
     };
 
     let protobuf: LayerProof = (&original).into();
@@ -69,7 +70,7 @@ fn test_convert_membership_proof() {
         layer_proofs: vec![crate::LayerProof {
             label: random_label(),
             siblings: [random_node()],
-            direction: Some(1),
+            direction: Direction::Right,
         }],
     };
 
@@ -89,7 +90,7 @@ fn test_convert_non_membership_proof() {
             layer_proofs: vec![crate::LayerProof {
                 label: random_label(),
                 siblings: [random_node()],
-                direction: Some(1),
+                direction: Direction::Right,
             }],
         },
     };
@@ -112,7 +113,7 @@ fn test_convert_lookup_proof() {
             layer_proofs: vec![crate::LayerProof {
                 label: random_label(),
                 siblings: [random_node()],
-                direction: Some(1),
+                direction: Direction::Right,
             }],
         },
         marker_vrf_proof: random_hash().to_vec(),
@@ -122,7 +123,7 @@ fn test_convert_lookup_proof() {
             layer_proofs: vec![crate::LayerProof {
                 label: random_label(),
                 siblings: [random_node()],
-                direction: Some(1),
+                direction: Direction::Right,
             }],
         },
         freshness_vrf_proof: random_hash().to_vec(),
@@ -136,7 +137,7 @@ fn test_convert_lookup_proof() {
                 layer_proofs: vec![crate::LayerProof {
                     label: random_label(),
                     siblings: [random_node()],
-                    direction: Some(1),
+                    direction: Direction::Right,
                 }],
             },
         },
@@ -161,7 +162,7 @@ fn test_convert_update_proof() {
             layer_proofs: vec![crate::LayerProof {
                 label: random_label(),
                 siblings: [random_node()],
-                direction: Some(1),
+                direction: Direction::Right,
             }],
         },
         previous_version_vrf_proof: Some(random_hash().to_vec()),
@@ -171,7 +172,7 @@ fn test_convert_update_proof() {
             layer_proofs: vec![crate::LayerProof {
                 label: random_label(),
                 siblings: [random_node()],
-                direction: Some(1),
+                direction: Direction::Right,
             }],
         }),
         commitment_proof: random_hash().to_vec(),
@@ -194,7 +195,7 @@ fn test_convert_history_proof() {
                 layer_proofs: vec![crate::LayerProof {
                     label: random_label(),
                     siblings: [random_node()],
-                    direction: Some(1),
+                    direction: Direction::Right,
                 }],
             },
         }
@@ -213,7 +214,7 @@ fn test_convert_history_proof() {
                 layer_proofs: vec![crate::LayerProof {
                     label: random_label(),
                     siblings: [random_node()],
-                    direction: Some(1),
+                    direction: Direction::Right,
                 }],
             },
             previous_version_vrf_proof: Some(random_hash().to_vec()),
@@ -223,7 +224,7 @@ fn test_convert_history_proof() {
                 layer_proofs: vec![crate::LayerProof {
                     label: random_label(),
                     siblings: [random_node()],
-                    direction: Some(1),
+                    direction: Direction::Right,
                 }],
             }),
             commitment_proof: random_hash().to_vec(),

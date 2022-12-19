@@ -10,6 +10,7 @@
 use super::*;
 #[cfg(feature = "nostd")]
 use alloc::vec;
+use core::convert::TryFrom;
 use rand::{thread_rng, Rng};
 
 // ================= Test helpers ================= //
@@ -380,9 +381,9 @@ pub fn test_node_label_lcp_dirs_some_leading_zero() {
     let expected = (
         NodeLabel::new(byte_arr_from_u64(0b1101u64 << 59), 5u32),
         // label_2 should go to the right
-        Direction::Some(1),
+        Direction::Right,
         // label_1 should go to the left
-        Direction::Some(0),
+        Direction::Left,
     );
     let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
     assert!(
@@ -400,9 +401,9 @@ pub fn test_node_label_lcp_dirs_some_leading_one() {
     let expected = (
         NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32),
         // label_2 should go right
-        Direction::Some(1),
+        Direction::Right,
         // label_1 should go left
-        Direction::Some(0),
+        Direction::Left,
     );
     let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
     assert!(
@@ -420,7 +421,7 @@ pub fn test_node_label_lcp_dirs_self_leading_one() {
     let expected = (
         NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32),
         // label_2 includes a 1 appended to label_1
-        Direction::Some(1),
+        Direction::Right,
         // label_1 is the lcp
         Direction::None,
     );
@@ -443,7 +444,7 @@ pub fn test_get_dir_large() {
         let label_2 = label_1.get_prefix(pos);
         // if the prefix is of length pos, then we want to get the prefix in that position, since the
         // label's value is indexed on 0, so the bit following the prefix of len "pos" is at position pos.
-        let mut direction = Direction::Some(label_1.get_bit_at(pos).try_into().unwrap());
+        let mut direction = Direction::try_from(label_1.get_bit_at(pos)).unwrap();
         if pos == 256 {
             direction = Direction::None;
         }

@@ -114,11 +114,14 @@ pub(crate) fn build_and_hash_layer(
     ancestor_hash: Digest,
     parent_label: NodeLabel,
 ) -> Result<Digest, HashError> {
-    let direction = dir.ok_or_else(|| {
-        HashError::NoDirection(format!("Empty direction for {:?}", parent_label.label_val))
-    })?;
+    if dir == Direction::None {
+        return Err(HashError::NoDirection(format!(
+            "Empty direction for {:?}",
+            parent_label.label_val
+        )));
+    }
     let mut hashes_mut = hashes.to_vec();
-    hashes_mut.insert(direction, ancestor_hash);
+    hashes_mut.insert(dir as usize, ancestor_hash);
     Ok(hash_layer(hashes_mut, parent_label))
 }
 

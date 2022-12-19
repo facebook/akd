@@ -9,7 +9,7 @@
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::{
-    errors::{AkdError, DirectoryError, TreeNodeError},
+    errors::{AkdError, DirectoryError},
     storage::{Database, Storable},
     tree_node::*,
     AppendOnlyProof, Digest, Direction, LayerProof, MembershipProof, Node, NodeLabel,
@@ -18,11 +18,11 @@ use crate::{
 
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
-use log::info;
-use std::marker::{Send, Sync};
-
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
+use log::info;
 use std::collections::HashSet;
+use std::convert::TryFrom;
+use std::marker::{Send, Sync};
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
@@ -190,7 +190,7 @@ impl Azks {
                 }
 
                 for dir in 0..ARITY {
-                    let child_label = node.get_child_label(Direction::Some(dir));
+                    let child_label = node.get_child_label(Direction::try_from(dir).unwrap());
 
                     if let Some(child_label) = child_label {
                         current_nodes.push(NodeKey(child_label));
@@ -319,10 +319,11 @@ impl Azks {
         let mut longest_prefix_children = [Node {
             label: EMPTY_LABEL,
             hash: crate::utils::empty_node_hash(),
-        }; ARITY];
+        }; ARITY as usize];
         for i in 0..ARITY {
+            let dir = Direction::try_from(i).unwrap();
             let child = lcp_node
-                .get_child_state(storage, Some(i), self.latest_epoch)
+                .get_child_state(storage, dir, self.latest_epoch)
                 .await?;
             match child {
                 None => {
@@ -335,7 +336,7 @@ impl Azks {
                         self.get_latest_epoch(),
                     )
                     .await?;
-                    longest_prefix_children[i] = Node {
+                    longest_prefix_children[i as usize] = Node {
                         label: unwrapped_child.label,
                         hash: optional_child_state_hash(&Some(unwrapped_child)),
                     };
@@ -594,29 +595,23 @@ impl Azks {
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = NodeLabel::root();
-        while !equal && dir.is_some() {
+        while !equal && dir != Direction::None {
             prev_node = curr_node.label;
 
             let mut nodes = [Node {
                 label: EMPTY_LABEL,
                 hash: crate::utils::empty_node_hash(),
-            }; ARITY - 1];
+            }; (ARITY - 1) as usize];
             let mut count = 0;
-            let direction = dir.ok_or(AkdError::TreeNode(TreeNodeError::NoDirection(
-                curr_node.label,
-                None,
-            )))?;
             let next_state = curr_node
-                .get_child_state(storage, Some(direction), self.latest_epoch)
+                .get_child_state(storage, dir, self.latest_epoch)
                 .await?;
             if next_state.is_some() {
                 for i in 0..ARITY {
-                    let no_direction_error =
-                        AkdError::TreeNode(TreeNodeError::NoDirection(curr_node.label, None));
-
-                    if i != dir.ok_or(no_direction_error)? {
+                    let i_dir = Direction::try_from(i).unwrap();
+                    if i_dir != dir {
                         let sibling = curr_node
-                            .get_child_state(storage, Direction::Some(i), self.latest_epoch)
+                            .get_child_state(storage, i_dir, self.latest_epoch)
                             .await?;
                         nodes[count] = Node {
                             label: optional_child_state_to_label(&sibling),
