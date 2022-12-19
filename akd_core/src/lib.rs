@@ -33,4 +33,4 @@ pub use types::*;
 
 /// The arity of the tree. Should EXACTLY match the ARITY within
 /// the AKD crate (i.e. akd::ARITY)
-pub const ARITY: u8 = 2;
+pub const ARITY: usize = 2;

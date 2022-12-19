@@ -29,6 +29,9 @@ use rand::{CryptoRng, Rng};
 pub mod node_label;
 pub use node_label::*;
 
+/// The possible VALID child directions
+pub const DIRECTIONS: [Direction; 2] = [Direction::Left, Direction::Right];
+
 // ============================================
 // Traits
 // ============================================
@@ -58,7 +61,7 @@ pub enum Direction {
     /// Right
     Right = 1u8,
     /// No direction
-    None = 255u8,
+    None = u8::MAX,
 }
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {
@@ -236,7 +239,7 @@ pub struct LayerProof {
     /// The parent's label
     pub label: NodeLabel,
     /// Siblings of the parent
-    pub siblings: [Node; (ARITY - 1) as usize],
+    pub siblings: [Node; ARITY - 1],
     /// The direction
     pub direction: Direction,
 }
@@ -277,7 +280,7 @@ pub struct NonMembershipProof {
     /// The longest prefix in the tree
     pub longest_prefix: NodeLabel,
     /// The children of the longest prefix
-    pub longest_prefix_children: [Node; ARITY as usize],
+    pub longest_prefix_children: [Node; ARITY],
     /// The membership proof of the longest prefix
     pub longest_prefix_membership_proof: MembershipProof,
 }

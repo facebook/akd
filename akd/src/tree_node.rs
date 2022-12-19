@@ -697,16 +697,17 @@ impl TreeNode {
         epoch: u64,
     ) -> Result<(), StorageError> {
         // Set child according to given direction.
-        if let Direction::None = direction {
-            return Err(StorageError::Other(format!(
-                "Unexpected child index: {:?}",
-                direction
-            )));
-        } else {
-            if direction == Direction::Left {
+        match direction {
+            Direction::None => {
+                return Err(StorageError::Other(format!(
+                    "Unexpected child index: {:?}",
+                    direction
+                )))
+            }
+            Direction::Left => {
                 self.left_child = Some(child_node.label);
             }
-            if direction == Direction::Right {
+            Direction::Right => {
                 self.right_child = Some(child_node.label);
             }
         }

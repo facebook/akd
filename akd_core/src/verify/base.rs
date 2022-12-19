@@ -74,8 +74,7 @@ pub fn verify_nonmembership(
     ]);
 
     for i in 0..ARITY {
-        lcp_real =
-            lcp_real.get_longest_common_prefix(proof.longest_prefix_children[i as usize].label);
+        lcp_real = lcp_real.get_longest_common_prefix(proof.longest_prefix_children[i].label);
     }
 
     if lcp_real == EMPTY_LABEL {
