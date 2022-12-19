@@ -19,7 +19,9 @@ use crate::{
     NonMembershipProof, UpdateProof,
 };
 
+use akd_core::utils::{commit_value, get_commitment_proof};
 use log::{error, info};
+use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -39,7 +41,7 @@ pub struct Directory<S: Database + Sync + Send, V> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Clone for Directory<S, V> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -50,7 +52,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
     }
 }
 
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -120,6 +122,21 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             keys.len()
         );
 
+        let vrf_computations = updates
+            .iter()
+            .map(|(label, _)| match all_user_versions_retrieved.get(label) {
+                None => (label.clone(), false, 1u64),
+                Some((latest_version, _)) => (label.clone(), false, *latest_version),
+            })
+            .collect::<Vec<_>>();
+
+        let vrf_map = self
+            .vrf
+            .get_node_labels(&vrf_computations)
+            .await?
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
         let commitment_key = self.derive_commitment_key().await?;
 
         for (uname, val) in updates {
@@ -127,17 +144,13 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 None => {
                     // no data found for the user
                     let latest_version = 1;
-                    let label = self
-                        .vrf
-                        .get_node_label(&uname, false, latest_version)
-                        .await?;
+                    let label = *vrf_map.get(&uname).ok_or_else(|| {
+                        crate::ecvrf::VrfError::SigningKey(
+                            "Failed to generate VRF for given username".to_string(),
+                        )
+                    })?;
 
-                    let value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &label,
-                        latest_version,
-                        &val,
-                    );
+                    let value_to_add = commit_value(&commitment_key, &label, latest_version, &val);
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -162,12 +175,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &fresh_label,
-                        latest_version,
-                        &val,
-                    );
+                    let fresh_value_to_add =
+                        commit_value(&commitment_key, &fresh_label, latest_version, &val);
                     update_set.push(Node {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -296,7 +305,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             freshness_proof: current_azks
                 .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
-            commitment_proof: akd_core::utils::get_commitment_proof(
+            commitment_proof: get_commitment_proof(
                 &commitment_key,
                 &commitment_label,
                 lookup_info.value_state.version,
@@ -675,13 +684,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
 
         let commitment_key = self.derive_commitment_key().await?;
-        let commitment_proof = akd_core::utils::get_commitment_proof(
-            &commitment_key,
-            &existence_label,
-            version,
-            plaintext_value,
-        )
-        .to_vec();
+        let commitment_proof =
+            get_commitment_proof(&commitment_key, &existence_label, version, plaintext_value)
+                .to_vec();
 
         Ok(UpdateProof {
             epoch,
@@ -750,7 +755,10 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database + Sync + Send, V: VRFKeyStorage>(
+pub async fn get_directory_root_hash_and_ep<
+    S: Database + Sync + Send,
+    V: VRFKeyStorage + 'static,
+>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -771,7 +779,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,
