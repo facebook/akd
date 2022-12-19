@@ -471,7 +471,17 @@ impl TreeNode {
 
         // if a node is the longest common prefix of itself and the leaf, dir_self will be None
         match dir_self {
-            Some(_) => {
+            // Case where the current node is equal to the lcs
+            // Recurse!
+            Direction::None => {
+                // This is the case where the calling node is the longest common prefix of itself
+                // and the inserted leaf, so we just need to modify the tree structure further down the tree.
+                self.insert_single_leaf_helper_recursive_case_handler::<S>(
+                    storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, dir_leaf,
+                )
+                .await
+            }
+            _ => {
                 // This is the case where the calling node and the leaf have a longest common prefix
                 // not equal to the label of the calling node.
                 // This means that the current node needs to be pushed down one level (away from root)
@@ -479,16 +489,6 @@ impl TreeNode {
                 self.insert_single_leaf_helper_base_case_handler::<S>(
                     storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, lcs_label, dir_leaf,
                     dir_self,
-                )
-                .await
-            }
-            // Case where the current node is equal to the lcs
-            // Recurse!
-            None => {
-                // This is the case where the calling node is the longest common prefix of itself
-                // and the inserted leaf, so we just need to modify the tree structure further down the tree.
-                self.insert_single_leaf_helper_recursive_case_handler::<S>(
-                    storage, new_leaf, epoch, num_nodes, hashing, exclude_ep, dir_leaf,
                 )
                 .await
             }
@@ -504,7 +504,7 @@ impl TreeNode {
         epoch: u64,
         hashing: bool,
         exclude_ep: Option<bool>,
-        dir_leaf: Option<usize>,
+        dir_leaf: Direction,
     ) -> Result<(), AkdError> {
         // If the root does not have a child at the direction the new leaf should be at, we add it.
 
@@ -545,8 +545,8 @@ impl TreeNode {
         hashing: bool,
         exclude_ep: Option<bool>,
         lcs_label: NodeLabel,
-        dir_leaf: Option<usize>,
-        dir_self: Option<usize>,
+        dir_leaf: Direction,
+        dir_self: Direction,
     ) -> Result<(), AkdError> {
         // We will be creating a new node, so let's account for it.
         *num_nodes += 1;
@@ -615,7 +615,7 @@ impl TreeNode {
         num_nodes: &mut u64,
         hashing: bool,
         exclude_ep: Option<bool>,
-        dir_leaf: Option<usize>,
+        dir_leaf: Direction,
     ) -> Result<(), AkdError> {
         let child_node = self.get_child_state(storage, dir_leaf, epoch).await?;
         match child_node {
@@ -639,8 +639,7 @@ impl TreeNode {
                 Ok(())
             }
             None => Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
-                epoch,
-                dir_leaf.unwrap(),
+                epoch, dir_leaf,
             ))),
         }
     }
@@ -665,8 +664,12 @@ impl TreeNode {
             // It is assumed that the children already updated their hashes.
             _ => {
                 // Get children states.
-                let left_child_state = self.get_child_state(storage, Some(0), epoch).await?;
-                let right_child_state = self.get_child_state(storage, Some(1), epoch).await?;
+                let left_child_state = self
+                    .get_child_state(storage, Direction::Left, epoch)
+                    .await?;
+                let right_child_state = self
+                    .get_child_state(storage, Direction::Right, epoch)
+                    .await?;
 
                 // Get merged hashes for the children.
                 let child_hashes = crate::hash::merge(&[
@@ -694,18 +697,19 @@ impl TreeNode {
         epoch: u64,
     ) -> Result<(), StorageError> {
         // Set child according to given direction.
-        if let Some(direction) = direction {
-            if direction == 0_usize {
+        match direction {
+            Direction::None => {
+                return Err(StorageError::Other(format!(
+                    "Unexpected child index: {:?}",
+                    direction
+                )))
+            }
+            Direction::Left => {
                 self.left_child = Some(child_node.label);
             }
-            if direction == 1_usize {
+            Direction::Right => {
                 self.right_child = Some(child_node.label);
             }
-        } else {
-            return Err(StorageError::Other(format!(
-                "Unexpected child index: {:?}",
-                direction
-            )));
         }
         // Update parent of the child.
         child_node.parent = self.label;
@@ -728,9 +732,9 @@ impl TreeNode {
     }
 
     pub(crate) fn get_child_label(&self, dir: Direction) -> Option<NodeLabel> {
-        if dir == Some(0) {
+        if dir == Direction::Left {
             self.left_child
-        } else if dir == Some(1) {
+        } else if dir == Direction::Right {
             self.right_child
         } else {
             None
@@ -742,16 +746,16 @@ impl TreeNode {
     fn get_direction(&self, node: &Self) -> Direction {
         if let Some(label) = self.left_child {
             if label == node.label {
-                return Some(0);
+                return Direction::Left;
             }
         }
 
         if let Some(label) = self.right_child {
             if label == node.label {
-                return Some(1);
+                return Direction::Right;
             }
         }
-        None
+        Direction::None
     }
 
     ///// getrs for child nodes ////
@@ -767,7 +771,7 @@ impl TreeNode {
             Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
                 self.label, None,
             ))),
-            Direction::Some(_dir) => {
+            _ => {
                 if let Some(child_label) = self.get_child_label(direction) {
                     let child_key = NodeKey(child_label);
                     let get_result =
@@ -792,16 +796,8 @@ impl TreeNode {
             Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
                 self.label, None,
             ))),
-            Direction::Some(dir) => {
-                // TODO(eoz): Use Direction:Left and Direction:Right instead
-                if dir == 0 {
-                    Ok(self.left_child)
-                } else if dir == 1 {
-                    Ok(self.right_child)
-                } else {
-                    Err(AkdError::TreeNode(TreeNodeError::InvalidDirection(dir)))
-                }
-            }
+            Direction::Left => Ok(self.left_child),
+            Direction::Right => Ok(self.right_child),
         }
     }
 

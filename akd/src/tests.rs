@@ -45,6 +45,11 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
         "720a0846fab801639e172ebe779c3212e9c1802e9fc94454a66285ed168db950c79bb1085fd72b076736412a06a7de37b861ace95317e5dd3a42e7d1fe3ee97d",
         hex::encode(hash)
     );
+    #[cfg(feature = "sha512_256")]
+    assert_eq!(
+        "eb9c26cb7d83343bb5b5549ea7206278f8a41ed565edf6e22de828cb89bbf68b",
+        hex::encode(hash)
+    );
     #[cfg(feature = "sha3_256")]
     assert_eq!(
         "fb0fac36b999155471cd9f5b075685a04bf345b82e248242ee3b396d9d001845",
@@ -61,7 +66,8 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
         feature = "sha256",
         feature = "sha3_256",
         feature = "sha512",
-        feature = "sha3_512"
+        feature = "sha3_512",
+        feature = "sha512_256"
     )))]
     panic!("Unsupported hashing function");
 

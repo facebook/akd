@@ -13,6 +13,7 @@ readme = "../README.md"
 # Supported hash functions
 sha512 = ["akd_core/sha512"]
 sha256 = ["akd_core/sha256"]
+sha512_256 = ["akd_core/sha512_256"]
 sha3_256 = ["akd_core/sha3_256"]
 sha3_512 = ["akd_core/sha3_512"]
 blake3 = ["akd_core/blake3"]
@@ -58,7 +59,7 @@ once_cell = { version = "1" }
 ctor = "0.1"
 tokio-test = "0.4"
 tokio = { version = "1.10", features = ["rt", "sync", "time", "macros"] }
-akd = { path = ".", features = ["public-tests"], version = "0.8.0" }
+akd = { path = ".", features = ["public-tests"], version = "0.8.0", default-features = false }
 
 [[bench]]
 name = "azks"

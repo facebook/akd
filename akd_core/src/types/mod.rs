@@ -21,11 +21,16 @@ use crate::ARITY;
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
+#[cfg(feature = "nostd")]
+use alloc::{format, string::String};
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng};
 
 pub mod node_label;
 pub use node_label::*;
+
+/// The possible VALID child directions
+pub const DIRECTIONS: [Direction; 2] = [Direction::Left, Direction::Right];
 
 // ============================================
 // Traits
@@ -44,11 +49,40 @@ pub trait SizeOf {
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent. We use
 /// 0 to represent "left" and 1 to represent "right".
-pub type Direction = Option<usize>;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[repr(u8)]
+pub enum Direction {
+    /// Left
+    Left = 0u8,
+    /// Right
+    Right = 1u8,
+    /// No direction
+    None = u8::MAX,
+}
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {
-        self.as_ref()
-            .map_or(8, |_v| core::mem::size_of::<usize>() + 8)
+        // The size of the enum is 24 bytes. The extra 8 bytes are used to store a 64-bit discriminator that is used to identify the variant currently saved in the enum.
+        24usize
+    }
+}
+
+impl core::convert::TryFrom<u8> for Direction {
+    type Error = String;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            u8::MAX => Ok(Direction::None),
+            0u8 => Ok(Direction::Left),
+            1u8 => Ok(Direction::Right),
+            _ => Err(format!(
+                "Invalid value for direction received: {}. Supported values are 0, 1, {}",
+                value,
+                u8::MAX
+            )),
+        }
     }
 }
 

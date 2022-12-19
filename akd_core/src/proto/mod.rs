@@ -20,6 +20,8 @@ use crate::hash::Digest;
 use core::convert::{TryFrom, TryInto};
 use protobuf::MessageField;
 
+const DIRECTION_BLINDING_FACTOR: u32 = 0x000Fu32;
+
 /// An error converting a protobuf proof
 #[derive(Debug, Eq, PartialEq)]
 pub enum ConversionError {
@@ -169,7 +171,7 @@ impl From<&crate::LayerProof> for specs::types::LayerProof {
         Self {
             label: MessageField::some((&input.label).into()),
             siblings: input.siblings.iter().map(|s| s.into()).collect::<Vec<_>>(),
-            direction: input.direction.map(|i| i as u32),
+            direction: Some(input.direction as u32),
             ..Default::default()
         }
     }
@@ -179,6 +181,7 @@ impl TryFrom<&specs::types::LayerProof> for crate::LayerProof {
     type Error = ConversionError;
 
     fn try_from(input: &specs::types::LayerProof) -> Result<Self, Self::Error> {
+        require!(input, has_direction);
         require_messagefield!(input, label);
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
 
@@ -190,12 +193,14 @@ impl TryFrom<&specs::types::LayerProof> for crate::LayerProof {
             ));
         }
 
-        let direction = input.direction.map(|i| i as usize);
+        // blind out the highest bits to all 0's, since we're pulling it down to a u8
+        let direction = (input.direction() & DIRECTION_BLINDING_FACTOR) as u8;
 
         Ok(Self {
             label,
             siblings: [sibling.unwrap().try_into()?],
-            direction,
+            direction: crate::types::Direction::try_from(direction)
+                .map_err(ConversionError::Deserialization)?,
         })
     }
 }

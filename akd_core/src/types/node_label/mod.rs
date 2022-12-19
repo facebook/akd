@@ -13,7 +13,7 @@ use crate::{Direction, SizeOf};
 
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 
 #[cfg(test)]
 mod tests;
@@ -230,6 +230,6 @@ impl NodeLabel {
         if other.get_prefix(self.get_len()) != *self {
             return Direction::None;
         }
-        Direction::Some(other.get_bit_at(self.get_len()) as usize)
+        Direction::try_from(other.get_bit_at(self.get_len())).unwrap()
     }
 }

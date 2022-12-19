@@ -33,6 +33,7 @@ nostd = ["akd_core/nostd"]
 # Supported hash functions
 sha512 = ["akd_core/sha512"]
 sha256 = ["akd_core/sha256"]
+sha512_256 = ["akd_core/sha512_256"]
 sha3_256 = ["akd_core/sha3_256"]
 sha3_512 = ["akd_core/sha3_512"]
 blake3 = ["akd_core/blake3"]

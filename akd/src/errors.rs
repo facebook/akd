@@ -9,6 +9,7 @@
 use core::fmt;
 
 use crate::node_label::NodeLabel;
+use crate::Direction;
 
 /// Symbolizes a AkdError, thrown by the akd.
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -106,13 +107,13 @@ impl std::fmt::Display for AkdError {
 #[derive(Debug, Eq, PartialEq)]
 pub enum TreeNodeError {
     /// At the moment the only supported dirs are 0, 1
-    InvalidDirection(usize),
+    InvalidDirection(Direction),
     /// No direction provided for the node.
     /// Second parameter is the label of the child attempted to be set
     /// -- if there is one, otherwise it is None.
     NoDirection(NodeLabel, Option<NodeLabel>),
     /// The node didn't have a child in the given epoch
-    NoChildAtEpoch(u64, usize),
+    NoChildAtEpoch(u64, Direction),
     /// The next epoch of this node's parent was invalid
     ParentNextEpochInvalid(u64),
     /// The hash of a parent was attempted to be updated, without setting the calling node as a child.
@@ -133,7 +134,7 @@ impl fmt::Display for TreeNodeError {
             Self::InvalidDirection(dir) => {
                 write!(
                     f,
-                    "AKD is based on a binary tree. No child with a given index: {}",
+                    "AKD is based on a binary tree. No child with a given direction: {:?}",
                     dir
                 )
             }
@@ -147,7 +148,7 @@ impl fmt::Display for TreeNodeError {
                 write!(f, "{}", to_print)
             }
             Self::NoChildAtEpoch(epoch, direction) => {
-                write!(f, "no node in direction {} at epoch {}", direction, epoch)
+                write!(f, "no node in direction {:?} at epoch {}", direction, epoch)
             }
             Self::ParentNextEpochInvalid(epoch) => {
                 write!(f, "Next epoch of parent is invalid, epoch = {}", epoch)
