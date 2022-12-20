@@ -41,7 +41,7 @@ pub struct Directory<S: Database + Sync + Send, V> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Clone for Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -52,7 +52,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Clone for Directory<
     }
 }
 
-impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -275,10 +275,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
             .vrf
             .get_label_proof(&uname, false, current_version)
             .await?;
-        let commitment_label = self
-            .vrf
-            .get_node_label_from_vrf_proof(existence_vrf)
-            .await?;
+        let commitment_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let lookup_proof = LookupProof {
             epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
@@ -658,10 +655,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
         let current_azks = self.retrieve_current_azks().await?;
         let existence_vrf = self.vrf.get_label_proof(uname, false, version).await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
-        let existence_label = self
-            .vrf
-            .get_node_label_from_vrf_proof(existence_vrf)
-            .await?;
+        let existence_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -755,10 +749,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<
-    S: Database + Sync + Send,
-    V: VRFKeyStorage + 'static,
->(
+pub async fn get_directory_root_hash_and_ep<S: Database + Sync + Send, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -779,7 +770,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database + Sync + Send, V: VRFKeyStorage + 'static> Directory<S, V> {
+impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,

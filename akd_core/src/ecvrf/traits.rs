@@ -60,7 +60,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<NodeLabel, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        Self::get_node_label_with_key(&key, label, stale, version)
+        Ok(Self::get_node_label_with_key(&key, label, stale, version))
     }
 
     /// Returns the [NodeLabel] that corresponds to a version of the label argument utilizing the provided
@@ -73,20 +73,20 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         label: &AkdLabel,
         stale: bool,
         version: u64,
-    ) -> Result<NodeLabel, VrfError> {
-        let proof = Self::get_label_proof_with_key(key, label, stale, version)?;
+    ) -> NodeLabel {
+        let proof = Self::get_label_proof_with_key(key, label, stale, version);
         Self::get_node_label_from_vrf_proof_static(proof)
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
-    async fn get_node_label_from_vrf_proof(&self, proof: Proof) -> Result<NodeLabel, VrfError> {
+    async fn get_node_label_from_vrf_proof(&self, proof: Proof) -> NodeLabel {
         Self::get_node_label_from_vrf_proof_static(proof)
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
-    fn get_node_label_from_vrf_proof_static(proof: Proof) -> Result<NodeLabel, VrfError> {
+    fn get_node_label_from_vrf_proof_static(proof: Proof) -> NodeLabel {
         let output: super::ecvrf_impl::Output = (&proof).into();
-        Ok(NodeLabel::new(output.to_truncated_bytes(), 256))
+        NodeLabel::new(output.to_truncated_bytes(), 256)
     }
 
     /// Retrieve the proof for a specific label
@@ -97,7 +97,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<Proof, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        Self::get_label_proof_with_key(&key, label, stale, version)
+        Ok(Self::get_label_proof_with_key(&key, label, stale, version))
     }
 
     /// Retrieve the proof for a specific label
@@ -106,12 +106,12 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         label: &AkdLabel,
         stale: bool,
         version: u64,
-    ) -> Result<Proof, VrfError> {
+    ) -> Proof {
         let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
 
         // VRF proof and hash output
-        let proof = key.prove(&hashed_label);
-        Ok(proof)
+
+        key.prove(&hashed_label)
     }
 
     /// Returns the [NodeLabel]s that corresponds to a collection of (label, stale, version) arguments
@@ -134,8 +134,10 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
 
                 let future = {
                     async move {
-                        Self::get_node_label_with_key(&key_ref, &label, stale, version)
-                            .map(|ok_result| (label, ok_result))
+                        (
+                            Self::get_node_label_with_key(&key_ref, &label, stale, version),
+                            label,
+                        )
                     }
                 };
                 join_set.spawn(future);
@@ -144,14 +146,14 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
             let mut results = Vec::new();
             while let Some(res) = join_set.join_next().await {
                 match res {
-                    Err(_) => {
-                        return Err(VrfError::SigningKey(
-                            "Failed to generate signatures joining parallel tasks".to_string(),
-                        ))
+                    Err(join_err) => {
+                        return Err(VrfError::SigningKey(format!(
+                            "Parallel VRF join error {}",
+                            join_err
+                        )))
                     }
-                    Ok(Err(some_vrf_err)) => return Err(some_vrf_err),
-                    Ok(Ok(label_and_node_label)) => {
-                        results.push(label_and_node_label);
+                    Ok((node_label, label)) => {
+                        results.push((label, node_label));
                     }
                 }
             }
@@ -161,7 +163,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         {
             let mut results = Vec::new();
             for (label, stale, version) in labels {
-                let node_label = Self::get_node_label_with_key(&key, label, *stale, *version)?;
+                let node_label = Self::get_node_label_with_key(&key, label, *stale, *version);
                 results.push((label.clone(), node_label));
             }
             Ok(results)

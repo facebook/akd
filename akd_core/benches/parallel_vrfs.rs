@@ -14,6 +14,7 @@ use akd_core::{ecvrf::VRFKeyStorage, AkdLabel};
 fn bench_parallel_vrfs(c: &mut Criterion) {
     // utilize all cores available
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
+    // A runtime which is capped at 4 worker threads (cores)
     let limited_runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
         .build()
@@ -37,8 +38,7 @@ fn bench_parallel_vrfs(c: &mut Criterion) {
             for (label, stale, version) in labels.iter() {
                 akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_key(
                     &key, label, *stale, *version,
-                )
-                .unwrap();
+                );
             }
         })
     });

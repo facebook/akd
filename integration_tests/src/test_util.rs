@@ -127,7 +127,7 @@ impl log::Log for FileLogger {
 #[allow(unused)]
 pub(crate) async fn directory_test_suite<
     S: akd::storage::Database + Sync + Send,
-    V: VRFKeyStorage + 'static,
+    V: VRFKeyStorage,
 >(
     mysql_db: &StorageManager<S>,
     num_users: usize,
@@ -246,10 +246,7 @@ pub(crate) async fn directory_test_suite<
     }
 }
 
-pub(crate) async fn test_lookups<
-    S: akd::storage::Database + Sync + Send,
-    V: VRFKeyStorage + 'static,
->(
+pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRFKeyStorage>(
     mysql_db: &StorageManager<S>,
     vrf: &V,
     num_users: u64,
