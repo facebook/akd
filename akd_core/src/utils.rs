@@ -28,24 +28,24 @@ pub fn i2osp_array(input: &[u8]) -> Vec<u8> {
     [&(input.len() as u64).to_be_bytes(), input].concat()
 }
 
-/// Used by the client to supply a commitment proof and value to reconstruct the commitment, via:
-/// commitment = H(value, proof)
-pub(crate) fn generate_commitment_from_proof_client(
+/// Used by the client to supply a commitment nonce and value to reconstruct the commitment, via:
+/// commitment = H(i2osp_array(value), i2osp_array(nonce))
+pub(crate) fn generate_commitment_from_nonce_client(
     value: &crate::AkdValue,
-    proof: &[u8],
+    nonce: &[u8],
 ) -> crate::hash::Digest {
-    crate::hash::hash(&[i2osp_array(value), i2osp_array(proof)].concat())
+    crate::hash::hash(&[i2osp_array(value), i2osp_array(nonce)].concat())
 }
 
 /// Hash a leaf epoch and proof with a given [AkdValue]
 pub(crate) fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
-    let single_hash = crate::utils::generate_commitment_from_proof_client(value, proof);
-    crate::hash::merge_with_int(single_hash, epoch)
+    let commitment = crate::utils::generate_commitment_from_nonce_client(value, proof);
+    crate::hash::merge_with_int(commitment, epoch)
 }
 
 /// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue.
-/// Computes proof = H(commitment key || label || version || i2osp_array(value))
-pub fn get_commitment_proof(
+/// Computes nonce = H(commitment key || label || version || i2osp_array(value))
+pub fn get_commitment_nonce(
     commitment_key: &[u8],
     label: &NodeLabel,
     version: u64,
@@ -86,10 +86,10 @@ pub(crate) fn get_hash_from_label_input(label: &AkdLabel, stale: bool, version: 
 
 /// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
 ///
-/// proof = H(commitment_key, label, version, i2osp_array(value))
-/// commmitment = H(i2osp_array(value), i2osp_array(value))
+/// nonce = H(commitment_key, label, version, i2osp_array(value))
+/// commmitment = H(i2osp_array(value), i2osp_array(nonce))
 ///
-/// The proof value is a nonce used to create a hiding and binding commitment using a
+/// The nonce value is used to create a hiding and binding commitment using a
 /// cryptographic hash function. Note that it is derived from the label, version, and
 /// value (even though the binding to value is somewhat optional).
 ///
@@ -100,8 +100,8 @@ pub fn commit_value(
     version: u64,
     value: &AkdValue,
 ) -> Digest {
-    let proof = get_commitment_proof(commitment_key, label, version, value);
-    crate::hash::hash(&[i2osp_array(value), i2osp_array(&proof)].concat())
+    let nonce = get_commitment_nonce(commitment_key, label, version, value);
+    crate::hash::hash(&[i2osp_array(value), i2osp_array(&nonce)].concat())
 }
 
 #[cfg(feature = "rand")]

@@ -6,6 +6,7 @@
 // of this source tree.
 
 //! An implementation of an append-only zero knowledge set
+use crate::errors::TreeNodeError;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::{
@@ -189,7 +190,7 @@ impl Azks {
                 }
 
                 for dir in crate::DIRECTIONS {
-                    let child_label = node.get_child_label(dir);
+                    let child_label = node.get_child_label(dir)?;
                     if let Some(child_label) = child_label {
                         current_nodes.push(NodeKey(child_label));
                     }
@@ -320,7 +321,7 @@ impl Azks {
         }; ARITY];
         for dir in DIRECTIONS {
             let child = lcp_node
-                .get_child_state(storage, dir, self.latest_epoch)
+                .get_child_node(storage, dir, self.latest_epoch)
                 .await?;
             match child {
                 None => {
@@ -559,7 +560,10 @@ impl Azks {
         let root_node: TreeNode =
             TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), self.latest_epoch)
                 .await?;
-        Ok(hash_u8_with_label(&root_node.hash, root_node.label))
+        Ok(merge_digest_with_label_hash(
+            &root_node.hash,
+            root_node.label,
+        ))
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -573,6 +577,38 @@ impl Azks {
         self.latest_epoch = epoch;
     }
 
+    /// Gets the sibling node of the passed node's child in the "opposite" of the passed direction.
+    async fn get_sibling_node<S: Database + Sync + Send>(
+        &self,
+        storage: &StorageManager<S>,
+        curr_node: &TreeNode,
+        other_dir: Direction,
+        latest_epoch: u64,
+    ) -> Result<Option<Node>, AkdError> {
+        let child = curr_node
+            .get_child_node(storage, other_dir, latest_epoch)
+            .await?;
+        if child.is_none() {
+            return Ok(None);
+        }
+
+        // Find the sibling in the "other" direction
+        for i_dir in DIRECTIONS {
+            if i_dir == other_dir {
+                continue;
+            }
+            let sibling = curr_node
+                .get_child_node(storage, i_dir, latest_epoch)
+                .await?;
+            return Ok(Some(Node {
+                label: optional_child_state_to_label(&sibling),
+                hash: optional_child_state_hash(&sibling),
+            }));
+        }
+
+        Ok(None)
+    }
+
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both getting membership proofs and getting non-membership proofs.
@@ -582,63 +618,49 @@ impl Azks {
         label: NodeLabel,
     ) -> Result<(MembershipProof, NodeLabel), AkdError> {
         let mut layer_proofs = Vec::new();
-        let mut curr_node: TreeNode = TreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
+        let latest_epoch = self.get_latest_epoch();
+
+        // Perform a traversal from the root to the node corresponding to the queried label
+        let mut curr_node =
+            TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), latest_epoch).await?;
 
         let mut dir = curr_node.label.get_dir(label);
         let mut equal = label == curr_node.label;
-        let mut prev_node = NodeLabel::root();
+        let mut prev_node = curr_node.label;
         while !equal && dir != Direction::None {
             prev_node = curr_node.label;
 
-            let mut nodes = [Node {
-                label: EMPTY_LABEL,
-                hash: crate::utils::empty_node_hash(),
-            }; ARITY - 1];
-            let mut count = 0;
-            let next_state = curr_node
-                .get_child_state(storage, dir, self.latest_epoch)
-                .await?;
-            if next_state.is_some() {
-                for i_dir in DIRECTIONS {
-                    if i_dir != dir {
-                        let sibling = curr_node
-                            .get_child_state(storage, i_dir, self.latest_epoch)
-                            .await?;
-                        nodes[count] = Node {
-                            label: optional_child_state_to_label(&sibling),
-                            hash: optional_child_state_hash(&sibling),
-                        };
-                        count += 1;
-                    }
+            // Find the sibling node. Note that for ARITY = 2, this does not need to be
+            // an array, as it can just be a single node.
+            match self
+                .get_sibling_node(storage, &curr_node, dir, latest_epoch)
+                .await?
+            {
+                None => break,
+                Some(sibling_node) => {
+                    layer_proofs.push(LayerProof {
+                        label: curr_node.label,
+                        siblings: [sibling_node],
+                        direction: dir,
+                    });
                 }
-            } else {
-                break;
-            }
-            layer_proofs.push(LayerProof {
-                label: curr_node.label,
-                siblings: nodes,
-                direction: dir,
-            });
-            let new_curr_node: TreeNode = TreeNode::get_from_storage(
+            };
+
+            curr_node = TreeNode::get_from_storage(
                 storage,
-                &NodeKey(curr_node.get_child(dir).unwrap().unwrap()),
-                self.get_latest_epoch(),
+                &NodeKey(curr_node.get_child_label(dir)?.ok_or(AkdError::TreeNode(
+                    TreeNodeError::NoDirection(curr_node.label, None),
+                ))?),
+                latest_epoch,
             )
             .await?;
-            curr_node = new_curr_node;
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
 
         if !equal {
             let new_curr_node: TreeNode =
-                TreeNode::get_from_storage(storage, &NodeKey(prev_node), self.get_latest_epoch())
-                    .await?;
+                TreeNode::get_from_storage(storage, &NodeKey(prev_node), latest_epoch).await?;
             curr_node = new_curr_node;
 
             layer_proofs.pop();
@@ -748,6 +770,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_sibling_node() -> Result<(), AkdError> {
+        let num_nodes = 10;
+        let mut rng = OsRng;
+
+        let mut insertion_set: Vec<Node> = vec![];
+
+        for _ in 0..num_nodes {
+            let label = crate::utils::random_label(&mut rng);
+            let mut hash = crate::hash::EMPTY_DIGEST;
+            rng.fill_bytes(&mut hash);
+            let node = Node { label, hash };
+            insertion_set.push(node);
+        }
+
+        // Try randomly permuting
+        insertion_set.shuffle(&mut rng);
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
+        let mut azks = Azks::new::<_>(&db).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+            .await?;
+
+        // Recursively traverse the tree and check that the sibling of each node is correct
+        let root_node = TreeNode::get_from_storage(&db, &NodeKey(NodeLabel::root()), 1).await?;
+        let mut nodes: Vec<TreeNode> = vec![root_node];
+        while !nodes.is_empty() {
+            let current_node = nodes.pop().unwrap();
+
+            let left_child = current_node.get_child_node(&db, Direction::Left, 1).await?;
+            let right_child = current_node
+                .get_child_node(&db, Direction::Right, 1)
+                .await?;
+
+            match left_child {
+                Some(left_child) => {
+                    let sibling_label = azks
+                        .get_sibling_node(&db, &current_node, Direction::Right, 1)
+                        .await?
+                        .unwrap()
+                        .label;
+                    assert_eq!(left_child.label, sibling_label);
+                    nodes.push(left_child);
+                }
+                None => {}
+            }
+
+            match right_child {
+                Some(right_child) => {
+                    let sibling_label = azks
+                        .get_sibling_node(&db, &current_node, Direction::Left, 1)
+                        .await?
+                        .unwrap()
+                        .label;
+                    nodes.push(right_child);
+                }
+                None => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_membership_proof_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
@@ -781,33 +866,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_small() -> Result<(), AkdError> {
-        let num_nodes = 2;
+        for num_nodes in 1..10 {
+            let mut insertion_set: Vec<Node> = vec![];
 
-        let mut insertion_set: Vec<Node> = vec![];
+            for i in 0..num_nodes {
+                let mut label_arr = [0u8; 32];
+                label_arr[0] = i;
+                let label = NodeLabel::new(label_arr, 256u32);
+                let node = Node {
+                    label,
+                    hash: crate::hash::EMPTY_DIGEST,
+                };
+                insertion_set.push(node);
+            }
 
-        for i in 0..num_nodes {
-            let mut label_arr = [0u8; 32];
-            label_arr[0] = i;
-            let label = NodeLabel::new(label_arr, 256u32);
-            let node = Node {
-                label,
-                hash: crate::hash::EMPTY_DIGEST,
-            };
-            insertion_set.push(node);
+            let database = AsyncInMemoryDatabase::new();
+            let db = StorageManager::new_no_cache(&database);
+            let mut azks = Azks::new::<_>(&db).await?;
+            azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+                .await?;
+
+            let proof = azks
+                .get_membership_proof(&db, insertion_set[0].label, 1)
+                .await?;
+
+            verify_membership(azks.get_root_hash::<_>(&db).await?, &proof)?;
         }
-
-        let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
-        let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
-            .await?;
-
-        let proof = azks
-            .get_membership_proof(&db, insertion_set[0].label, 1)
-            .await?;
-
-        verify_membership(azks.get_root_hash::<_>(&db).await?, &proof)?;
-
         Ok(())
     }
 

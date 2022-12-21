@@ -456,7 +456,7 @@ impl TreeNode {
         if self.node_type == NodeType::Root {
             // Account for the new leaf in the tree. We want to account for it only once, so let's do it on the root.
             *num_nodes += 1;
-            let child_state = self.get_child_state(storage, dir_leaf, epoch).await?;
+            let child_state = self.get_child_node(storage, dir_leaf, epoch).await?;
             if child_state.is_none() {
                 // This case is not entered very often, in fact it only happens
                 // when you are actually instantiating the tree. Initially the tree only
@@ -617,7 +617,7 @@ impl TreeNode {
         exclude_ep: Option<bool>,
         dir_leaf: Direction,
     ) -> Result<(), AkdError> {
-        let child_node = self.get_child_state(storage, dir_leaf, epoch).await?;
+        let child_node = self.get_child_node(storage, dir_leaf, epoch).await?;
         match child_node {
             Some(mut child_node) => {
                 child_node
@@ -664,11 +664,9 @@ impl TreeNode {
             // It is assumed that the children already updated their hashes.
             _ => {
                 // Get children states.
-                let left_child_state = self
-                    .get_child_state(storage, Direction::Left, epoch)
-                    .await?;
+                let left_child_state = self.get_child_node(storage, Direction::Left, epoch).await?;
                 let right_child_state = self
-                    .get_child_state(storage, Direction::Right, epoch)
+                    .get_child_node(storage, Direction::Right, epoch)
                     .await?;
 
                 // Get merged hashes for the children.
@@ -731,16 +729,6 @@ impl TreeNode {
         Ok(())
     }
 
-    pub(crate) fn get_child_label(&self, dir: Direction) -> Option<NodeLabel> {
-        if dir == Direction::Left {
-            self.left_child
-        } else if dir == Direction::Right {
-            self.right_child
-        } else {
-            None
-        }
-    }
-
     // gets the direction of node, i.e. if it's a left
     // child or right. If not found, return None
     fn get_direction(&self, node: &Self) -> Direction {
@@ -758,24 +746,23 @@ impl TreeNode {
         Direction::None
     }
 
-    ///// getrs for child nodes ////
+    ///// getters for child nodes /////
 
-    /// Loads (from storage) the left or right child of a node using given direction
-    pub(crate) async fn get_child_state<S: Database + Sync + Send>(
+    /// Loads (from storage) the left or right child of a node using given direction and epoch
+    pub(crate) async fn get_child_node<S: Database + Sync + Send>(
         &self,
         storage: &StorageManager<S>,
         direction: Direction,
-        current_epoch: u64,
+        epoch: u64,
     ) -> Result<Option<TreeNode>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
                 self.label, None,
             ))),
             _ => {
-                if let Some(child_label) = self.get_child_label(direction) {
+                if let Some(child_label) = self.get_child_label(direction)? {
                     let child_key = NodeKey(child_label);
-                    let get_result =
-                        Self::get_from_storage(storage, &child_key, current_epoch).await;
+                    let get_result = Self::get_from_storage(storage, &child_key, epoch).await;
                     match get_result {
                         Ok(node) => Ok(Some(node)),
                         Err(StorageError::NotFound(_)) => Ok(None),
@@ -791,7 +778,10 @@ impl TreeNode {
         }
     }
 
-    pub(crate) fn get_child(&self, direction: Direction) -> Result<Option<NodeLabel>, AkdError> {
+    pub(crate) fn get_child_label(
+        &self,
+        direction: Direction,
+    ) -> Result<Option<NodeLabel>, AkdError> {
         match direction {
             Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
                 self.label, None,
@@ -810,7 +800,7 @@ impl TreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn hash_u8_with_label(digest: &Digest, label: NodeLabel) -> Digest {
+pub(crate) fn merge_digest_with_label_hash(digest: &Digest, label: NodeLabel) -> Digest {
     crate::hash::merge(&[*digest, label.hash()])
 }
 
@@ -828,9 +818,9 @@ fn optional_child_state_label_hash(input: &Option<TreeNode>, exclude_ep_val: boo
             if child_state.node_type == NodeType::Leaf && !exclude_ep_val {
                 hash = crate::hash::merge_with_int(hash, child_state.last_epoch);
             }
-            crate::hash::merge(&[hash, child_state.label.hash()])
+            merge_digest_with_label_hash(&hash, child_state.label)
         }
-        None => crate::hash::merge(&[crate::utils::empty_node_hash(), EMPTY_LABEL.hash()]),
+        None => merge_digest_with_label_hash(&crate::utils::empty_node_hash(), EMPTY_LABEL),
     }
 }
 
@@ -1069,7 +1059,9 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
+            DbRecord::TreeNode(node) => {
+                merge_digest_with_label_hash(&node.latest_node.hash, node.label)
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -1147,7 +1139,9 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
+            DbRecord::TreeNode(node) => {
+                merge_digest_with_label_hash(&node.latest_node.hash, node.label)
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -1250,7 +1244,9 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
+            DbRecord::TreeNode(node) => {
+                merge_digest_with_label_hash(&node.latest_node.hash, node.label)
+            }
             _ => panic!("Root not found in storage."),
         };
 
@@ -1331,7 +1327,9 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => hash_u8_with_label(&node.latest_node.hash, node.label),
+            DbRecord::TreeNode(node) => {
+                merge_digest_with_label_hash(&node.latest_node.hash, node.label)
+            }
             _ => panic!("Root not found in storage."),
         };
 

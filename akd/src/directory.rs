@@ -19,7 +19,7 @@ use crate::{
     NonMembershipProof, UpdateProof,
 };
 
-use akd_core::utils::{commit_value, get_commitment_proof};
+use akd_core::utils::{commit_value, get_commitment_nonce};
 use log::{error, info};
 use std::collections::HashMap;
 use std::marker::{Send, Sync};
@@ -302,7 +302,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             freshness_proof: current_azks
                 .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
-            commitment_proof: get_commitment_proof(
+            commitment_proof: get_commitment_nonce(
                 &commitment_key,
                 &commitment_label,
                 lookup_info.value_state.version,
@@ -679,7 +679,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let commitment_key = self.derive_commitment_key().await?;
         let commitment_proof =
-            get_commitment_proof(&commitment_key, &existence_label, version, plaintext_value)
+            get_commitment_nonce(&commitment_key, &existence_label, version, plaintext_value)
                 .to_vec();
 
         Ok(UpdateProof {

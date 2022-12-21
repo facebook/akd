@@ -63,6 +63,7 @@ pub enum Direction {
     /// No direction
     None = u8::MAX,
 }
+
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {
         // The size of the enum is 24 bytes. The extra 8 bytes are used to store a 64-bit discriminator that is used to identify the variant currently saved in the enum.

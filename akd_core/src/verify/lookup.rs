@@ -20,7 +20,7 @@ use alloc::string::ToString;
 pub fn lookup_verify(
     vrf_public_key: &[u8],
     root_hash: Digest,
-    akd_key: AkdLabel,
+    akd_label: AkdLabel,
     proof: LookupProof,
 ) -> Result<VerifyResult, VerificationError> {
     let version = proof.version;
@@ -42,7 +42,7 @@ pub fn lookup_verify(
 
     verify_label(
         vrf_public_key,
-        &akd_key,
+        &akd_label,
         false,
         version,
         &proof.existence_vrf_proof,
@@ -53,7 +53,7 @@ pub fn lookup_verify(
     let marker_label = marker_proof.label;
     verify_label(
         vrf_public_key,
-        &akd_key,
+        &akd_label,
         false,
         marker_version,
         &proof.marker_vrf_proof,
@@ -65,7 +65,7 @@ pub fn lookup_verify(
     let stale_label = freshness_proof.label;
     verify_label(
         vrf_public_key,
-        &akd_key,
+        &akd_label,
         true,
         version,
         &proof.freshness_vrf_proof,

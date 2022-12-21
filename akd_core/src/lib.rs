@@ -25,8 +25,9 @@
 //!
 //! The position in which this value lies is determined by the [NodeLabel], which is the output
 //! of a VRF evaluation of the [AkdLabel] and the current epoch. This is computed by the
-//! `get_hash_from_label_input` function, which sets the node label as:
-//! `node_label = H(label, stale, version)`
+//! `get_hash_from_label_input` function, which sets the node label to be the output of a VRF, with
+//! the input to the VRF computed as:
+//! `vrf_input = H(label, stale, version)`
 //!
 //! Specifically, we concatenate the following together:
 //! - `I2OSP(len(label) as u64, label)`
@@ -42,8 +43,8 @@
 //!
 //! The function [akd_core::commit_value] is used to commit the [AkdValue] to the tree. The actual value
 //! that is stored in the node is a commitment, generated as follows:
-//! - `proof = H(commitment_key, label, version, i2osp_array(value))`
-//! - `commmitment = H(i2osp_array(value), i2osp_array(value))`
+//! - `nonce = H(commitment_key, label, version, i2osp_array(value))`
+//! - `commmitment = H(i2osp_array(value), i2osp_array(nonce))`
 //!
 //! Finally, the commitment is hashed together with the epoch that it ends up being inserted into the tree
 //! computed as: `value_stored_in_node = H(commitment, epoch)`
@@ -52,9 +53,9 @@
 //! these commitments.
 //!
 //! A client can then verify that the value stored in the tree is the same as the value they are expecting
-//! upon requesting a [LookupProof] or [HistoryProof] which includes this commitment proof, and can then
+//! upon requesting a [LookupProof] or [HistoryProof] which includes this commitment prononceof, and can then
 //! insert their expected value and verify that it matches the node's value (indirectly, through an inclusion
-//! proof in the Merkle tree). Note that without the commitment proof, a value cannot be verified, which
+//! proof in the Merkle tree). Note that without the commitment nonce, a value cannot be verified, which
 //! is a privacy feature that prevents an auditor from learning the value of a node.
 //!
 //!
