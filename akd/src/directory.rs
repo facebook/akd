@@ -19,7 +19,9 @@ use crate::{
     NonMembershipProof, UpdateProof,
 };
 
+use akd_core::utils::{commit_value, get_commitment_proof};
 use log::{error, info};
+use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -120,6 +122,21 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             keys.len()
         );
 
+        let vrf_computations = updates
+            .iter()
+            .map(|(label, _)| match all_user_versions_retrieved.get(label) {
+                None => (label.clone(), false, 1u64),
+                Some((latest_version, _)) => (label.clone(), false, *latest_version),
+            })
+            .collect::<Vec<_>>();
+
+        let vrf_map = self
+            .vrf
+            .get_node_labels(&vrf_computations)
+            .await?
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
         let commitment_key = self.derive_commitment_key().await?;
 
         for (uname, val) in updates {
@@ -127,17 +144,13 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 None => {
                     // no data found for the user
                     let latest_version = 1;
-                    let label = self
-                        .vrf
-                        .get_node_label(&uname, false, latest_version)
-                        .await?;
+                    let label = *vrf_map.get(&uname).ok_or_else(|| {
+                        crate::ecvrf::VrfError::SigningKey(
+                            "Failed to generate VRF for given username".to_string(),
+                        )
+                    })?;
 
-                    let value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &label,
-                        latest_version,
-                        &val,
-                    );
+                    let value_to_add = commit_value(&commitment_key, &label, latest_version, &val);
                     update_set.push(Node {
                         label,
                         hash: value_to_add,
@@ -162,12 +175,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                         .get_node_label(&uname, false, latest_version)
                         .await?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add = akd_core::utils::commit_value(
-                        &commitment_key,
-                        &fresh_label,
-                        latest_version,
-                        &val,
-                    );
+                    let fresh_value_to_add =
+                        commit_value(&commitment_key, &fresh_label, latest_version, &val);
                     update_set.push(Node {
                         label: stale_label,
                         hash: stale_value_to_add,
@@ -266,10 +275,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .vrf
             .get_label_proof(&uname, false, current_version)
             .await?;
-        let commitment_label = self
-            .vrf
-            .get_node_label_from_vrf_proof(existence_vrf)
-            .await?;
+        let commitment_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let lookup_proof = LookupProof {
             epoch: lookup_info.value_state.epoch,
             plaintext_value: plaintext_value.clone(),
@@ -296,7 +302,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             freshness_proof: current_azks
                 .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
-            commitment_proof: akd_core::utils::get_commitment_proof(
+            commitment_proof: get_commitment_proof(
                 &commitment_key,
                 &commitment_label,
                 lookup_info.value_state.version,
@@ -649,10 +655,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_azks = self.retrieve_current_azks().await?;
         let existence_vrf = self.vrf.get_label_proof(uname, false, version).await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
-        let existence_label = self
-            .vrf
-            .get_node_label_from_vrf_proof(existence_vrf)
-            .await?;
+        let existence_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let existence_at_ep = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
@@ -675,13 +678,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
 
         let commitment_key = self.derive_commitment_key().await?;
-        let commitment_proof = akd_core::utils::get_commitment_proof(
-            &commitment_key,
-            &existence_label,
-            version,
-            plaintext_value,
-        )
-        .to_vec();
+        let commitment_proof =
+            get_commitment_proof(&commitment_key, &existence_label, version, plaintext_value)
+                .to_vec();
 
         Ok(UpdateProof {
             epoch,

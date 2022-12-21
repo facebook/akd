@@ -24,9 +24,11 @@ public_auditing = ["protobuf", "akd_core/protobuf"]
 serde_serialization = ["serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
 runtime_metrics = []
+# Parallelize VRF calculations during publish
+parallel_vrf = ["akd_core/parallel_vrf"]
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing"]
+default = ["blake3", "public_auditing", "parallel_vrf"]
 
 [dependencies]
 ## Required dependencies ##
@@ -39,7 +41,7 @@ ed25519-dalek = "1"
 hex = "0.4"
 keyed_priority_queue = "0.3"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-tokio = { version = "1.10", features = ["sync", "time"] }
+tokio = { version = "1.10", features = ["sync", "time", "rt"] }
 
 ## Optional dependencies ##
 bincode = { version = "1", optional = true }

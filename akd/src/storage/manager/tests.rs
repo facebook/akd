@@ -12,7 +12,7 @@ use akd_core::hash::EMPTY_DIGEST;
 use super::*;
 use crate::storage::memory::AsyncInMemoryDatabase;
 use crate::storage::{types::*, StorageUtil};
-use crate::tree_node::{NodeKey, TreeNode, TreeNodeWithPreviousValue};
+use crate::tree_node::{NodeKey, TreeNodeWithPreviousValue};
 use crate::*;
 
 #[tokio::test]
@@ -32,20 +32,26 @@ async fn test_storage_manager_transaction() {
                 label_len: i,
                 label_val: [i as u8; 32],
             };
-            DbRecord::TreeNode(TreeNodeWithPreviousValue {
-                label,
-                latest_node: TreeNode {
-                    hash: EMPTY_DIGEST,
-                    label,
-                    parent: label,
-                    last_epoch: 0,
-                    min_descendant_epoch: 0,
-                    left_child: None,
-                    right_child: None,
-                    node_type: tree_node::NodeType::Leaf,
-                },
-                previous_node: None,
-            })
+            DbRecord::TreeNode(DbRecord::build_tree_node_with_previous_value(
+                label.label_val,
+                label.label_len,
+                0,
+                0,
+                [0u8; 32],
+                0,
+                0,
+                None,
+                None,
+                EMPTY_DIGEST,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ))
         })
         .collect::<Vec<_>>();
 
@@ -101,7 +107,7 @@ async fn test_storage_manager_transaction() {
 }
 
 #[tokio::test]
-async fn test_storage_manager_caching() {
+async fn test_storage_manager_cache_populated_by_batch_set() {
     let db = AsyncInMemoryDatabase::new();
     let storage_manager = StorageManager::new(&db, None, None, None);
 
@@ -112,20 +118,26 @@ async fn test_storage_manager_caching() {
                 label_len: i,
                 label_val: [i as u8; 32],
             };
-            DbRecord::TreeNode(TreeNodeWithPreviousValue {
-                label,
-                latest_node: TreeNode {
-                    hash: EMPTY_DIGEST,
-                    label,
-                    parent: label,
-                    last_epoch: 0,
-                    min_descendant_epoch: 0,
-                    left_child: None,
-                    right_child: None,
-                    node_type: tree_node::NodeType::Leaf,
-                },
-                previous_node: None,
-            })
+            DbRecord::TreeNode(DbRecord::build_tree_node_with_previous_value(
+                label.label_val,
+                label.label_len,
+                0,
+                0,
+                [0u8; 32],
+                0,
+                0,
+                None,
+                None,
+                EMPTY_DIGEST,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ))
         })
         .collect::<Vec<_>>();
 
@@ -173,4 +185,101 @@ async fn test_storage_manager_caching() {
         .await
         .expect("Failed to batch-get");
     assert_eq!(0, got.len());
+}
+
+#[tokio::test]
+async fn test_storage_manager_cache_populated_by_batch_get() {
+    let db = AsyncInMemoryDatabase::new();
+    let storage_manager = StorageManager::new(&db, None, None, None);
+
+    let mut keys = vec![];
+    let mut records = (0..10)
+        .into_iter()
+        .map(|i| {
+            let label = NodeLabel {
+                label_len: i,
+                label_val: [i as u8; 32],
+            };
+            keys.push(NodeKey(label));
+            DbRecord::TreeNode(DbRecord::build_tree_node_with_previous_value(
+                label.label_val,
+                label.label_len,
+                0,
+                0,
+                [0u8; 32],
+                0,
+                0,
+                None,
+                None,
+                EMPTY_DIGEST,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    records.push(DbRecord::Azks(Azks {
+        latest_epoch: 0,
+        num_nodes: 0,
+    }));
+
+    // write straight to the db
+    storage_manager
+        .batch_set(records)
+        .await
+        .expect("Failed to set batch of records");
+
+    // flush the cache by destroying the storage manager
+    drop(storage_manager);
+
+    // re-create the storage manager, and run a batch_get of the same data keys to populate the cache
+    let storage_manager =
+        StorageManager::new(&db, Some(std::time::Duration::from_secs(1000)), None, None);
+
+    let _ = storage_manager
+        .batch_get::<TreeNodeWithPreviousValue>(&keys)
+        .await
+        .expect("Failed to get a batch of records");
+
+    // flush the database
+    db.clear().await;
+
+    // test a retrieval still gets data (from the cache)
+    let key = NodeKey(NodeLabel {
+        label_len: 2,
+        label_val: [2u8; 32],
+    });
+    storage_manager
+        .get::<TreeNodeWithPreviousValue>(&key)
+        .await
+        .expect("Failed to get database record for node label 2");
+
+    let keys = vec![
+        key,
+        NodeKey(NodeLabel {
+            label_len: 3,
+            label_val: [3u8; 32],
+        }),
+    ];
+    let got = storage_manager
+        .batch_get::<TreeNodeWithPreviousValue>(&keys)
+        .await
+        .expect("Failed to batch-get");
+    assert_eq!(2, got.len());
+
+    storage_manager.flush_cache().await;
+
+    // This should be an empty result
+    assert_eq!(
+        Ok(vec![]),
+        storage_manager
+            .batch_get::<TreeNodeWithPreviousValue>(&keys)
+            .await
+    );
 }
