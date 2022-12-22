@@ -99,11 +99,33 @@ macro_rules! convert_from_vector {
 // NodeLabel
 // ==============================================================
 
+fn minimize_label_bytes(v: &[u8; 32]) -> Vec<u8> {
+    let mut i = 31;
+    for byte in v.iter().rev() {
+        if *byte != 0u8 {
+            break;
+        }
+
+        if i > 0 {
+            i -= 1;
+        } else {
+            return Vec::new();
+        }
+    }
+    v[0..=i].to_vec()
+}
+
+fn parse_min_label(v: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    out[..v.len()].copy_from_slice(v);
+    out
+}
+
 impl From<&crate::NodeLabel> for specs::types::NodeLabel {
     fn from(input: &crate::NodeLabel) -> Self {
         Self {
             label_len: Some(input.label_len),
-            label_val: Some(input.label_val.to_vec()),
+            label_val: Some(minimize_label_bytes(&input.label_val)),
             ..Default::default()
         }
     }
@@ -115,17 +137,11 @@ impl TryFrom<&specs::types::NodeLabel> for crate::NodeLabel {
     fn try_from(input: &specs::types::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_label_len);
         require!(input, has_label_val);
-        // get the raw data & it's length, but at most 32 bytes
-        let raw = input.label_val();
-        let len = std::cmp::min(raw.len(), 32);
-        // construct the output buffer
-        let mut out_val = [0u8; 32];
-        // copy into the output buffer the raw data up to the computed length
-        out_val[..len].clone_from_slice(&raw[..len]);
+        let label_val = parse_min_label(input.label_val());
 
         Ok(Self {
             label_len: input.label_len(),
-            label_val: out_val,
+            label_val,
         })
     }
 }

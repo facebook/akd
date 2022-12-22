@@ -278,3 +278,33 @@ fn test_convert_single_append_only_proof() {
     let protobuf: SingleAppendOnlyProof = (&original).into();
     assert_eq!(original, (&protobuf).try_into().unwrap());
 }
+
+#[test]
+fn test_minimum_encoding_label_bytes() {
+    let full_label: [u8; 32] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1,
+    ];
+
+    let half_label: [u8; 32] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0,
+    ];
+
+    let zero_label: [u8; 32] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0,
+    ];
+
+    let min_full_label = minimize_label_bytes(&full_label);
+    let min_half_label = minimize_label_bytes(&half_label);
+    let min_zero_label = minimize_label_bytes(&zero_label);
+
+    assert_eq!(32, min_full_label.len());
+    assert_eq!(16, min_half_label.len());
+    assert_eq!(0, min_zero_label.len());
+
+    assert_eq!(full_label, parse_min_label(&min_full_label));
+    assert_eq!(half_label, parse_min_label(&min_half_label));
+    assert_eq!(zero_label, parse_min_label(&min_zero_label));
+}
