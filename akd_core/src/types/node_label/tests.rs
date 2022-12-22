@@ -262,7 +262,7 @@ pub fn test_node_label_equal_values_unequal_len() {
 
 /// Test for get_longest_common_prefix between a label and itself being itself. Leading 1.
 #[test]
-pub fn test_node_label_with_self_leading_one() {
+pub fn test_node_label_lcp_with_self_leading_one() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
@@ -274,7 +274,7 @@ pub fn test_node_label_with_self_leading_one() {
 
 /// Test for get_longest_common_prefix between a label and a zero-length node label.
 #[test]
-pub fn test_node_label_with_zero_length_label() {
+pub fn test_node_label_lcp_with_zero_length_label() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0u64), 0u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0u64), 2u32);
     let expected = label_1;
@@ -290,9 +290,9 @@ pub fn test_node_label_with_zero_length_label() {
 
 /// Test for get_longest_common_prefix between a label and its prefix.
 #[test]
-pub fn test_node_label_with_prefix_label() {
+pub fn test_node_label_lcp_with_prefix_label() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(01u64 << 62), 2u32);
-    let label_2 = NodeLabel::new(byte_arr_from_u64(010u64 << 61), 3u32);
+    let label_2 = NodeLabel::new(byte_arr_from_u64(01u64 << 62), 3u32);
     let expected = label_1;
     assert!(
         label_1.get_longest_common_prefix(label_2) == expected,
