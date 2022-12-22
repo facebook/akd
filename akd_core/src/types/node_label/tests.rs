@@ -272,6 +272,38 @@ pub fn test_node_label_with_self_leading_one() {
     )
 }
 
+/// Test for get_longest_common_prefix between a label and a zero-length node label.
+#[test]
+pub fn test_node_label_with_zero_length_label() {
+    let label_1 = NodeLabel::new(byte_arr_from_u64(0u64), 0u32);
+    let label_2 = NodeLabel::new(byte_arr_from_u64(0u64), 2u32);
+    let expected = label_1;
+    assert!(
+        label_1.get_longest_common_prefix(label_2) == expected,
+        "Longest common substring with zero-length label, not equal to zero-length label!"
+    );
+    assert!(
+        label_2.get_longest_common_prefix(label_1) == expected,
+        "Longest common substring with zero-length label, not equal to zero-length label!"
+    );
+}
+
+/// Test for get_longest_common_prefix between a label and its prefix.
+#[test]
+pub fn test_node_label_with_prefix_label() {
+    let label_1 = NodeLabel::new(byte_arr_from_u64(01u64 << 62), 2u32);
+    let label_2 = NodeLabel::new(byte_arr_from_u64(010u64 << 61), 3u32);
+    let expected = label_1;
+    assert!(
+        label_1.get_longest_common_prefix(label_2) == expected,
+        "Longest common substring with prefix label, not equal to prefix label!"
+    );
+    assert!(
+        label_2.get_longest_common_prefix(label_1) == expected,
+        "Longest common substring with prefix label, not equal to prefix label!"
+    );
+}
+
 /// Test for get_longest_common_prefix between a label and itself being itself. Leading 0.
 #[test]
 pub fn test_node_label_lcp_with_self_leading_zero() {
