@@ -99,23 +99,15 @@ macro_rules! convert_from_vector {
 // NodeLabel
 // ==============================================================
 
-fn minimize_label_bytes(v: &[u8; 32]) -> Vec<u8> {
-    let mut i = 31;
-    for byte in v.iter().rev() {
-        if *byte != 0u8 {
-            break;
-        }
-
-        if i > 0 {
-            i -= 1;
-        } else {
-            return Vec::new();
-        }
+fn encode_minimum_label(v: &[u8; 32]) -> Vec<u8> {
+    if let Some(last_non_zero) = v.iter().rposition(|b| *b != 0) {
+        v[..=last_non_zero].to_vec()
+    } else {
+        Vec::new()
     }
-    v[0..=i].to_vec()
 }
 
-fn parse_min_label(v: &[u8]) -> [u8; 32] {
+fn decode_minimized_label(v: &[u8]) -> [u8; 32] {
     let mut out = [0u8; 32];
     out[..v.len()].copy_from_slice(v);
     out
@@ -125,7 +117,7 @@ impl From<&crate::NodeLabel> for specs::types::NodeLabel {
     fn from(input: &crate::NodeLabel) -> Self {
         Self {
             label_len: Some(input.label_len),
-            label_val: Some(minimize_label_bytes(&input.label_val)),
+            label_val: Some(encode_minimum_label(&input.label_val)),
             ..Default::default()
         }
     }
@@ -137,7 +129,7 @@ impl TryFrom<&specs::types::NodeLabel> for crate::NodeLabel {
     fn try_from(input: &specs::types::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_label_len);
         require!(input, has_label_val);
-        let label_val = parse_min_label(input.label_val());
+        let label_val = decode_minimized_label(input.label_val());
 
         Ok(Self {
             label_len: input.label_len(),

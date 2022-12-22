@@ -296,15 +296,15 @@ fn test_minimum_encoding_label_bytes() {
         0, 0,
     ];
 
-    let min_full_label = minimize_label_bytes(&full_label);
-    let min_half_label = minimize_label_bytes(&half_label);
-    let min_zero_label = minimize_label_bytes(&zero_label);
+    let min_full_label = encode_minimum_label(&full_label);
+    let min_half_label = encode_minimum_label(&half_label);
+    let min_zero_label = encode_minimum_label(&zero_label);
 
     assert_eq!(32, min_full_label.len());
     assert_eq!(16, min_half_label.len());
     assert_eq!(0, min_zero_label.len());
 
-    assert_eq!(full_label, parse_min_label(&min_full_label));
-    assert_eq!(half_label, parse_min_label(&min_half_label));
-    assert_eq!(zero_label, parse_min_label(&min_zero_label));
+    assert_eq!(full_label, decode_minimized_label(&min_full_label));
+    assert_eq!(half_label, decode_minimized_label(&min_half_label));
+    assert_eq!(zero_label, decode_minimized_label(&min_zero_label));
 }
