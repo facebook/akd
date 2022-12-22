@@ -97,7 +97,7 @@ impl NodeLabel {
         };
 
         let mut prefix_len = 0;
-        while prefix_len <= shorter_len
+        while prefix_len < shorter_len
             && self.get_bit_at(prefix_len) == other.get_bit_at(prefix_len)
         {
             prefix_len += 1;
