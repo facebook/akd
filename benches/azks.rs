@@ -28,15 +28,18 @@ fn single_insertion(c: &mut Criterion) {
     let db = InMemoryDb::new();
 
     let mut azks1 = runtime.block_on(Azks::new::<_, Blake3>(&db)).unwrap();
+    let mut insertion_set = vec![];
     for _ in 0..num_nodes {
         let label = NodeLabel::random(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = Blake3::hash(&input);
-        runtime
-            .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }, 1))
-            .unwrap();
+        insertion_set.push(Node::<Blake3> { hash, label });
     }
+
+    runtime
+        .block_on(azks1.batch_insert_leaves(&db, insertion_set, false))
+        .unwrap();
 
     c.bench_function("single insertion into tree with 1000 nodes", move |b| {
         b.iter(|| {
@@ -47,7 +50,7 @@ fn single_insertion(c: &mut Criterion) {
 
             let _start = Instant::now();
             runtime
-                .block_on(azks1.insert_leaf::<_, Blake3>(&db, Node::<Blake3> { hash, label }, 2))
+                .block_on(azks1.batch_insert_leaves(&db, vec![Node::<Blake3> { hash, label }], 2))
                 .unwrap();
         })
     });

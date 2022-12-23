@@ -209,7 +209,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting inserting new leaves");
 
         if let Err(err) = current_azks
-            .batch_insert_leaves::<_>(&self.storage, sorted_insertion_set)
+            .batch_insert_leaves::<_>(&self.storage, sorted_insertion_set, false)
             .await
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
@@ -918,7 +918,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting database insertion");
 
         current_azks
-            .batch_insert_leaves::<_>(&self.storage, insertion_set)
+            .batch_insert_leaves::<_>(&self.storage, insertion_set, false)
             .await?;
 
         // batch all the inserts into a single transactional write to storage
