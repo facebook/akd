@@ -6,6 +6,7 @@
 // of this source tree.
 
 //! An implementation of an append-only zero knowledge set
+use crate::errors::ParallelismError;
 use crate::errors::TreeNodeError;
 use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
@@ -245,7 +246,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves.
-    pub async fn batch_insert_nodes<S: Database>(
+    pub async fn batch_insert_nodes<S: Database + 'static>(
         &mut self,
         storage: &StorageManager<S>,
         nodes: Vec<Node>,
@@ -284,7 +285,7 @@ impl Azks {
 
     /// Inserts a batch of leaves recursively from a given node label.
     #[async_recursion]
-    pub(crate) async fn recursive_batch_insert_nodes<S: Database>(
+    pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
         node_set: NodeSet,
@@ -353,24 +354,28 @@ impl Azks {
         // node is updated with the new child nodes.
         let (left_node_set, right_node_set) = node_set.partition(current_node.label);
 
-        if !left_node_set.is_empty() {
-            let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
-                storage,
-                current_node.get_child_label(Direction::Left)?,
-                left_node_set,
-                epoch,
-                insert_mode,
-            )
-            .await?;
+        // spawn a tokio task for the left child
+        let maybe_future = (!left_node_set.is_empty()).then_some({
+            let storage_clone = storage.clone();
+            let left_child_label = current_node.get_child_label(Direction::Left)?;
+            tokio::task::spawn(async move {
+                Azks::recursive_batch_insert_nodes(
+                    &storage_clone,
+                    left_child_label,
+                    left_node_set,
+                    epoch,
+                    insert_mode,
+                )
+                .await
+            })
+        });
 
-            current_node.set_child(storage, &mut left_node).await?;
-            num_inserted += left_num_inserted;
-        }
-
+        // handle the right child in the current task
         if !right_node_set.is_empty() {
-            let (mut right_node, right_num_inserted) = Self::recursive_batch_insert_nodes(
+            let right_child_label = current_node.get_child_label(Direction::Right)?;
+            let (mut right_node, right_num_inserted) = Azks::recursive_batch_insert_nodes(
                 storage,
-                current_node.get_child_label(Direction::Right)?,
+                right_child_label,
                 right_node_set,
                 epoch,
                 insert_mode,
@@ -379,6 +384,15 @@ impl Azks {
 
             current_node.set_child(storage, &mut right_node).await?;
             num_inserted += right_num_inserted;
+        }
+
+        // join on the handle for the left child
+        if let Some(future) = maybe_future {
+            let (mut left_node, left_num_inserted) = future
+                .await
+                .map_err(|e| AkdError::Parallelism(ParallelismError::JoinErr(e.to_string())))??;
+            current_node.set_child(storage, &mut left_node).await?;
+            num_inserted += left_num_inserted;
         }
 
         // Phase 3: Update the hash of the current node and return it along with

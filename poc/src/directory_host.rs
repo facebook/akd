@@ -35,7 +35,7 @@ pub enum DirectoryCommand {
 
 async fn get_root_hash<S, V>(directory: &mut Directory<S, V>) -> Option<Result<Digest, AkdError>>
 where
-    S: Database,
+    S: Database + 'static,
     V: VRFKeyStorage,
 {
     if let Ok(azks) = directory.retrieve_current_azks().await {
@@ -47,7 +47,7 @@ where
 
 pub(crate) async fn init_host<S, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
 where
-    S: Database,
+    S: Database + 'static,
     V: VRFKeyStorage,
 {
     info!("Starting the verifiable directory host");

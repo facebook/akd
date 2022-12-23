@@ -15,6 +15,7 @@ use crate::storage::Storable;
 
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Default, Clone)]
@@ -22,16 +23,23 @@ struct TransactionState {
     mods: HashMap<Vec<u8>, DbRecord>,
     active: bool,
 }
+// TODO: Use DashMap and RwLock
+// struct TransactionState {
+//     mods: DashMap<Vec<u8>, DbRecord>,
+//     active: RwLock<bool>,
+// }
 
 /// Represents an in-memory transaction, keeping a mutable state
 /// of the changes. When you "commit" this transaction, you return the
 /// collection of values which need to be written to the storage layer
 /// including all mutations. Rollback simply empties the transaction state.
+#[derive(Clone)]
 pub struct Transaction {
-    state: RwLock<TransactionState>,
+    // TODO: Drop RwLock
+    state: Arc<RwLock<TransactionState>>,
 
-    num_reads: RwLock<u64>,
-    num_writes: RwLock<u64>,
+    num_reads: Arc<RwLock<u64>>,
+    num_writes: Arc<RwLock<u64>>,
 }
 
 unsafe impl Send for Transaction {}
@@ -53,13 +61,13 @@ impl Transaction {
     /// Instantiate a new transaction instance
     pub fn new() -> Self {
         Self {
-            state: RwLock::new(TransactionState {
+            state: Arc::new(RwLock::new(TransactionState {
                 mods: HashMap::new(),
                 active: false,
-            }),
+            })),
 
-            num_reads: RwLock::new(0),
-            num_writes: RwLock::new(0),
+            num_reads: Arc::new(RwLock::new(0)),
+            num_writes: Arc::new(RwLock::new(0)),
         }
     }
 

@@ -51,6 +51,7 @@ mod tests;
 
 /// Represents the manager of the storage mediums, including caching
 /// and transactional operations (creating the transaction, committing it, etc)
+#[derive(Clone)]
 pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
@@ -58,17 +59,6 @@ pub struct StorageManager<Db: Database> {
     pub db: Db,
 
     metrics: [Arc<AtomicU64>; NUM_METRICS],
-}
-
-impl<Db: Database> Clone for StorageManager<Db> {
-    fn clone(&self) -> Self {
-        Self {
-            cache: self.cache.clone(),
-            transaction: Transaction::new(),
-            db: self.db.clone(),
-            metrics: self.metrics.clone(),
-        }
-    }
 }
 
 unsafe impl<Db: Database> Sync for StorageManager<Db> {}
