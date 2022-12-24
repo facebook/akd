@@ -6,6 +6,7 @@
 // of this source tree.
 
 //! An implementation of an append-only zero knowledge set
+#[cfg(feature = "parallel_insert")]
 use crate::errors::ParallelismError;
 use crate::errors::TreeNodeError;
 use crate::helper_structs::LookupInfo;
@@ -354,7 +355,8 @@ impl Azks {
         // node is updated with the new child nodes.
         let (left_node_set, right_node_set) = node_set.partition(current_node.label);
 
-        // spawn a tokio task for the left child
+        // if parallel: spawn a tokio task for the left child
+        #[cfg(feature = "parallel_insert")]
         let maybe_future = (!left_node_set.is_empty()).then_some({
             let storage_clone = storage.clone();
             let left_child_label = current_node.get_child_label(Direction::Left)?;
@@ -369,6 +371,23 @@ impl Azks {
                 .await
             })
         });
+
+        // else handle the left child in the current task
+        #[cfg(not(feature = "parallel_insert"))]
+        if !left_insertion_set.is_empty() {
+            let left_child_label = current_node.get_child_label(Direction::Left);
+            let (mut left_node, left_num_inserted) = Azks::recursive_batch_insert_leaves(
+                storage,
+                left_child_label,
+                left_insertion_set,
+                epoch,
+                append_only_exclude_usage,
+            )
+            .await?;
+
+            current_node.set_child(storage, &mut left_node).await?;
+            num_inserted += left_num_inserted;
+        }
 
         // handle the right child in the current task
         if !right_node_set.is_empty() {
@@ -386,7 +405,8 @@ impl Azks {
             num_inserted += right_num_inserted;
         }
 
-        // join on the handle for the left child
+        // if parallel: join on the handle for the left child
+        #[cfg(feature = "parallel_insert")]
         if let Some(future) = maybe_future {
             let (mut left_node, left_num_inserted) = future
                 .await
