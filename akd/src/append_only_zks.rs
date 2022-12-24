@@ -357,7 +357,7 @@ impl Azks {
 
         // if parallel: spawn a tokio task for the left child
         #[cfg(feature = "parallel_insert")]
-        let maybe_future = (!left_node_set.is_empty()).then_some({
+        let maybe_future = (!left_node_set.is_empty()).then(|| {
             let storage_clone = storage.clone();
             let left_child_label = current_node.get_child_label(Direction::Left)?;
             tokio::task::spawn(async move {
