@@ -148,7 +148,7 @@ impl Azks {
             // update the number of nodes
             self.num_nodes += num_inserted;
 
-            info!("Recursive batch insert completed ({} leaves)", num_inserted);
+            info!("Batch insert completed ({} new nodes)", num_inserted);
         }
 
         Ok(())
