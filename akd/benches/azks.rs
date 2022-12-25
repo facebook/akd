@@ -11,10 +11,9 @@ extern crate criterion;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::{Azks, Node, NodeLabel};
-use criterion::Criterion;
+use criterion::{BatchSize, Criterion};
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
-use std::time::Instant;
 
 fn batch_insertion(c: &mut Criterion) {
     let num_initial_leaves = 10000;
@@ -22,24 +21,16 @@ fn batch_insertion(c: &mut Criterion) {
 
     let mut rng = StdRng::seed_from_u64(42);
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
-    let database = AsyncInMemoryDatabase::new();
-    let db = StorageManager::new_no_cache(&database);
-    let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
 
     // prepare insertion set for initial leaves
-    let mut insertion_set = vec![];
+    let mut initial_insertion_set = vec![];
     for _ in 0..num_initial_leaves {
         let label = random_label(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        insertion_set.push(Node { label, hash });
+        initial_insertion_set.push(Node { label, hash });
     }
-
-    // insert initial leaves
-    runtime
-        .block_on(azks.batch_insert_leaves(&db, insertion_set, false))
-        .unwrap();
 
     // prepare insertion set for batch insertion
     let mut insertion_set = vec![];
@@ -53,16 +44,29 @@ fn batch_insertion(c: &mut Criterion) {
 
     // benchmark batch insertion
     let id = format!(
-        "batch insertion of {} leaves into tree with {} leaves",
-        num_inserted_leaves, num_initial_leaves
+        "Batch insertion ({} initial leaves, {} inserted leaves)",
+        num_initial_leaves, num_inserted_leaves
     );
-    c.bench_function(&id, |b| {
-        b.iter(|| {
-            let _start = Instant::now();
-            runtime
-                .block_on(azks.batch_insert_leaves(&db, insertion_set.clone(), false))
-                .unwrap();
-        })
+    c.bench_function(&id, move |b| {
+        b.iter_batched(
+            || {
+                let database = AsyncInMemoryDatabase::new();
+                let db = StorageManager::new_no_cache(&database);
+                let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+
+                // insert initial leaves as part of setup
+                runtime
+                    .block_on(azks.batch_insert_leaves(&db, initial_insertion_set.clone(), false))
+                    .unwrap();
+                (azks, db, insertion_set.clone())
+            },
+            |(mut azks, db, insertion_set)| {
+                runtime
+                    .block_on(azks.batch_insert_leaves(&db, insertion_set, false))
+                    .unwrap();
+            },
+            BatchSize::PerIteration,
+        );
     });
 }
 
