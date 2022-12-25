@@ -24,28 +24,18 @@ pub fn verify_membership(
     root_hash: Digest,
     proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    if proof.label.label_len == 0 {
-        let final_hash = merge(&[proof.hash_val, proof.label.hash()]);
-        if final_hash == root_hash {
-            return Ok(());
-        } else {
-            return Err(VerificationError::MembershipProof(
-                "Membership proof for root did not verify".to_string(),
-            ));
-        }
-    }
+    let mut current_hash = merge(&[proof.hash_val, proof.label.hash()]);
 
-    let mut final_hash = merge(&[proof.hash_val, proof.label.hash()]);
     for parent in proof.layer_proofs.iter().rev() {
         let hashes = parent
             .siblings
             .iter()
             .map(|s| merge(&[s.hash, s.label.hash()]))
             .collect();
-        final_hash = build_and_hash_layer(hashes, parent.direction, final_hash, parent.label)?;
+        current_hash = build_and_hash_layer(hashes, parent.direction, current_hash, parent.label)?;
     }
 
-    if final_hash == root_hash {
+    if current_hash == root_hash {
         Ok(())
     } else {
         Err(VerificationError::MembershipProof(format!(
@@ -109,21 +99,21 @@ pub fn verify_nonmembership(
 }
 
 /// This function is called to verify that a given [NodeLabel] is indeed
-/// the VRF for a given version (fresh or stale) for a username.
+/// the VRF for a given version (fresh or stale) for a [AkdLabel].
 /// Hence, it also takes as input the server's public key.
 pub(crate) fn verify_label(
     vrf_public_key: &[u8],
     akd_label: &AkdLabel,
     stale: bool,
     version: u64,
-    pi: &[u8],
+    vrf_proof: &[u8],
     node_label: NodeLabel,
 ) -> Result<(), VerificationError> {
     let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
     let hashed_label = crate::utils::get_hash_from_label_input(akd_label, stale, version);
 
     // VRF proof verification (returns VRF hash output)
-    let proof = Proof::try_from(pi)?;
+    let proof = Proof::try_from(vrf_proof)?;
     vrf_pk.verify(&proof, &hashed_label)?;
     let output: crate::ecvrf::Output = (&proof).into();
 

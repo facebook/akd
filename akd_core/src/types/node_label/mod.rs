@@ -164,7 +164,7 @@ impl NodeLabel {
         Self::new([0u8; 32], 0)
     }
 
-    /// Creates a new NodeLabel with the given value and len (in bits).
+    /// Creates a new [NodeLabel] with the given value and len (in bits).
     pub fn new(val: [u8; 32], len: u32) -> Self {
         NodeLabel {
             label_val: val,
