@@ -9,6 +9,7 @@
 
 extern crate criterion;
 use self::criterion::*;
+use akd_core::ecvrf::{VRFExpandedPrivateKey, VRFPublicKey};
 use akd_core::{ecvrf::VRFKeyStorage, AkdLabel};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -28,10 +29,18 @@ fn bench_single_vrf(c: &mut Criterion) {
     let key = runtime
         .block_on(akd_core::ecvrf::HardCodedAkdVRF.get_vrf_private_key())
         .unwrap();
+    let expanded_key = VRFExpandedPrivateKey::from(&key);
+    let pk = VRFPublicKey::from(&key);
 
     c.bench_function("Single VRF label generation", |b| {
         b.iter(|| {
-            akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_key(&key, &label, false, 1);
+            akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_expanded_key(
+                &expanded_key,
+                &pk,
+                &label,
+                false,
+                1,
+            );
         })
     });
 }
@@ -60,9 +69,15 @@ fn bench_parallel_vrfs(c: &mut Criterion) {
             let key = runtime
                 .block_on(akd_core::ecvrf::HardCodedAkdVRF.get_vrf_private_key())
                 .unwrap();
+            let expanded_key = VRFExpandedPrivateKey::from(&key);
+            let pk = VRFPublicKey::from(&key);
             for (label, stale, version) in labels.iter() {
-                akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_key(
-                    &key, label, *stale, *version,
+                akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_expanded_key(
+                    &expanded_key,
+                    &pk,
+                    label,
+                    *stale,
+                    *version,
                 );
             }
         })
