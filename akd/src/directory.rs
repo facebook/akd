@@ -16,12 +16,12 @@ use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
     AkdLabel, AkdValue, AppendOnlyProof, Digest, EpochHash, HistoryProof, LookupProof, Node,
-    NonMembershipProof, UpdateProof,
+    NodeLabel, NonMembershipProof, UpdateProof,
 };
 
 use akd_core::utils::{commit_value, get_commitment_nonce};
 use log::{error, info};
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -96,7 +96,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
-        let mut update_set = Vec::<Node>::new();
+        let mut update_set = BinaryHeap::<Node>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
 
         let mut current_azks = self.retrieve_current_azks().await?;
@@ -191,9 +191,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 }
             }
         }
-        let insertion_set: Vec<Node> = update_set.to_vec();
+        let sorted_insertion_set: Vec<Node> = update_set.into_sorted_vec();
 
-        if insertion_set.is_empty() {
+        if sorted_insertion_set.is_empty() {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<_>(&self.storage).await?;
@@ -209,7 +209,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting inserting new leaves");
 
         if let Err(err) = current_azks
-            .batch_insert_leaves::<_>(&self.storage, insertion_set)
+            .batch_insert_leaves::<_>(&self.storage, sorted_insertion_set)
             .await
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
@@ -327,7 +327,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
 
         // Take a union of the labels we will need proofs of for each lookup.
-        let mut lookup_labels = Vec::new();
+        let mut lookup_labels = BinaryHeap::<NodeLabel>::new();
         let mut lookup_infos = Vec::new();
         for uname in unames {
             // Save lookup info for later use.
@@ -340,12 +340,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             lookup_labels.push(lookup_info.non_existent_label);
         }
 
-        // Create a union of set of prefixes we will need for lookups.
-        let lookup_prefixes_set = crate::utils::build_lookup_prefixes_set(&lookup_labels);
+        // Keep them in sorted order for the BFS preloading
+        let sorted_lookup_labels: Vec<NodeLabel> = lookup_labels.into_sorted_vec();
 
         // Load nodes.
         current_azks
-            .bfs_preload_nodes::<_>(&self.storage, lookup_prefixes_set)
+            .bfs_preload_nodes_sorted::<_>(&self.storage, &sorted_lookup_labels)
             .await?;
 
         // Ensure we have got all lookup infos needed.

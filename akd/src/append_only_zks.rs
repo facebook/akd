@@ -21,6 +21,7 @@ use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use log::info;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::marker::{Send, Sync};
 
@@ -152,15 +153,62 @@ impl Azks {
         storage: &StorageManager<S>,
         insertion_set: &[Node],
     ) -> Result<u64, AkdError> {
-        let prefixes_set = crate::utils::build_prefixes_set(
-            insertion_set
-                .iter()
-                .map(|n| n.label)
-                .collect::<Vec<NodeLabel>>()
-                .as_ref(),
-        );
+        let insertion_labels = insertion_set
+            .iter()
+            .map(|n| n.label)
+            .collect::<Vec<NodeLabel>>();
 
-        self.bfs_preload_nodes::<S>(storage, prefixes_set).await
+        self.bfs_preload_nodes_sorted::<S>(storage, &insertion_labels)
+            .await
+    }
+
+    /// Given a sorted list of [NodeLabel]s, determine if a given [NodeLabel] is a prefix of any in the list.
+    fn insertion_set_contains(insertion_labels: &[NodeLabel], label: &NodeLabel) -> bool {
+        insertion_labels
+            .binary_search_by(|candidate| {
+                match label.label_len == 0 || label.is_prefix_of(candidate) {
+                    true => Ordering::Equal,
+                    false => candidate.label_val.cmp(&label.label_val),
+                }
+            })
+            .is_ok()
+    }
+
+    /// Preloads given nodes using breadth-first search.
+    pub async fn bfs_preload_nodes_sorted<S: Database + Sync + Send>(
+        &self,
+        storage: &StorageManager<S>,
+        insertion_labels: &[NodeLabel],
+    ) -> Result<u64, AkdError> {
+        let mut load_count: u64 = 0;
+        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
+
+        while !current_nodes.is_empty() {
+            let nodes =
+                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
+                    .await?;
+            load_count += nodes.len() as u64;
+
+            current_nodes = Vec::<NodeKey>::new();
+
+            // Now that states are loaded in the cache, you can read and access them.
+            // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
+            // individually for each node's state.
+            for node in &nodes {
+                if !Self::insertion_set_contains(insertion_labels, &node.label) {
+                    // Only continue to traverse nodes which are relevant prefixes to insertion_set
+                    continue;
+                }
+
+                for dir in crate::DIRECTIONS {
+                    let child_label = node.get_child_label(dir)?;
+                    if let Some(child_label) = child_label {
+                        current_nodes.push(NodeKey(child_label));
+                    }
+                }
+            }
+        }
+        Ok(load_count)
     }
 
     /// Preloads given nodes using breadth-first search.
@@ -823,6 +871,7 @@ mod tests {
                         .await?
                         .unwrap()
                         .label;
+                    assert_eq!(right_child.label, sibling_label);
                     nodes.push(right_child);
                 }
                 None => {}

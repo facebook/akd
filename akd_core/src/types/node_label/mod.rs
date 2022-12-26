@@ -87,6 +87,16 @@ impl NodeLabel {
         [&self.label_len.to_be_bytes(), &self.label_val[..]].concat()
     }
 
+    /// Outputs whether or not self is a prefix of the other [NodeLabel]
+    pub fn is_prefix_of(&self, other: &Self) -> bool {
+        if self.label_len > other.label_len {
+            return false;
+        }
+        !(0..self.label_len)
+            .into_iter()
+            .any(|i| self.get_bit_at(i) != other.get_bit_at(i))
+    }
+
     /// Takes as input a pointer to the caller and another [NodeLabel],
     /// returns a NodeLabel that is the longest common prefix of the two.
     pub fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {

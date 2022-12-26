@@ -23,8 +23,12 @@ use crate::ARITY;
 use alloc::vec::Vec;
 #[cfg(feature = "nostd")]
 use alloc::{format, string::String};
+#[cfg(feature = "nostd")]
+use core::cmp::{Ord, Ordering, PartialOrd};
 #[cfg(feature = "rand")]
 use rand::{CryptoRng, Rng};
+#[cfg(not(feature = "nostd"))]
+use std::cmp::{Ord, Ordering, PartialOrd};
 
 pub mod node_label;
 pub use node_label::*;
@@ -226,6 +230,18 @@ pub struct Node {
 impl SizeOf for Node {
     fn size_of(&self) -> usize {
         self.label.size_of() + self.hash.len()
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.label.cmp(&other.label)
     }
 }
 
