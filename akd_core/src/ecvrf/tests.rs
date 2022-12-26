@@ -203,7 +203,7 @@ fn test_nonce_generation() {
     for tv in TESTVECTORS.iter() {
         let sk = VRFExpandedPrivateKey::from(&from_string!(VRFPrivateKey, tv.SK));
         let h_point = from_string!(CompressedEdwardsY, tv.H);
-        let k = nonce_generation_bytes(sk.nonce, h_point);
+        let k = nonce_generation_bytes(sk.nonce, &h_point.compress().to_bytes());
         assert_eq!(tv.k, ::hex::encode(&k[..]));
     }
 }
@@ -213,7 +213,7 @@ fn test_hash_points() {
     for tv in TESTVECTORS.iter() {
         let sk = VRFExpandedPrivateKey::from(&from_string!(VRFPrivateKey, tv.SK));
         let h_point = from_string!(CompressedEdwardsY, tv.H);
-        let k_bytes = nonce_generation_bytes(sk.nonce, h_point);
+        let k_bytes = nonce_generation_bytes(sk.nonce, &h_point.compress().to_bytes());
         let k_scalar = ed25519_Scalar::from_bytes_mod_order_wide(&k_bytes);
 
         let gamma = h_point * sk.key;
@@ -224,7 +224,7 @@ fn test_hash_points() {
         assert_eq!(tv.V, to_string!(v.compress()));
 
         let pk = ed25519_PublicKey::from_bytes(&hex::decode(tv.PK).unwrap()).unwrap();
-        let c_scalar = hash_points(pk, &[h_point, gamma, u, v]);
+        let c_scalar = hash_points(pk, &h_point.compress().to_bytes(), &[gamma, u, v]);
 
         let s_scalar = k_scalar + c_scalar * sk.key;
         s_scalar.reduce();
@@ -265,6 +265,12 @@ fn test_output_from_proof() {
             to_string!(Output::from(
                 &from_string!(VRFPrivateKey, tv.SK).prove(tv.alpha)
             ))
+        );
+
+        // Also check that direct evaluation matches the same output
+        assert_eq!(
+            tv.beta,
+            to_string!(&from_string!(VRFPrivateKey, tv.SK).evaluate(tv.alpha))
         );
     }
 }

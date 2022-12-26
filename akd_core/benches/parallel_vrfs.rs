@@ -10,6 +10,31 @@
 extern crate criterion;
 use self::criterion::*;
 use akd_core::{ecvrf::VRFKeyStorage, AkdLabel};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+
+fn bench_single_vrf(c: &mut Criterion) {
+    let rng = rand::rngs::OsRng;
+
+    // Generate a random label
+    let label = AkdLabel::from_utf8_str(
+        &rng.sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect::<String>(),
+    );
+
+    let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
+    let key = runtime
+        .block_on(akd_core::ecvrf::HardCodedAkdVRF.get_vrf_private_key())
+        .unwrap();
+
+    c.bench_function("Single VRF label generation", |b| {
+        b.iter(|| {
+            akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_key(&key, &label, false, 1);
+        })
+    });
+}
 
 fn bench_parallel_vrfs(c: &mut Criterion) {
     // utilize all cores available
@@ -62,5 +87,5 @@ fn bench_parallel_vrfs(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_parallel_vrfs);
+criterion_group!(benches, bench_single_vrf, bench_parallel_vrfs);
 criterion_main!(benches);
