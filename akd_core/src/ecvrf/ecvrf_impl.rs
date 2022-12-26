@@ -99,21 +99,29 @@ impl VRFPrivateKey {
     pub fn prove(&self, alpha: &[u8]) -> Proof {
         VRFExpandedPrivateKey::from(self).prove(&VRFPublicKey((&self.0).into()), alpha)
     }
+
+    /// Directly evaluate the VRF for an input, without producing a proof (using the private key)
+    pub fn evaluate(&self, alpha: &[u8]) -> Output {
+        VRFExpandedPrivateKey::from(self).evaluate(&VRFPublicKey((&self.0).into()), alpha)
+    }
 }
 
 impl VRFExpandedPrivateKey {
     /// Produces a proof for an input (using the expanded private key)
     pub fn prove(&self, pk: &VRFPublicKey, alpha: &[u8]) -> Proof {
         let h_point = pk.hash_to_curve(alpha);
-        let k_scalar =
-            ed25519_Scalar::from_bytes_mod_order_wide(&nonce_generation_bytes(self.nonce, h_point));
+        let h_point_bytes = h_point.compress().to_bytes();
+        let k_scalar = ed25519_Scalar::from_bytes_mod_order_wide(&nonce_generation_bytes(
+            self.nonce,
+            &h_point_bytes,
+        ));
         let gamma = h_point * self.key;
         let c_scalar = hash_points(
             pk.0,
+            &h_point_bytes,
             &[
-                h_point,
                 gamma,
-                ED25519_BASEPOINT_POINT * k_scalar,
+                &curve25519_dalek::constants::ED25519_BASEPOINT_TABLE * &k_scalar,
                 h_point * k_scalar,
             ],
         );
@@ -123,6 +131,13 @@ impl VRFExpandedPrivateKey {
             c: c_scalar,
             s: k_scalar + c_scalar * self.key,
         }
+    }
+
+    /// Directly evaluate the VRF for an input, without producing a proof (using the expanded private key)
+    pub fn evaluate(&self, pk: &VRFPublicKey, alpha: &[u8]) -> Output {
+        let h_point = pk.hash_to_curve(alpha);
+        let gamma = h_point * self.key;
+        gamma_to_output(&gamma)
     }
 }
 
@@ -181,8 +196,8 @@ impl VRFPublicKey {
         };
         let cprime = hash_points(
             self.0,
+            &h_point.compress().to_bytes(),
             &[
-                h_point,
                 proof.gamma,
                 ED25519_BASEPOINT_POINT * proof.s - pk_point * proof.c,
                 h_point * proof.s - proof.gamma * proof.c,
@@ -326,32 +341,39 @@ impl Output {
 
 impl<'a> From<&'a Proof> for Output {
     fn from(proof: &'a Proof) -> Output {
-        let mut output = [0u8; OUTPUT_LENGTH];
-        output.copy_from_slice(
-            &Sha512::new()
-                .chain([SUITE, THREE])
-                .chain(&proof.gamma.mul_by_cofactor().compress().to_bytes()[..])
-                .chain([ZERO])
-                .finalize()[..],
-        );
-        Output(output)
+        gamma_to_output(&proof.gamma)
     }
 }
 
-pub(super) fn nonce_generation_bytes(nonce: [u8; 32], h_point: EdwardsPoint) -> [u8; 64] {
-    let mut k_buf = [0u8; 64];
-    k_buf.copy_from_slice(
+/// Internal function used to produce an Output from the gamma field of a Proof
+fn gamma_to_output(gamma: &EdwardsPoint) -> Output {
+    let mut output = [0u8; OUTPUT_LENGTH];
+    output.copy_from_slice(
         &Sha512::new()
-            .chain(nonce)
-            .chain(h_point.compress().as_bytes())
+            .chain([SUITE, THREE])
+            .chain(gamma.mul_by_cofactor().compress().as_bytes())
+            .chain([ZERO])
             .finalize()[..],
     );
+    Output(output)
+}
+
+pub(super) fn nonce_generation_bytes(nonce: [u8; 32], h_point_bytes: &[u8]) -> [u8; 64] {
+    let mut k_buf = [0u8; 64];
+    k_buf.copy_from_slice(&Sha512::new().chain(nonce).chain(h_point_bytes).finalize()[..]);
     k_buf
 }
 
-pub(super) fn hash_points(pk: ed25519_PublicKey, points: &[EdwardsPoint]) -> ed25519_Scalar {
+pub(super) fn hash_points(
+    pk: ed25519_PublicKey,
+    h_point_bytes: &[u8],
+    points: &[EdwardsPoint],
+) -> ed25519_Scalar {
     let mut result = [0u8; 32];
-    let mut hash = Sha512::new().chain([SUITE, TWO]).chain(pk.to_bytes());
+    let mut hash = Sha512::new()
+        .chain([SUITE, TWO])
+        .chain(pk.to_bytes())
+        .chain(h_point_bytes);
     for point in points.iter() {
         hash = hash.chain(point.compress().to_bytes());
     }

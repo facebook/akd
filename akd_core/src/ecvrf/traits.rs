@@ -7,7 +7,7 @@
 
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
-use super::{Proof, VRFPrivateKey, VRFPublicKey, VrfError};
+use super::{Output, Proof, VRFPrivateKey, VRFPublicKey, VrfError};
 use crate::{AkdLabel, NodeLabel};
 
 #[cfg(feature = "nostd")]
@@ -74,17 +74,12 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         stale: bool,
         version: u64,
     ) -> NodeLabel {
-        let proof = Self::get_label_proof_with_key(key, label, stale, version);
-        Self::get_node_label_from_vrf_proof_static(proof)
+        let output = Self::get_label_with_key_helper(key, label, stale, version);
+        NodeLabel::new(output.to_truncated_bytes(), 256)
     }
 
     /// Returns the tree nodelabel that corresponds to a vrf proof.
     async fn get_node_label_from_vrf_proof(&self, proof: Proof) -> NodeLabel {
-        Self::get_node_label_from_vrf_proof_static(proof)
-    }
-
-    /// Returns the tree nodelabel that corresponds to a vrf proof.
-    fn get_node_label_from_vrf_proof_static(proof: Proof) -> NodeLabel {
         let output: super::ecvrf_impl::Output = (&proof).into();
         NodeLabel::new(output.to_truncated_bytes(), 256)
     }
@@ -100,7 +95,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         Ok(Self::get_label_proof_with_key(&key, label, stale, version))
     }
 
-    /// Retrieve the proof for a specific label
+    /// Retrieve the proof for a specific label, with a supplied private key
     fn get_label_proof_with_key(
         key: &VRFPrivateKey,
         label: &AkdLabel,
@@ -108,10 +103,18 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Proof {
         let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
-
-        // VRF proof and hash output
-
         key.prove(&hashed_label)
+    }
+
+    /// Retrieve the output for a specific label, with a supplied private key
+    fn get_label_with_key_helper(
+        key: &VRFPrivateKey,
+        label: &AkdLabel,
+        stale: bool,
+        version: u64,
+    ) -> Output {
+        let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
+        key.evaluate(&hashed_label)
     }
 
     /// Returns the [NodeLabel]s that corresponds to a collection of (label, stale, version) arguments
