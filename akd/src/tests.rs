@@ -17,6 +17,58 @@ use crate::{
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, Database},
     AkdLabel, AkdValue, HistoryParams, HistoryVerificationParams, VerifyResult,
 };
+use tokio::time::Instant;
+
+#[tokio::test]
+async fn test_random_batch_insertion() -> Result<(), AkdError> {
+    let num_initial_leaves = 1000;
+    let num_inserted_leaves = 1000;
+
+    let mut rng = rand::rngs::OsRng;
+
+    // prepare insertion set for initial leaves
+    let mut initial_insertion_set = vec![];
+    for _ in 0..num_initial_leaves {
+        let label = AkdLabel::random(&mut rng);
+        let value = AkdValue::random(&mut rng);
+        initial_insertion_set.push((label, value));
+    }
+
+    // prepare insertion set for batch insertion
+    let mut insertion_set = vec![];
+    for _ in 0..num_inserted_leaves {
+        let label = AkdLabel::random(&mut rng);
+        let value = AkdValue::random(&mut rng);
+        insertion_set.push((label, value));
+    }
+
+    // Setup
+    let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(&db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new(&storage, &vrf, false).await?;
+
+    let initial_now = Instant::now();
+    akd.publish(initial_insertion_set).await?;
+    let initial_elapsed = initial_now.elapsed();
+    println!(
+        "Batch insertion ({} initial leaves) took {} ms",
+        num_initial_leaves,
+        initial_elapsed.as_millis()
+    );
+
+    let now = Instant::now();
+    akd.publish(insertion_set).await?;
+    let elapsed = now.elapsed();
+    println!(
+        "Batch insertion ({} initial leaves, {} inserted leaves) took {} ms",
+        num_initial_leaves,
+        num_inserted_leaves,
+        elapsed.as_millis()
+    );
+
+    Ok(())
+}
 
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]

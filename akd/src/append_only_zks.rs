@@ -823,6 +823,7 @@ mod tests {
                         .await?
                         .unwrap()
                         .label;
+                    assert_eq!(right_child.label, sibling_label);
                     nodes.push(right_child);
                 }
                 None => {}

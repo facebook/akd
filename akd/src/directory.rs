@@ -93,6 +93,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             )));
         }
 
+        info!(
+            "Starting a publish operation with {} updates",
+            updates.len()
+        );
+        let publish_start_time = tokio::time::Instant::now();
+
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
@@ -117,9 +123,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .await?;
 
         info!(
-            "Retrieved {} previous user versions of {} requested",
+            "Retrieved {} previous user versions of {} requested, starting VRF computations ({} seconds elapsed)",
             all_user_versions_retrieved.len(),
-            keys.len()
+            keys.len(),
+            publish_start_time.elapsed().as_secs(),
         );
 
         let vrf_computations = updates
@@ -136,6 +143,11 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .await?
             .into_iter()
             .collect::<HashMap<_, _>>();
+
+        info!(
+            "Completed VRF label computation ({} seconds elapsed)",
+            publish_start_time.elapsed().as_secs(),
+        );
 
         let commitment_key = self.derive_commitment_key().await?;
 
@@ -206,7 +218,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 "Transaction is already active".to_string(),
             )));
         }
-        info!("Starting inserting new leaves");
+        info!(
+            "VRF computation complete ({} total seconds elapsed)",
+            publish_start_time.elapsed().as_secs()
+        );
 
         if let Err(err) = current_azks
             .batch_insert_leaves::<_>(&self.storage, insertion_set)
@@ -227,12 +242,18 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         self.storage.batch_set(updates).await?;
 
         // Commit the transaction
-        info!("Committing transaction");
+        info!(
+            "Committing transaction ({} total seconds elapsed)",
+            publish_start_time.elapsed().as_secs()
+        );
         if let Err(err) = self.storage.commit_transaction().await {
             let _ = self.storage.rollback_transaction().await;
             return Err(AkdError::Storage(err));
         } else {
-            info!("Transaction committed");
+            info!(
+                "Transaction committed ({} total seconds elapsed)",
+                publish_start_time.elapsed().as_secs()
+            );
         }
 
         let root_hash = current_azks
