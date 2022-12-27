@@ -10,7 +10,7 @@
 use crate::{
     errors::{AkdError, AuditorError, AzksError},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
-    AppendOnlyProof, Azks, AzksInsertUsage, Digest, SingleAppendOnlyProof,
+    AppendOnlyProof, Azks, AzksInsertMode, Digest, SingleAppendOnlyProof,
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
@@ -55,7 +55,7 @@ pub async fn verify_consecutive_append_only(
     let manager = StorageManager::new_no_cache(&db);
 
     let mut azks = Azks::new::<_>(&manager).await?;
-    azks.batch_insert_leaves::<_>(&manager, unchanged_nodes, AzksInsertUsage::Auditor)
+    azks.batch_insert_leaves::<_>(&manager, unchanged_nodes, AzksInsertMode::Auditor)
         .await?;
     let computed_start_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
@@ -68,7 +68,7 @@ pub async fn verify_consecutive_append_only(
             y
         })
         .collect();
-    azks.batch_insert_leaves::<_>(&manager, updated_inserted, AzksInsertUsage::Auditor)
+    azks.batch_insert_leaves::<_>(&manager, updated_inserted, AzksInsertMode::Auditor)
         .await?;
     let computed_end_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     verified = verified && (computed_end_root_hash == end_hash);

@@ -43,7 +43,7 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 /// However, both constructions have very minor differences, and the insert
 /// usage enum is used to differentiate between the two.
 #[derive(Debug, Clone, Copy)]
-pub enum AzksInsertUsage {
+pub enum AzksInsertMode {
     /// The default mode of constructing the tree
     Directory,
     /// The auditor's mode of constructing the tree - last modified epochs of
@@ -51,17 +51,17 @@ pub enum AzksInsertUsage {
     Auditor,
 }
 
-impl Default for AzksInsertUsage {
+impl Default for AzksInsertMode {
     fn default() -> Self {
-        AzksInsertUsage::Directory
+        AzksInsertMode::Directory
     }
 }
 
-impl From<AzksInsertUsage> for HashMode {
-    fn from(usage: AzksInsertUsage) -> Self {
+impl From<AzksInsertMode> for HashMode {
+    fn from(usage: AzksInsertMode) -> Self {
         match usage {
-            AzksInsertUsage::Directory => HashMode::WithLeafEpoch,
-            AzksInsertUsage::Auditor => HashMode::NoLeafEpoch,
+            AzksInsertMode::Directory => HashMode::WithLeafEpoch,
+            AzksInsertMode::Auditor => HashMode::NoLeafEpoch,
         }
     }
 }
@@ -140,7 +140,7 @@ impl Azks {
         &mut self,
         storage: &StorageManager<S>,
         insertion_set: Vec<Node>,
-        insert_usage: AzksInsertUsage,
+        insert_usage: AzksInsertMode,
     ) -> Result<(), AkdError> {
         // preload the nodes that we will visit during the insertion
         let (fallable_load_count, time_s) =
@@ -286,7 +286,7 @@ impl Azks {
         node_label: Option<NodeLabel>,
         insertion_set: Vec<Node>,
         epoch: u64,
-        insert_usage: AzksInsertUsage,
+        insert_usage: AzksInsertMode,
     ) -> Result<(TreeNode, u64), AkdError> {
         // Phase 1: Obtain the current root node of this subtree and count if a
         // node is inserted.
@@ -823,7 +823,7 @@ mod tests {
                 Some(NodeLabel::root()),
                 vec![node],
                 1,
-                AzksInsertUsage::Directory,
+                AzksInsertMode::Directory,
             )
             .await?;
         }
@@ -833,7 +833,7 @@ mod tests {
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
         azks2
-            .batch_insert_leaves(&db2, insertion_set, AzksInsertUsage::Directory)
+            .batch_insert_leaves(&db2, insertion_set, AzksInsertMode::Directory)
             .await?;
 
         assert_eq!(
@@ -866,7 +866,7 @@ mod tests {
                 Some(NodeLabel::root()),
                 vec![node],
                 1,
-                AzksInsertUsage::Directory,
+                AzksInsertMode::Directory,
             )
             .await?;
         }
@@ -879,7 +879,7 @@ mod tests {
         let mut azks2 = Azks::new(&db2).await?;
 
         azks2
-            .batch_insert_leaves(&db2, insertion_set, AzksInsertUsage::Directory)
+            .batch_insert_leaves(&db2, insertion_set, AzksInsertMode::Directory)
             .await?;
 
         assert_eq!(
@@ -911,7 +911,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertMode::Directory)
             .await?;
 
         // Recursively traverse the tree and check that the sibling of each node is correct
@@ -975,7 +975,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertMode::Directory)
             .await?;
 
         let proof = azks
@@ -1006,7 +1006,7 @@ mod tests {
             let database = AsyncInMemoryDatabase::new();
             let db = StorageManager::new_no_cache(&database);
             let mut azks = Azks::new::<_>(&db).await?;
-            azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertUsage::Directory)
+            azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertMode::Directory)
                 .await?;
 
             let proof = azks
@@ -1038,7 +1038,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), AzksInsertMode::Directory)
             .await?;
 
         let mut proof = azks
@@ -1087,7 +1087,7 @@ mod tests {
         ];
 
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set, AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set, AzksInsertMode::Directory)
             .await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
@@ -1121,7 +1121,7 @@ mod tests {
         azks.batch_insert_leaves::<_>(
             &db,
             insertion_set.clone()[1..2].to_vec(),
-            AzksInsertUsage::Directory,
+            AzksInsertMode::Directory,
         )
         .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
@@ -1154,7 +1154,7 @@ mod tests {
         azks.batch_insert_leaves::<_>(
             &db,
             insertion_set.clone()[0..num_nodes - 1].to_vec(),
-            AzksInsertUsage::Directory,
+            AzksInsertMode::Directory,
         )
         .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
@@ -1185,7 +1185,7 @@ mod tests {
         azks.batch_insert_leaves::<_>(
             &db,
             insertion_set.clone()[0..num_nodes - 1].to_vec(),
-            AzksInsertUsage::Directory,
+            AzksInsertMode::Directory,
         )
         .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
@@ -1205,7 +1205,7 @@ mod tests {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
             hash: crate::hash::hash(&EMPTY_VALUE),
         }];
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1, AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1, AzksInsertMode::Directory)
             .await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
@@ -1214,7 +1214,7 @@ mod tests {
             hash: crate::hash::hash(&EMPTY_VALUE),
         }];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2, AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2, AzksInsertMode::Directory)
             .await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
@@ -1241,7 +1241,7 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1, AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1, AzksInsertMode::Directory)
             .await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
@@ -1256,7 +1256,7 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2, AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2, AzksInsertMode::Directory)
             .await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
@@ -1283,7 +1283,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1.clone(), AzksInsertMode::Directory)
             .await?;
 
         let start_hash = azks.get_root_hash::<_>(&db).await?;
@@ -1298,7 +1298,7 @@ mod tests {
             insertion_set_2.push(node);
         }
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2.clone(), AzksInsertMode::Directory)
             .await?;
 
         let middle_hash = azks.get_root_hash::<_>(&db).await?;
@@ -1313,7 +1313,7 @@ mod tests {
             insertion_set_3.push(node);
         }
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_3.clone(), AzksInsertUsage::Directory)
+        azks.batch_insert_leaves::<_>(&db, insertion_set_3.clone(), AzksInsertMode::Directory)
             .await?;
 
         let end_hash = azks.get_root_hash::<_>(&db).await?;

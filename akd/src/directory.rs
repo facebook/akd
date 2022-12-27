@@ -15,7 +15,7 @@ use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
-    AkdLabel, AkdValue, AppendOnlyProof, AzksInsertUsage, Digest, EpochHash, HistoryProof,
+    AkdLabel, AkdValue, AppendOnlyProof, AzksInsertMode, Digest, EpochHash, HistoryProof,
     LookupProof, Node, NodeLabel, NonMembershipProof, UpdateProof,
 };
 
@@ -212,7 +212,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             .batch_insert_leaves::<_>(
                 &self.storage,
                 sorted_insertion_set,
-                AzksInsertUsage::Directory,
+                AzksInsertMode::Directory,
             )
             .await
         {
@@ -922,7 +922,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting database insertion");
 
         current_azks
-            .batch_insert_leaves::<_>(&self.storage, insertion_set, AzksInsertUsage::Directory)
+            .batch_insert_leaves::<_>(&self.storage, insertion_set, AzksInsertMode::Directory)
             .await?;
 
         // batch all the inserts into a single transactional write to storage

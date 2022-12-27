@@ -428,7 +428,7 @@ pub use akd_core::*;
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
-pub use append_only_zks::{Azks, AzksInsertUsage};
+pub use append_only_zks::{Azks, AzksInsertMode};
 pub use client::HistoryVerificationParams;
 pub use directory::{Directory, HistoryParams};
 pub use helper_structs::EpochHash;
