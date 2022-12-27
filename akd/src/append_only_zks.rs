@@ -41,7 +41,7 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 
 /// An azks is built both by the [crate::directory::Directory] and the auditor.
 /// However, both constructions have very minor differences, and the insert
-/// usage enum is used to differentiate between the two.
+/// mode enum is used to differentiate between the two.
 #[derive(Debug, Clone, Copy)]
 pub enum AzksInsertMode {
     /// The default mode of constructing the tree
@@ -58,8 +58,8 @@ impl Default for AzksInsertMode {
 }
 
 impl From<AzksInsertMode> for HashMode {
-    fn from(usage: AzksInsertMode) -> Self {
-        match usage {
+    fn from(mode: AzksInsertMode) -> Self {
+        match mode {
             AzksInsertMode::Directory => HashMode::WithLeafEpoch,
             AzksInsertMode::Auditor => HashMode::NoLeafEpoch,
         }
