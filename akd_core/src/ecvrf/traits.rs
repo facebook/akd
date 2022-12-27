@@ -7,7 +7,7 @@
 
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
-use super::{Output, Proof, VRFPrivateKey, VRFPublicKey, VrfError};
+use super::{Output, Proof, VRFExpandedPrivateKey, VRFPrivateKey, VRFPublicKey, VrfError};
 use crate::{AkdLabel, NodeLabel};
 
 #[cfg(feature = "nostd")]
@@ -60,7 +60,15 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         version: u64,
     ) -> Result<NodeLabel, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        Ok(Self::get_node_label_with_key(&key, label, stale, version))
+        let expanded_key = VRFExpandedPrivateKey::from(&key);
+        let pk = VRFPublicKey::from(&key);
+        Ok(Self::get_node_label_with_expanded_key(
+            &expanded_key,
+            &pk,
+            label,
+            stale,
+            version,
+        ))
     }
 
     /// Returns the [NodeLabel] that corresponds to a version of the label argument utilizing the provided
@@ -68,13 +76,15 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     ///
     /// The stale boolean here is to indicate whether we are getting the [NodeLabel] for a fresh version,
     /// or a version that we are retiring.
-    fn get_node_label_with_key(
-        key: &VRFPrivateKey,
+    fn get_node_label_with_expanded_key(
+        expanded_private_key: &VRFExpandedPrivateKey,
+        pk: &VRFPublicKey,
         label: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> NodeLabel {
-        let output = Self::get_label_with_key_helper(key, label, stale, version);
+        let output =
+            Self::get_label_with_key_helper(expanded_private_key, pk, label, stale, version);
         NodeLabel::new(output.to_truncated_bytes(), 256)
     }
 
@@ -108,13 +118,14 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
 
     /// Retrieve the output for a specific label, with a supplied private key
     fn get_label_with_key_helper(
-        key: &VRFPrivateKey,
+        expanded_private_key: &VRFExpandedPrivateKey,
+        pk: &VRFPublicKey,
         label: &AkdLabel,
         stale: bool,
         version: u64,
     ) -> Output {
         let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
-        key.evaluate(&hashed_label)
+        expanded_private_key.evaluate(pk, &hashed_label)
     }
 
     /// Returns the [NodeLabel]s that corresponds to a collection of (label, stale, version) arguments
@@ -127,18 +138,27 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         labels: &[(AkdLabel, bool, u64)],
     ) -> Result<Vec<(AkdLabel, NodeLabel)>, VrfError> {
         let key = self.get_vrf_private_key().await?;
+        let expanded_key = VRFExpandedPrivateKey::from(&key);
+        let pk = VRFPublicKey::from(&key);
 
         #[cfg(feature = "parallel_vrf")]
         {
             let mut join_set = tokio::task::JoinSet::new();
             let labels_vec = labels.to_vec();
             for (label, stale, version) in labels_vec.into_iter() {
-                let key_ref = key.clone();
+                let expanded_key_ref = expanded_key.clone();
+                let pk_ref = pk.clone();
 
                 let future = {
                     async move {
                         (
-                            Self::get_node_label_with_key(&key_ref, &label, stale, version),
+                            Self::get_node_label_with_expanded_key(
+                                &expanded_key_ref,
+                                &pk_ref,
+                                &label,
+                                stale,
+                                version,
+                            ),
                             label,
                         )
                     }
@@ -166,7 +186,13 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         {
             let mut results = Vec::new();
             for (label, stale, version) in labels {
-                let node_label = Self::get_node_label_with_key(&key, label, *stale, *version);
+                let node_label = Self::get_node_label_with_expanded_key(
+                    &expanded_key,
+                    &pk,
+                    label,
+                    *stale,
+                    *version,
+                );
                 results.push((label.clone(), node_label));
             }
             Ok(results)

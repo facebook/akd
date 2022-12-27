@@ -89,6 +89,7 @@ impl core::ops::Deref for VRFPublicKey {
 ///
 /// This is similar in structure to ed25519_dalek::ExpandedSecretKey. It can be produced from
 /// a VRFPrivateKey.
+#[derive(Clone)]
 pub struct VRFExpandedPrivateKey {
     pub(super) key: ed25519_Scalar,
     pub(super) nonce: [u8; 32],
