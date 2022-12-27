@@ -136,7 +136,7 @@ impl Azks {
 
         if !insertion_set.is_empty() {
             // call recursive batch insert on the root
-            let (_, num_inserted) = Azks::recursive_batch_insert_leaves(
+            let (_, num_inserted) = Self::recursive_batch_insert_leaves(
                 storage,
                 Some(NodeLabel::root()),
                 insertion_set,
@@ -295,7 +295,7 @@ impl Azks {
                     num_inserted = 1;
                 } else {
                     // Case 1b: The existing node does not need to be
-                    // decompressed as itls label is longer than or equal to the
+                    // decompressed as its label is longer than or equal to the
                     // longest common prefix of the insertion set.
                     current_node = existing_node;
                     num_inserted = 0;
@@ -327,7 +327,7 @@ impl Azks {
             partition_longest_common_prefix(insertion_set, current_node.label);
 
         if !left_insertion_set.is_empty() {
-            let (mut left_node, left_num_inserted) = Azks::recursive_batch_insert_leaves(
+            let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_leaves(
                 storage,
                 current_node.get_child_label(Direction::Left)?,
                 left_insertion_set,
@@ -341,7 +341,7 @@ impl Azks {
         }
 
         if !right_insertion_set.is_empty() {
-            let (mut right_node, right_num_inserted) = Azks::recursive_batch_insert_leaves(
+            let (mut right_node, right_num_inserted) = Self::recursive_batch_insert_leaves(
                 storage,
                 current_node.get_child_label(Direction::Right)?,
                 right_insertion_set,
