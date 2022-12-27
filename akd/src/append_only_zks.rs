@@ -357,10 +357,10 @@ impl Azks {
 
         // if parallel: spawn a tokio task for the left child
         #[cfg(feature = "parallel_insert")]
-        let maybe_future = (!left_node_set.is_empty()).then(|| {
+        let maybe_future = if !left_node_set.is_empty() {
             let storage_clone = storage.clone();
             let left_child_label = current_node.get_child_label(Direction::Left)?;
-            tokio::task::spawn(async move {
+            Some(tokio::task::spawn(async move {
                 Azks::recursive_batch_insert_nodes(
                     &storage_clone,
                     left_child_label,
@@ -369,13 +369,15 @@ impl Azks {
                     insert_mode,
                 )
                 .await
-            })
-        });
+            }))
+        } else {
+            None
+        };
 
         // else handle the left child in the current task
         #[cfg(not(feature = "parallel_insert"))]
         if !left_insertion_set.is_empty() {
-            let left_child_label = current_node.get_child_label(Direction::Left);
+            let left_child_label = current_node.get_child_label(Direction::Left)?;
             let (mut left_node, left_num_inserted) = Azks::recursive_batch_insert_leaves(
                 storage,
                 left_child_label,
