@@ -19,7 +19,6 @@ use crate::{
 
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
-use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use log::info;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -109,43 +108,50 @@ impl Azks {
         Ok(azks)
     }
 
-    /// Inserts a single leaf and is only used for testing, since batching is more efficient.
-    /// We just want to make sure batch insertions work correctly and this function is useful for that.
-    #[cfg(test)]
-    pub async fn insert_leaf<S: Database + Sync + Send>(
-        &mut self,
-        storage: &StorageManager<S>,
-        node: Node,
-        epoch: u64,
-    ) -> Result<(), AkdError> {
-        // Calls insert_single_leaf on the root node and updates the root and tree_nodes
-        // Since this function is only for testing batch_insert_leaves, which is one epoch
-        // increment for the entire batch. Hence, we want to take care of epochs outside.
-        let new_leaf =
-            create_leaf_node::<S>(storage, node.label, &node.hash, NodeLabel::root(), epoch)
-                .await?;
-
-        let mut root_node = TreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
-        root_node
-            .insert_single_leaf_and_hash::<S>(storage, new_leaf, epoch, &mut self.num_nodes, None)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Insert a batch of new leaves
+    /// An azks is built both by the [crate::directory::Directory] and the
+    /// auditor. However, both constructions have very minor differences, and
+    /// the append_only_exclude_usage bool keeps track of this.
     pub async fn batch_insert_leaves<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
         insertion_set: Vec<Node>,
+        append_only_exclude_usage: bool,
     ) -> Result<(), AkdError> {
-        self.batch_insert_leaves_helper::<_>(storage, insertion_set, false)
-            .await
+        // preload the nodes that we will visit during the insertion
+        let (fallable_load_count, time_s) =
+            tic_toc(self.preload_nodes_for_insertion(storage, &insertion_set)).await;
+        let load_count = fallable_load_count?;
+
+        if let Some(time) = time_s {
+            info!(
+                "Preload of tree ({} objects loaded), took {} s",
+                load_count, time,
+            );
+        } else {
+            info!("Preload of tree ({} objects loaded) completed", load_count);
+        }
+
+        // increment the current epoch
+        self.increment_epoch();
+
+        if !insertion_set.is_empty() {
+            // call recursive batch insert on the root
+            let (_, num_inserted) = Self::recursive_batch_insert_leaves(
+                storage,
+                Some(NodeLabel::root()),
+                insertion_set,
+                self.latest_epoch,
+                append_only_exclude_usage,
+            )
+            .await?;
+
+            // update the number of nodes
+            self.num_nodes += num_inserted;
+
+            info!("Batch insert completed ({} new nodes)", num_inserted);
+        }
+
+        Ok(())
     }
 
     async fn preload_nodes_for_insertion<S: Database + Sync + Send>(
@@ -248,88 +254,113 @@ impl Azks {
         Ok(load_count)
     }
 
-    /// An azks is built both by the [crate::directory::Directory] and the auditor.
-    /// However, both constructions have very minor differences, and the append_only_usage
-    /// bool keeps track of this.
-    pub async fn batch_insert_leaves_helper<S: Database + Sync + Send>(
-        &mut self,
+    /// Inserts a batch of leaves recursively from a given node label.
+    #[async_recursion]
+    pub async fn recursive_batch_insert_leaves<S: Database + Sync + Send>(
         storage: &StorageManager<S>,
+        node_label: Option<NodeLabel>,
         insertion_set: Vec<Node>,
+        epoch: u64,
         append_only_exclude_usage: bool,
-    ) -> Result<(), AkdError> {
-        let (fallable_load_count, time_s) =
-            tic_toc(self.preload_nodes_for_insertion::<S>(storage, &insertion_set)).await;
-        let load_count = fallable_load_count?;
+    ) -> Result<(TreeNode, u64), AkdError> {
+        // Phase 1: Obtain the current root node of this subtree and count if a
+        // node is inserted.
+        let mut current_node;
+        let mut num_inserted;
 
-        if let Some(time) = time_s {
-            info!(
-                "Preload of tree ({} objects loaded), took {} s",
-                load_count, time,
-            );
-        } else {
-            info!("Preload of tree ({} objects loaded) completed", load_count);
-        }
+        match (node_label, &insertion_set[..]) {
+            (Some(node_label), _) => {
+                // Case 1: The node label is not None, meaning that there was an
+                // existing node at this level of the tree.
+                let mut existing_node =
+                    TreeNode::get_from_storage(storage, &NodeKey(node_label), epoch).await?;
 
-        self.increment_epoch();
-
-        let mut hash_q = KeyedPriorityQueue::<NodeLabel, i32>::new();
-        let mut priorities: i32 = 0;
-        let mut root_node = TreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
-        for node in insertion_set {
-            let new_leaf = create_leaf_node::<S>(
-                storage,
-                node.label,
-                &node.hash,
-                NodeLabel::root(),
-                self.latest_epoch,
-            )
-            .await?;
-            root_node
-                .insert_leaf::<_>(
-                    storage,
-                    new_leaf,
-                    self.latest_epoch,
-                    &mut self.num_nodes,
-                    Some(append_only_exclude_usage),
-                )
-                .await?;
-
-            hash_q.push(node.label, priorities);
-            priorities -= 1;
-        }
-
-        info!("Completed inserting new nodes");
-        // Now hash up the tree, the highest priority items will be closer to the leaves.
-        while let Some((next_node_label, _)) = hash_q.pop() {
-            let mut next_node: TreeNode = TreeNode::get_from_storage(
-                storage,
-                &NodeKey(next_node_label),
-                self.get_latest_epoch(),
-            )
-            .await?;
-            next_node
-                .update_node_hash::<_>(storage, self.latest_epoch, Some(append_only_exclude_usage))
-                .await?;
-            if next_node.node_type != NodeType::Root {
-                match hash_q.entry(next_node.parent) {
-                    Entry::Vacant(entry) => {
-                        entry.set_priority(priorities);
-                    }
-                    Entry::Occupied(entry) => {
-                        entry.set_priority(priorities);
-                    }
-                };
-
-                priorities -= 1;
+                // compute the longest common prefix between all nodes in the
+                // insertion set and the current node, and check if new nodes
+                // have a longest common prefix shorter than the current node.
+                let insertion_lcp_label = get_longest_common_prefix(&insertion_set);
+                let lcp_label = node_label.get_longest_common_prefix(insertion_lcp_label);
+                if lcp_label.get_len() < node_label.get_len() {
+                    // Case 1a: The existing node needs to be decompressed, by
+                    // pushing it down one level (away from root) in the tree
+                    // and replacing it with a new node whose label is equal to
+                    // the longest common prefix.
+                    current_node = create_interior_node_from_existing_node(
+                        storage,
+                        &mut existing_node,
+                        lcp_label,
+                        epoch,
+                    )
+                    .await?;
+                    num_inserted = 1;
+                } else {
+                    // Case 1b: The existing node does not need to be
+                    // decompressed as its label is longer than or equal to the
+                    // longest common prefix of the insertion set.
+                    current_node = existing_node;
+                    num_inserted = 0;
+                }
+            }
+            (None, [node]) => {
+                // Case 2: The node label is None and the insertion set has a
+                // single element, meaning that a new leaf node should be
+                // created to represent the element.
+                current_node = create_leaf_node(storage, node.label, &node.hash, epoch).await?;
+                num_inserted = 1;
+            }
+            (None, _) => {
+                // Case 3: The node label is None and the insertion still has
+                // multiple elements, meaning that a new interior node should be
+                // created with a label equal to the longest common prefix of
+                // the insertion set.
+                let lcp_label = get_longest_common_prefix(&insertion_set);
+                current_node = create_interior_node(storage, lcp_label, epoch).await?;
+                num_inserted = 1;
             }
         }
-        info!("Completed evaluating updated hashes");
-        Ok(())
+
+        // Phase 2: Partition the insertion set based on the direction the leaf
+        // nodes are located in with respect to the current node and call this
+        // function recursively on the left and right child nodes. The current
+        // node is updated with the new child nodes.
+        let (left_insertion_set, right_insertion_set) =
+            partition_longest_common_prefix(insertion_set, current_node.label);
+
+        if !left_insertion_set.is_empty() {
+            let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_leaves(
+                storage,
+                current_node.get_child_label(Direction::Left)?,
+                left_insertion_set,
+                epoch,
+                append_only_exclude_usage,
+            )
+            .await?;
+
+            current_node.set_child(storage, &mut left_node).await?;
+            num_inserted += left_num_inserted;
+        }
+
+        if !right_insertion_set.is_empty() {
+            let (mut right_node, right_num_inserted) = Self::recursive_batch_insert_leaves(
+                storage,
+                current_node.get_child_label(Direction::Right)?,
+                right_insertion_set,
+                epoch,
+                append_only_exclude_usage,
+            )
+            .await?;
+
+            current_node.set_child(storage, &mut right_node).await?;
+            num_inserted += right_num_inserted;
+        }
+
+        // Phase 3: Update the hash of the current node and return it along with
+        // the number of nodes inserted.
+        current_node
+            .update_node_hash::<_>(storage, Some(append_only_exclude_usage))
+            .await?;
+
+        Ok((current_node, num_inserted))
     }
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
@@ -762,14 +793,17 @@ mod tests {
             let hash = crate::hash::hash(&input);
             let node = Node { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_>(&db, node, 1).await?;
+            Azks::recursive_batch_insert_leaves(&db, Some(NodeLabel::root()), vec![node], 1, false)
+                .await?;
         }
 
         let database2 = AsyncInMemoryDatabase::new();
         let db2 = StorageManager::new_no_cache(&database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
-        azks2.batch_insert_leaves::<_>(&db2, insertion_set).await?;
+        azks2
+            .batch_insert_leaves(&db2, insertion_set, false)
+            .await?;
 
         assert_eq!(
             azks1.get_root_hash::<_>(&db).await?,
@@ -796,7 +830,8 @@ mod tests {
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             insertion_set.push(node);
-            azks1.insert_leaf::<_>(&db, node, 1).await?;
+            Azks::recursive_batch_insert_leaves(&db, Some(NodeLabel::root()), vec![node], 1, false)
+                .await?;
         }
 
         // Try randomly permuting
@@ -804,9 +839,11 @@ mod tests {
 
         let database2 = AsyncInMemoryDatabase::new();
         let db2 = StorageManager::new_no_cache(&database2);
-        let mut azks2 = Azks::new::<_>(&db2).await?;
+        let mut azks2 = Azks::new(&db2).await?;
 
-        azks2.batch_insert_leaves::<_>(&db2, insertion_set).await?;
+        azks2
+            .batch_insert_leaves(&db2, insertion_set, false)
+            .await?;
 
         assert_eq!(
             azks1.get_root_hash::<_>(&db).await?,
@@ -837,7 +874,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), false)
             .await?;
 
         // Recursively traverse the tree and check that the sibling of each node is correct
@@ -901,7 +938,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), false)
             .await?;
 
         let proof = azks
@@ -932,7 +969,7 @@ mod tests {
             let database = AsyncInMemoryDatabase::new();
             let db = StorageManager::new_no_cache(&database);
             let mut azks = Azks::new::<_>(&db).await?;
-            azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+            azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), false)
                 .await?;
 
             let proof = azks
@@ -964,7 +1001,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone(), false)
             .await?;
 
         let mut proof = azks
@@ -1013,7 +1050,8 @@ mod tests {
         ];
 
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set, false)
+            .await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
         assert!(
@@ -1043,7 +1081,7 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = insertion_set[0].label;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[1..2].to_vec())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[1..2].to_vec(), false)
             .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
@@ -1072,7 +1110,7 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = insertion_set[num_nodes - 1].label;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec(), false)
             .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
@@ -1099,7 +1137,7 @@ mod tests {
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = insertion_set[num_nodes - 1].label;
-        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec())
+        azks.batch_insert_leaves::<_>(&db, insertion_set.clone()[0..num_nodes - 1].to_vec(), false)
             .await?;
         let proof = azks.get_non_membership_proof(&db, search_label).await?;
 
@@ -1118,7 +1156,8 @@ mod tests {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
             hash: crate::hash::hash(&EMPTY_VALUE),
         }];
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1, false)
+            .await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
         let insertion_set_2: Vec<Node> = vec![Node {
@@ -1126,7 +1165,8 @@ mod tests {
             hash: crate::hash::hash(&EMPTY_VALUE),
         }];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2, false)
+            .await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
@@ -1152,7 +1192,8 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1, false)
+            .await?;
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
         let insertion_set_2: Vec<Node> = vec![
@@ -1166,7 +1207,8 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2).await?;
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2, false)
+            .await?;
         let end_hash = azks.get_root_hash::<_>(&db).await?;
 
         let proof = azks.get_append_only_proof(&db, 1, 2).await?;
@@ -1192,7 +1234,7 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.batch_insert_leaves::<_>(&db, insertion_set_1.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set_1.clone(), false)
             .await?;
 
         let start_hash = azks.get_root_hash::<_>(&db).await?;
@@ -1207,7 +1249,7 @@ mod tests {
             insertion_set_2.push(node);
         }
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_2.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set_2.clone(), false)
             .await?;
 
         let middle_hash = azks.get_root_hash::<_>(&db).await?;
@@ -1222,7 +1264,7 @@ mod tests {
             insertion_set_3.push(node);
         }
 
-        azks.batch_insert_leaves::<_>(&db, insertion_set_3.clone())
+        azks.batch_insert_leaves::<_>(&db, insertion_set_3.clone(), false)
             .await?;
 
         let end_hash = azks.get_root_hash::<_>(&db).await?;
