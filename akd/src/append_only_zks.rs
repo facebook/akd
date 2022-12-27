@@ -44,10 +44,10 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 /// mode enum is used to differentiate between the two.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum InsertMode {
-    /// The regular construction of the the tree
+    /// The regular construction of the the tree.
     Directory,
-    /// The auditor's mode of constructing the tree - last modified epochs of
-    /// leaves are not included in node hashes
+    /// The auditor's mode of constructing the tree - last epochs of leaves are
+    /// not included in node hashes.
     Auditor,
 }
 

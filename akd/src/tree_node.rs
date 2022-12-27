@@ -563,7 +563,7 @@ pub(crate) fn partition_longest_common_prefix(
 pub(crate) enum NodeHashingMode {
     // Mixes the last epoch into the hashes of any child leaves
     WithLeafEpoch,
-    // Does not mix the last epoch into the hashes of children nodes
+    // Does not mix the last epoch into the hashes of child leaves
     NoLeafEpoch,
 }
 
