@@ -407,7 +407,7 @@ impl TreeNode {
     pub(crate) async fn update_node_hash<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
-        leaf_hash_mode: HashMode,
+        hash_mode: HashMode,
     ) -> Result<(), AkdError> {
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
@@ -428,8 +428,8 @@ impl TreeNode {
 
                 // Get merged hashes for the children.
                 let child_hashes = crate::hash::merge(&[
-                    optional_child_state_label_hash(&left_child_state, leaf_hash_mode),
-                    optional_child_state_label_hash(&right_child_state, leaf_hash_mode),
+                    optional_child_state_label_hash(&left_child_state, hash_mode),
+                    optional_child_state_label_hash(&right_child_state, hash_mode),
                 ]);
                 // Store the hash
                 self.hash = child_hashes;
@@ -578,13 +578,11 @@ pub(crate) fn optional_child_state_to_label(input: &Option<TreeNode>) -> NodeLab
     }
 }
 
-fn optional_child_state_label_hash(input: &Option<TreeNode>, leaf_hash_mode: HashMode) -> Digest {
+fn optional_child_state_label_hash(input: &Option<TreeNode>, hash_mode: HashMode) -> Digest {
     match input {
         Some(child_state) => {
             let mut hash = child_state.hash;
-            if let (NodeType::Leaf, HashMode::WithLeafEpoch) =
-                (child_state.node_type, leaf_hash_mode)
-            {
+            if let (NodeType::Leaf, HashMode::WithLeafEpoch) = (child_state.node_type, hash_mode) {
                 hash = crate::hash::merge_with_int(hash, child_state.last_epoch);
             }
             merge_digest_with_label_hash(&hash, child_state.label)
