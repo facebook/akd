@@ -44,24 +44,18 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 /// mode enum is used to differentiate between the two.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum InsertMode {
-    /// The default mode of constructing the tree
+    /// The regular construction of the the tree
     Directory,
     /// The auditor's mode of constructing the tree - last modified epochs of
     /// leaves are not included in node hashes
     Auditor,
 }
 
-impl Default for InsertMode {
-    fn default() -> Self {
-        InsertMode::Directory
-    }
-}
-
-impl From<InsertMode> for HashMode {
+impl From<InsertMode> for NodeHashingMode {
     fn from(mode: InsertMode) -> Self {
         match mode {
-            InsertMode::Directory => HashMode::WithLeafEpoch,
-            InsertMode::Auditor => HashMode::NoLeafEpoch,
+            InsertMode::Directory => NodeHashingMode::WithLeafEpoch,
+            InsertMode::Auditor => NodeHashingMode::NoLeafEpoch,
         }
     }
 }
@@ -140,7 +134,7 @@ impl Azks {
         &mut self,
         storage: &StorageManager<S>,
         insertion_set: Vec<Node>,
-        insert_usage: InsertMode,
+        insert_mode: InsertMode,
     ) -> Result<(), AkdError> {
         // preload the nodes that we will visit during the insertion
         let (fallable_load_count, time_s) =
@@ -166,7 +160,7 @@ impl Azks {
                 Some(NodeLabel::root()),
                 insertion_set,
                 self.latest_epoch,
-                insert_usage,
+                insert_mode,
             )
             .await?;
 
@@ -286,7 +280,7 @@ impl Azks {
         node_label: Option<NodeLabel>,
         insertion_set: Vec<Node>,
         epoch: u64,
-        insert_usage: InsertMode,
+        insert_mode: InsertMode,
     ) -> Result<(TreeNode, u64), AkdError> {
         // Phase 1: Obtain the current root node of this subtree and count if a
         // node is inserted.
@@ -357,7 +351,7 @@ impl Azks {
                 current_node.get_child_label(Direction::Left)?,
                 left_insertion_set,
                 epoch,
-                insert_usage,
+                insert_mode,
             )
             .await?;
 
@@ -371,7 +365,7 @@ impl Azks {
                 current_node.get_child_label(Direction::Right)?,
                 right_insertion_set,
                 epoch,
-                insert_usage,
+                insert_mode,
             )
             .await?;
 
@@ -382,7 +376,7 @@ impl Azks {
         // Phase 3: Update the hash of the current node and return it along with
         // the number of nodes inserted.
         current_node
-            .update_node_hash::<_>(storage, HashMode::from(insert_usage))
+            .update_node_hash::<_>(storage, NodeHashingMode::from(insert_mode))
             .await?;
 
         Ok((current_node, num_inserted))
