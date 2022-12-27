@@ -272,9 +272,8 @@ impl Azks {
             (Some(node_label), _) => {
                 // Case 1: The node label is not None, meaning that there was an
                 // existing node at this level of the tree.
-                current_node =
+                let mut existing_node =
                     TreeNode::get_from_storage(storage, &NodeKey(node_label), epoch).await?;
-                num_inserted = 0;
 
                 // compute the longest common prefix between all nodes in the
                 // insertion set and the current node, and check if new nodes
@@ -282,18 +281,24 @@ impl Azks {
                 let insertion_lcp_label = get_longest_common_prefix(&insertion_set);
                 let lcp_label = node_label.get_longest_common_prefix(insertion_lcp_label);
                 if lcp_label.get_len() < node_label.get_len() {
-                    // Case 1a: The current node needs to be decompressed, by
+                    // Case 1a: The existing node needs to be decompressed, by
                     // pushing it down one level (away from root) in the tree
                     // and replacing it with a new node whose label is equal to
                     // the longest common prefix.
-                    current_node = create_interior_node_from_node(
+                    current_node = create_interior_node_from_existing_node(
                         storage,
-                        &mut current_node,
+                        &mut existing_node,
                         lcp_label,
                         epoch,
                     )
                     .await?;
                     num_inserted = 1;
+                } else {
+                    // Case 1b: The existing node does not need to be
+                    // decompressed as itls label is longer than or equal to the
+                    // longest common prefix of the insertion set.
+                    current_node = existing_node;
+                    num_inserted = 0;
                 }
             }
             (None, [node]) => {

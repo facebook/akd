@@ -12,6 +12,7 @@ use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
 use crate::Digest;
+use crate::Node;
 use crate::{node_label::*, Direction, EMPTY_LABEL};
 use akd_core::hash::EMPTY_DIGEST;
 #[cfg(feature = "serde_serialization")]
@@ -538,28 +539,26 @@ impl TreeNode {
 
 /////// Helpers //////
 
-pub(crate) fn get_longest_common_prefix(nodes: &[akd_core::Node]) -> NodeLabel {
-    let mut prefix = nodes[0].label;
-    for node in nodes.iter() {
-        prefix = node.label.get_longest_common_prefix(prefix);
-    }
-    prefix
+pub(crate) fn get_longest_common_prefix(nodes: &[Node]) -> NodeLabel {
+    nodes.iter().skip(1).fold(nodes[0].label, |acc, node| {
+        node.label.get_longest_common_prefix(acc)
+    })
 }
 
 pub(crate) fn partition_longest_common_prefix(
-    nodes: Vec<akd_core::Node>,
+    nodes: Vec<Node>,
     lcp_label: NodeLabel,
-) -> (Vec<akd_core::Node>, Vec<akd_core::Node>) {
-    let mut left = vec![];
-    let mut right = vec![];
-    for node in nodes.into_iter() {
-        match lcp_label.get_dir(node.label) {
-            Direction::Left => left.push(node),
-            Direction::Right => right.push(node),
-            Direction::None => (),
-        }
-    }
-    (left, right)
+) -> (Vec<crate::Node>, Vec<Node>) {
+    nodes
+        .into_iter()
+        .fold((vec![], vec![]), |(mut left, mut right), node| {
+            match lcp_label.get_dir(node.label) {
+                Direction::Left => left.push(node),
+                Direction::Right => right.push(node),
+                Direction::None => (),
+            };
+            (left, right)
+        })
 }
 
 pub(crate) fn merge_digest_with_label_hash(digest: &Digest, label: NodeLabel) -> Digest {
@@ -631,7 +630,7 @@ pub(crate) async fn create_empty_root<S: Database + Sync + Send>(
 
 /// Create an interior node by splitting off from an existing node, pushing the
 /// existing node down and setting it as a child of the new node.
-pub(crate) async fn create_interior_node_from_node<S: Database + Sync + Send>(
+pub(crate) async fn create_interior_node_from_existing_node<S: Database + Sync + Send>(
     storage: &StorageManager<S>,
     existing_node: &mut TreeNode,
     new_label: NodeLabel,
