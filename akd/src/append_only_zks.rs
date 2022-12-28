@@ -135,15 +135,10 @@ impl InsertionSet {
 
     pub(crate) fn get_longest_common_prefix(&self) -> NodeLabel {
         match self {
-            InsertionSet::BinarySearchable(nodes) => {
-                // TODO: Implement binary search
-                if nodes.is_empty() {
-                    return EMPTY_LABEL;
-                }
-                nodes.iter().skip(1).fold(nodes[0].label, |acc, node| {
-                    node.label.get_longest_common_prefix(acc)
-                })
-            }
+            InsertionSet::BinarySearchable(nodes) => match (nodes.first(), nodes.last()) {
+                (Some(first), Some(last)) => first.label.get_longest_common_prefix(last.label),
+                _ => EMPTY_LABEL,
+            },
             InsertionSet::Unsorted(nodes) => {
                 if nodes.is_empty() {
                     return EMPTY_LABEL;
