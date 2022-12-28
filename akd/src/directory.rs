@@ -96,7 +96,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
-        let mut update_set = BinaryHeap::<Node>::new();
+        let mut update_set = Vec::<Node>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
 
         let mut current_azks = self.retrieve_current_azks().await?;
@@ -191,9 +191,8 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 }
             }
         }
-        let sorted_insertion_set: Vec<Node> = update_set.into_sorted_vec();
 
-        if sorted_insertion_set.is_empty() {
+        if update_set.is_empty() {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<_>(&self.storage).await?;
@@ -209,7 +208,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting inserting new leaves");
 
         if let Err(err) = current_azks
-            .batch_insert_nodes::<_>(&self.storage, sorted_insertion_set, InsertMode::Directory)
+            .batch_insert_nodes::<_>(&self.storage, update_set, InsertMode::Directory)
             .await
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.

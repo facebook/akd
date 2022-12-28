@@ -21,8 +21,8 @@ use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::marker::{Send, Sync};
+use std::ops::Deref;
 
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
@@ -56,6 +56,102 @@ impl From<InsertMode> for NodeHashingMode {
         match mode {
             InsertMode::Directory => NodeHashingMode::WithLeafEpoch,
             InsertMode::Auditor => NodeHashingMode::NoLeafEpoch,
+        }
+    }
+}
+
+/// A set of nodes to be inserted into the tree. This abstraction denotes
+/// whether the nodes are binary searchable (i.e. all nodes have the same label
+/// length, and are sorted).
+#[derive(Debug, Clone)]
+pub(crate) enum InsertionSet {
+    BinarySearchable(Vec<Node>),
+    Unsorted(Vec<Node>),
+}
+
+impl Deref for InsertionSet {
+    type Target = Vec<Node>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            InsertionSet::BinarySearchable(nodes) => nodes,
+            InsertionSet::Unsorted(nodes) => nodes,
+        }
+    }
+}
+
+impl From<Vec<Node>> for InsertionSet {
+    fn from(mut nodes: Vec<Node>) -> Self {
+        if !nodes.is_empty()
+            && nodes
+                .iter()
+                .all(|node| node.label.label_len == nodes[0].label.label_len)
+        {
+            nodes.sort();
+            InsertionSet::BinarySearchable(nodes)
+        } else {
+            InsertionSet::Unsorted(nodes)
+        }
+    }
+}
+
+impl InsertionSet {
+    pub(crate) fn partition(self, lcp_label: NodeLabel) -> (InsertionSet, InsertionSet) {
+        match self {
+            InsertionSet::BinarySearchable(nodes) => {
+                // TODO: implement binary search
+                let (left, right) =
+                    nodes
+                        .into_iter()
+                        .fold((vec![], vec![]), |(mut left, mut right), node| {
+                            match lcp_label.get_dir(node.label) {
+                                Direction::Left => left.push(node),
+                                Direction::Right => right.push(node),
+                                Direction::None => (),
+                            };
+                            (left, right)
+                        });
+                (
+                    InsertionSet::BinarySearchable(left),
+                    InsertionSet::BinarySearchable(right),
+                )
+            }
+            InsertionSet::Unsorted(nodes) => {
+                let (left, right) =
+                    nodes
+                        .into_iter()
+                        .fold((vec![], vec![]), |(mut left, mut right), node| {
+                            match lcp_label.get_dir(node.label) {
+                                Direction::Left => left.push(node),
+                                Direction::Right => right.push(node),
+                                Direction::None => (),
+                            };
+                            (left, right)
+                        });
+                (InsertionSet::Unsorted(left), InsertionSet::Unsorted(right))
+            }
+        }
+    }
+
+    pub(crate) fn get_longest_common_prefix(&self) -> NodeLabel {
+        match self {
+            InsertionSet::BinarySearchable(nodes) => {
+                // TODO: Implement binary search
+                if nodes.is_empty() {
+                    return EMPTY_LABEL;
+                }
+                nodes.iter().skip(1).fold(nodes[0].label, |acc, node| {
+                    node.label.get_longest_common_prefix(acc)
+                })
+            }
+            InsertionSet::Unsorted(nodes) => {
+                if nodes.is_empty() {
+                    return EMPTY_LABEL;
+                }
+                nodes.iter().skip(1).fold(nodes[0].label, |acc, node| {
+                    node.label.get_longest_common_prefix(acc)
+                })
+            }
         }
     }
 }
@@ -124,9 +220,11 @@ impl Azks {
     pub async fn batch_insert_nodes<S: Database + Sync + Send>(
         &mut self,
         storage: &StorageManager<S>,
-        insertion_set: Vec<Node>,
+        nodes: Vec<Node>,
         insert_mode: InsertMode,
     ) -> Result<(), AkdError> {
+        let insertion_set = InsertionSet::from(nodes);
+
         // preload the nodes that we will visit during the insertion
         let (fallable_load_count, time_s) =
             tic_toc(self.preload_nodes_for_insertion(storage, &insertion_set)).await;
@@ -168,15 +266,23 @@ impl Azks {
     async fn preload_nodes_for_insertion<S: Database + Sync + Send>(
         &self,
         storage: &StorageManager<S>,
-        insertion_set: &[Node],
+        insertion_set: &InsertionSet,
     ) -> Result<u64, AkdError> {
         let insertion_labels = insertion_set
             .iter()
             .map(|n| n.label)
             .collect::<Vec<NodeLabel>>();
 
-        self.bfs_preload_nodes_bin_search::<S>(storage, &insertion_labels)
-            .await
+        match insertion_set {
+            InsertionSet::BinarySearchable(_) => {
+                self.bfs_preload_nodes_bin_search::<S>(storage, &insertion_labels)
+                    .await
+            }
+            InsertionSet::Unsorted(_) => {
+                self.bfs_preload_nodes::<S>(storage, &insertion_labels)
+                    .await
+            }
+        }
     }
 
     /// Given a sorted list of [NodeLabel]s, determine if a given [NodeLabel] is
@@ -209,10 +315,14 @@ impl Azks {
     pub async fn bfs_preload_nodes<S: Database + Sync + Send>(
         &self,
         storage: &StorageManager<S>,
-        nodes_to_load: HashSet<NodeLabel>,
+        insertion_labels: &[NodeLabel],
     ) -> Result<u64, AkdError> {
-        self.preload_filtered_nodes(storage, |node| !nodes_to_load.contains(&node.label))
-            .await
+        self.preload_filtered_nodes(storage, |node| {
+            !insertion_labels
+                .iter()
+                .any(|label| node.label.is_prefix_of(label))
+        })
+        .await
     }
 
     async fn preload_filtered_nodes<S, P>(
@@ -262,7 +372,7 @@ impl Azks {
     pub(crate) async fn recursive_batch_insert_nodes<S: Database + Sync + Send>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
-        insertion_set: Vec<Node>,
+        insertion_set: InsertionSet,
         epoch: u64,
         insert_mode: InsertMode,
     ) -> Result<(TreeNode, u64), AkdError> {
@@ -281,7 +391,7 @@ impl Azks {
                 // compute the longest common prefix between all nodes in the
                 // insertion set and the current node, and check if new nodes
                 // have a longest common prefix shorter than the current node.
-                let insertion_lcp_label = get_longest_common_prefix(&insertion_set);
+                let insertion_lcp_label = insertion_set.get_longest_common_prefix();
                 let lcp_label = node_label.get_longest_common_prefix(insertion_lcp_label);
                 if lcp_label.get_len() < node_label.get_len() {
                     // Case 1a: The existing node needs to be decompressed, by
@@ -316,7 +426,7 @@ impl Azks {
                 // multiple elements, meaning that a new interior node should be
                 // created with a label equal to the longest common prefix of
                 // the insertion set.
-                let lcp_label = get_longest_common_prefix(&insertion_set);
+                let lcp_label = insertion_set.get_longest_common_prefix();
                 current_node = create_interior_node(storage, lcp_label, epoch).await?;
                 num_inserted = 1;
             }
@@ -326,8 +436,7 @@ impl Azks {
         // nodes are located in with respect to the current node and call this
         // function recursively on the left and right child nodes. The current
         // node is updated with the new child nodes.
-        let (left_insertion_set, right_insertion_set) =
-            partition_longest_common_prefix(insertion_set, current_node.label);
+        let (left_insertion_set, right_insertion_set) = insertion_set.partition(current_node.label);
 
         if !left_insertion_set.is_empty() {
             let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
@@ -799,7 +908,7 @@ mod tests {
             Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
-                vec![node],
+                InsertionSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
             )
@@ -842,7 +951,7 @@ mod tests {
             Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
-                vec![node],
+                InsertionSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
             )
