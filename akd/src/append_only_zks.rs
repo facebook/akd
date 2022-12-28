@@ -63,7 +63,7 @@ impl From<InsertMode> for NodeHashingMode {
 /// A set of nodes to be inserted into the tree. This abstraction denotes
 /// whether the nodes are binary searchable (i.e. all nodes have the same label
 /// length, and are sorted).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum InsertionSet {
     BinarySearchable(Vec<Node>),
     Unsorted(Vec<Node>),
@@ -1039,6 +1039,103 @@ mod tests {
             azks1.get_root_hash::<_>(&db).await?,
             azks2.get_root_hash::<_>(&db2).await?,
             "Batch insert doesn't match individual insert"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_insertion_set_partition() -> Result<(), AkdError> {
+        let mut rng = OsRng;
+        let num_nodes = 10;
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
+        let mut azks1 = Azks::new::<_>(&db).await?;
+        azks1.increment_epoch();
+
+        let mut nodes: Vec<Node> = vec![];
+        for _ in 0..num_nodes {
+            let label = crate::utils::random_label(&mut rng);
+            let mut input = crate::hash::EMPTY_DIGEST;
+            rng.fill_bytes(&mut input);
+            let hash = crate::hash::hash(&input);
+            let node = Node { label, hash };
+            nodes.push(node);
+        }
+
+        // manually construct both types of insertion sets with the same data
+        let unsorted_set = InsertionSet::Unsorted(nodes.clone());
+        let bin_searchable_set = {
+            let mut nodes = nodes.clone();
+            nodes.sort();
+            InsertionSet::BinarySearchable(nodes)
+        };
+
+        let assert_fun = |lcp_label: NodeLabel| match (
+            unsorted_set.clone().partition(lcp_label),
+            bin_searchable_set.clone().partition(lcp_label),
+        ) {
+            (
+                (
+                    InsertionSet::Unsorted(mut left_unsorted),
+                    InsertionSet::Unsorted(mut right_unsorted),
+                ),
+                (
+                    InsertionSet::BinarySearchable(left_bin_searchable),
+                    InsertionSet::BinarySearchable(right_bin_searchable),
+                ),
+            ) => {
+                left_unsorted.sort();
+                right_unsorted.sort();
+                assert_eq!(left_unsorted, *left_bin_searchable);
+                assert_eq!(right_unsorted, *right_bin_searchable);
+            }
+            _ => panic!("Unexpected enum variant returned from partition call"),
+        };
+
+        // assert that insertion sets always return the same partitions
+        let lcp_label = bin_searchable_set[0]
+            .label
+            .get_longest_common_prefix(bin_searchable_set[9].label);
+
+        assert_fun(lcp_label);
+        assert_fun(EMPTY_LABEL);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_insertion_set_get_longest_common_prefix() -> Result<(), AkdError> {
+        let mut rng = OsRng;
+        let num_nodes = 10;
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
+        let mut azks1 = Azks::new::<_>(&db).await?;
+        azks1.increment_epoch();
+
+        let mut nodes: Vec<Node> = vec![];
+
+        for _ in 0..num_nodes {
+            let label = crate::utils::random_label(&mut rng);
+            let mut input = crate::hash::EMPTY_DIGEST;
+            rng.fill_bytes(&mut input);
+            let hash = crate::hash::hash(&input);
+            let node = Node { label, hash };
+            nodes.push(node);
+        }
+
+        // manually construct both types of insertion sets with the same data
+        let unsorted_set = InsertionSet::Unsorted(nodes.clone());
+        let bin_searchable_set = {
+            let mut nodes = nodes.clone();
+            nodes.sort();
+            InsertionSet::BinarySearchable(nodes)
+        };
+
+        // assert that insertion sets always return the same LCP
+        assert_eq!(
+            unsorted_set.clone().get_longest_common_prefix(),
+            bin_searchable_set.clone().get_longest_common_prefix()
         );
 
         Ok(())
