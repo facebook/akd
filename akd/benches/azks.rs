@@ -8,6 +8,7 @@
 #[macro_use]
 extern crate criterion;
 
+use akd::append_only_zks::InsertMode;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::{Azks, Node, NodeLabel};
@@ -56,13 +57,17 @@ fn batch_insertion(c: &mut Criterion) {
 
                 // insert initial leaves as part of setup
                 runtime
-                    .block_on(azks.batch_insert_leaves(&db, initial_insertion_set.clone(), false))
+                    .block_on(azks.batch_insert_nodes(
+                        &db,
+                        initial_insertion_set.clone(),
+                        InsertMode::Directory,
+                    ))
                     .unwrap();
                 (azks, db, insertion_set.clone())
             },
             |(mut azks, db, insertion_set)| {
                 runtime
-                    .block_on(azks.batch_insert_leaves(&db, insertion_set, false))
+                    .block_on(azks.batch_insert_nodes(&db, insertion_set, InsertMode::Directory))
                     .unwrap();
             },
             BatchSize::PerIteration,
