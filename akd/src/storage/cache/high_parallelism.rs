@@ -24,8 +24,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-/// Implements a basic cahce with timing information which automatically flushes
+/// Implements a basic cache with timing information which automatically flushes
 /// expired entries and removes them
+#[derive(Clone)]
 pub struct TimedCache {
     azks: Arc<RwLock<Option<DbRecord>>>,
     map: Arc<DashMap<Vec<u8>, CachedItem>>,
@@ -56,21 +57,6 @@ impl TimedCache {
                 log::Level::Warn => warn!("{}", msg),
                 _ => error!("{}", msg),
             }
-        }
-    }
-}
-
-impl Clone for TimedCache {
-    fn clone(&self) -> Self {
-        TimedCache {
-            azks: self.azks.clone(),
-            map: self.map.clone(),
-            last_clean: self.last_clean.clone(),
-            can_clean: self.can_clean.clone(),
-            item_lifetime: self.item_lifetime,
-            memory_limit_bytes: self.memory_limit_bytes,
-            hit_count: self.hit_count.clone(),
-            clean_frequency: self.clean_frequency,
         }
     }
 }

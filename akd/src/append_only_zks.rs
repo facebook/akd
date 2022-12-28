@@ -62,7 +62,7 @@ impl From<InsertMode> for NodeHashingMode {
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -105,15 +105,6 @@ impl Storable for Azks {
 }
 
 unsafe impl Sync for Azks {}
-
-impl Clone for Azks {
-    fn clone(&self) -> Self {
-        Self {
-            latest_epoch: self.latest_epoch,
-            num_nodes: self.num_nodes,
-        }
-    }
-}
 
 impl Azks {
     /// Creates a new azks
