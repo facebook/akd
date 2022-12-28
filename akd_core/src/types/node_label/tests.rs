@@ -571,3 +571,30 @@ pub fn test_get_sibling_prefix() {
 
     assert!(label_rand_len_256.get_sibling_prefix(256) == label_rand_len_256_prefix_256_sibling);
 }
+
+#[test]
+pub fn test_is_prefix_of() {
+    let label_1 = NodeLabel::new(byte_arr_from_u64(0b01u64 << 62), 4u32);
+    let label_2 = NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 5u32);
+    let label_3 = NodeLabel::new(byte_arr_from_u64(0b0u64), 4u32);
+
+    // empty label is prefix of all labels
+    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_1), true);
+    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_2), true);
+    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_3), true);
+
+    // every label is a prefix of itself
+    assert_eq!(label_1.is_prefix_of(&label_1), true);
+    assert_eq!(label_2.is_prefix_of(&label_2), true);
+    assert_eq!(label_3.is_prefix_of(&label_3), true);
+
+    // valid prefixes
+    assert_eq!(label_1.is_prefix_of(&label_2), true);
+    assert_eq!(label_1.is_prefix_of(&label_3), false);
+
+    // invalid prefixes
+    assert_eq!(label_2.is_prefix_of(&label_1), false);
+    assert_eq!(label_2.is_prefix_of(&label_3), false);
+    assert_eq!(label_3.is_prefix_of(&label_1), false);
+    assert_eq!(label_3.is_prefix_of(&label_2), false);
+}
