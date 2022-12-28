@@ -218,7 +218,7 @@ impl TreeNodeWithPreviousValue {
 /// At a later time, we may need to access older sub-trees of the tree built with these nodes.
 /// To facilitate this, we require this struct to include the last time a node was updated
 /// as well as the oldest descendant it holds.
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -358,21 +358,6 @@ impl TreeNode {
 pub struct NodeKey(pub NodeLabel);
 
 unsafe impl Sync for TreeNode {}
-
-impl Clone for TreeNode {
-    fn clone(&self) -> Self {
-        Self {
-            label: self.label,
-            last_epoch: self.last_epoch,
-            min_descendant_epoch: self.min_descendant_epoch,
-            parent: self.parent,
-            node_type: self.node_type,
-            left_child: self.left_child,
-            right_child: self.right_child,
-            hash: self.hash,
-        }
-    }
-}
 
 impl TreeNode {
     // FIXME: Figure out how to better group arguments.
@@ -795,22 +780,21 @@ mod tests {
         };
 
         let root_expected_min_dec = 1u64;
-        assert!(
-            root_expected_min_dec == root_smallest_descendant_ep,
+        assert_eq!(
+            root_expected_min_dec, root_smallest_descendant_ep,
             "Minimum descendant epoch not equal to expected: root, expected: {:?}, got: {:?}",
-            root_expected_min_dec,
-            root_smallest_descendant_ep
+            root_expected_min_dec, root_smallest_descendant_ep
         );
 
         let right_child_expected_min_dec = 2u64;
-        assert!(
-            right_child_expected_min_dec == right_child_smallest_descendant_ep,
+        assert_eq!(
+            right_child_expected_min_dec, right_child_smallest_descendant_ep,
             "Minimum descendant epoch not equal to expected: right child"
         );
 
         let left_child_expected_min_dec = 1u64;
-        assert!(
-            left_child_expected_min_dec == left_child_smallest_descendant_ep,
+        assert_eq!(
+            left_child_expected_min_dec, left_child_smallest_descendant_ep,
             "Minimum descendant epoch not equal to expected: left child"
         );
 
@@ -1084,7 +1068,7 @@ mod tests {
             crate::hash::merge(&[left_child_expected_hash, right_child_expected_hash]),
             hash_label(root.label),
         ]);
-        assert!(root_digest == expected, "Root hash not equal to expected");
+        assert_eq!(root_digest, expected, "Root hash not equal to expected");
 
         Ok(())
     }
@@ -1199,7 +1183,7 @@ mod tests {
             _ => panic!("Root not found in storage."),
         };
 
-        assert!(root_digest == expected, "Root hash not equal to expected");
+        assert_eq!(root_digest, expected, "Root hash not equal to expected");
         Ok(())
     }
 }
