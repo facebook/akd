@@ -99,18 +99,21 @@ impl InsertionSet {
     pub(crate) fn partition(self, lcp_label: NodeLabel) -> (InsertionSet, InsertionSet) {
         match self {
             InsertionSet::BinarySearchable(nodes) => {
-                // TODO: implement binary search
-                let (left, right) =
-                    nodes
-                        .into_iter()
-                        .fold((vec![], vec![]), |(mut left, mut right), node| {
-                            match lcp_label.get_dir(node.label) {
-                                Direction::Left => left.push(node),
-                                Direction::Right => right.push(node),
-                                Direction::None => (),
-                            };
-                            (left, right)
-                        });
+                // binary search for partition point
+                let (mut left, right): (Vec<Node>, Vec<Node>) =
+                    nodes.into_iter().partition(|candidate| {
+                        match lcp_label.get_dir(candidate.label) {
+                            Direction::Left | Direction::None => true,
+                            Direction::Right => false,
+                        }
+                    });
+
+                // drop nodes with direction None
+                while left.last().map(|node| lcp_label.get_dir(node.label)) == Some(Direction::None)
+                {
+                    left.pop();
+                }
+
                 (
                     InsertionSet::BinarySearchable(left),
                     InsertionSet::BinarySearchable(right),
@@ -135,10 +138,14 @@ impl InsertionSet {
 
     pub(crate) fn get_longest_common_prefix(&self) -> NodeLabel {
         match self {
-            InsertionSet::BinarySearchable(nodes) => match (nodes.first(), nodes.last()) {
-                (Some(first), Some(last)) => first.label.get_longest_common_prefix(last.label),
-                _ => EMPTY_LABEL,
-            },
+            InsertionSet::BinarySearchable(nodes) => {
+                // the LCP of a set of sorted, equal length labels is the LCP of
+                // the first and last label
+                match (nodes.first(), nodes.last()) {
+                    (Some(first), Some(last)) => first.label.get_longest_common_prefix(last.label),
+                    _ => EMPTY_LABEL,
+                }
+            }
             InsertionSet::Unsorted(nodes) => {
                 if nodes.is_empty() {
                     return EMPTY_LABEL;
