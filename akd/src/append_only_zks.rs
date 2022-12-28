@@ -196,35 +196,10 @@ impl Azks {
         storage: &StorageManager<S>,
         insertion_labels: &[NodeLabel],
     ) -> Result<u64, AkdError> {
-        let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
-
-        while !current_nodes.is_empty() {
-            let nodes =
-                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
-                    .await?;
-            load_count += nodes.len() as u64;
-
-            current_nodes = Vec::<NodeKey>::new();
-
-            // Now that states are loaded in the cache, you can read and access them.
-            // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
-            // individually for each node's state.
-            for node in &nodes {
-                if !Self::insertion_set_contains(insertion_labels, &node.label) {
-                    // Only continue to traverse nodes which are relevant prefixes to insertion_set
-                    continue;
-                }
-
-                for dir in crate::DIRECTIONS {
-                    let child_label = node.get_child_label(dir)?;
-                    if let Some(child_label) = child_label {
-                        current_nodes.push(NodeKey(child_label));
-                    }
-                }
-            }
-        }
-        Ok(load_count)
+        self.preload_filtered_nodes(storage, |node| {
+            !Self::insertion_set_contains(insertion_labels, &node.label)
+        })
+        .await
     }
 
     /// Preloads given nodes using breadth-first search.
@@ -233,6 +208,19 @@ impl Azks {
         storage: &StorageManager<S>,
         nodes_to_load: HashSet<NodeLabel>,
     ) -> Result<u64, AkdError> {
+        self.preload_filtered_nodes(storage, |node| !nodes_to_load.contains(&node.label))
+            .await
+    }
+
+    async fn preload_filtered_nodes<S, P>(
+        &self,
+        storage: &StorageManager<S>,
+        mut filter_predicate: P,
+    ) -> Result<u64, AkdError>
+    where
+        S: Database + Send + Sync,
+        P: FnMut(&TreeNode) -> bool,
+    {
         let mut load_count: u64 = 0;
         let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
@@ -242,25 +230,27 @@ impl Azks {
                     .await?;
             load_count += nodes.len() as u64;
 
-            current_nodes = Vec::<NodeKey>::new();
-
-            // Now that states are loaded in the cache, you can read and access them.
-            // Note, the two for loops are needed because otherwise, you'd be accessing remote storage
+            // Now that states are loaded in the cache, we can read and access them.
+            // Note, we perform directional loads to avoid accessing remote storage
             // individually for each node's state.
-            for node in &nodes {
-                if !nodes_to_load.contains(&node.label) {
-                    // Only continue to traverse nodes which are relevant prefixes to insertion_set
-                    continue;
-                }
-
-                for dir in crate::DIRECTIONS {
-                    let child_label = node.get_child_label(dir)?;
-                    if let Some(child_label) = child_label {
-                        current_nodes.push(NodeKey(child_label));
-                    }
-                }
-            }
+            current_nodes = nodes
+                .iter()
+                .filter(|node| filter_predicate(node))
+                .flat_map(|node| {
+                    DIRECTIONS
+                        .iter()
+                        .filter_map(|dir| {
+                            node.get_child_label(*dir)
+                                .unwrap_or_else(|_| {
+                                    panic!("Attempted to load an invalid direction: {:?}", dir)
+                                })
+                                .map(NodeKey)
+                        })
+                        .collect::<Vec<NodeKey>>()
+                })
+                .collect();
         }
+
         Ok(load_count)
     }
 
@@ -945,15 +935,7 @@ mod tests {
         let num_nodes = 10;
         let mut rng = OsRng;
 
-        let mut insertion_set: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set.push(node);
-        }
+        let mut insertion_set = gen_nodes(num_nodes);
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
@@ -1008,15 +990,7 @@ mod tests {
         let num_nodes = 10;
         let mut rng = OsRng;
 
-        let mut insertion_set: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set.push(node);
-        }
+        let mut insertion_set = gen_nodes(num_nodes);
 
         // Try randomly permuting
         insertion_set.shuffle(&mut rng);
@@ -1121,17 +1095,8 @@ mod tests {
     #[tokio::test]
     async fn test_nonmembership_proof_small() -> Result<(), AkdError> {
         let num_nodes = 3;
-        let mut rng = OsRng;
 
-        let mut insertion_set: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set.push(node);
-        }
+        let insertion_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
@@ -1152,17 +1117,8 @@ mod tests {
     #[tokio::test]
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let mut rng = OsRng;
 
-        let mut insertion_set: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set.push(node);
-        }
+        let insertion_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks = Azks::new::<_>(&db).await?;
@@ -1253,17 +1209,8 @@ mod tests {
     #[tokio::test]
     async fn test_append_only_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let mut rng = OsRng;
 
-        let mut insertion_set_1: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set_1.push(node);
-        }
+        let insertion_set_1 = gen_nodes(num_nodes);
 
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
@@ -1273,31 +1220,13 @@ mod tests {
 
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let mut insertion_set_2: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set_2.push(node);
-        }
-
+        let insertion_set_2 = gen_nodes(num_nodes);
         azks.batch_insert_leaves::<_>(&db, insertion_set_2.clone(), InsertMode::Directory)
             .await?;
 
         let middle_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let mut insertion_set_3: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut hash = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut hash);
-            let node = Node { label, hash };
-            insertion_set_3.push(node);
-        }
-
+        let insertion_set_3: Vec<Node> = gen_nodes(num_nodes);
         azks.batch_insert_leaves::<_>(&db, insertion_set_3.clone(), InsertMode::Directory)
             .await?;
 
@@ -1324,5 +1253,18 @@ mod tests {
             Err(AkdError::Directory(DirectoryError::InvalidEpoch(_)))
         ));
         Ok(())
+    }
+
+    fn gen_nodes(num_nodes: usize) -> Vec<Node> {
+        let mut rng = OsRng;
+
+        (0..num_nodes)
+            .map(|_| {
+                let label = crate::utils::random_label(&mut rng);
+                let mut hash = crate::hash::EMPTY_DIGEST;
+                rng.fill_bytes(&mut hash);
+                Node { label, hash }
+            })
+            .collect()
     }
 }
