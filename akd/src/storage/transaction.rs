@@ -16,8 +16,8 @@ use crate::storage::Storable;
 use dashmap::DashMap;
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Represents an in-memory transaction, keeping a mutable state
 /// of the changes. When you "commit" this transaction, you return the
@@ -26,10 +26,10 @@ use tokio::sync::RwLock;
 #[derive(Clone)]
 pub struct Transaction {
     mods: Arc<DashMap<Vec<u8>, DbRecord>>,
-    active: Arc<RwLock<bool>>,
+    active: Arc<AtomicBool>,
 
-    num_reads: Arc<RwLock<u64>>,
-    num_writes: Arc<RwLock<u64>>,
+    num_reads: Arc<AtomicU64>,
+    num_writes: Arc<AtomicU64>,
 }
 
 unsafe impl Send for Transaction {}
@@ -52,10 +52,10 @@ impl Transaction {
     pub fn new() -> Self {
         Self {
             mods: Arc::new(DashMap::new()),
-            active: Arc::new(RwLock::new(false)),
+            active: Arc::new(AtomicBool::new(false)),
 
-            num_reads: Arc::new(RwLock::new(0)),
-            num_writes: Arc::new(RwLock::new(0)),
+            num_reads: Arc::new(AtomicU64::new(0)),
+            num_writes: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -66,8 +66,8 @@ impl Transaction {
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub async fn log_metrics(&self, level: log::Level) {
-        let r = crate::utils::rwlock_swap(&self.num_reads, 0).await;
-        let w = crate::utils::rwlock_swap(&self.num_writes, 0).await;
+        let r = self.num_reads.swap(0, Ordering::Relaxed);
+        let w = self.num_writes.swap(0, Ordering::Relaxed);
 
         let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
 
@@ -82,21 +82,12 @@ impl Transaction {
 
     /// Start a transaction in the storage layer
     pub async fn begin_transaction(&self) -> bool {
-        let mut active = self.active.write().await;
-
-        if *active {
-            false
-        } else {
-            *active = true;
-            true
-        }
+        !self.active.swap(true, Ordering::Relaxed)
     }
 
     /// Commit a transaction in the storage layer
     pub async fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
-        let mut active = self.active.write().await;
-
-        if !*active {
+        if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
@@ -115,16 +106,13 @@ impl Transaction {
         // flush the trans log
         self.mods.clear();
 
-        *active = false;
+        self.active.store(false, Ordering::Relaxed);
         Ok(records)
     }
 
     /// Rollback a transaction
     pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
-        // let mut guard = self.state.write().await;
-        let mut active = self.active.write().await;
-
-        if !*active {
+        if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
@@ -133,13 +121,13 @@ impl Transaction {
         // rollback
         self.mods.clear();
 
-        *active = false;
+        self.active.store(false, Ordering::Relaxed);
         Ok(())
     }
 
     /// Retrieve a flag determining if there is a transaction active
     pub async fn is_transaction_active(&self) -> bool {
-        *self.active.read().await
+        self.active.load(Ordering::Relaxed)
     }
 
     /// Hit test the current transaction to see if it is currently active
@@ -149,7 +137,7 @@ impl Transaction {
         let out = self.mods.get(&bin_id).map(|p| p.value().clone());
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         out
     }
@@ -163,7 +151,7 @@ impl Transaction {
 
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_writes.write().await) += 1;
+            self.num_writes.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -175,7 +163,7 @@ impl Transaction {
 
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_writes.write().await) += 1;
+            self.num_writes.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -233,7 +221,7 @@ impl Transaction {
         let out = Self::find_appropriate_item(intermediate, flag);
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         out
     }
@@ -256,7 +244,7 @@ impl Transaction {
         }
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         result_map
     }
