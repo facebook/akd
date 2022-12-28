@@ -98,15 +98,17 @@ impl From<Vec<Node>> for InsertionSet {
 impl InsertionSet {
     pub(crate) fn partition(self, lcp_label: NodeLabel) -> (InsertionSet, InsertionSet) {
         match self {
-            InsertionSet::BinarySearchable(nodes) => {
+            InsertionSet::BinarySearchable(mut nodes) => {
                 // binary search for partition point
-                let (mut left, right): (Vec<Node>, Vec<Node>) =
-                    nodes.into_iter().partition(|candidate| {
-                        match lcp_label.get_dir(candidate.label) {
-                            Direction::Left | Direction::None => true,
-                            Direction::Right => false,
-                        }
+                let partition_point =
+                    nodes.partition_point(|candidate| match lcp_label.get_dir(candidate.label) {
+                        Direction::Left | Direction::None => true,
+                        Direction::Right => false,
                     });
+
+                // split nodes vector at partition point
+                let right = nodes.split_off(partition_point);
+                let mut left = nodes;
 
                 // drop nodes with direction None
                 while left.last().map(|node| lcp_label.get_dir(node.label)) == Some(Direction::None)
