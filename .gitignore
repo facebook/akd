@@ -16,3 +16,4 @@ Cargo.lock
 **/*.log
 
 .idea/**
+*.iml
