@@ -935,6 +935,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_batch_insert_root_hash() -> Result<(), AkdError> {
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(&database);
+
+        // manually construct a 3-layer tree and compute the root hash
+        let mut nodes = Vec::<Node>::new();
+        let mut leaves = Vec::<TreeNode>::new();
+        let mut leaf_hashes = Vec::new();
+        for i in 0u64..8u64 {
+            let leaf_u64 = i << 61;
+            let label = NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32);
+            let hash = &crate::hash::hash(&leaf_u64.to_be_bytes());
+            nodes.push(Node { label, hash: *hash });
+
+            let new_leaf =
+                create_leaf_node::<AsyncInMemoryDatabase>(&db, label, hash, 7 - i + 1).await?;
+            leaf_hashes.push(crate::hash::merge(&[
+                crate::hash::merge_with_int(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
+                new_leaf.label.hash(),
+            ]));
+            leaves.push(new_leaf);
+        }
+
+        let mut layer_1_hashes = Vec::new();
+        for (i, j) in (0u64..4).enumerate() {
+            let left_child_hash = leaf_hashes[2 * i];
+            let right_child_hash = leaf_hashes[2 * i + 1];
+            layer_1_hashes.push(crate::hash::merge(&[
+                crate::hash::merge(&[left_child_hash, right_child_hash]),
+                NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).hash(),
+            ]));
+        }
+
+        let mut layer_2_hashes = Vec::new();
+        for (i, j) in (0u64..2).enumerate() {
+            let left_child_hash = layer_1_hashes[2 * i];
+            let right_child_hash = layer_1_hashes[2 * i + 1];
+            layer_2_hashes.push(crate::hash::merge(&[
+                crate::hash::merge(&[left_child_hash, right_child_hash]),
+                NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).hash(),
+            ]));
+        }
+
+        let expected = crate::hash::merge(&[
+            crate::hash::merge(&[layer_2_hashes[0], layer_2_hashes[1]]),
+            NodeLabel::root().hash(),
+        ]);
+
+        // create a 3-layer tree with batch insert operations and get root hash
+        let mut azks = Azks::new::<_>(&db).await?;
+        for i in 0..8 {
+            let node = nodes[7 - i];
+            azks.batch_insert_nodes::<_>(&db, vec![node], InsertMode::Directory)
+                .await?;
+        }
+
+        let root_digest = azks.get_root_hash(&db).await.unwrap();
+
+        // assert root hash from batch insert matches manually computed root hash
+        assert_eq!(root_digest, expected, "Root hash not equal to expected");
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;

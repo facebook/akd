@@ -590,9 +590,9 @@ pub fn test_is_prefix_of() {
 
     // valid prefixes
     assert_eq!(label_1.is_prefix_of(&label_2), true);
-    assert_eq!(label_1.is_prefix_of(&label_3), false);
 
     // invalid prefixes
+    assert_eq!(label_1.is_prefix_of(&label_3), false);
     assert_eq!(label_2.is_prefix_of(&label_1), false);
     assert_eq!(label_2.is_prefix_of(&label_3), false);
     assert_eq!(label_3.is_prefix_of(&label_1), false);
