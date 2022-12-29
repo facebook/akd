@@ -7,7 +7,7 @@
 
 //! Implementation of a auditable key directory
 
-use crate::append_only_zks::{Azks, InsertMode, InsertionSet};
+use crate::append_only_zks::{Azks, InsertMode, NodeSet};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
 use crate::hash::EMPTY_DIGEST;
@@ -351,7 +351,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         // Load nodes.
         current_azks
-            .preload_nodes(&self.storage, &InsertionSet::from(lookup_nodes))
+            .preload_nodes(&self.storage, &NodeSet::from(lookup_nodes))
             .await?;
 
         // Ensure we have got all lookup infos needed.
@@ -906,9 +906,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 }
             }
         }
-        let insertion_set: Vec<Node> = update_set.to_vec();
+        let node_set: Vec<Node> = update_set.to_vec();
 
-        if insertion_set.is_empty() {
+        if node_set.is_empty() {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<_>(&self.storage).await?;
@@ -924,7 +924,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting database insertion");
 
         current_azks
-            .batch_insert_nodes::<_>(&self.storage, insertion_set, InsertMode::Directory)
+            .batch_insert_nodes::<_>(&self.storage, node_set, InsertMode::Directory)
             .await?;
 
         // batch all the inserts into a single transactional write to storage
