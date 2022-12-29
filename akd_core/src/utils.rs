@@ -8,7 +8,7 @@
 //! Utility functions
 
 use crate::hash::Digest;
-use crate::{AkdLabel, AkdValue, NodeLabel};
+use crate::{AkdLabel, AkdValue, NodeLabel, VersionFreshness};
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
@@ -63,7 +63,7 @@ pub fn get_commitment_nonce(
 }
 
 /// To convert a regular label (arbitrary string of bytes) into a [NodeLabel], we compute the
-/// output as: H(label || stale || version)
+/// output as: H(label || liveness || version)
 ///
 /// Specifically, we concatenate the following together:
 /// - I2OSP(len(label) as u64, label)
@@ -71,12 +71,16 @@ pub fn get_commitment_nonce(
 /// - A u64 representing the version
 /// These are all interpreted as a single byte array and hashed together, with the output
 /// of the hash returned.
-pub(crate) fn get_hash_from_label_input(label: &AkdLabel, stale: bool, version: u64) -> Vec<u8> {
-    let stale_bytes = if stale { &[0u8] } else { &[1u8] };
+pub(crate) fn get_hash_from_label_input(
+    label: &AkdLabel,
+    freshness: VersionFreshness,
+    version: u64,
+) -> Vec<u8> {
+    let freshness_bytes = [freshness as u8];
     let hashed_label = crate::hash::hash(
         &[
             &crate::utils::i2osp_array(label)[..],
-            stale_bytes,
+            &freshness_bytes,
             &version.to_be_bytes(),
         ]
         .concat(),

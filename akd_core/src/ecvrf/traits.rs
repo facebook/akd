@@ -8,7 +8,7 @@
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
 use super::{Output, Proof, VRFExpandedPrivateKey, VRFPrivateKey, VRFPublicKey, VrfError};
-use crate::{AkdLabel, NodeLabel};
+use crate::{AkdLabel, NodeLabel, VersionFreshness};
 
 #[cfg(feature = "nostd")]
 use alloc::boxed::Box;
@@ -56,7 +56,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     async fn get_node_label(
         &self,
         label: &AkdLabel,
-        stale: bool,
+        freshness: VersionFreshness,
         version: u64,
     ) -> Result<NodeLabel, VrfError> {
         let key = self.get_vrf_private_key().await?;
@@ -66,7 +66,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
             &expanded_key,
             &pk,
             label,
-            stale,
+            freshness,
             version,
         ))
     }
@@ -80,11 +80,11 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         expanded_private_key: &VRFExpandedPrivateKey,
         pk: &VRFPublicKey,
         label: &AkdLabel,
-        stale: bool,
+        freshness: VersionFreshness,
         version: u64,
     ) -> NodeLabel {
         let output =
-            Self::get_label_with_key_helper(expanded_private_key, pk, label, stale, version);
+            Self::get_label_with_key_helper(expanded_private_key, pk, label, freshness, version);
         NodeLabel::new(output.to_truncated_bytes(), 256)
     }
 
@@ -98,21 +98,23 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     async fn get_label_proof(
         &self,
         label: &AkdLabel,
-        stale: bool,
+        freshness: VersionFreshness,
         version: u64,
     ) -> Result<Proof, VrfError> {
         let key = self.get_vrf_private_key().await?;
-        Ok(Self::get_label_proof_with_key(&key, label, stale, version))
+        Ok(Self::get_label_proof_with_key(
+            &key, label, freshness, version,
+        ))
     }
 
     /// Retrieve the proof for a specific label, with a supplied private key
     fn get_label_proof_with_key(
         key: &VRFPrivateKey,
         label: &AkdLabel,
-        stale: bool,
+        freshness: VersionFreshness,
         version: u64,
     ) -> Proof {
-        let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
+        let hashed_label = crate::utils::get_hash_from_label_input(label, freshness, version);
         key.prove(&hashed_label)
     }
 
@@ -121,31 +123,34 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         expanded_private_key: &VRFExpandedPrivateKey,
         pk: &VRFPublicKey,
         label: &AkdLabel,
-        stale: bool,
+        freshness: VersionFreshness,
         version: u64,
     ) -> Output {
-        let hashed_label = crate::utils::get_hash_from_label_input(label, stale, version);
+        let hashed_label = crate::utils::get_hash_from_label_input(label, freshness, version);
         expanded_private_key.evaluate(pk, &hashed_label)
     }
 
-    /// Returns the [NodeLabel]s that corresponds to a collection of (label, stale, version) arguments
+    /// Returns the [NodeLabel]s that corresponds to a collection of (label, freshness, version) arguments
     /// with only a single fetch to retrieve the VRF private key from storage.
     ///
-    /// Note: The stale boolean here is to indicate whether we are getting the [NodeLabel] for a fresh version,
+    /// Note: The freshness enum here is to indicate whether we are getting the [NodeLabel] for a fresh version,
     /// or a version that we are retiring.
     async fn get_node_labels(
         &self,
-        labels: &[(AkdLabel, bool, u64)],
-    ) -> Result<Vec<(AkdLabel, NodeLabel)>, VrfError> {
+        labels: &[(AkdLabel, VersionFreshness, u64)],
+    ) -> Result<Vec<((AkdLabel, VersionFreshness, u64), NodeLabel)>, VrfError> {
         let key = self.get_vrf_private_key().await?;
         let expanded_key = VRFExpandedPrivateKey::from(&key);
         let pk = VRFPublicKey::from(&key);
 
         #[cfg(feature = "parallel_vrf")]
         {
+            #[cfg(feature = "nostd")]
+            use alloc::format;
+
             let mut join_set = tokio::task::JoinSet::new();
             let labels_vec = labels.to_vec();
-            for (label, stale, version) in labels_vec.into_iter() {
+            for (label, freshness, version) in labels_vec.into_iter() {
                 let expanded_key_ref = expanded_key.clone();
                 let pk_ref = pk.clone();
 
@@ -156,10 +161,10 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                                 &expanded_key_ref,
                                 &pk_ref,
                                 &label,
-                                stale,
+                                freshness,
                                 version,
                             ),
-                            label,
+                            (label, freshness, version),
                         )
                     }
                 };
@@ -175,8 +180,8 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                             join_err
                         )))
                     }
-                    Ok((node_label, label)) => {
-                        results.push((label, node_label));
+                    Ok((node_label, (label, freshness, version))) => {
+                        results.push(((label, freshness, version), node_label));
                     }
                 }
             }
@@ -185,15 +190,15 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         #[cfg(not(feature = "parallel_vrf"))]
         {
             let mut results = Vec::new();
-            for (label, stale, version) in labels {
+            for (label, freshness, version) in labels {
                 let node_label = Self::get_node_label_with_expanded_key(
                     &expanded_key,
                     &pk,
                     label,
-                    *stale,
+                    *freshness,
                     *version,
                 );
-                results.push((label.clone(), node_label));
+                results.push(((label.clone(), *freshness, *version), node_label));
             }
             Ok(results)
         }

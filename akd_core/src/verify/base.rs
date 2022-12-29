@@ -11,7 +11,9 @@ use super::VerificationError;
 
 use crate::ecvrf::{Proof, VrfError};
 use crate::hash::{build_and_hash_layer, merge, Digest};
-use crate::{AkdLabel, MembershipProof, NodeLabel, NonMembershipProof, ARITY, EMPTY_LABEL};
+use crate::{
+    AkdLabel, MembershipProof, NodeLabel, NonMembershipProof, VersionFreshness, ARITY, EMPTY_LABEL,
+};
 
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -104,13 +106,13 @@ pub fn verify_nonmembership(
 pub(crate) fn verify_label(
     vrf_public_key: &[u8],
     akd_label: &AkdLabel,
-    stale: bool,
+    freshness: VersionFreshness,
     version: u64,
     vrf_proof: &[u8],
     node_label: NodeLabel,
 ) -> Result<(), VerificationError> {
     let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
-    let hashed_label = crate::utils::get_hash_from_label_input(akd_label, stale, version);
+    let hashed_label = crate::utils::get_hash_from_label_input(akd_label, freshness, version);
 
     // VRF proof verification (returns VRF hash output)
     let proof = Proof::try_from(vrf_proof)?;

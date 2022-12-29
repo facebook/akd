@@ -12,7 +12,7 @@ use super::VerificationError;
 use crate::utils::hash_leaf_with_value;
 
 use crate::hash::{hash, merge_with_int, Digest};
-use crate::{AkdLabel, HistoryProof, UpdateProof, VerifyResult};
+use crate::{AkdLabel, HistoryProof, UpdateProof, VerifyResult, VersionFreshness};
 #[cfg(feature = "nostd")]
 use alloc::format;
 #[cfg(feature = "nostd")]
@@ -111,7 +111,14 @@ pub fn key_history_verify(
         let pf = &proof.non_existence_of_next_few[i];
         let vrf_pf = &proof.next_few_vrf_proofs[i];
         let ver_label = pf.label;
-        verify_label(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
+        verify_label(
+            vrf_public_key,
+            &akd_key,
+            VersionFreshness::Fresh,
+            ver,
+            vrf_pf,
+            ver_label,
+        )?;
         if verify_nonmembership(root_hash, pf).is_err() {
             return Err(VerificationError::HistoryProof(format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
             &akd_key, ver, current_epoch)));
@@ -124,7 +131,14 @@ pub fn key_history_verify(
         let pf = &proof.non_existence_of_future_markers[i];
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
         let ver_label = pf.label;
-        verify_label(vrf_public_key, &akd_key, false, ver, vrf_pf, ver_label)?;
+        verify_label(
+            vrf_public_key,
+            &akd_key,
+            VersionFreshness::Fresh,
+            ver,
+            vrf_pf,
+            ver_label,
+        )?;
         if verify_nonmembership(root_hash, pf).is_err() {
             return Err(VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
             akd_key, ver, current_epoch)));
@@ -170,7 +184,7 @@ fn verify_single_update_proof(
     verify_label(
         vrf_public_key,
         uname,
-        false,
+        VersionFreshness::Fresh,
         version,
         &proof.existence_vrf_proof,
         existence_at_ep.label,
@@ -215,7 +229,7 @@ fn verify_single_update_proof(
         verify_label(
             vrf_public_key,
             uname,
-            true,
+            VersionFreshness::Stale,
             version - 1,
             previous_version_vrf_proof,
             previous_version_stale_at_ep.label,
