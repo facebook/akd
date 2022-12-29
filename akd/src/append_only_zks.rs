@@ -435,7 +435,7 @@ impl Azks {
             // individually for each node's state.
             current_nodes = nodes
                 .iter()
-                .filter(|node| !node_set.contains_prefix(&node.label))
+                .filter(|node| node_set.contains_prefix(&node.label))
                 .flat_map(|node| {
                     DIRECTIONS
                         .iter()
@@ -1028,7 +1028,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_preload_nodes_accuracy() {
         let database = AsyncInMemoryDatabase::new();
         let storage_manager =
