@@ -376,14 +376,14 @@ impl Azks {
 
         // else handle the left child in the current task
         #[cfg(not(feature = "parallel_insert"))]
-        if !left_insertion_set.is_empty() {
+        if !left_node_set.is_empty() {
             let left_child_label = current_node.get_child_label(Direction::Left)?;
-            let (mut left_node, left_num_inserted) = Azks::recursive_batch_insert_leaves(
+            let (mut left_node, left_num_inserted) = Azks::recursive_batch_insert_nodes(
                 storage,
                 left_child_label,
-                left_insertion_set,
+                left_node_set,
                 epoch,
-                append_only_exclude_usage,
+                insert_mode,
             )
             .await?;
 

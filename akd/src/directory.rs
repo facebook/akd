@@ -210,7 +210,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction().await {
+        if let false = self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),
@@ -224,7 +224,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
             // Only fails if transaction is not currently active.
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             // bubble up the err
             return Err(err);
         }
@@ -239,7 +239,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         // Commit the transaction
         info!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             return Err(AkdError::Storage(err));
         } else {
             info!("Transaction committed");
@@ -939,7 +939,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction().await {
+        if let false = self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),

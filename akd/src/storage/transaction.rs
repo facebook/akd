@@ -60,12 +60,12 @@ impl Transaction {
     }
 
     /// Get the current number of items currently in the transaction modifications set
-    pub async fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         self.mods.len()
     }
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
-    pub async fn log_metrics(&self, level: log::Level) {
+    pub fn log_metrics(&self, level: log::Level) {
         let r = self.num_reads.swap(0, Ordering::Relaxed);
         let w = self.num_writes.swap(0, Ordering::Relaxed);
 
@@ -81,12 +81,12 @@ impl Transaction {
     }
 
     /// Start a transaction in the storage layer
-    pub async fn begin_transaction(&self) -> bool {
+    pub fn begin_transaction(&self) -> bool {
         !self.active.swap(true, Ordering::Relaxed)
     }
 
     /// Commit a transaction in the storage layer
-    pub async fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
+    pub fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
         if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
@@ -111,7 +111,7 @@ impl Transaction {
     }
 
     /// Rollback a transaction
-    pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
+    pub fn rollback_transaction(&self) -> Result<(), StorageError> {
         if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
@@ -126,12 +126,12 @@ impl Transaction {
     }
 
     /// Retrieve a flag determining if there is a transaction active
-    pub async fn is_transaction_active(&self) -> bool {
+    pub fn is_transaction_active(&self) -> bool {
         self.active.load(Ordering::Relaxed)
     }
 
     /// Hit test the current transaction to see if it is currently active
-    pub async fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
+    pub fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         let bin_id = St::get_full_binary_key_id(key);
 
         let out = self.mods.get(&bin_id).map(|p| p.value().clone());
@@ -143,7 +143,7 @@ impl Transaction {
     }
 
     /// Set a batch of values into the cache
-    pub async fn batch_set(&self, records: &[DbRecord]) {
+    pub fn batch_set(&self, records: &[DbRecord]) {
         for record in records {
             self.mods
                 .insert(record.get_full_binary_id(), record.clone());
@@ -156,7 +156,7 @@ impl Transaction {
     }
 
     /// Set a value in the transaction to be committed at transaction commit time
-    pub async fn set(&self, record: &DbRecord) {
+    pub fn set(&self, record: &DbRecord) {
         let bin_id = record.get_full_binary_id();
 
         self.mods.insert(bin_id, record.clone());
@@ -170,7 +170,7 @@ impl Transaction {
     /// Retrieve all of the user data for a given username
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_users_data(
+    pub fn get_users_data(
         &self,
         usernames: &[crate::AkdLabel],
     ) -> HashMap<crate::AkdLabel, Vec<ValueState>> {
@@ -208,14 +208,13 @@ impl Transaction {
     /// Retrieve the user state given the specified value state retrieval mode
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_user_state(
+    pub fn get_user_state(
         &self,
         username: &crate::AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> Option<ValueState> {
         let intermediate = self
             .get_users_data(&[username.clone()])
-            .await
             .remove(username)
             .unwrap_or_default();
         let out = Self::find_appropriate_item(intermediate, flag);
@@ -229,13 +228,13 @@ impl Transaction {
     /// Retrieve the batch of specified users user_state's based on the filtering flag provided
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_users_states(
+    pub fn get_users_states(
         &self,
         usernames: &[crate::AkdLabel],
         flag: ValueStateRetrievalFlag,
     ) -> HashMap<crate::AkdLabel, ValueState> {
         let mut result_map = HashMap::new();
-        let intermediate = self.get_users_data(usernames).await;
+        let intermediate = self.get_users_data(usernames);
 
         for (key, value_list) in intermediate.into_iter() {
             if let Some(found) = Self::find_appropriate_item(value_list, flag) {
@@ -283,8 +282,8 @@ mod tests {
     use crate::{AkdLabel, AkdValue};
     use rand::{rngs::OsRng, seq::SliceRandom};
 
-    #[tokio::test]
-    async fn test_commit_order() -> Result<(), StorageError> {
+    #[test]
+    fn test_commit_order() -> Result<(), StorageError> {
         let azks = DbRecord::Azks(Azks {
             num_nodes: 0,
             latest_epoch: 0,
@@ -329,18 +328,18 @@ mod tests {
 
         for _ in 1..10 {
             let txn = Transaction::new();
-            txn.begin_transaction().await;
+            txn.begin_transaction();
 
             // set values in a random order
             let mut shuffled = records.clone();
             shuffled.shuffle(&mut rng);
             for record in shuffled {
-                txn.set(&record).await;
+                txn.set(&record);
             }
 
             // ensure that committed records are in ascending priority
             let mut running_priority = 0;
-            for record in txn.commit_transaction().await? {
+            for record in txn.commit_transaction()? {
                 let priority = record.transaction_priority();
                 #[allow(clippy::comparison_chain)]
                 if priority > running_priority {
