@@ -87,7 +87,7 @@ impl From<Vec<Node>> for InsertionSet {
                 .iter()
                 .all(|node| node.label.label_len == nodes[0].label.label_len)
         {
-            nodes.sort();
+            nodes.sort_unstable();
             InsertionSet::BinarySearchable(nodes)
         } else {
             InsertionSet::Unsorted(nodes)
@@ -1017,10 +1017,11 @@ mod tests {
         let unsorted_set = InsertionSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes.clone();
-            nodes.sort();
+            nodes.sort_unstable();
             InsertionSet::BinarySearchable(nodes)
         };
 
+        // assert that insertion sets always return the same partitions
         let assert_fun = |prefix_label: NodeLabel| match (
             unsorted_set.clone().partition(prefix_label),
             bin_searchable_set.clone().partition(prefix_label),
@@ -1035,15 +1036,14 @@ mod tests {
                     InsertionSet::BinarySearchable(right_bin_searchable),
                 ),
             ) => {
-                left_unsorted.sort();
-                right_unsorted.sort();
+                left_unsorted.sort_unstable();
+                right_unsorted.sort_unstable();
                 assert_eq!(left_unsorted, *left_bin_searchable);
                 assert_eq!(right_unsorted, *right_bin_searchable);
             }
             _ => panic!("Unexpected enum variant returned from partition call"),
         };
 
-        // assert that insertion sets always return the same partitions
         let lcp_label = bin_searchable_set[0]
             .label
             .get_longest_common_prefix(bin_searchable_set[num_nodes - 1].label);
@@ -1067,14 +1067,14 @@ mod tests {
         let unsorted_set = InsertionSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes.clone();
-            nodes.sort();
+            nodes.sort_unstable();
             InsertionSet::BinarySearchable(nodes)
         };
 
         // assert that insertion sets always return the same LCP
         assert_eq!(
-            unsorted_set.clone().get_longest_common_prefix(),
-            bin_searchable_set.clone().get_longest_common_prefix()
+            unsorted_set.get_longest_common_prefix(),
+            bin_searchable_set.get_longest_common_prefix()
         );
 
         Ok(())
