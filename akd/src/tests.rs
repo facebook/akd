@@ -937,6 +937,9 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
             .await
     });
 
+    // wait for a second to make sure the poller has started
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
     // verify a lookup proof, which will populate the cache
     async_poll_helper_proof(&reader, AkdValue::from_utf8_str("world")).await?;
 
