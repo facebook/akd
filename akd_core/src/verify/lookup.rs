@@ -12,7 +12,7 @@ use super::VerificationError;
 use crate::utils::hash_leaf_with_value;
 
 use crate::hash::Digest;
-use crate::{AkdLabel, LookupProof, VerifyResult};
+use crate::{AkdLabel, LookupProof, VerifyResult, VersionFreshness};
 #[cfg(feature = "nostd")]
 use alloc::string::ToString;
 
@@ -43,7 +43,7 @@ pub fn lookup_verify(
     verify_label(
         vrf_public_key,
         &akd_label,
-        false,
+        VersionFreshness::Fresh,
         version,
         &proof.existence_vrf_proof,
         fresh_label,
@@ -54,7 +54,7 @@ pub fn lookup_verify(
     verify_label(
         vrf_public_key,
         &akd_label,
-        false,
+        VersionFreshness::Fresh,
         marker_version,
         &proof.marker_vrf_proof,
         marker_label,
@@ -66,7 +66,7 @@ pub fn lookup_verify(
     verify_label(
         vrf_public_key,
         &akd_label,
-        true,
+        VersionFreshness::Stale,
         version,
         &proof.freshness_vrf_proof,
         stale_label,

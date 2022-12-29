@@ -20,6 +20,7 @@ use crate::{
 };
 
 use akd_core::utils::{commit_value, get_commitment_nonce};
+use akd_core::VersionFreshness;
 use log::{error, info};
 use std::collections::{BinaryHeap, HashMap};
 use std::marker::{Send, Sync};
@@ -124,9 +125,12 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         let vrf_computations = updates
             .iter()
-            .map(|(label, _)| match all_user_versions_retrieved.get(label) {
-                None => (label.clone(), false, 1u64),
-                Some((latest_version, _)) => (label.clone(), false, *latest_version),
+            .flat_map(|(label, _)| match all_user_versions_retrieved.get(label) {
+                None => vec![(label.clone(), VersionFreshness::Fresh, 1u64)],
+                Some((latest_version, _)) => vec![
+                    (label.clone(), VersionFreshness::Stale, *latest_version),
+                    (label.clone(), VersionFreshness::Fresh, *latest_version + 1),
+                ],
             })
             .collect::<Vec<_>>();
 
@@ -144,11 +148,13 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 None => {
                     // no data found for the user
                     let latest_version = 1;
-                    let label = *vrf_map.get(&uname).ok_or_else(|| {
-                        crate::ecvrf::VrfError::SigningKey(
-                            "Failed to generate VRF for given username".to_string(),
-                        )
-                    })?;
+                    let label = *vrf_map
+                        .get(&(uname.clone(), VersionFreshness::Fresh, 1))
+                        .ok_or_else(|| {
+                            crate::ecvrf::VrfError::SigningKey(
+                                "Failed to generate VRF for given username".to_string(),
+                            )
+                        })?;
 
                     let value_to_add = commit_value(&commitment_key, &label, latest_version, &val);
                     update_set.push(Node {
@@ -166,14 +172,20 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 Some((previous_version, _)) => {
                     // Data found for the given user
                     let latest_version = *previous_version + 1;
-                    let stale_label = self
-                        .vrf
-                        .get_node_label(&uname, true, *previous_version)
-                        .await?;
-                    let fresh_label = self
-                        .vrf
-                        .get_node_label(&uname, false, latest_version)
-                        .await?;
+                    let stale_label = *vrf_map
+                        .get(&(uname.clone(), VersionFreshness::Stale, *previous_version))
+                        .ok_or_else(|| {
+                            crate::ecvrf::VrfError::SigningKey(
+                                "Failed to generate VRF for given username".to_string(),
+                            )
+                        })?;
+                    let fresh_label = *vrf_map
+                        .get(&(uname.clone(), VersionFreshness::Fresh, latest_version))
+                        .ok_or_else(|| {
+                            crate::ecvrf::VrfError::SigningKey(
+                                "Failed to generate VRF for given username".to_string(),
+                            )
+                        })?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add =
                         commit_value(&commitment_key, &fresh_label, latest_version, &val);
@@ -273,7 +285,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let plaintext_value = lookup_info.value_state.plaintext_val;
         let existence_vrf = self
             .vrf
-            .get_label_proof(&uname, false, current_version)
+            .get_label_proof(&uname, VersionFreshness::Fresh, current_version)
             .await?;
         let commitment_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let lookup_proof = LookupProof {
@@ -286,7 +298,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .await?,
             marker_vrf_proof: self
                 .vrf
-                .get_label_proof(&uname, false, lookup_info.marker_version)
+                .get_label_proof(&uname, VersionFreshness::Fresh, lookup_info.marker_version)
                 .await?
                 .to_bytes()
                 .to_vec(),
@@ -295,7 +307,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 .await?,
             freshness_vrf_proof: self
                 .vrf
-                .get_label_proof(&uname, true, current_version)
+                .get_label_proof(&uname, VersionFreshness::Stale, current_version)
                 .await?
                 .to_bytes()
                 .to_vec(),
@@ -393,12 +405,18 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                 // added but the database is in the middle of an update
                 let version = latest_st.version;
                 let marker_version = 1 << get_marker_version(version);
-                let existent_label = self.vrf.get_node_label(&uname, false, version).await?;
+                let existent_label = self
+                    .vrf
+                    .get_node_label(&uname, VersionFreshness::Fresh, version)
+                    .await?;
                 let marker_label = self
                     .vrf
-                    .get_node_label(&uname, false, marker_version)
+                    .get_node_label(&uname, VersionFreshness::Fresh, marker_version)
                     .await?;
-                let non_existent_label = self.vrf.get_node_label(&uname, true, version).await?;
+                let non_existent_label = self
+                    .vrf
+                    .get_node_label(&uname, VersionFreshness::Stale, version)
+                    .await?;
                 Ok(LookupInfo {
                     value_state: latest_st,
                     marker_version,
@@ -475,14 +493,17 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let mut non_existence_of_next_few = Vec::<NonMembershipProof>::new();
 
         for ver in last_version + 1..(1 << next_marker) {
-            let label_for_ver = self.vrf.get_node_label(uname, false, ver).await?;
+            let label_for_ver = self
+                .vrf
+                .get_node_label(uname, VersionFreshness::Fresh, ver)
+                .await?;
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver)
                 .await?;
             non_existence_of_next_few.push(non_existence_of_ver);
             next_few_vrf_proofs.push(
                 self.vrf
-                    .get_label_proof(uname, false, ver)
+                    .get_label_proof(uname, VersionFreshness::Fresh, ver)
                     .await?
                     .to_bytes()
                     .to_vec(),
@@ -494,14 +515,17 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
 
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
-            let label_for_ver = self.vrf.get_node_label(uname, false, ver).await?;
+            let label_for_ver = self
+                .vrf
+                .get_node_label(uname, VersionFreshness::Fresh, ver)
+                .await?;
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver)
                 .await?;
             non_existence_of_future_markers.push(non_existence_of_ver);
             future_marker_vrf_proofs.push(
                 self.vrf
-                    .get_label_proof(uname, false, ver)
+                    .get_label_proof(uname, VersionFreshness::Fresh, ver)
                     .await?
                     .to_bytes()
                     .to_vec(),
@@ -650,10 +674,16 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let plaintext_value = &user_state.plaintext_val;
         let version = user_state.version;
 
-        let label_at_ep = self.vrf.get_node_label(uname, false, version).await?;
+        let label_at_ep = self
+            .vrf
+            .get_node_label(uname, VersionFreshness::Fresh, version)
+            .await?;
 
         let current_azks = self.retrieve_current_azks().await?;
-        let existence_vrf = self.vrf.get_label_proof(uname, false, version).await?;
+        let existence_vrf = self
+            .vrf
+            .get_label_proof(uname, VersionFreshness::Fresh, version)
+            .await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
         let existence_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let existence_at_ep = current_azks
@@ -662,7 +692,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let mut previous_version_stale_at_ep = Option::None;
         let mut previous_version_vrf_proof = Option::None;
         if version > 1 {
-            let prev_label_at_ep = self.vrf.get_node_label(uname, true, version - 1).await?;
+            let prev_label_at_ep = self
+                .vrf
+                .get_node_label(uname, VersionFreshness::Stale, version - 1)
+                .await?;
             previous_version_stale_at_ep = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
@@ -670,7 +703,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             );
             previous_version_vrf_proof = Option::Some(
                 self.vrf
-                    .get_label_proof(uname, true, version - 1)
+                    .get_label_proof(uname, VersionFreshness::Stale, version - 1)
                     .await?
                     .to_bytes()
                     .to_vec(),
@@ -791,7 +824,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         if let PublishCorruption::MarkVersionStale(ref uname, version_number) = corruption {
             // In the malicious case, sometimes the server may not mark the old version stale immediately.
             // If this is the case, it may want to do this marking at a later time.
-            let stale_label = self.vrf.get_node_label(uname, true, version_number).await?;
+            let stale_label = self
+                .vrf
+                .get_node_label(uname, VersionFreshness::Stale, version_number)
+                .await?;
             let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
             update_set.push(Node {
                 label: stale_label,
@@ -833,7 +869,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     let latest_version = 1;
                     let label = self
                         .vrf
-                        .get_node_label(&uname, false, latest_version)
+                        .get_node_label(&uname, VersionFreshness::Fresh, latest_version)
                         .await?;
 
                     let value_to_add = akd_core::utils::commit_value(
@@ -859,11 +895,11 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
                     let latest_version = *previous_version + 1;
                     let stale_label = self
                         .vrf
-                        .get_node_label(&uname, true, *previous_version)
+                        .get_node_label(&uname, VersionFreshness::Stale, *previous_version)
                         .await?;
                     let fresh_label = self
                         .vrf
-                        .get_node_label(&uname, false, latest_version)
+                        .get_node_label(&uname, VersionFreshness::Fresh, latest_version)
                         .await?;
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add = akd_core::utils::commit_value(

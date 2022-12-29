@@ -50,6 +50,18 @@ pub trait SizeOf {
 // Typedefs and constants
 // ============================================
 
+/// Whether or not a node is marked as stale or fresh
+/// Stale nodes are no longer active because a newer
+/// version exists to replace them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum VersionFreshness {
+    /// Represents not being the most recent version
+    Stale = 0u8,
+    /// Corresponds to the most recent version
+    Fresh = 1u8,
+}
+
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent. We use
 /// 0 to represent "left" and 1 to represent "right".
