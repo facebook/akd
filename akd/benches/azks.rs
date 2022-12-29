@@ -24,13 +24,13 @@ fn batch_insertion(c: &mut Criterion) {
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
 
     // prepare node set for initial leaves
-    let mut initial_insertion_set = vec![];
+    let mut initial_node_set = vec![];
     for _ in 0..num_initial_leaves {
         let label = random_label(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        initial_insertion_set.push(Node { label, hash });
+        initial_node_set.push(Node { label, hash });
     }
 
     // prepare node set for batch insertion
@@ -59,7 +59,7 @@ fn batch_insertion(c: &mut Criterion) {
                 runtime
                     .block_on(azks.batch_insert_nodes(
                         &db,
-                        initial_insertion_set.clone(),
+                        initial_node_set.clone(),
                         InsertMode::Directory,
                     ))
                     .unwrap();
