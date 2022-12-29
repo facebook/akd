@@ -7,9 +7,10 @@
 
 //! Implementation of a auditable key directory
 
-use crate::append_only_zks::{Azks, InsertMode};
+use crate::append_only_zks::{Azks, InsertMode, InsertionSet};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
+use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
@@ -21,7 +22,7 @@ use crate::{
 
 use akd_core::utils::{commit_value, get_commitment_nonce};
 use log::{error, info};
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -326,7 +327,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
 
         // Take a union of the labels we will need proofs of for each lookup.
-        let mut lookup_labels = BinaryHeap::<NodeLabel>::new();
+        let mut lookup_labels = Vec::<NodeLabel>::new();
         let mut lookup_infos = Vec::new();
         for uname in unames {
             // Save lookup info for later use.
@@ -340,11 +341,17 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
 
         // Keep them in sorted order for the BFS preloading
-        let sorted_lookup_labels: Vec<NodeLabel> = lookup_labels.into_sorted_vec();
+        let lookup_nodes: Vec<Node> = lookup_labels
+            .into_iter()
+            .map(|l| Node {
+                label: l,
+                hash: EMPTY_DIGEST,
+            })
+            .collect();
 
         // Load nodes.
         current_azks
-            .bfs_preload_nodes_bin_search::<_>(&self.storage, &sorted_lookup_labels)
+            .preload_nodes(&self.storage, &InsertionSet::from(lookup_nodes))
             .await?;
 
         // Ensure we have got all lookup infos needed.

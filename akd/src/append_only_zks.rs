@@ -96,22 +96,27 @@ impl From<Vec<Node>> for InsertionSet {
 }
 
 impl InsertionSet {
-    pub(crate) fn partition(self, lcp_label: NodeLabel) -> (InsertionSet, InsertionSet) {
+    /// Partition insertion set into "left" and "right" sets, based on a given
+    /// prefix label. Note: the label *must* be a common prefix of all nodes in
+    /// the set.
+    pub(crate) fn partition(self, prefix_label: NodeLabel) -> (InsertionSet, InsertionSet) {
         match self {
             InsertionSet::BinarySearchable(mut nodes) => {
                 // binary search for partition point
-                let partition_point =
-                    nodes.partition_point(|candidate| match lcp_label.get_dir(candidate.label) {
+                let partition_point = nodes.partition_point(|candidate| {
+                    match prefix_label.get_dir(candidate.label) {
                         Direction::Left | Direction::None => true,
                         Direction::Right => false,
-                    });
+                    }
+                });
 
                 // split nodes vector at partition point
                 let right = nodes.split_off(partition_point);
                 let mut left = nodes;
 
                 // drop nodes with direction None
-                while left.last().map(|node| lcp_label.get_dir(node.label)) == Some(Direction::None)
+                while left.last().map(|node| prefix_label.get_dir(node.label))
+                    == Some(Direction::None)
                 {
                     left.pop();
                 }
@@ -126,7 +131,7 @@ impl InsertionSet {
                     nodes
                         .into_iter()
                         .fold((vec![], vec![]), |(mut left, mut right), node| {
-                            match lcp_label.get_dir(node.label) {
+                            match prefix_label.get_dir(node.label) {
                                 Direction::Left => left.push(node),
                                 Direction::Right => right.push(node),
                                 Direction::None => (),
@@ -138,6 +143,7 @@ impl InsertionSet {
         }
     }
 
+    /// Get the longest common prefix of all nodes in the set.
     pub(crate) fn get_longest_common_prefix(&self) -> NodeLabel {
         match self {
             InsertionSet::BinarySearchable(nodes) => {
@@ -156,6 +162,24 @@ impl InsertionSet {
                     node.label.get_longest_common_prefix(acc)
                 })
             }
+        }
+    }
+
+    /// Check if the set contains a node with a given prefix.
+    pub(crate) fn contains_prefix(&self, prefix_label: &NodeLabel) -> bool {
+        match self {
+            InsertionSet::BinarySearchable(nodes) => nodes
+                .binary_search_by(|candidate| {
+                    match prefix_label.label_len == 0 || prefix_label.is_prefix_of(&candidate.label)
+                    {
+                        true => Ordering::Equal,
+                        false => candidate.label.label_val.cmp(&prefix_label.label_val),
+                    }
+                })
+                .is_ok(),
+            InsertionSet::Unsorted(nodes) => nodes
+                .iter()
+                .any(|node| prefix_label.is_prefix_of(&node.label)),
         }
     }
 }
@@ -231,7 +255,7 @@ impl Azks {
 
         // preload the nodes that we will visit during the insertion
         let (fallable_load_count, time_s) =
-            tic_toc(self.preload_nodes_for_insertion(storage, &insertion_set)).await;
+            tic_toc(self.preload_nodes(storage, &insertion_set)).await;
         let load_count = fallable_load_count?;
 
         if let Some(time) = time_s {
@@ -267,77 +291,11 @@ impl Azks {
     }
 
     /// Preload nodes that will be visited during the insertion of given nodes.
-    async fn preload_nodes_for_insertion<S: Database + Sync + Send>(
+    pub(crate) async fn preload_nodes<S: Database + Send + Sync>(
         &self,
         storage: &StorageManager<S>,
         insertion_set: &InsertionSet,
     ) -> Result<u64, AkdError> {
-        let insertion_labels = insertion_set
-            .iter()
-            .map(|n| n.label)
-            .collect::<Vec<NodeLabel>>();
-
-        match insertion_set {
-            InsertionSet::BinarySearchable(_) => {
-                self.bfs_preload_nodes_bin_search::<S>(storage, &insertion_labels)
-                    .await
-            }
-            InsertionSet::Unsorted(_) => {
-                self.bfs_preload_nodes::<S>(storage, &insertion_labels)
-                    .await
-            }
-        }
-    }
-
-    /// Given a sorted list of [NodeLabel]s, determine if a given [NodeLabel] is
-    /// a prefix of any in the list. Note that insertion_set is assumed to
-    /// contain labels of the same length.
-    fn insertion_set_contains(insertion_labels: &[NodeLabel], label: &NodeLabel) -> bool {
-        insertion_labels
-            .binary_search_by(|candidate| {
-                match label.label_len == 0 || label.is_prefix_of(candidate) {
-                    true => Ordering::Equal,
-                    false => candidate.label_val.cmp(&label.label_val),
-                }
-            })
-            .is_ok()
-    }
-
-    /// Preloads given nodes using breadth-first search.
-    pub async fn bfs_preload_nodes_bin_search<S: Database + Sync + Send>(
-        &self,
-        storage: &StorageManager<S>,
-        insertion_labels: &[NodeLabel],
-    ) -> Result<u64, AkdError> {
-        self.preload_filtered_nodes(storage, |node| {
-            !Self::insertion_set_contains(insertion_labels, &node.label)
-        })
-        .await
-    }
-
-    /// Preloads given nodes using breadth-first search.
-    pub async fn bfs_preload_nodes<S: Database + Sync + Send>(
-        &self,
-        storage: &StorageManager<S>,
-        insertion_labels: &[NodeLabel],
-    ) -> Result<u64, AkdError> {
-        self.preload_filtered_nodes(storage, |node| {
-            !insertion_labels
-                .iter()
-                .any(|label| node.label.is_prefix_of(label))
-        })
-        .await
-    }
-
-    async fn preload_filtered_nodes<S, P>(
-        &self,
-        storage: &StorageManager<S>,
-        mut filter_predicate: P,
-    ) -> Result<u64, AkdError>
-    where
-        S: Database + Send + Sync,
-        P: FnMut(&TreeNode) -> bool,
-    {
         let mut load_count: u64 = 0;
         let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
@@ -352,7 +310,7 @@ impl Azks {
             // individually for each node's state.
             current_nodes = nodes
                 .iter()
-                .filter(|node| filter_predicate(node))
+                .filter(|node| !insertion_set.contains_prefix(&node.label))
                 .flat_map(|node| {
                     DIRECTIONS
                         .iter()
@@ -1048,24 +1006,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_insertion_set_partition() -> Result<(), AkdError> {
-        let mut rng = OsRng;
-        let num_nodes = 10;
+        let num_nodes = 5;
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
-        let mut nodes: Vec<Node> = vec![];
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut input = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut input);
-            let hash = crate::hash::hash(&input);
-            let node = Node { label, hash };
-            nodes.push(node);
-        }
-
         // manually construct both types of insertion sets with the same data
+        let nodes = gen_nodes(num_nodes);
         let unsorted_set = InsertionSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes.clone();
@@ -1073,9 +1021,9 @@ mod tests {
             InsertionSet::BinarySearchable(nodes)
         };
 
-        let assert_fun = |lcp_label: NodeLabel| match (
-            unsorted_set.clone().partition(lcp_label),
-            bin_searchable_set.clone().partition(lcp_label),
+        let assert_fun = |prefix_label: NodeLabel| match (
+            unsorted_set.clone().partition(prefix_label),
+            bin_searchable_set.clone().partition(prefix_label),
         ) {
             (
                 (
@@ -1098,7 +1046,7 @@ mod tests {
         // assert that insertion sets always return the same partitions
         let lcp_label = bin_searchable_set[0]
             .label
-            .get_longest_common_prefix(bin_searchable_set[9].label);
+            .get_longest_common_prefix(bin_searchable_set[num_nodes - 1].label);
 
         assert_fun(lcp_label);
         assert_fun(EMPTY_LABEL);
@@ -1108,25 +1056,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_insertion_set_get_longest_common_prefix() -> Result<(), AkdError> {
-        let mut rng = OsRng;
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(&database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
-        let mut nodes: Vec<Node> = vec![];
-
-        for _ in 0..num_nodes {
-            let label = crate::utils::random_label(&mut rng);
-            let mut input = crate::hash::EMPTY_DIGEST;
-            rng.fill_bytes(&mut input);
-            let hash = crate::hash::hash(&input);
-            let node = Node { label, hash };
-            nodes.push(node);
-        }
-
         // manually construct both types of insertion sets with the same data
+        let nodes = gen_nodes(num_nodes);
         let unsorted_set = InsertionSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes.clone();
