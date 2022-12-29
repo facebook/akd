@@ -34,6 +34,8 @@ pub struct TimedCache {
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
     memory_limit_bytes: Option<usize>,
+
+    #[cfg(feature = "runtime_metrics")]
     hit_count: Arc<AtomicU64>,
     clean_frequency: Duration,
 }
