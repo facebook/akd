@@ -24,12 +24,11 @@ use akd_core::utils::{commit_value, get_commitment_nonce};
 use akd_core::VersionFreshness;
 use log::{error, info};
 use std::collections::HashMap;
-use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// The representation of a auditable key directory
-pub struct Directory<S: Database + Sync + Send, V> {
+pub struct Directory<S: Database, V> {
     storage: StorageManager<S>,
     vrf: V,
     read_only: bool,
@@ -43,7 +42,7 @@ pub struct Directory<S: Database + Sync + Send, V> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -54,7 +53,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
     }
 }
 
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -788,7 +787,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database + Sync + Send, V: VRFKeyStorage>(
+pub async fn get_directory_root_hash_and_ep<S: Database, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -809,7 +808,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,

@@ -21,7 +21,7 @@ use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
-use std::marker::{Send, Sync};
+use std::marker::Sync;
 use std::ops::Deref;
 
 /// The default azks key
@@ -232,9 +232,7 @@ unsafe impl Sync for Azks {}
 
 impl Azks {
     /// Creates a new azks
-    pub async fn new<S: Database + Sync + Send>(
-        storage: &StorageManager<S>,
-    ) -> Result<Self, AkdError> {
+    pub async fn new<S: Database>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
         create_empty_root::<S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
@@ -245,7 +243,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves.
-    pub async fn batch_insert_nodes<S: Database + Sync + Send>(
+    pub async fn batch_insert_nodes<S: Database>(
         &mut self,
         storage: &StorageManager<S>,
         nodes: Vec<Node>,
@@ -290,7 +288,7 @@ impl Azks {
     }
 
     /// Preloads given nodes using breadth-first search.
-    pub(crate) async fn preload_nodes<S: Database + Send + Sync>(
+    pub(crate) async fn preload_nodes<S: Database>(
         &self,
         storage: &StorageManager<S>,
         node_set: &NodeSet,
@@ -332,7 +330,7 @@ impl Azks {
 
     /// Inserts a batch of leaves recursively from a given node label.
     #[async_recursion]
-    pub(crate) async fn recursive_batch_insert_nodes<S: Database + Sync + Send>(
+    pub(crate) async fn recursive_batch_insert_nodes<S: Database>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
         node_set: NodeSet,
@@ -440,7 +438,7 @@ impl Azks {
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
     // Assumes the verifier has access to the root at epoch
-    pub async fn get_membership_proof<S: Database + Sync + Send>(
+    pub async fn get_membership_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -457,7 +455,7 @@ impl Azks {
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
-    pub async fn get_non_membership_proof<S: Database + Sync + Send>(
+    pub async fn get_non_membership_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -514,7 +512,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
-    pub async fn get_append_only_proof<S: Database + Sync + Send>(
+    pub async fn get_append_only_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         start_epoch: u64,
@@ -593,7 +591,7 @@ impl Azks {
         }
     }
 
-    async fn gather_audit_proof_nodes<S: Database + Sync + Send>(
+    async fn gather_audit_proof_nodes<S: Database>(
         &self,
         nodes: Vec<TreeNode>,
         storage: &StorageManager<S>,
@@ -625,7 +623,7 @@ impl Azks {
     }
 
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Database + Sync + Send>(
+    async fn get_append_only_proof_helper<S: Database>(
         &self,
         storage: &StorageManager<S>,
         node: TreeNode,
@@ -689,7 +687,7 @@ impl Azks {
 
     // FIXME: these functions below should be moved into higher-level API
     /// Gets the root hash for this azks
-    pub async fn get_root_hash<S: Database + Sync + Send>(
+    pub async fn get_root_hash<S: Database>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<Digest, AkdError> {
@@ -699,7 +697,7 @@ impl Azks {
 
     /// Gets the root hash of the tree at the latest epoch if the passed epoch
     /// is equal to the latest epoch. Will return an error otherwise.
-    pub async fn get_root_hash_safe<S: Database + Sync + Send>(
+    pub async fn get_root_hash_safe<S: Database>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -732,7 +730,7 @@ impl Azks {
     }
 
     /// Gets the sibling node of the passed node's child in the "opposite" of the passed direction.
-    async fn get_sibling_node<S: Database + Sync + Send>(
+    async fn get_sibling_node<S: Database>(
         &self,
         storage: &StorageManager<S>,
         curr_node: &TreeNode,
@@ -766,7 +764,7 @@ impl Azks {
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both getting membership proofs and getting non-membership proofs.
-    pub async fn get_membership_proof_and_node<S: Database + Sync + Send>(
+    pub async fn get_membership_proof_and_node<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
