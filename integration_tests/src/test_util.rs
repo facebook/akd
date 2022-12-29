@@ -120,7 +120,7 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
-pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRFKeyStorage>(
+pub(crate) async fn test_lookups<S: akd::storage::Database, V: VRFKeyStorage>(
     mysql_db: &StorageManager<S>,
     vrf: &V,
     num_users: u64,
@@ -241,7 +241,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Database + Sync + Send, V: VRF
 // Reset MySQL database by logging metrics which resets the metrics, and flushing cache.
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
-async fn reset_mysql_db<S: akd::storage::Database + Sync + Send>(mysql_db: &StorageManager<S>) {
+async fn reset_mysql_db<S: akd::storage::Database>(mysql_db: &StorageManager<S>) {
     mysql_db.log_metrics(Level::Trace).await;
     mysql_db.flush_cache().await;
 }

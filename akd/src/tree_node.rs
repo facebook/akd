@@ -18,7 +18,7 @@ use akd_core::hash::EMPTY_DIGEST;
 use akd_core::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 use std::cmp::{max, min};
 use std::convert::TryInto;
-use std::marker::{Send, Sync};
+use std::marker::Sync;
 
 /// There are three types of nodes: root, leaf and interior.
 /// This enum is used to mark the type of a [TreeNode].
@@ -165,14 +165,14 @@ impl TreeNodeWithPreviousValue {
         }
     }
 
-    pub(crate) async fn write_to_storage<S: Database + Send + Sync>(
+    pub(crate) async fn write_to_storage<S: Database>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<(), StorageError> {
         storage.set(DbRecord::TreeNode(self.clone())).await
     }
 
-    pub(crate) async fn get_appropriate_tree_node_from_storage<S: Database + Send + Sync>(
+    pub(crate) async fn get_appropriate_tree_node_from_storage<S: Database>(
         storage: &StorageManager<S>,
         key: &NodeKey,
         target_epoch: u64,
@@ -186,7 +186,7 @@ impl TreeNodeWithPreviousValue {
         }
     }
 
-    pub(crate) async fn batch_get_appropriate_tree_node_from_storage<S: Database + Send + Sync>(
+    pub(crate) async fn batch_get_appropriate_tree_node_from_storage<S: Database>(
         storage: &StorageManager<S>,
         keys: &[NodeKey],
         target_epoch: u64,
@@ -264,7 +264,7 @@ impl akd_core::SizeOf for TreeNode {
 
 impl TreeNode {
     // Storage operations
-    pub(crate) async fn write_to_storage<S: Database + Send + Sync>(
+    pub(crate) async fn write_to_storage<S: Database>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<(), StorageError> {
@@ -273,7 +273,7 @@ impl TreeNode {
 
     /// Internal function to be used for storage operations. If a node is new (i.e., is_new_node=true), the node's previous version
     /// will be used as None without the cost of finding this information in the cache or worse yet in the database.
-    async fn write_to_storage_impl<S: Database + Send + Sync>(
+    async fn write_to_storage_impl<S: Database>(
         &self,
         storage: &StorageManager<S>,
         is_new_node: bool,
@@ -321,7 +321,7 @@ impl TreeNode {
         left_shifted.write_to_storage(storage).await
     }
 
-    pub(crate) async fn get_from_storage<S: Database + Send + Sync>(
+    pub(crate) async fn get_from_storage<S: Database>(
         storage: &StorageManager<S>,
         key: &NodeKey,
         target_epoch: u64,
@@ -334,7 +334,7 @@ impl TreeNode {
         .await
     }
 
-    pub(crate) async fn batch_get_from_storage<S: Database + Send + Sync>(
+    pub(crate) async fn batch_get_from_storage<S: Database>(
         storage: &StorageManager<S>,
         keys: &[NodeKey],
         target_epoch: u64,
@@ -362,7 +362,7 @@ impl TreeNode {
     // FIXME: Figure out how to better group arguments.
     #[allow(clippy::too_many_arguments)]
     /// Creates a new TreeNode and writes it to the storage.
-    async fn new<S: Database + Send + Sync>(
+    async fn new<S: Database>(
         storage: &StorageManager<S>,
         label: NodeLabel,
         parent: NodeLabel,
@@ -388,7 +388,7 @@ impl TreeNode {
     }
 
     /// Updates the node hash and saves it in storage.
-    pub(crate) async fn update_node_hash<S: Database + Sync + Send>(
+    pub(crate) async fn update_node_hash<S: Database>(
         &mut self,
         storage: &StorageManager<S>,
         hash_mode: NodeHashingMode,
@@ -428,7 +428,7 @@ impl TreeNode {
 
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
-    pub(crate) async fn set_child<S: Database + Sync + Send>(
+    pub(crate) async fn set_child<S: Database>(
         &mut self,
         storage: &StorageManager<S>,
         child_node: &mut TreeNode,
@@ -470,7 +470,7 @@ impl TreeNode {
     ///// getrs for child nodes ////
 
     /// Loads (from storage) the left or right child of a node using given direction and epoch
-    pub(crate) async fn get_child_node<S: Database + Sync + Send>(
+    pub(crate) async fn get_child_node<S: Database>(
         &self,
         storage: &StorageManager<S>,
         direction: Direction,
@@ -569,7 +569,7 @@ pub(crate) fn optional_child_state_hash(input: &Option<TreeNode>) -> Digest {
 }
 
 /// Create an empty root node.
-pub(crate) async fn create_empty_root<S: Database + Sync + Send>(
+pub(crate) async fn create_empty_root<S: Database>(
     storage: &StorageManager<S>,
     ep: Option<u64>,
     smallest_descendant_ep: Option<u64>,
@@ -600,7 +600,7 @@ pub(crate) async fn create_empty_root<S: Database + Sync + Send>(
 
 /// Create an interior node by splitting off from an existing node, pushing the
 /// existing node down and setting it as a child of the new node.
-pub(crate) async fn create_interior_node_from_existing_node<S: Database + Sync + Send>(
+pub(crate) async fn create_interior_node_from_existing_node<S: Database>(
     storage: &StorageManager<S>,
     existing_node: &mut TreeNode,
     new_label: NodeLabel,
@@ -626,7 +626,7 @@ pub(crate) async fn create_interior_node_from_existing_node<S: Database + Sync +
 }
 
 /// Create an interior node with an empty hash.
-pub(crate) async fn create_interior_node<S: Database + Sync + Send>(
+pub(crate) async fn create_interior_node<S: Database>(
     storage: &StorageManager<S>,
     label: NodeLabel,
     birth_epoch: u64,
@@ -647,7 +647,7 @@ pub(crate) async fn create_interior_node<S: Database + Sync + Send>(
 }
 
 /// Create a specific leaf node.
-pub(crate) async fn create_leaf_node<S: Database + Sync + Send>(
+pub(crate) async fn create_leaf_node<S: Database>(
     storage: &StorageManager<S>,
     label: NodeLabel,
     value: &Digest,

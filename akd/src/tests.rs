@@ -1173,7 +1173,7 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
 =========== Test Helpers ===========
 */
 
-async fn async_poll_helper_proof<T: Database + Sync + Send, V: VRFKeyStorage>(
+async fn async_poll_helper_proof<T: Database, V: VRFKeyStorage>(
     reader: &Directory<T, V>,
     value: AkdValue,
 ) -> Result<(), AkdError> {
