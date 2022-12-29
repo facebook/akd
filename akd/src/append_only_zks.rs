@@ -240,6 +240,8 @@ impl Azks {
                     DIRECTIONS
                         .iter()
                         .filter_map(|dir| {
+                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
+                            // error for an invalid directional state.
                             node.get_child_label(*dir)
                                 .unwrap_or_else(|_| {
                                     panic!("Attempted to load an invalid direction: {:?}", dir)
