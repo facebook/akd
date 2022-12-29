@@ -12,7 +12,6 @@ use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
 use crate::Digest;
-use crate::Node;
 use crate::{node_label::*, Direction, EMPTY_LABEL};
 use akd_core::hash::EMPTY_DIGEST;
 #[cfg(feature = "serde_serialization")]
@@ -521,28 +520,6 @@ impl TreeNode {
 }
 
 /////// Helpers //////
-
-pub(crate) fn get_longest_common_prefix(nodes: &[Node]) -> NodeLabel {
-    nodes.iter().skip(1).fold(nodes[0].label, |acc, node| {
-        node.label.get_longest_common_prefix(acc)
-    })
-}
-
-pub(crate) fn partition_longest_common_prefix(
-    nodes: Vec<Node>,
-    lcp_label: NodeLabel,
-) -> (Vec<crate::Node>, Vec<Node>) {
-    nodes
-        .into_iter()
-        .fold((vec![], vec![]), |(mut left, mut right), node| {
-            match lcp_label.get_dir(node.label) {
-                Direction::Left => left.push(node),
-                Direction::Right => right.push(node),
-                Direction::None => (),
-            };
-            (left, right)
-        })
-}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NodeHashingMode {

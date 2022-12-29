@@ -8,6 +8,7 @@
 #[macro_use]
 extern crate criterion;
 
+use akd::append_only_zks::InsertMode;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::{Azks, Node, NodeLabel};
@@ -17,29 +18,29 @@ use rand::{RngCore, SeedableRng};
 
 fn batch_insertion(c: &mut Criterion) {
     let num_initial_leaves = 10000;
-    let num_inserted_leaves = 1000;
+    let num_inserted_leaves = 100000;
 
     let mut rng = StdRng::seed_from_u64(42);
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
 
-    // prepare insertion set for initial leaves
-    let mut initial_insertion_set = vec![];
+    // prepare node set for initial leaves
+    let mut initial_node_set = vec![];
     for _ in 0..num_initial_leaves {
         let label = random_label(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        initial_insertion_set.push(Node { label, hash });
+        initial_node_set.push(Node { label, hash });
     }
 
-    // prepare insertion set for batch insertion
-    let mut insertion_set = vec![];
+    // prepare node set for batch insertion
+    let mut node_set = vec![];
     for _ in 0..num_inserted_leaves {
         let label = random_label(&mut rng);
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        insertion_set.push(Node { label, hash });
+        node_set.push(Node { label, hash });
     }
 
     // benchmark batch insertion
@@ -56,13 +57,17 @@ fn batch_insertion(c: &mut Criterion) {
 
                 // insert initial leaves as part of setup
                 runtime
-                    .block_on(azks.batch_insert_leaves(&db, initial_insertion_set.clone(), false))
+                    .block_on(azks.batch_insert_nodes(
+                        &db,
+                        initial_node_set.clone(),
+                        InsertMode::Directory,
+                    ))
                     .unwrap();
-                (azks, db, insertion_set.clone())
+                (azks, db, node_set.clone())
             },
-            |(mut azks, db, insertion_set)| {
+            |(mut azks, db, node_set)| {
                 runtime
-                    .block_on(azks.batch_insert_leaves(&db, insertion_set, false))
+                    .block_on(azks.batch_insert_nodes(&db, node_set, InsertMode::Directory))
                     .unwrap();
             },
             BatchSize::PerIteration,

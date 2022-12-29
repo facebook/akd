@@ -19,7 +19,9 @@ use log::info;
 #[cfg(feature = "runtime_metrics")]
 use log::{debug, error, warn};
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+#[cfg(feature = "runtime_metrics")]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -34,8 +36,10 @@ pub struct TimedCache {
     can_clean: Arc<AtomicBool>,
     item_lifetime: Duration,
     memory_limit_bytes: Option<usize>,
-    hit_count: Arc<AtomicU64>,
     clean_frequency: Duration,
+
+    #[cfg(feature = "runtime_metrics")]
+    hit_count: Arc<AtomicU64>,
 }
 
 impl TimedCache {
@@ -152,8 +156,10 @@ impl TimedCache {
             can_clean: Arc::new(AtomicBool::new(true)),
             item_lifetime: lifetime,
             memory_limit_bytes: o_memory_limit_bytes,
-            hit_count: Arc::new(AtomicU64::new(0u64)),
             clean_frequency,
+
+            #[cfg(feature = "runtime_metrics")]
+            hit_count: Arc::new(AtomicU64::new(0u64)),
         }
     }
 

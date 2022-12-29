@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-// 1. Create a hashmap of all prefixes of all elements of the insertion set
+// 1. Create a hashmap of all prefixes of all elements of the node set
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
 // 3. If so, add child label to batch set
 
