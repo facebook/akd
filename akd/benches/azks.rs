@@ -55,6 +55,9 @@ fn batch_insertion(c: &mut Criterion) {
                 let db = StorageManager::new_no_cache(&database);
                 let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
 
+                // create transaction object
+                db.begin_transaction();
+
                 // insert initial leaves as part of setup
                 runtime
                     .block_on(azks.batch_insert_nodes(
