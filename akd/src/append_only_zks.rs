@@ -254,16 +254,9 @@ impl Azks {
         let node_set = NodeSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
-        let (fallable_load_count, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
-        let load_count = fallable_load_count?;
-
+        let (_, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
         if let Some(time) = time_s {
-            info!(
-                "Preload of tree ({} objects loaded), took {} s",
-                load_count, time,
-            );
-        } else {
-            info!("Preload of tree ({} objects loaded) completed", load_count);
+            info!("Preload of tree took {} s", time,);
         }
 
         // increment the current epoch
@@ -287,67 +280,6 @@ impl Azks {
         }
 
         Ok(())
-    }
-
-    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
-        &self,
-        storage: &StorageManager<S>,
-        lookup_infos: &[LookupInfo],
-    ) -> Result<u64, AkdError> {
-        // Collect lookup labels needed and convert them into Nodes for preloading.
-        let lookup_nodes: Vec<Node> = lookup_infos
-            .iter()
-            .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
-            .map(|l| Node {
-                label: l,
-                hash: EMPTY_DIGEST,
-            })
-            .collect();
-
-        // Load nodes.
-        self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
-            .await
-    }
-
-    /// Preloads given nodes using breadth-first search.
-    pub(crate) async fn preload_nodes<S: Database>(
-        &self,
-        storage: &StorageManager<S>,
-        node_set: &NodeSet,
-    ) -> Result<u64, AkdError> {
-        let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
-
-        while !current_nodes.is_empty() {
-            let nodes =
-                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
-                    .await?;
-            load_count += nodes.len() as u64;
-
-            // Now that states are loaded in the cache, we can read and access them.
-            // Note, we perform directional loads to avoid accessing remote storage
-            // individually for each node's state.
-            current_nodes = nodes
-                .iter()
-                .filter(|node| !node_set.contains_prefix(&node.label))
-                .flat_map(|node| {
-                    DIRECTIONS
-                        .iter()
-                        .filter_map(|dir| {
-                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
-                            // error for an invalid directional state.
-                            node.get_child_label(*dir)
-                                .unwrap_or_else(|_| {
-                                    panic!("Attempted to load an invalid direction: {:?}", dir)
-                                })
-                                .map(NodeKey)
-                        })
-                        .collect::<Vec<NodeKey>>()
-                })
-                .collect();
-        }
-
-        Ok(load_count)
     }
 
     /// Inserts a batch of leaves recursively from a given node label.
@@ -456,6 +388,74 @@ impl Azks {
             .await?;
 
         Ok((current_node, num_inserted))
+    }
+
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_infos: &[LookupInfo],
+    ) -> Result<u64, AkdError> {
+        // Collect lookup labels needed and convert them into Nodes for preloading.
+        let lookup_nodes: Vec<Node> = lookup_infos
+            .iter()
+            .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
+            .map(|l| Node {
+                label: l,
+                hash: EMPTY_DIGEST,
+            })
+            .collect();
+
+        // Load nodes.
+        self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
+            .await
+    }
+
+    /// Preloads given nodes using breadth-first search.
+    pub(crate) async fn preload_nodes<S: Database>(
+        &self,
+        storage: &StorageManager<S>,
+        node_set: &NodeSet,
+    ) -> Result<u64, AkdError> {
+        if !storage.has_cache() {
+            info!("No cache found, skipping preload");
+            return Ok(0);
+        }
+
+        let mut load_count: u64 = 0;
+        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
+
+        while !current_nodes.is_empty() {
+            let nodes =
+                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
+                    .await?;
+            load_count += nodes.len() as u64;
+
+            // Now that states are loaded in the cache, we can read and access them.
+            // Note, we perform directional loads to avoid accessing remote storage
+            // individually for each node's state.
+            current_nodes = nodes
+                .iter()
+                .filter(|node| !node_set.contains_prefix(&node.label))
+                .flat_map(|node| {
+                    DIRECTIONS
+                        .iter()
+                        .filter_map(|dir| {
+                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
+                            // error for an invalid directional state.
+                            node.get_child_label(*dir)
+                                .unwrap_or_else(|_| {
+                                    panic!("Attempted to load an invalid direction: {:?}", dir)
+                                })
+                                .map(NodeKey)
+                        })
+                        .collect::<Vec<NodeKey>>()
+                })
+                .collect();
+        }
+
+        info!("Preload of tree ({} nodes) completed", load_count);
+
+        Ok(load_count)
     }
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
