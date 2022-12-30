@@ -16,7 +16,7 @@ use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
     AkdLabel, AkdValue, AppendOnlyProof, Digest, EpochHash, HistoryProof, LookupProof, Node,
-    NodeLabel, NonMembershipProof, UpdateProof,
+    NonMembershipProof, UpdateProof,
 };
 
 use akd_core::utils::{commit_value, get_commitment_nonce};
