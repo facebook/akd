@@ -306,7 +306,7 @@ impl Azks {
             })
             .collect();
 
-        // Load nodes. Note NodeSet will sort these nodes for efficient preloading.
+        // Load nodes.
         self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
             .await
     }
