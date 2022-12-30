@@ -18,8 +18,8 @@ use crate::{
     NonMembershipProof, SingleAppendOnlyProof, ARITY, DIRECTIONS, EMPTY_LABEL,
 };
 
-use akd_core::SizeOf;
 use akd_core::hash::EMPTY_DIGEST;
+use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
@@ -291,13 +291,15 @@ impl Azks {
         Ok(())
     }
 
-    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(&self, storage: &StorageManager<S>, lookup_infos: &[LookupInfo]) -> Result<u64, AkdError> {
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_infos: &[LookupInfo],
+    ) -> Result<u64, AkdError> {
         // Collect lookup labels needed and convert them into Nodes for preloading.
         let lookup_nodes: Vec<Node> = lookup_infos
             .into_iter()
-            .flat_map(|li| {
-               vec![li.existent_label, li.marker_label, li.non_existent_label] 
-            })
+            .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
             .map(|l| Node {
                 label: l,
                 hash: EMPTY_DIGEST,
@@ -305,8 +307,7 @@ impl Azks {
             .collect();
 
         // Load nodes. Note NodeSet will sort these nodes for efficient preloading.
-        self
-            .preload_nodes(storage, &NodeSet::from(lookup_nodes))
+        self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
             .await
     }
 

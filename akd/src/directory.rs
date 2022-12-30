@@ -280,7 +280,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         lookup_info: LookupInfo,
     ) -> Result<LookupProof, AkdError> {
         // Preload nodes needed for lookup.
-        current_azks.preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()]).await?;
+        current_azks
+            .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()])
+            .await?;
 
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
@@ -349,7 +351,9 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         }
 
         // Load nodes needed using the lookup infos.
-        current_azks.preload_lookup_nodes(&self.storage, &lookup_infos).await?;
+        current_azks
+            .preload_lookup_nodes(&self.storage, &lookup_infos)
+            .await?;
 
         // Ensure we have got all lookup infos needed.
         assert_eq!(unames.len(), lookup_infos.len());
