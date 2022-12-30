@@ -18,6 +18,7 @@ use crate::{
 };
 
 use akd_core::SizeOf;
+use akd_core::hash::EMPTY_DIGEST;
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
@@ -287,6 +288,22 @@ impl Azks {
         }
 
         Ok(())
+    }
+
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(&self, storage: &StorageManager<S>, lookup_labels: &[NodeLabel]) -> Result<u64, AkdError> {
+        // Create nodes for labels.
+        let lookup_nodes: Vec<Node> = lookup_labels
+            .into_iter()
+            .map(|&l| Node {
+                label: l,
+                hash: EMPTY_DIGEST,
+            })
+            .collect();
+
+        // Load nodes. Note NodeSet will sort these nodes for efficient preloading.
+        self
+            .preload_nodes(storage, &NodeSet::from(lookup_nodes))
+            .await
     }
 
     /// Preloads given nodes using breadth-first search.

@@ -7,10 +7,9 @@
 
 //! Implementation of a auditable key directory
 
-use crate::append_only_zks::{Azks, InsertMode, NodeSet};
+use crate::append_only_zks::{Azks, InsertMode};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
-use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
@@ -280,6 +279,10 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         current_epoch: u64,
         lookup_info: LookupInfo,
     ) -> Result<LookupProof, AkdError> {
+        // Preload nodes needed for lookup.
+        let lookup_labels = vec![lookup_info.existent_label, lookup_info.marker_label, lookup_info.non_existent_label];
+        current_azks.preload_lookup_nodes(&self.storage, &lookup_labels).await?;
+
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
         let plaintext_value = lookup_info.value_state.plaintext_val;
@@ -352,19 +355,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             lookup_labels.push(lookup_info.non_existent_label);
         }
 
-        // Keep them in sorted order for the BFS preloading
-        let lookup_nodes: Vec<Node> = lookup_labels
-            .into_iter()
-            .map(|l| Node {
-                label: l,
-                hash: EMPTY_DIGEST,
-            })
-            .collect();
-
-        // Load nodes.
-        current_azks
-            .preload_nodes(&self.storage, &NodeSet::from(lookup_nodes))
-            .await?;
+        current_azks.preload_lookup_nodes(&self.storage, &lookup_labels).await?;
 
         // Ensure we have got all lookup infos needed.
         assert_eq!(unames.len(), lookup_infos.len());
