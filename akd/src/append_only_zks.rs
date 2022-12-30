@@ -7,6 +7,7 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::errors::TreeNodeError;
+use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::{
@@ -17,6 +18,7 @@ use crate::{
     NonMembershipProof, SingleAppendOnlyProof, ARITY, DIRECTIONS, EMPTY_LABEL,
 };
 
+use akd_core::hash::EMPTY_DIGEST;
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::info;
@@ -285,6 +287,26 @@ impl Azks {
         }
 
         Ok(())
+    }
+
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_infos: &[LookupInfo],
+    ) -> Result<u64, AkdError> {
+        // Collect lookup labels needed and convert them into Nodes for preloading.
+        let lookup_nodes: Vec<Node> = lookup_infos
+            .iter()
+            .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
+            .map(|l| Node {
+                label: l,
+                hash: EMPTY_DIGEST,
+            })
+            .collect();
+
+        // Load nodes.
+        self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
+            .await
     }
 
     /// Preloads given nodes using breadth-first search.
@@ -1015,7 +1037,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
@@ -1062,7 +1084,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
