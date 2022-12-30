@@ -228,7 +228,7 @@ pub struct TreeNode {
     pub label: NodeLabel,
     /// The last epoch this node was updated in.
     pub last_epoch: u64,
-    /// The minumum last_epoch across all descendants of this node.
+    /// The minimum last_epoch across all descendants of this node.
     pub min_descendant_epoch: u64,
     /// The label of this node's parent. where the root node is marked its own parent.
     pub parent: NodeLabel,

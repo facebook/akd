@@ -160,14 +160,14 @@ impl Database for AsyncInMemoryDatabase {
         &self,
         ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError> {
-        let mut map = Vec::new();
+        let mut records = Vec::new();
         for key in ids.iter() {
             if let Ok(result) = self.get::<St>(key).await {
-                map.push(result);
+                records.push(result);
             }
             // swallow errors (i.e. not found)
         }
-        Ok(map)
+        Ok(records)
     }
 
     /// Retrieve the user data for a given user
