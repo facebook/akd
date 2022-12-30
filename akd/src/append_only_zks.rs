@@ -298,7 +298,7 @@ impl Azks {
     ) -> Result<u64, AkdError> {
         // Collect lookup labels needed and convert them into Nodes for preloading.
         let lookup_nodes: Vec<Node> = lookup_infos
-            .into_iter()
+            .iter()
             .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
             .map(|l| Node {
                 label: l,
@@ -1039,7 +1039,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
@@ -1086,7 +1086,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
