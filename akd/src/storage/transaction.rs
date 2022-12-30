@@ -13,25 +13,23 @@ use crate::storage::types::ValueState;
 use crate::storage::types::ValueStateRetrievalFlag;
 use crate::storage::Storable;
 
+use dashmap::DashMap;
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
-use tokio::sync::RwLock;
-
-#[derive(Default, Clone)]
-struct TransactionState {
-    mods: HashMap<Vec<u8>, DbRecord>,
-    active: bool,
-}
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Represents an in-memory transaction, keeping a mutable state
 /// of the changes. When you "commit" this transaction, you return the
 /// collection of values which need to be written to the storage layer
 /// including all mutations. Rollback simply empties the transaction state.
+#[derive(Clone)]
 pub struct Transaction {
-    state: RwLock<TransactionState>,
+    mods: Arc<DashMap<Vec<u8>, DbRecord>>,
+    active: Arc<AtomicBool>,
 
-    num_reads: RwLock<u64>,
-    num_writes: RwLock<u64>,
+    num_reads: Arc<AtomicU64>,
+    num_writes: Arc<AtomicU64>,
 }
 
 unsafe impl Send for Transaction {}
@@ -53,26 +51,23 @@ impl Transaction {
     /// Instantiate a new transaction instance
     pub fn new() -> Self {
         Self {
-            state: RwLock::new(TransactionState {
-                mods: HashMap::new(),
-                active: false,
-            }),
+            mods: Arc::new(DashMap::new()),
+            active: Arc::new(AtomicBool::new(false)),
 
-            num_reads: RwLock::new(0),
-            num_writes: RwLock::new(0),
+            num_reads: Arc::new(AtomicU64::new(0)),
+            num_writes: Arc::new(AtomicU64::new(0)),
         }
     }
 
     /// Get the current number of items currently in the transaction modifications set
-    pub async fn count(&self) -> usize {
-        let lock = self.state.read().await;
-        lock.mods.len()
+    pub fn count(&self) -> usize {
+        self.mods.len()
     }
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
-    pub async fn log_metrics(&self, level: log::Level) {
-        let r = crate::utils::rwlock_swap(&self.num_reads, 0).await;
-        let w = crate::utils::rwlock_swap(&self.num_writes, 0).await;
+    pub fn log_metrics(&self, level: log::Level) {
+        let r = self.num_reads.swap(0, Ordering::Relaxed);
+        let w = self.num_writes.swap(0, Ordering::Relaxed);
 
         let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
 
@@ -86,107 +81,96 @@ impl Transaction {
     }
 
     /// Start a transaction in the storage layer
-    pub async fn begin_transaction(&self) -> bool {
-        let mut guard = self.state.write().await;
-
-        if guard.active {
-            false
-        } else {
-            guard.active = true;
-            true
-        }
+    pub fn begin_transaction(&self) -> bool {
+        !self.active.swap(true, Ordering::Relaxed)
     }
 
     /// Commit a transaction in the storage layer
-    pub async fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
-        let mut guard = self.state.write().await;
-
-        if !guard.active {
+    pub fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
+        if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
         }
 
         // copy all the updated values out
-        let mut records = guard.mods.values().cloned().collect::<Vec<_>>();
+        let mut records = self
+            .mods
+            .iter()
+            .map(|p| p.value().clone())
+            .collect::<Vec<_>>();
 
         // sort according to transaction priority
         records.sort_by_key(|r| r.transaction_priority());
 
         // flush the trans log
-        guard.mods.clear();
+        self.mods.clear();
 
-        guard.active = false;
+        self.active.store(false, Ordering::Relaxed);
         Ok(records)
     }
 
     /// Rollback a transaction
-    pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
-        let mut guard = self.state.write().await;
-
-        if !guard.active {
+    pub fn rollback_transaction(&self) -> Result<(), StorageError> {
+        if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
                 "Transaction not currently active".to_string(),
             ));
         }
 
         // rollback
-        guard.mods.clear();
-        guard.active = false;
+        self.mods.clear();
 
+        self.active.store(false, Ordering::Relaxed);
         Ok(())
     }
 
     /// Retrieve a flag determining if there is a transaction active
-    pub async fn is_transaction_active(&self) -> bool {
-        self.state.read().await.active
+    pub fn is_transaction_active(&self) -> bool {
+        self.active.load(Ordering::Relaxed)
     }
 
     /// Hit test the current transaction to see if it is currently active
-    pub async fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
+    pub fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         let bin_id = St::get_full_binary_key_id(key);
 
-        let guard = self.state.read().await;
-        let out = guard.mods.get(&bin_id).cloned();
+        let out = self.mods.get(&bin_id).map(|p| p.value().clone());
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         out
     }
 
     /// Set a batch of values into the cache
-    pub async fn batch_set(&self, records: &[DbRecord]) {
-        let mut guard = self.state.write().await;
+    pub fn batch_set(&self, records: &[DbRecord]) {
         for record in records {
-            guard
-                .mods
+            self.mods
                 .insert(record.get_full_binary_id(), record.clone());
         }
 
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_writes.write().await) += 1;
+            self.num_writes.fetch_add(1, Ordering::Relaxed);
         }
     }
 
     /// Set a value in the transaction to be committed at transaction commit time
-    pub async fn set(&self, record: &DbRecord) {
+    pub fn set(&self, record: &DbRecord) {
         let bin_id = record.get_full_binary_id();
 
-        let mut guard = self.state.write().await;
-        guard.mods.insert(bin_id, record.clone());
+        self.mods.insert(bin_id, record.clone());
 
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_writes.write().await) += 1;
+            self.num_writes.fetch_add(1, Ordering::Relaxed);
         }
     }
 
     /// Retrieve all of the user data for a given username
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_users_data(
+    pub fn get_users_data(
         &self,
         usernames: &[crate::AkdLabel],
     ) -> HashMap<crate::AkdLabel, Vec<ValueState>> {
@@ -199,9 +183,8 @@ impl Transaction {
             }
         }
 
-        let guard = self.state.read().await;
-        for (_key, record) in guard.mods.iter() {
-            if let DbRecord::ValueState(value_state) = record {
+        for pair in self.mods.iter() {
+            if let DbRecord::ValueState(value_state) = pair.value() {
                 if set.contains(&value_state.username) {
                     if results.contains_key(&value_state.username) {
                         if let Some(item) = results.get_mut(&value_state.username) {
@@ -225,20 +208,19 @@ impl Transaction {
     /// Retrieve the user state given the specified value state retrieval mode
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_user_state(
+    pub fn get_user_state(
         &self,
         username: &crate::AkdLabel,
         flag: ValueStateRetrievalFlag,
     ) -> Option<ValueState> {
         let intermediate = self
             .get_users_data(&[username.clone()])
-            .await
             .remove(username)
             .unwrap_or_default();
         let out = Self::find_appropriate_item(intermediate, flag);
         #[cfg(feature = "runtime_metrics")]
         if out.is_some() {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         out
     }
@@ -246,13 +228,13 @@ impl Transaction {
     /// Retrieve the batch of specified users user_state's based on the filtering flag provided
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
-    pub async fn get_users_states(
+    pub fn get_users_states(
         &self,
         usernames: &[crate::AkdLabel],
         flag: ValueStateRetrievalFlag,
     ) -> HashMap<crate::AkdLabel, ValueState> {
         let mut result_map = HashMap::new();
-        let intermediate = self.get_users_data(usernames).await;
+        let intermediate = self.get_users_data(usernames);
 
         for (key, value_list) in intermediate.into_iter() {
             if let Some(found) = Self::find_appropriate_item(value_list, flag) {
@@ -261,7 +243,7 @@ impl Transaction {
         }
         #[cfg(feature = "runtime_metrics")]
         {
-            *(self.num_reads.write().await) += 1;
+            self.num_reads.fetch_add(1, Ordering::Relaxed);
         }
         result_map
     }
@@ -300,8 +282,8 @@ mod tests {
     use crate::{AkdLabel, AkdValue};
     use rand::{rngs::OsRng, seq::SliceRandom};
 
-    #[tokio::test]
-    async fn test_commit_order() -> Result<(), StorageError> {
+    #[test]
+    fn test_commit_order() -> Result<(), StorageError> {
         let azks = DbRecord::Azks(Azks {
             num_nodes: 0,
             latest_epoch: 0,
@@ -346,18 +328,18 @@ mod tests {
 
         for _ in 1..10 {
             let txn = Transaction::new();
-            txn.begin_transaction().await;
+            txn.begin_transaction();
 
             // set values in a random order
             let mut shuffled = records.clone();
             shuffled.shuffle(&mut rng);
             for record in shuffled {
-                txn.set(&record).await;
+                txn.set(&record);
             }
 
             // ensure that committed records are in ascending priority
             let mut running_priority = 0;
-            for record in txn.commit_transaction().await? {
+            for record in txn.commit_transaction()? {
                 let priority = record.transaction_priority();
                 #[allow(clippy::comparison_chain)]
                 if priority > running_priority {

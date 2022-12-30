@@ -234,7 +234,7 @@ unsafe impl Sync for Azks {}
 
 impl Azks {
     /// Creates a new azks
-    pub async fn new<S: Database>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
+    pub async fn new<S: Database + 'static>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
         create_empty_root::<S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
@@ -245,7 +245,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves.
-    pub async fn batch_insert_nodes<S: Database>(
+    pub async fn batch_insert_nodes<S: Database + 'static>(
         &mut self,
         storage: &StorageManager<S>,
         nodes: Vec<Node>,
@@ -277,6 +277,7 @@ impl Azks {
                 node_set,
                 self.latest_epoch,
                 insert_mode,
+                0,
             )
             .await?;
 
@@ -289,7 +290,7 @@ impl Azks {
         Ok(())
     }
 
-    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
+    pub(crate) async fn preload_lookup_nodes<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         lookup_infos: &[LookupInfo],
@@ -310,7 +311,7 @@ impl Azks {
     }
 
     /// Preloads given nodes using breadth-first search.
-    pub(crate) async fn preload_nodes<S: Database>(
+    pub(crate) async fn preload_nodes<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         node_set: &NodeSet,
@@ -352,12 +353,13 @@ impl Azks {
 
     /// Inserts a batch of leaves recursively from a given node label.
     #[async_recursion]
-    pub(crate) async fn recursive_batch_insert_nodes<S: Database>(
+    pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
         node_set: NodeSet,
         epoch: u64,
         insert_mode: InsertMode,
+        level: u64,
     ) -> Result<(TreeNode, u64), AkdError> {
         // Phase 1: Obtain the current root node of this subtree and count if a
         // node is inserted.
@@ -421,19 +423,45 @@ impl Azks {
         // node is updated with the new child nodes.
         let (left_node_set, right_node_set) = node_set.partition(current_node.label);
 
-        if !left_node_set.is_empty() {
-            let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
-                storage,
-                current_node.get_child_label(Direction::Left)?,
-                left_node_set,
-                epoch,
-                insert_mode,
-            )
-            .await?;
-
-            current_node.set_child(storage, &mut left_node).await?;
-            num_inserted += left_num_inserted;
-        }
+        let maybe_future = 
+            if level == u64::MAX {
+                let storage_clone = storage.clone();
+                let mut current_node_clone = current_node.clone();
+                Some(tokio::spawn(async move {
+                    if !left_node_set.is_empty() {
+                        let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
+                            &storage_clone,
+                            current_node_clone.get_child_label(Direction::Left)?,
+                            left_node_set,
+                            epoch,
+                            insert_mode,
+                            level + 1,
+                        )
+                        .await?;
+            
+                        current_node_clone.set_child(&storage_clone, &mut left_node).await?;
+                        Ok::<u64, AkdError>(left_num_inserted)
+                    } else {
+                        Ok::<u64, AkdError>(0)
+                    }
+                }))
+            } else {
+                if !left_node_set.is_empty() {
+                    let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
+                        storage,
+                        current_node.get_child_label(Direction::Left)?,
+                        left_node_set,
+                        epoch,
+                        insert_mode,
+                        level + 1,
+                    )
+                    .await?;
+        
+                    current_node.set_child(storage, &mut left_node).await?;
+                    num_inserted += left_num_inserted;
+                }
+                None
+            };
 
         if !right_node_set.is_empty() {
             let (mut right_node, right_num_inserted) = Self::recursive_batch_insert_nodes(
@@ -442,11 +470,16 @@ impl Azks {
                 right_node_set,
                 epoch,
                 insert_mode,
+                level + 1,
             )
             .await?;
 
             current_node.set_child(storage, &mut right_node).await?;
             num_inserted += right_num_inserted;
+        }
+
+        if let Some(future) = maybe_future {
+            num_inserted += future.await.unwrap()?;
         }
 
         // Phase 3: Update the hash of the current node and return it along with
@@ -460,7 +493,7 @@ impl Azks {
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
     // Assumes the verifier has access to the root at epoch
-    pub async fn get_membership_proof<S: Database>(
+    pub async fn get_membership_proof<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -477,7 +510,7 @@ impl Azks {
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
-    pub async fn get_non_membership_proof<S: Database>(
+    pub async fn get_non_membership_proof<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -534,7 +567,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
-    pub async fn get_append_only_proof<S: Database>(
+    pub async fn get_append_only_proof<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         start_epoch: u64,
@@ -613,7 +646,7 @@ impl Azks {
         }
     }
 
-    async fn gather_audit_proof_nodes<S: Database>(
+    async fn gather_audit_proof_nodes<S: Database + 'static>(
         &self,
         nodes: Vec<TreeNode>,
         storage: &StorageManager<S>,
@@ -645,7 +678,7 @@ impl Azks {
     }
 
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Database>(
+    async fn get_append_only_proof_helper<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         node: TreeNode,
@@ -709,7 +742,7 @@ impl Azks {
 
     // FIXME: these functions below should be moved into higher-level API
     /// Gets the root hash for this azks
-    pub async fn get_root_hash<S: Database>(
+    pub async fn get_root_hash<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<Digest, AkdError> {
@@ -719,7 +752,7 @@ impl Azks {
 
     /// Gets the root hash of the tree at the latest epoch if the passed epoch
     /// is equal to the latest epoch. Will return an error otherwise.
-    pub async fn get_root_hash_safe<S: Database>(
+    pub async fn get_root_hash_safe<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -752,7 +785,7 @@ impl Azks {
     }
 
     /// Gets the sibling node of the passed node's child in the "opposite" of the passed direction.
-    async fn get_sibling_node<S: Database>(
+    async fn get_sibling_node<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         curr_node: &TreeNode,
@@ -786,7 +819,7 @@ impl Azks {
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both getting membership proofs and getting non-membership proofs.
-    pub async fn get_membership_proof_and_node<S: Database>(
+    pub async fn get_membership_proof_and_node<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -894,6 +927,7 @@ mod tests {
                 NodeSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
+                0,
             )
             .await?;
         }
@@ -1001,6 +1035,7 @@ mod tests {
                 NodeSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
+                0,
             )
             .await?;
         }

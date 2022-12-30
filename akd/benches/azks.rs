@@ -53,6 +53,7 @@ fn batch_insertion(c: &mut Criterion) {
             || {
                 let database = AsyncInMemoryDatabase::new();
                 let db = StorageManager::new_no_cache(&database);
+                runtime.block_on(db.begin_transaction());
                 let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
 
                 // insert initial leaves as part of setup
@@ -62,7 +63,7 @@ fn batch_insertion(c: &mut Criterion) {
                         initial_node_set.clone(),
                         InsertMode::Directory,
                     ))
-                    .unwrap();
+                    .unwrap();                
                 (azks, db, node_set.clone())
             },
             |(mut azks, db, node_set)| {

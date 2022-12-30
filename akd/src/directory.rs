@@ -27,7 +27,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// The representation of a auditable key directory
-pub struct Directory<S: Database, V> {
+pub struct Directory<S: Database + 'static, V> {
     storage: StorageManager<S>,
     vrf: V,
     read_only: bool,
@@ -41,7 +41,7 @@ pub struct Directory<S: Database, V> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
+impl<S: Database + 'static, V: VRFKeyStorage> Clone for Directory<S, V> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -52,7 +52,7 @@ impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
     }
 }
 
-impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -776,7 +776,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database, V: VRFKeyStorage>(
+pub async fn get_directory_root_hash_and_ep<S: Database + 'static, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -797,7 +797,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,
