@@ -280,8 +280,7 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         lookup_info: LookupInfo,
     ) -> Result<LookupProof, AkdError> {
         // Preload nodes needed for lookup.
-        let lookup_labels = vec![lookup_info.existent_label, lookup_info.marker_label, lookup_info.non_existent_label];
-        current_azks.preload_lookup_nodes(&self.storage, &lookup_labels).await?;
+        current_azks.preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()]).await?;
 
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
@@ -342,20 +341,15 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
 
         // Take a union of the labels we will need proofs of for each lookup.
-        let mut lookup_labels = Vec::<NodeLabel>::new();
         let mut lookup_infos = Vec::new();
         for uname in unames {
             // Save lookup info for later use.
             let lookup_info = self.get_lookup_info(uname.clone(), current_epoch).await?;
             lookup_infos.push(lookup_info.clone());
-
-            // A lookup proofs consists of the proofs for the following labels.
-            lookup_labels.push(lookup_info.existent_label);
-            lookup_labels.push(lookup_info.marker_label);
-            lookup_labels.push(lookup_info.non_existent_label);
         }
 
-        current_azks.preload_lookup_nodes(&self.storage, &lookup_labels).await?;
+        // Load nodes needed using the lookup infos.
+        current_azks.preload_lookup_nodes(&self.storage, &lookup_infos).await?;
 
         // Ensure we have got all lookup infos needed.
         assert_eq!(unames.len(), lookup_infos.len());

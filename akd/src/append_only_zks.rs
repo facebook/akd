@@ -7,6 +7,7 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::errors::TreeNodeError;
+use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::{
@@ -290,11 +291,14 @@ impl Azks {
         Ok(())
     }
 
-    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(&self, storage: &StorageManager<S>, lookup_labels: &[NodeLabel]) -> Result<u64, AkdError> {
-        // Create nodes for labels.
-        let lookup_nodes: Vec<Node> = lookup_labels
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(&self, storage: &StorageManager<S>, lookup_infos: &[LookupInfo]) -> Result<u64, AkdError> {
+        // Collect lookup labels needed and convert them into Nodes for preloading.
+        let lookup_nodes: Vec<Node> = lookup_infos
             .into_iter()
-            .map(|&l| Node {
+            .flat_map(|li| {
+               vec![li.existent_label, li.marker_label, li.non_existent_label] 
+            })
+            .map(|l| Node {
                 label: l,
                 hash: EMPTY_DIGEST,
             })
