@@ -254,16 +254,9 @@ impl Azks {
         let node_set = NodeSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
-        let (fallable_load_count, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
-        let load_count = fallable_load_count?;
-
+        let (_, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
         if let Some(time) = time_s {
-            info!(
-                "Preload of tree ({} objects loaded), took {} s",
-                load_count, time,
-            );
-        } else {
-            info!("Preload of tree ({} objects loaded) completed", load_count);
+            info!("Preload of tree took {} s", time,);
         }
 
         // increment the current epoch
@@ -315,6 +308,11 @@ impl Azks {
         storage: &StorageManager<S>,
         node_set: &NodeSet,
     ) -> Result<u64, AkdError> {
+        if !storage.has_cache() {
+            info!("No cache found, skipping preload");
+            return Ok(0);
+        }
+
         let mut load_count: u64 = 0;
         let mut current_nodes = vec![NodeKey(NodeLabel::root())];
 
@@ -346,6 +344,8 @@ impl Azks {
                 })
                 .collect();
         }
+
+        info!("Preload of tree ({} nodes) completed", load_count);
 
         Ok(load_count)
     }

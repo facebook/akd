@@ -104,6 +104,11 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
+    /// Returns whether the storage manager has a cache
+    pub fn has_cache(&self) -> bool {
+        self.cache.is_some()
+    }
+
     /// Log metrics from the storage manager (cache, transaction, and storage hit rates etc)
     pub async fn log_metrics(&self, level: log::Level) {
         if let Some(cache) = &self.cache {
