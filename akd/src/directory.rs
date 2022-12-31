@@ -7,29 +7,27 @@
 
 //! Implementation of a auditable key directory
 
-use crate::append_only_zks::{Azks, InsertMode, NodeSet};
+use crate::append_only_zks::{Azks, InsertMode};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
-use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
     AkdLabel, AkdValue, AppendOnlyProof, Digest, EpochHash, HistoryProof, LookupProof, Node,
-    NodeLabel, NonMembershipProof, UpdateProof,
+    NonMembershipProof, UpdateProof,
 };
 
 use akd_core::utils::{commit_value, get_commitment_nonce};
 use akd_core::VersionFreshness;
 use log::{error, info};
 use std::collections::HashMap;
-use std::marker::{Send, Sync};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// The representation of a auditable key directory
-pub struct Directory<S: Database + Sync + Send, V> {
+pub struct Directory<S: Database, V> {
     storage: StorageManager<S>,
     vrf: V,
     read_only: bool,
@@ -43,7 +41,7 @@ pub struct Directory<S: Database + Sync + Send, V> {
 }
 
 // Manual implementation of Clone, see: https://github.com/rust-lang/rust/issues/41481
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
     fn clone(&self) -> Self {
         Self {
             storage: self.storage.clone(),
@@ -54,16 +52,16 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Clone for Directory<S, V> {
     }
 }
 
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     pub async fn new(
-        storage: &StorageManager<S>,
-        vrf: &V,
+        storage: StorageManager<S>,
+        vrf: V,
         read_only: bool,
     ) -> Result<Self, AkdError> {
-        let azks = Directory::<S, V>::get_azks_from_storage(storage, false).await;
+        let azks = Directory::<S, V>::get_azks_from_storage(&storage, false).await;
 
         if read_only && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
@@ -74,16 +72,16 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
             )));
         } else if azks.is_err() {
             // generate a new azks if one is not found
-            let azks = Azks::new::<_>(storage).await?;
+            let azks = Azks::new::<_>(&storage).await?;
             // store it
             storage.set(DbRecord::Azks(azks.clone())).await?;
         }
 
         Ok(Directory {
-            storage: storage.clone(),
+            storage,
             read_only,
             cache_lock: Arc::new(RwLock::new(())),
-            vrf: vrf.clone(),
+            vrf,
         })
     }
 
@@ -280,6 +278,11 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         current_epoch: u64,
         lookup_info: LookupInfo,
     ) -> Result<LookupProof, AkdError> {
+        // Preload nodes needed for lookup.
+        current_azks
+            .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()])
+            .await?;
+
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
         let plaintext_value = lookup_info.value_state.plaintext_val;
@@ -339,31 +342,16 @@ impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
         let current_epoch = current_azks.get_latest_epoch();
 
         // Take a union of the labels we will need proofs of for each lookup.
-        let mut lookup_labels = Vec::<NodeLabel>::new();
         let mut lookup_infos = Vec::new();
         for uname in unames {
             // Save lookup info for later use.
             let lookup_info = self.get_lookup_info(uname.clone(), current_epoch).await?;
             lookup_infos.push(lookup_info.clone());
-
-            // A lookup proofs consists of the proofs for the following labels.
-            lookup_labels.push(lookup_info.existent_label);
-            lookup_labels.push(lookup_info.marker_label);
-            lookup_labels.push(lookup_info.non_existent_label);
         }
 
-        // Keep them in sorted order for the BFS preloading
-        let lookup_nodes: Vec<Node> = lookup_labels
-            .into_iter()
-            .map(|l| Node {
-                label: l,
-                hash: EMPTY_DIGEST,
-            })
-            .collect();
-
-        // Load nodes.
+        // Load nodes needed using the lookup infos.
         current_azks
-            .preload_nodes(&self.storage, &NodeSet::from(lookup_nodes))
+            .preload_lookup_nodes(&self.storage, &lookup_infos)
             .await?;
 
         // Ensure we have got all lookup infos needed.
@@ -788,7 +776,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database + Sync + Send, V: VRFKeyStorage>(
+pub async fn get_directory_root_hash_and_ep<S: Database, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -809,7 +797,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database + Sync + Send, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,

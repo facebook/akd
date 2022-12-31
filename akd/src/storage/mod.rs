@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::marker::Send;
+use std::marker::{Send, Sync};
 
 pub mod cache;
 pub mod transaction;
@@ -93,7 +93,7 @@ pub trait Storable: Clone + Sync {
 
 /// A database implementation backing storage for the AKD
 #[async_trait]
-pub trait Database: Clone {
+pub trait Database: Clone + Send + Sync {
     /// Set a record in the database
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 

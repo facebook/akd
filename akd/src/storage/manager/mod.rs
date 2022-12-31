@@ -50,8 +50,8 @@ const NUM_METRICS: usize = 10;
 mod tests;
 
 /// Represents the manager of the storage mediums, including caching
-/// and transactional operations (creating the transaction, commiting it, etc)
-pub struct StorageManager<Db: Database + Sync + Send> {
+/// and transactional operations (creating the transaction, committing it, etc)
+pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
     /// The underlying database managed by this storage manager
@@ -60,7 +60,7 @@ pub struct StorageManager<Db: Database + Sync + Send> {
     metrics: [Arc<AtomicU64>; NUM_METRICS],
 }
 
-impl<Db: Database + Sync + Send> Clone for StorageManager<Db> {
+impl<Db: Database> Clone for StorageManager<Db> {
     fn clone(&self) -> Self {
         Self {
             cache: self.cache.clone(),
@@ -71,23 +71,23 @@ impl<Db: Database + Sync + Send> Clone for StorageManager<Db> {
     }
 }
 
-unsafe impl<Db: Database + Sync + Send> Sync for StorageManager<Db> {}
-unsafe impl<Db: Database + Sync + Send> Send for StorageManager<Db> {}
+unsafe impl<Db: Database> Sync for StorageManager<Db> {}
+unsafe impl<Db: Database> Send for StorageManager<Db> {}
 
-impl<Db: Database + Sync + Send> StorageManager<Db> {
+impl<Db: Database> StorageManager<Db> {
     /// Create a new storage manager with NO CACHE
-    pub fn new_no_cache(db: &Db) -> Self {
+    pub fn new_no_cache(db: Db) -> Self {
         Self {
             cache: None,
             transaction: Transaction::new(),
-            db: db.clone(),
+            db,
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
 
     /// Create a new storage manager with a cache utilizing the options provided (or defaults)
     pub fn new(
-        db: &Db,
+        db: Db,
         cache_item_lifetime: Option<Duration>,
         cache_limit_bytes: Option<usize>,
         cache_clean_frequency: Option<Duration>,
@@ -99,9 +99,14 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                 cache_clean_frequency,
             )),
             transaction: Transaction::new(),
-            db: db.clone(),
+            db,
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
+    }
+
+    /// Returns whether the storage manager has a cache
+    pub fn has_cache(&self) -> bool {
+        self.cache.is_some()
     }
 
     /// Log metrics from the storage manager (cache, transaction, and storage hit rates etc)
@@ -321,14 +326,14 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
         &self,
         ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError> {
-        let mut map = Vec::new();
+        let mut records = Vec::new();
 
         if ids.is_empty() {
             // nothing to retrieve, save the cycles
-            return Ok(map);
+            return Ok(records);
         }
 
-        let mut key_set: HashSet<St::StorageKey> = ids.iter().cloned().collect::<HashSet<_>>();
+        let mut key_set: HashSet<St::StorageKey> = ids.iter().cloned().collect();
 
         let trans_active = self.is_transaction_active().await;
         // first check the transaction log & cache records
@@ -337,7 +342,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                 // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
                 // log instead of the raw storage layer
                 if let Some(result) = self.transaction.get::<St>(id).await {
-                    map.push(result);
+                    records.push(result);
                     key_set.remove(id);
                     continue;
                 }
@@ -346,7 +351,7 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
             // check if item is cached
             if let Some(cache) = &self.cache {
                 if let Some(result) = cache.hit_test::<St>(id).await {
-                    map.push(result);
+                    records.push(result);
                     key_set.remove(id);
                     continue;
                 }
@@ -365,10 +370,10 @@ impl<Db: Database + Sync + Send> StorageManager<Db> {
                 cache.batch_put(&results).await;
             }
 
-            map.append(&mut results);
+            records.append(&mut results);
             self.increment_metric(METRIC_BATCH_GET);
         }
-        Ok(map)
+        Ok(records)
     }
 
     /// Flush the caching of objects (if present)

@@ -40,7 +40,7 @@ dashmap = { version = "5" }
 ed25519-dalek = "1"
 hex = "0.4"
 log = { version = "0.4.8", features = ["kv_unstable"] }
-tokio = { version = "1.10", features = ["sync", "time", "rt"] }
+tokio = { version = "1.21", features = ["sync", "time", "rt"] }
 
 ## Optional dependencies ##
 bincode = { version = "1", optional = true }
@@ -59,7 +59,7 @@ colored = { version = "2" }
 once_cell = { version = "1" }
 ctor = "0.1"
 tokio-test = "0.4"
-tokio = { version = "1.10", features = ["rt", "sync", "time", "macros"] }
+tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
 akd = { path = ".", features = ["public-tests"], version = "0.8.3", default-features = false }
 
 [[bench]]

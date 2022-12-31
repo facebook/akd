@@ -7,6 +7,7 @@
 
 //! An implementation of an append-only zero knowledge set
 use crate::errors::TreeNodeError;
+use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::{
@@ -17,11 +18,12 @@ use crate::{
     NonMembershipProof, SingleAppendOnlyProof, ARITY, DIRECTIONS, EMPTY_LABEL,
 };
 
+use akd_core::hash::EMPTY_DIGEST;
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
-use std::marker::{Send, Sync};
+use std::marker::Sync;
 use std::ops::Deref;
 
 /// The default azks key
@@ -232,9 +234,7 @@ unsafe impl Sync for Azks {}
 
 impl Azks {
     /// Creates a new azks
-    pub async fn new<S: Database + Sync + Send>(
-        storage: &StorageManager<S>,
-    ) -> Result<Self, AkdError> {
+    pub async fn new<S: Database>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
         create_empty_root::<S>(storage, Option::Some(0), Option::Some(0)).await?;
         let azks = Azks {
             latest_epoch: 0,
@@ -245,7 +245,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves.
-    pub async fn batch_insert_nodes<S: Database + Sync + Send>(
+    pub async fn batch_insert_nodes<S: Database>(
         &mut self,
         storage: &StorageManager<S>,
         nodes: Vec<Node>,
@@ -254,16 +254,9 @@ impl Azks {
         let node_set = NodeSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
-        let (fallable_load_count, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
-        let load_count = fallable_load_count?;
-
+        let (_, time_s) = tic_toc(self.preload_nodes(storage, &node_set)).await;
         if let Some(time) = time_s {
-            info!(
-                "Preload of tree ({} objects loaded), took {} s",
-                load_count, time,
-            );
-        } else {
-            info!("Preload of tree ({} objects loaded) completed", load_count);
+            info!("Preload of tree took {} s", time,);
         }
 
         // increment the current epoch
@@ -289,50 +282,9 @@ impl Azks {
         Ok(())
     }
 
-    /// Preloads given nodes using breadth-first search.
-    pub(crate) async fn preload_nodes<S: Database + Send + Sync>(
-        &self,
-        storage: &StorageManager<S>,
-        node_set: &NodeSet,
-    ) -> Result<u64, AkdError> {
-        let mut load_count: u64 = 0;
-        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
-
-        while !current_nodes.is_empty() {
-            let nodes =
-                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
-                    .await?;
-            load_count += nodes.len() as u64;
-
-            // Now that states are loaded in the cache, we can read and access them.
-            // Note, we perform directional loads to avoid accessing remote storage
-            // individually for each node's state.
-            current_nodes = nodes
-                .iter()
-                .filter(|node| !node_set.contains_prefix(&node.label))
-                .flat_map(|node| {
-                    DIRECTIONS
-                        .iter()
-                        .filter_map(|dir| {
-                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
-                            // error for an invalid directional state.
-                            node.get_child_label(*dir)
-                                .unwrap_or_else(|_| {
-                                    panic!("Attempted to load an invalid direction: {:?}", dir)
-                                })
-                                .map(NodeKey)
-                        })
-                        .collect::<Vec<NodeKey>>()
-                })
-                .collect();
-        }
-
-        Ok(load_count)
-    }
-
     /// Inserts a batch of leaves recursively from a given node label.
     #[async_recursion]
-    pub(crate) async fn recursive_batch_insert_nodes<S: Database + Sync + Send>(
+    pub(crate) async fn recursive_batch_insert_nodes<S: Database>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
         node_set: NodeSet,
@@ -438,9 +390,77 @@ impl Azks {
         Ok((current_node, num_inserted))
     }
 
+    pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_infos: &[LookupInfo],
+    ) -> Result<u64, AkdError> {
+        // Collect lookup labels needed and convert them into Nodes for preloading.
+        let lookup_nodes: Vec<Node> = lookup_infos
+            .iter()
+            .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
+            .map(|l| Node {
+                label: l,
+                hash: EMPTY_DIGEST,
+            })
+            .collect();
+
+        // Load nodes.
+        self.preload_nodes(storage, &NodeSet::from(lookup_nodes))
+            .await
+    }
+
+    /// Preloads given nodes using breadth-first search.
+    pub(crate) async fn preload_nodes<S: Database>(
+        &self,
+        storage: &StorageManager<S>,
+        node_set: &NodeSet,
+    ) -> Result<u64, AkdError> {
+        if !storage.has_cache() {
+            info!("No cache found, skipping preload");
+            return Ok(0);
+        }
+
+        let mut load_count: u64 = 0;
+        let mut current_nodes = vec![NodeKey(NodeLabel::root())];
+
+        while !current_nodes.is_empty() {
+            let nodes =
+                TreeNode::batch_get_from_storage(storage, &current_nodes, self.get_latest_epoch())
+                    .await?;
+            load_count += nodes.len() as u64;
+
+            // Now that states are loaded in the cache, we can read and access them.
+            // Note, we perform directional loads to avoid accessing remote storage
+            // individually for each node's state.
+            current_nodes = nodes
+                .iter()
+                .filter(|node| node_set.contains_prefix(&node.label))
+                .flat_map(|node| {
+                    DIRECTIONS
+                        .iter()
+                        .filter_map(|dir| {
+                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
+                            // error for an invalid directional state.
+                            node.get_child_label(*dir)
+                                .unwrap_or_else(|_| {
+                                    panic!("Attempted to load an invalid direction: {:?}", dir)
+                                })
+                                .map(NodeKey)
+                        })
+                        .collect::<Vec<NodeKey>>()
+                })
+                .collect();
+        }
+
+        info!("Preload of tree ({} nodes) completed", load_count);
+
+        Ok(load_count)
+    }
+
     /// Returns the Merkle membership proof for the trie as it stood at epoch
     // Assumes the verifier has access to the root at epoch
-    pub async fn get_membership_proof<S: Database + Sync + Send>(
+    pub async fn get_membership_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -457,7 +477,7 @@ impl Azks {
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
-    pub async fn get_non_membership_proof<S: Database + Sync + Send>(
+    pub async fn get_non_membership_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -514,7 +534,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
-    pub async fn get_append_only_proof<S: Database + Sync + Send>(
+    pub async fn get_append_only_proof<S: Database>(
         &self,
         storage: &StorageManager<S>,
         start_epoch: u64,
@@ -593,7 +613,7 @@ impl Azks {
         }
     }
 
-    async fn gather_audit_proof_nodes<S: Database + Sync + Send>(
+    async fn gather_audit_proof_nodes<S: Database>(
         &self,
         nodes: Vec<TreeNode>,
         storage: &StorageManager<S>,
@@ -625,7 +645,7 @@ impl Azks {
     }
 
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Database + Sync + Send>(
+    async fn get_append_only_proof_helper<S: Database>(
         &self,
         storage: &StorageManager<S>,
         node: TreeNode,
@@ -689,7 +709,7 @@ impl Azks {
 
     // FIXME: these functions below should be moved into higher-level API
     /// Gets the root hash for this azks
-    pub async fn get_root_hash<S: Database + Sync + Send>(
+    pub async fn get_root_hash<S: Database>(
         &self,
         storage: &StorageManager<S>,
     ) -> Result<Digest, AkdError> {
@@ -699,7 +719,7 @@ impl Azks {
 
     /// Gets the root hash of the tree at the latest epoch if the passed epoch
     /// is equal to the latest epoch. Will return an error otherwise.
-    pub async fn get_root_hash_safe<S: Database + Sync + Send>(
+    pub async fn get_root_hash_safe<S: Database>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -732,7 +752,7 @@ impl Azks {
     }
 
     /// Gets the sibling node of the passed node's child in the "opposite" of the passed direction.
-    async fn get_sibling_node<S: Database + Sync + Send>(
+    async fn get_sibling_node<S: Database>(
         &self,
         storage: &StorageManager<S>,
         curr_node: &TreeNode,
@@ -766,7 +786,7 @@ impl Azks {
     /// This function returns the node label for the node whose label is the longest common
     /// prefix for the queried label. It also returns a membership proof for said label.
     /// This is meant to be used in both getting membership proofs and getting non-membership proofs.
-    pub async fn get_membership_proof_and_node<S: Database + Sync + Send>(
+    pub async fn get_membership_proof_and_node<S: Database>(
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
@@ -841,6 +861,7 @@ type AppendOnlyHelper = (Vec<Node>, Vec<Node>);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::types::DbRecord;
     use crate::utils::byte_arr_from_u64;
     use crate::{
         auditor::audit_verify,
@@ -849,13 +870,14 @@ mod tests {
         EMPTY_VALUE,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -879,7 +901,7 @@ mod tests {
         }
 
         let database2 = AsyncInMemoryDatabase::new();
-        let db2 = StorageManager::new_no_cache(&database2);
+        let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
         azks2
@@ -898,7 +920,7 @@ mod tests {
     #[tokio::test]
     async fn test_batch_insert_root_hash() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
 
         // manually construct a 3-layer tree and compute the root hash
         let mut nodes = Vec::<Node>::new();
@@ -964,7 +986,7 @@ mod tests {
         let num_nodes = 10;
         let mut rng = OsRng;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
         let mut node_set: Vec<Node> = vec![];
@@ -989,7 +1011,7 @@ mod tests {
         node_set.shuffle(&mut rng);
 
         let database2 = AsyncInMemoryDatabase::new();
-        let db2 = StorageManager::new_no_cache(&database2);
+        let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new(&db2).await?;
 
         azks2
@@ -1006,10 +1028,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_preload_nodes_accuracy() {
+        let database = AsyncInMemoryDatabase::new();
+        let storage_manager =
+            StorageManager::new(database, Some(Duration::from_secs(180u64)), None, None);
+        let mut azks = Azks::new::<_>(&storage_manager)
+            .await
+            .expect("Failed to create azks!");
+        azks.increment_epoch();
+
+        // Construct our tree
+        let root_label = NodeLabel::root();
+
+        let left_label = NodeLabel::new(byte_arr_from_u64(1), 1);
+        let left = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: left_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Leaf,
+            left_child: None,
+            right_child: None,
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+        let right_label = NodeLabel::new(byte_arr_from_u64(2), 2);
+        let right = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: right_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Leaf,
+            left_child: None,
+            right_child: None,
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+        let root = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: root_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Root,
+            left_child: Some(left_label),
+            right_child: Some(right_label),
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+
+        // Seed the database and cache with our tree
+        storage_manager
+            .batch_set(vec![root, left, right])
+            .await
+            .expect("Failed to seed database for preload test");
+
+        // Preload nodes to populate storage manager cache
+        let node_set = NodeSet::from(vec![
+            Node {
+                label: root_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+            Node {
+                label: left_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+            Node {
+                label: right_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+        ]);
+        let expected_preload_count = 3u64;
+        let actual_preload_count = azks
+            .preload_nodes(&storage_manager, &node_set)
+            .await
+            .expect("Failed to preload nodes");
+
+        assert_eq!(
+            expected_preload_count, actual_preload_count,
+            "Preload count returned unexpected value!"
+        );
+    }
+
+    #[tokio::test]
     async fn test_node_set_partition() -> Result<(), AkdError> {
         let num_nodes = 5;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -1017,7 +1118,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
@@ -1056,7 +1157,7 @@ mod tests {
     async fn test_node_set_get_longest_common_prefix() -> Result<(), AkdError> {
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -1064,7 +1165,7 @@ mod tests {
         let nodes = gen_nodes(num_nodes);
         let unsorted_set = NodeSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
-            let mut nodes = nodes.clone();
+            let mut nodes = nodes;
             nodes.sort_unstable();
             NodeSet::BinarySearchable(nodes)
         };
@@ -1096,7 +1197,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1112,30 +1213,24 @@ mod tests {
                 .get_child_node(&db, Direction::Right, 1)
                 .await?;
 
-            match left_child {
-                Some(left_child) => {
-                    let sibling_label = azks
-                        .get_sibling_node(&db, &current_node, Direction::Right, 1)
-                        .await?
-                        .unwrap()
-                        .label;
-                    assert_eq!(left_child.label, sibling_label);
-                    nodes.push(left_child);
-                }
-                None => {}
+            if let Some(left_child) = left_child {
+                let sibling_label = azks
+                    .get_sibling_node(&db, &current_node, Direction::Right, 1)
+                    .await?
+                    .unwrap()
+                    .label;
+                assert_eq!(left_child.label, sibling_label);
+                nodes.push(left_child);
             }
 
-            match right_child {
-                Some(right_child) => {
-                    let sibling_label = azks
-                        .get_sibling_node(&db, &current_node, Direction::Left, 1)
-                        .await?
-                        .unwrap()
-                        .label;
-                    assert_eq!(right_child.label, sibling_label);
-                    nodes.push(right_child);
-                }
-                None => {}
+            if let Some(right_child) = right_child {
+                let sibling_label = azks
+                    .get_sibling_node(&db, &current_node, Direction::Left, 1)
+                    .await?
+                    .unwrap()
+                    .label;
+                assert_eq!(right_child.label, sibling_label);
+                nodes.push(right_child);
             }
         }
 
@@ -1152,7 +1247,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1181,7 +1276,7 @@ mod tests {
             }
 
             let database = AsyncInMemoryDatabase::new();
-            let db = StorageManager::new_no_cache(&database);
+            let db = StorageManager::new_no_cache(database);
             let mut azks = Azks::new::<_>(&db).await?;
             azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
                 .await?;
@@ -1203,7 +1298,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1226,7 +1321,7 @@ mod tests {
     #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
 
         let node_set: Vec<Node> = vec![
             Node {
@@ -1280,7 +1375,7 @@ mod tests {
             node_set.push(node);
         }
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[0].label;
         azks.batch_insert_nodes::<_>(&db, node_set.clone()[1..2].to_vec(), InsertMode::Directory)
@@ -1300,7 +1395,7 @@ mod tests {
 
         let node_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
         azks.batch_insert_nodes::<_>(
@@ -1322,7 +1417,7 @@ mod tests {
 
         let node_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
         azks.batch_insert_nodes::<_>(
@@ -1341,7 +1436,7 @@ mod tests {
     #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
         let node_set_1: Vec<Node> = vec![Node {
@@ -1370,7 +1465,7 @@ mod tests {
     #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
         let node_set_1: Vec<Node> = vec![
@@ -1415,7 +1510,7 @@ mod tests {
         let node_set_1 = gen_nodes(num_nodes);
 
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set_1.clone(), InsertMode::Directory)
             .await?;
@@ -1445,7 +1540,7 @@ mod tests {
     async fn future_epoch_throws_error() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
 
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let azks = Azks::new::<_>(&db).await?;
 
         let out = azks.get_root_hash_safe::<_>(&db, 123).await;

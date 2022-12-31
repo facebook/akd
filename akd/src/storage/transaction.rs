@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! A simple in-memory transaction object to minize data-layer operations
+//! A simple in-memory transaction object to minimize data-layer operations
 
 use crate::errors::StorageError;
 use crate::storage::types::DbRecord;

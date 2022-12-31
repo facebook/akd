@@ -54,11 +54,11 @@
 //! use akd::directory::Directory;
 //!
 //! let db = AsyncInMemoryDatabase::new();
-//! let storage_manager = StorageManager::new_no_cache(&db);
+//! let storage_manager = StorageManager::new_no_cache(db);
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false)
+//! let mut akd = Directory::<_, _>::new(storage_manager, vrf, false)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -75,7 +75,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! use akd::EpochHash;
 //! use akd::{AkdLabel, AkdValue};
@@ -86,11 +86,11 @@
 //!     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash));
@@ -109,7 +109,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -120,11 +120,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let (lookup_proof, _) = akd.lookup(
@@ -142,7 +142,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -153,11 +153,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let (lookup_proof, epoch_hash) = akd.lookup(
@@ -196,7 +196,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -207,11 +207,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! use akd::HistoryParams;
@@ -236,7 +236,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::HistoryParams;
@@ -248,11 +248,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let _ = akd.publish(
@@ -300,7 +300,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -311,11 +311,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -339,7 +339,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -350,11 +350,11 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(&db);
+//! # let storage_manager = StorageManager::new_no_cache(db);
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(&storage_manager, &vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch

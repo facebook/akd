@@ -153,9 +153,9 @@ pub mod tests {
     #[wasm_bindgen_test]
     async fn test_simple_wasm_lookup() {
         let db = AsyncInMemoryDatabase::new();
-        let storage = StorageManager::new_no_cache(&db);
+        let storage = StorageManager::new_no_cache(db);
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new(&storage, &vrf, false)
+        let akd = Directory::<_, _>::new(storage, vrf, false)
             .await
             .expect("Failed to construct directory");
 

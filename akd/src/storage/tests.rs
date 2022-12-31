@@ -43,13 +43,13 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: Database + Sync + Send>(db: &S) {
+pub async fn run_test_cases_for_storage_impl<S: Database>(db: &S) {
     test_get_and_set_item(db).await;
     test_user_data(db).await;
     test_transactions(db).await;
     test_batch_get_items(db).await;
 
-    let manager = StorageManager::new_no_cache(db);
+    let manager = StorageManager::new_no_cache(db.clone());
     test_tombstoning_data(&manager).await.unwrap();
 }
 
@@ -312,8 +312,8 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     }
 }
 
-async fn test_transactions<S: Database + Sync + Send>(db: &S) {
-    let storage = crate::storage::manager::StorageManager::new_no_cache(db);
+async fn test_transactions<S: Database>(db: &S) {
+    let storage = crate::storage::manager::StorageManager::new_no_cache(db.clone());
 
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
@@ -394,7 +394,7 @@ async fn test_transactions<S: Database + Sync + Send>(db: &S) {
     }
 }
 
-async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
+async fn test_user_data<S: Database>(storage: &S) {
     let rand_user = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)
@@ -593,7 +593,7 @@ async fn test_user_data<S: Database + Sync + Send>(storage: &S) {
     assert_eq!(4, data.unwrap().states.len());
 }
 
-async fn test_tombstoning_data<S: Database + Sync + Send>(
+async fn test_tombstoning_data<S: Database>(
     storage: &StorageManager<S>,
 ) -> Result<(), crate::errors::AkdError> {
     let rand_user = thread_rng()
