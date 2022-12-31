@@ -38,9 +38,13 @@ jobs:
             package: akd
             flags:
 
+          - name: Test the base library, without parallelism
+            package: akd
+            flags: --features blake3,public_auditing --no-default-features
+
           - name: Test the base library, with truncated SHA512 hashing (sha512_256)
             package: akd
-            flags: --features sha512_256,public_auditing --no-default-features
+            flags: --features sha512_256,public_auditing,parallel_insert,parallel_vrf --no-default-features
 
           - name: Test the base library, enabling runtime metrics processing
             package: akd
