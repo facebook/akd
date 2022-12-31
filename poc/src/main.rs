@@ -139,8 +139,8 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let storage_manager = StorageManager::new_no_cache(&db);
-        let mut directory = Directory::<_, _>::new(&storage_manager, &vrf, false)
+        let storage_manager = StorageManager::new_no_cache(db);
+        let mut directory = Directory::<_, _>::new(storage_manager, vrf, false)
             .await
             .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
@@ -165,18 +165,18 @@ async fn main() {
             return;
         }
         let storage_manager = StorageManager::new(
-            &mysql_db,
+            mysql_db,
             Some(Duration::from_secs(10 * 60)),
             None,
             Some(Duration::from_secs(15)),
         );
-        let mut directory = Directory::<_, _>::new(&storage_manager, &vrf, false)
+        let mut directory = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
             .await
             .unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<_, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
-        process_input(&cli, &tx, Some(&storage_manager)).await;
+        process_input(&cli, &tx, Some(storage_manager)).await;
     }
 }
 
@@ -205,7 +205,7 @@ async fn pre_process_input(
 async fn process_input(
     cli: &Cli,
     tx: &Sender<directory_host::Rpc>,
-    db: Option<&StorageManager<AsyncMySqlDatabase>>,
+    db: Option<StorageManager<AsyncMySqlDatabase>>,
 ) {
     if let Some(other_mode) = &cli.other_mode {
         match other_mode {
@@ -447,7 +447,7 @@ async fn process_input(
                 }
                 Command::Flush => {
                     println!("Flushing the database...");
-                    if let Some(mysql_db) = db {
+                    if let Some(mysql_db) = &db {
                         if let Err(error) = mysql_db.db.delete_data().await {
                             println!("Error flushing database: {}", error);
                         } else {
@@ -463,7 +463,7 @@ async fn process_input(
                         println!("\t**** DEBUG mode ACTIVE ****");
                     }
                     println!("===== Auditable Key Directory Information =====");
-                    if let Some(mysql) = db {
+                    if let Some(mysql) = &db {
                         println!("      Database properties ({})", mysql.db);
                     } else {
                         println!("      Connected to an in-memory database");

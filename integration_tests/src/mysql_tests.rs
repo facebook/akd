@@ -47,7 +47,7 @@ async fn test_directory_operations() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        let storage_manager = StorageManager::new_no_cache(&mysql_db);
+        let storage_manager = StorageManager::new_no_cache(mysql_db.clone());
         akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
             &storage_manager,
             50,
@@ -108,7 +108,7 @@ async fn test_directory_operations_with_caching() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        let storage_manager = StorageManager::new(&mysql_db, None, None, None);
+        let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
         akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
             &storage_manager,
             50,
@@ -169,7 +169,7 @@ async fn test_lookups() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        let storage_manager = StorageManager::new(&mysql_db, None, None, None);
+        let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
         crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
             .await;
 

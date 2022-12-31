@@ -683,7 +683,7 @@ mod tests {
     #[tokio::test]
     async fn test_smallest_descendant_ep() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut root =
             create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
 
@@ -782,7 +782,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
 
         let mut root =
             create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
@@ -845,7 +845,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut root =
             create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
 
@@ -932,7 +932,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut root =
             create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
 
@@ -1053,7 +1053,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut root =
             create_empty_root::<InMemoryDb>(&db, Option::Some(0u64), Option::Some(0u64)).await?;
 

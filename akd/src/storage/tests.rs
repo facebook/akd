@@ -49,7 +49,7 @@ pub async fn run_test_cases_for_storage_impl<S: Database>(db: &S) {
     test_transactions(db).await;
     test_batch_get_items(db).await;
 
-    let manager = StorageManager::new_no_cache(db);
+    let manager = StorageManager::new_no_cache(db.clone());
     test_tombstoning_data(&manager).await.unwrap();
 }
 
@@ -313,7 +313,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
 }
 
 async fn test_transactions<S: Database>(db: &S) {
-    let storage = crate::storage::manager::StorageManager::new_no_cache(db);
+    let storage = crate::storage::manager::StorageManager::new_no_cache(db.clone());
 
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {

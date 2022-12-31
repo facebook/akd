@@ -57,11 +57,11 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     pub async fn new(
-        storage: &StorageManager<S>,
-        vrf: &V,
+        storage: StorageManager<S>,
+        vrf: V,
         read_only: bool,
     ) -> Result<Self, AkdError> {
-        let azks = Directory::<S, V>::get_azks_from_storage(storage, false).await;
+        let azks = Directory::<S, V>::get_azks_from_storage(&storage, false).await;
 
         if read_only && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
@@ -72,16 +72,16 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
             )));
         } else if azks.is_err() {
             // generate a new azks if one is not found
-            let azks = Azks::new::<_>(storage).await?;
+            let azks = Azks::new::<_>(&storage).await?;
             // store it
             storage.set(DbRecord::Azks(azks.clone())).await?;
         }
 
         Ok(Directory {
-            storage: storage.clone(),
+            storage,
             read_only,
             cache_lock: Arc::new(RwLock::new(())),
-            vrf: vrf.clone(),
+            vrf,
         })
     }
 
