@@ -438,7 +438,6 @@ impl TreeNode {
                 min(self.min_descendant_epoch, child_node.min_descendant_epoch);
         }
 
-        // self.write_to_storage(storage, false).await?;
         child_node.write_to_storage(storage).await?;
 
         Ok(())
