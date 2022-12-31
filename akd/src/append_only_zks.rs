@@ -49,7 +49,7 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 
 fn get_parallel_levels() -> Option<u8> {
     #[cfg(not(feature = "parallel_insert"))]
-    None;
+    return None;
 
     #[cfg(feature = "parallel_insert")]
     {
