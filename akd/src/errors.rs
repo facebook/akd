@@ -27,6 +27,8 @@ pub enum AkdError {
     Storage(StorageError),
     /// Audit verification error thrown
     AuditErr(AuditorError),
+    /// Parallelism/concurrency related errors
+    Parallelism(ParallelismError),
     /// Test error
     TestErr(String),
 }
@@ -69,6 +71,12 @@ impl From<AuditorError> for AkdError {
     }
 }
 
+impl From<ParallelismError> for AkdError {
+    fn from(error: ParallelismError) -> Self {
+        Self::Parallelism(error)
+    }
+}
+
 impl From<akd_core::verify::VerificationError> for AkdError {
     fn from(err: akd_core::verify::VerificationError) -> Self {
         Self::Directory(err.into())
@@ -95,6 +103,9 @@ impl std::fmt::Display for AkdError {
             }
             AkdError::AuditErr(err) => {
                 writeln!(f, "AKD Auditor Error {}", err)
+            }
+            AkdError::Parallelism(err) => {
+                writeln!(f, "AKD Parallelism Error: {}", err)
             }
             AkdError::TestErr(err) => {
                 writeln!(f, "{}", err)
@@ -296,6 +307,26 @@ impl fmt::Display for AuditorError {
         match self {
             Self::VerifyAuditProof(err_string) => {
                 write!(f, "Failed to verify audit {}", err_string)
+            }
+        }
+    }
+}
+
+/// The errors thrown by parallel code
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Debug)]
+pub enum ParallelismError {
+    /// A tokio task join error
+    JoinErr(String),
+}
+
+impl std::error::Error for ParallelismError {}
+
+impl fmt::Display for ParallelismError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::JoinErr(err_string) => {
+                write!(f, "Failed to join tokio task {}", err_string)
             }
         }
     }

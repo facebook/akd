@@ -52,7 +52,7 @@ impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
     }
 }
 
-impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
@@ -210,7 +210,7 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction().await {
+        if let false = self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),
@@ -224,7 +224,7 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
             // Only fails if transaction is not currently active.
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             // bubble up the err
             return Err(err);
         }
@@ -239,7 +239,7 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
         // Commit the transaction
         info!("Committing transaction");
         if let Err(err) = self.storage.commit_transaction().await {
-            let _ = self.storage.rollback_transaction().await;
+            let _ = self.storage.rollback_transaction();
             return Err(AkdError::Storage(err));
         } else {
             info!("Transaction committed");
@@ -776,7 +776,7 @@ pub(crate) fn get_marker_version(version: u64) -> u64 {
 }
 
 /// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database, V: VRFKeyStorage>(
+pub async fn get_directory_root_hash_and_ep<S: Database + 'static, V: VRFKeyStorage>(
     akd_dir: &Directory<S, V>,
 ) -> Result<(Digest, u64), AkdError> {
     let current_azks = akd_dir.retrieve_current_azks().await?;
@@ -797,7 +797,7 @@ pub enum PublishCorruption {
 }
 
 #[cfg(test)]
-impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
+impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     /// Updates the directory to include the updated key-value pairs with possible issues.
     pub(crate) async fn publish_malicious_update(
         &self,
@@ -939,7 +939,7 @@ impl<S: Database, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction().await {
+        if let false = self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),

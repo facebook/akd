@@ -52,8 +52,11 @@ fn batch_insertion(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let database = AsyncInMemoryDatabase::new();
-                let db = StorageManager::new_no_cache(&database);
+                let db = StorageManager::new(database, None, None, None);
                 let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+
+                // create transaction object
+                db.begin_transaction();
 
                 // insert initial leaves as part of setup
                 runtime

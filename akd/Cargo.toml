@@ -26,9 +26,11 @@ serde_serialization = ["serde", "ed25519-dalek/serde", "akd_core/serde_serializa
 runtime_metrics = []
 # Parallelize VRF calculations during publish
 parallel_vrf = ["akd_core/parallel_vrf"]
+# Parallelize node insertion during publish
+parallel_insert = []
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing", "parallel_vrf"]
+default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert"]
 
 [dependencies]
 ## Required dependencies ##

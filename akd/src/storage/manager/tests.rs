@@ -21,7 +21,7 @@ async fn test_storage_manager_transaction() {
     let storage_manager = StorageManager::new_no_cache(db.clone());
 
     assert!(
-        storage_manager.begin_transaction().await,
+        storage_manager.begin_transaction(),
         "Failed to start transaction"
     );
 
@@ -69,7 +69,7 @@ async fn test_storage_manager_transaction() {
         Ok(0),
         db.batch_get_all_direct().await.map(|items| items.len())
     );
-    assert_eq!(11, storage_manager.transaction.count().await);
+    assert_eq!(11, storage_manager.transaction.count());
 
     // test a retrieval doesn't go to the database. Since we know the db is empty, it should be retrieved from the transaction log
     let key = NodeKey(NodeLabel {
@@ -103,7 +103,7 @@ async fn test_storage_manager_transaction() {
         Ok(11),
         db.batch_get_all_direct().await.map(|items| items.len())
     );
-    assert_eq!(0, storage_manager.transaction.count().await);
+    assert_eq!(0, storage_manager.transaction.count());
 }
 
 #[tokio::test]

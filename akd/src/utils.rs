@@ -34,11 +34,3 @@ pub(crate) fn random_label(rng: &mut impl rand::Rng) -> crate::NodeLabel {
         label_len: 256,
     }
 }
-
-/// "Swap" values in a RwLock, reading the current value and writing a new value into the lock
-pub(crate) async fn rwlock_swap<T: Clone>(lock: &tokio::sync::RwLock<T>, new_value: T) -> T {
-    let mut guard = lock.write().await;
-    let old = guard.clone();
-    *guard = new_value;
-    old
-}

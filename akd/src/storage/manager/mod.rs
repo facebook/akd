@@ -51,6 +51,7 @@ mod tests;
 
 /// Represents the manager of the storage mediums, including caching
 /// and transactional operations (creating the transaction, committing it, etc)
+#[derive(Clone)]
 pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
@@ -58,17 +59,6 @@ pub struct StorageManager<Db: Database> {
     pub db: Db,
 
     metrics: [Arc<AtomicU64>; NUM_METRICS],
-}
-
-impl<Db: Database> Clone for StorageManager<Db> {
-    fn clone(&self) -> Self {
-        Self {
-            cache: self.cache.clone(),
-            transaction: Transaction::new(),
-            db: self.db.clone(),
-            metrics: self.metrics.clone(),
-        }
-    }
 }
 
 unsafe impl<Db: Database> Sync for StorageManager<Db> {}
@@ -115,7 +105,7 @@ impl<Db: Database> StorageManager<Db> {
             cache.log_metrics(level)
         }
 
-        self.transaction.log_metrics(level).await;
+        self.transaction.log_metrics(level);
 
         let snapshot = self
             .metrics
@@ -165,8 +155,8 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Start an in-memory transaction of changes
-    pub async fn begin_transaction(&self) -> bool {
-        let started = self.transaction.begin_transaction().await;
+    pub fn begin_transaction(&self) -> bool {
+        let started = self.transaction.begin_transaction();
 
         // disable the cache cleaning since we're in a write transaction
         // and will want to keep cache'd objects for the life of the transaction
@@ -180,7 +170,7 @@ impl<Db: Database> StorageManager<Db> {
     /// Commit a transaction in the database
     pub async fn commit_transaction(&self) -> Result<(), StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
-        let records = self.transaction.commit_transaction().await?;
+        let records = self.transaction.commit_transaction()?;
 
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
@@ -217,8 +207,8 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Rollback a transaction
-    pub async fn rollback_transaction(&self) -> Result<(), StorageError> {
-        self.transaction.rollback_transaction().await?;
+    pub fn rollback_transaction(&self) -> Result<(), StorageError> {
+        self.transaction.rollback_transaction()?;
         // The transaction is being reverted and therefore we can re-enable
         // the cache cleaning status
         if let Some(cache) = &self.cache {
@@ -228,15 +218,15 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Retrieve a flag determining if there is a transaction active
-    pub async fn is_transaction_active(&self) -> bool {
-        self.transaction.is_transaction_active().await
+    pub fn is_transaction_active(&self) -> bool {
+        self.transaction.is_transaction_active()
     }
 
     /// Store a record in the database
     pub async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
         // we're in a transaction, set the item in the transaction
-        if self.is_transaction_active().await {
-            self.transaction.set(&record).await;
+        if self.is_transaction_active() {
+            self.transaction.set(&record);
             return Ok(());
         }
 
@@ -259,8 +249,8 @@ impl<Db: Database> StorageManager<Db> {
         }
 
         // we're in a transaction, set the items in the transaction
-        if self.is_transaction_active().await {
-            self.transaction.batch_set(&records).await;
+        if self.is_transaction_active() {
+            self.transaction.batch_set(&records);
             return Ok(());
         }
 
@@ -296,8 +286,8 @@ impl<Db: Database> StorageManager<Db> {
     pub async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
         // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
         // log instead of the raw storage layer
-        if self.is_transaction_active().await {
-            if let Some(result) = self.transaction.get::<St>(id).await {
+        if self.is_transaction_active() {
+            if let Some(result) = self.transaction.get::<St>(id) {
                 return Ok(result);
             }
         }
@@ -335,13 +325,13 @@ impl<Db: Database> StorageManager<Db> {
 
         let mut key_set: HashSet<St::StorageKey> = ids.iter().cloned().collect();
 
-        let trans_active = self.is_transaction_active().await;
+        let trans_active = self.is_transaction_active();
         // first check the transaction log & cache records
         for id in ids.iter() {
             if trans_active {
                 // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
                 // log instead of the raw storage layer
-                if let Some(result) = self.transaction.get::<St>(id).await {
+                if let Some(result) = self.transaction.get::<St>(id) {
                     records.push(result);
                     key_set.remove(id);
                     continue;
@@ -431,8 +421,8 @@ impl<Db: Database> StorageManager<Db> {
         // in the event we are in a transaction, there may be an updated object in the
         // transactional storage. Therefore we should update the db retrieved value if
         // we can with what's in the transaction log
-        if self.is_transaction_active().await {
-            if let Some(transaction_value) = self.transaction.get_user_state(username, flag).await {
+        if self.is_transaction_active() {
+            if let Some(transaction_value) = self.transaction.get_user_state(username, flag) {
                 if let Some(db_value) = &maybe_db_state {
                     if let Some(record) = Self::compare_db_and_transaction_records(
                         db_value.epoch,
@@ -472,7 +462,7 @@ impl<Db: Database> StorageManager<Db> {
         }?;
         self.increment_metric(METRIC_GET_USER_DATA);
 
-        if self.is_transaction_active().await {
+        if self.is_transaction_active() {
             // there are transaction-based values in the current transaction, they should override database-retrieved values
             let mut map = maybe_db_data
                 .map(|data| {
@@ -486,7 +476,6 @@ impl<Db: Database> StorageManager<Db> {
             let transaction_records = self
                 .transaction
                 .get_users_data(&[username.clone()])
-                .await
                 .remove(username)
                 .unwrap_or_default();
             for transaction_record in transaction_records.into_iter() {
@@ -525,8 +514,8 @@ impl<Db: Database> StorageManager<Db> {
         // in the event we are in a transaction, there may be an updated object in the
         // transactional storage. Therefore we should update the db retrieved value if
         // we can with what's in the transaction log
-        if self.is_transaction_active().await {
-            let transaction_records = self.transaction.get_users_states(usernames, flag).await;
+        if self.is_transaction_active() {
+            let transaction_records = self.transaction.get_users_states(usernames, flag);
             for (label, value_state) in transaction_records.into_iter() {
                 if let Some((epoch, _)) = data.get(&label) {
                     // there is an existing DB record, check if we should updated it from the transaction log

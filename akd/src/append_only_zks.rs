@@ -6,6 +6,7 @@
 // of this source tree.
 
 //! An implementation of an append-only zero knowledge set
+use crate::errors::ParallelismError;
 use crate::errors::TreeNodeError;
 use crate::helper_structs::LookupInfo;
 use crate::storage::manager::StorageManager;
@@ -29,6 +30,11 @@ use std::ops::Deref;
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 
+/// The default available parallelism for parallel batch insertions, used when
+/// available parallelism cannot be determined at runtime. Should be > 1
+#[cfg(feature = "parallel_insert")]
+pub const DEFAULT_AVAILABLE_PARALLELISM: usize = 32;
+
 async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>) {
     #[cfg(feature = "runtime_metrics")]
     {
@@ -39,6 +45,30 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
     }
     #[cfg(not(feature = "runtime_metrics"))]
     (f.await, None)
+}
+
+fn get_parallel_levels() -> Option<u8> {
+    #[cfg(not(feature = "parallel_insert"))]
+    return None;
+
+    #[cfg(feature = "parallel_insert")]
+    {
+        // Based on profiling results, the best performance is achieved when the
+        // number of spawned tasks is equal to the number of available threads.
+        // We therefore get the number of available threads and calculate the
+        // number of levels that should be executed in parallel to give the
+        // number of tasks closest to the number of threads. While there might
+        // be other tasks that are running on the threads, this is a reasonable
+        // approximation that should yield good performance in most cases.
+        let available_parallelism = std::thread::available_parallelism()
+            .map_or(DEFAULT_AVAILABLE_PARALLELISM, |v| v.into());
+        // The number of tasks spawned at a level is the number of leaves at
+        // the level. As we are using a binary tree, the number of leaves at a
+        // level is 2^level. Therefore, the number of levels that should be
+        // executed in parallel is the log2 of the number of available threads.
+        let levels = (available_parallelism as f32).log2().ceil() as u8;
+        Some(levels)
+    }
 }
 
 /// An azks is built both by the [crate::directory::Directory] and the auditor.
@@ -245,7 +275,7 @@ impl Azks {
     }
 
     /// Insert a batch of new leaves.
-    pub async fn batch_insert_nodes<S: Database>(
+    pub async fn batch_insert_nodes<S: Database + 'static>(
         &mut self,
         storage: &StorageManager<S>,
         nodes: Vec<Node>,
@@ -270,6 +300,7 @@ impl Azks {
                 node_set,
                 self.latest_epoch,
                 insert_mode,
+                get_parallel_levels(),
             )
             .await?;
 
@@ -284,12 +315,13 @@ impl Azks {
 
     /// Inserts a batch of leaves recursively from a given node label.
     #[async_recursion]
-    pub(crate) async fn recursive_batch_insert_nodes<S: Database>(
+    pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
         node_set: NodeSet,
         epoch: u64,
         insert_mode: InsertMode,
+        parallel_levels: Option<u8>,
     ) -> Result<(TreeNode, u64), AkdError> {
         // Phase 1: Obtain the current root node of this subtree and count if a
         // node is inserted.
@@ -352,33 +384,65 @@ impl Azks {
         // function recursively on the left and right child nodes. The current
         // node is updated with the new child nodes.
         let (left_node_set, right_node_set) = node_set.partition(current_node.label);
+        let child_parallel_levels =
+            parallel_levels.and_then(|x| if x <= 1 { None } else { Some(x - 1) });
 
-        if !left_node_set.is_empty() {
-            let (mut left_node, left_num_inserted) = Self::recursive_batch_insert_nodes(
-                storage,
-                current_node.get_child_label(Direction::Left)?,
-                left_node_set,
-                epoch,
-                insert_mode,
-            )
-            .await?;
+        // handle the left child
+        let maybe_handle = if !left_node_set.is_empty() {
+            let storage_clone = storage.clone();
+            let left_child_label = current_node.get_child_label(Direction::Left)?;
+            let left_future = async move {
+                Azks::recursive_batch_insert_nodes(
+                    &storage_clone,
+                    left_child_label,
+                    left_node_set,
+                    epoch,
+                    insert_mode,
+                    child_parallel_levels,
+                )
+                .await
+            };
 
-            current_node.set_child(storage, &mut left_node).await?;
-            num_inserted += left_num_inserted;
-        }
+            if parallel_levels.is_some() {
+                // spawn a task and return the handle if there are still levels
+                // to be processed in parallel
+                Some(tokio::task::spawn(left_future))
+            } else {
+                // else handle the left child in the current task
+                let (mut left_node, left_num_inserted) = left_future.await?;
 
+                current_node.set_child(storage, &mut left_node).await?;
+                num_inserted += left_num_inserted;
+                None
+            }
+        } else {
+            None
+        };
+
+        // handle the right child in the current task
         if !right_node_set.is_empty() {
-            let (mut right_node, right_num_inserted) = Self::recursive_batch_insert_nodes(
+            let right_child_label = current_node.get_child_label(Direction::Right)?;
+            let (mut right_node, right_num_inserted) = Azks::recursive_batch_insert_nodes(
                 storage,
-                current_node.get_child_label(Direction::Right)?,
+                right_child_label,
                 right_node_set,
                 epoch,
                 insert_mode,
+                child_parallel_levels,
             )
             .await?;
 
             current_node.set_child(storage, &mut right_node).await?;
             num_inserted += right_num_inserted;
+        }
+
+        // join on the handle for the left child, if present
+        if let Some(handle) = maybe_handle {
+            let (mut left_node, left_num_inserted) = handle
+                .await
+                .map_err(|e| AkdError::Parallelism(ParallelismError::JoinErr(e.to_string())))??;
+            current_node.set_child(storage, &mut left_node).await?;
+            num_inserted += left_num_inserted;
         }
 
         // Phase 3: Update the hash of the current node and return it along with
@@ -896,6 +960,7 @@ mod tests {
                 NodeSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
+                None,
             )
             .await?;
         }
@@ -1003,6 +1068,7 @@ mod tests {
                 NodeSet::from(vec![node]),
                 1,
                 InsertMode::Directory,
+                None,
             )
             .await?;
         }

@@ -8,7 +8,7 @@ extern crate thread_id;
 // of this source tree.
 
 use akd::ecvrf::VRFKeyStorage;
-use akd::storage::StorageManager;
+use akd::storage::{Database, StorageManager};
 use akd::Directory;
 use akd::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
@@ -120,7 +120,7 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
-pub(crate) async fn test_lookups<S: akd::storage::Database, V: VRFKeyStorage>(
+pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
     mysql_db: &StorageManager<S>,
     vrf: &V,
     num_users: u64,
@@ -241,7 +241,7 @@ pub(crate) async fn test_lookups<S: akd::storage::Database, V: VRFKeyStorage>(
 // Reset MySQL database by logging metrics which resets the metrics, and flushing cache.
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
-async fn reset_mysql_db<S: akd::storage::Database>(mysql_db: &StorageManager<S>) {
+async fn reset_mysql_db<S: Database>(mysql_db: &StorageManager<S>) {
     mysql_db.log_metrics(Level::Trace).await;
     mysql_db.flush_cache().await;
 }

@@ -380,7 +380,7 @@ async fn test_transactions<S: Database>(db: &S) {
     }
 
     let tic = Instant::now();
-    assert!(storage.begin_transaction().await);
+    assert!(storage.begin_transaction());
     assert_eq!(Ok(()), storage.batch_set(new_data).await);
     assert_eq!(Ok(()), storage.commit_transaction().await);
     let toc: Duration = Instant::now() - tic;
