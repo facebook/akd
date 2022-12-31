@@ -435,7 +435,7 @@ impl Azks {
             // individually for each node's state.
             current_nodes = nodes
                 .iter()
-                .filter(|node| !node_set.contains_prefix(&node.label))
+                .filter(|node| node_set.contains_prefix(&node.label))
                 .flat_map(|node| {
                     DIRECTIONS
                         .iter()
@@ -861,6 +861,7 @@ type AppendOnlyHelper = (Vec<Node>, Vec<Node>);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::types::DbRecord;
     use crate::utils::byte_arr_from_u64;
     use crate::{
         auditor::audit_verify,
@@ -869,6 +870,7 @@ mod tests {
         EMPTY_VALUE,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
@@ -1023,6 +1025,85 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_preload_nodes_accuracy() {
+        let database = AsyncInMemoryDatabase::new();
+        let storage_manager =
+            StorageManager::new(&database, Some(Duration::from_secs(180u64)), None, None);
+        let mut azks = Azks::new::<_>(&storage_manager)
+            .await
+            .expect("Failed to create azks!");
+        azks.increment_epoch();
+
+        // Construct our tree
+        let root_label = NodeLabel::root();
+
+        let left_label = NodeLabel::new(byte_arr_from_u64(1), 1);
+        let left = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: left_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Leaf,
+            left_child: None,
+            right_child: None,
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+        let right_label = NodeLabel::new(byte_arr_from_u64(2), 2);
+        let right = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: right_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Leaf,
+            left_child: None,
+            right_child: None,
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+        let root = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
+            label: root_label,
+            last_epoch: 1,
+            min_descendant_epoch: 1,
+            parent: root_label,
+            node_type: NodeType::Root,
+            left_child: Some(left_label),
+            right_child: Some(right_label),
+            hash: crate::hash::EMPTY_DIGEST,
+        }));
+
+        // Seed the database and cache with our tree
+        storage_manager
+            .batch_set(vec![root, left, right])
+            .await
+            .expect("Failed to seed database for preload test");
+
+        // Preload nodes to populate storage manager cache
+        let node_set = NodeSet::from(vec![
+            Node {
+                label: root_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+            Node {
+                label: left_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+            Node {
+                label: right_label,
+                hash: crate::hash::EMPTY_DIGEST,
+            },
+        ]);
+        let expected_preload_count = 3u64;
+        let actual_preload_count = azks
+            .preload_nodes(&storage_manager, &node_set)
+            .await
+            .expect("Failed to preload nodes");
+
+        assert_eq!(
+            expected_preload_count, actual_preload_count,
+            "Preload count returned unexpected value!"
+        );
     }
 
     #[tokio::test]
