@@ -18,7 +18,7 @@ use crate::*;
 #[tokio::test]
 async fn test_storage_manager_transaction() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new_no_cache(&db);
+    let storage_manager = StorageManager::new_no_cache(db.clone());
 
     assert!(
         storage_manager.begin_transaction().await,
@@ -109,7 +109,7 @@ async fn test_storage_manager_transaction() {
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_set() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new(&db, None, None, None);
+    let storage_manager = StorageManager::new(db.clone(), None, None, None);
 
     let mut records = (0..10)
         .into_iter()
@@ -190,7 +190,7 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_get() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new(&db, None, None, None);
+    let storage_manager = StorageManager::new(db.clone(), None, None, None);
 
     let mut keys = vec![];
     let mut records = (0..10)
@@ -239,8 +239,12 @@ async fn test_storage_manager_cache_populated_by_batch_get() {
     drop(storage_manager);
 
     // re-create the storage manager, and run a batch_get of the same data keys to populate the cache
-    let storage_manager =
-        StorageManager::new(&db, Some(std::time::Duration::from_secs(1000)), None, None);
+    let storage_manager = StorageManager::new(
+        db.clone(),
+        Some(std::time::Duration::from_secs(1000)),
+        None,
+        None,
+    );
 
     let _ = storage_manager
         .batch_get::<TreeNodeWithPreviousValue>(&keys)

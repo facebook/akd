@@ -877,7 +877,7 @@ mod tests {
         let mut rng = OsRng;
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -901,7 +901,7 @@ mod tests {
         }
 
         let database2 = AsyncInMemoryDatabase::new();
-        let db2 = StorageManager::new_no_cache(&database2);
+        let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
         azks2
@@ -920,7 +920,7 @@ mod tests {
     #[tokio::test]
     async fn test_batch_insert_root_hash() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
 
         // manually construct a 3-layer tree and compute the root hash
         let mut nodes = Vec::<Node>::new();
@@ -986,7 +986,7 @@ mod tests {
         let num_nodes = 10;
         let mut rng = OsRng;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
         let mut node_set: Vec<Node> = vec![];
@@ -1011,7 +1011,7 @@ mod tests {
         node_set.shuffle(&mut rng);
 
         let database2 = AsyncInMemoryDatabase::new();
-        let db2 = StorageManager::new_no_cache(&database2);
+        let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new(&db2).await?;
 
         azks2
@@ -1031,7 +1031,7 @@ mod tests {
     async fn test_preload_nodes_accuracy() {
         let database = AsyncInMemoryDatabase::new();
         let storage_manager =
-            StorageManager::new(&database, Some(Duration::from_secs(180u64)), None, None);
+            StorageManager::new(database, Some(Duration::from_secs(180u64)), None, None);
         let mut azks = Azks::new::<_>(&storage_manager)
             .await
             .expect("Failed to create azks!");
@@ -1110,7 +1110,7 @@ mod tests {
     async fn test_node_set_partition() -> Result<(), AkdError> {
         let num_nodes = 5;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -1157,7 +1157,7 @@ mod tests {
     async fn test_node_set_get_longest_common_prefix() -> Result<(), AkdError> {
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
 
@@ -1197,7 +1197,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1213,30 +1213,24 @@ mod tests {
                 .get_child_node(&db, Direction::Right, 1)
                 .await?;
 
-            match left_child {
-                Some(left_child) => {
-                    let sibling_label = azks
-                        .get_sibling_node(&db, &current_node, Direction::Right, 1)
-                        .await?
-                        .unwrap()
-                        .label;
-                    assert_eq!(left_child.label, sibling_label);
-                    nodes.push(left_child);
-                }
-                None => {}
+            if let Some(left_child) = left_child {
+                let sibling_label = azks
+                    .get_sibling_node(&db, &current_node, Direction::Right, 1)
+                    .await?
+                    .unwrap()
+                    .label;
+                assert_eq!(left_child.label, sibling_label);
+                nodes.push(left_child);
             }
 
-            match right_child {
-                Some(right_child) => {
-                    let sibling_label = azks
-                        .get_sibling_node(&db, &current_node, Direction::Left, 1)
-                        .await?
-                        .unwrap()
-                        .label;
-                    assert_eq!(right_child.label, sibling_label);
-                    nodes.push(right_child);
-                }
-                None => {}
+            if let Some(right_child) = right_child {
+                let sibling_label = azks
+                    .get_sibling_node(&db, &current_node, Direction::Left, 1)
+                    .await?
+                    .unwrap()
+                    .label;
+                assert_eq!(right_child.label, sibling_label);
+                nodes.push(right_child);
             }
         }
 
@@ -1253,7 +1247,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1282,7 +1276,7 @@ mod tests {
             }
 
             let database = AsyncInMemoryDatabase::new();
-            let db = StorageManager::new_no_cache(&database);
+            let db = StorageManager::new_no_cache(database);
             let mut azks = Azks::new::<_>(&db).await?;
             azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
                 .await?;
@@ -1304,7 +1298,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
             .await?;
@@ -1327,7 +1321,7 @@ mod tests {
     #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
 
         let node_set: Vec<Node> = vec![
             Node {
@@ -1381,7 +1375,7 @@ mod tests {
             node_set.push(node);
         }
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[0].label;
         azks.batch_insert_nodes::<_>(&db, node_set.clone()[1..2].to_vec(), InsertMode::Directory)
@@ -1401,7 +1395,7 @@ mod tests {
 
         let node_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
         azks.batch_insert_nodes::<_>(
@@ -1423,7 +1417,7 @@ mod tests {
 
         let node_set = gen_nodes(num_nodes);
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
         azks.batch_insert_nodes::<_>(
@@ -1442,7 +1436,7 @@ mod tests {
     #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
         let node_set_1: Vec<Node> = vec![Node {
@@ -1471,7 +1465,7 @@ mod tests {
     #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
         let node_set_1: Vec<Node> = vec![
@@ -1516,7 +1510,7 @@ mod tests {
         let node_set_1 = gen_nodes(num_nodes);
 
         let database = AsyncInMemoryDatabase::new();
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set_1.clone(), InsertMode::Directory)
             .await?;
@@ -1546,7 +1540,7 @@ mod tests {
     async fn future_epoch_throws_error() -> Result<(), AkdError> {
         let database = AsyncInMemoryDatabase::new();
 
-        let db = StorageManager::new_no_cache(&database);
+        let db = StorageManager::new_no_cache(database);
         let azks = Azks::new::<_>(&db).await?;
 
         let out = azks.get_root_hash_safe::<_>(&db, 123).await;

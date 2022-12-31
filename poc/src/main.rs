@@ -139,7 +139,7 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let storage_manager = StorageManager::new_no_cache(&db);
+        let storage_manager = StorageManager::new_no_cache(db);
         let mut directory = Directory::<_, _>::new(storage_manager, vrf, false)
             .await
             .unwrap();
@@ -165,7 +165,7 @@ async fn main() {
             return;
         }
         let storage_manager = StorageManager::new(
-            &mysql_db,
+            mysql_db,
             Some(Duration::from_secs(10 * 60)),
             None,
             Some(Duration::from_secs(15)),

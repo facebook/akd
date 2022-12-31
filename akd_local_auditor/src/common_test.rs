@@ -61,7 +61,7 @@ pub async fn generate_audit_proofs(
     expensive: bool,
 ) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new_no_cache(&db);
+    let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage_manager, vrf, false).await?;
     let mut proofs = vec![];
