@@ -265,7 +265,7 @@ unsafe impl Sync for Azks {}
 impl Azks {
     /// Creates a new azks
     pub async fn new<S: Database>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
-        let root_node = create_empty_root().await?;
+        let root_node = new_root_node().await?;
         root_node.write_to_storage(storage).await?;
 
         let azks = Azks {
@@ -347,7 +347,7 @@ impl Azks {
                     // pushing it down one level (away from root) in the tree
                     // and replacing it with a new node whose label is equal to
                     // the longest common prefix.
-                    current_node = create_interior_node(lcp_label, epoch).await?;
+                    current_node = new_interior_node(lcp_label, epoch).await?;
                     current_node.set_child(storage, &mut existing_node).await?;
                     num_inserted = 1;
                 } else {
@@ -362,7 +362,7 @@ impl Azks {
                 // Case 2: The node label is None and the node set has a
                 // single element, meaning that a new leaf node should be
                 // created to represent the element.
-                current_node = create_leaf_node(node.label, &node.hash, epoch).await?;
+                current_node = new_leaf_node(node.label, &node.hash, epoch).await?;
                 num_inserted = 1;
             }
             (None, _) => {
@@ -371,7 +371,7 @@ impl Azks {
                 // created with a label equal to the longest common prefix of
                 // the node set.
                 let lcp_label = node_set.get_longest_common_prefix();
-                current_node = create_interior_node(lcp_label, epoch).await?;
+                current_node = new_interior_node(lcp_label, epoch).await?;
                 num_inserted = 1;
             }
         }
@@ -996,7 +996,7 @@ mod tests {
             let hash = &crate::hash::hash(&leaf_u64.to_be_bytes());
             nodes.push(Node { label, hash: *hash });
 
-            let new_leaf = create_leaf_node(label, hash, 7 - i + 1).await?;
+            let new_leaf = new_leaf_node(label, hash, 7 - i + 1).await?;
             leaf_hashes.push(crate::hash::merge(&[
                 crate::hash::merge_with_int(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
                 new_leaf.label.hash(),

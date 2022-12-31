@@ -545,7 +545,7 @@ pub(crate) fn optional_child_state_hash(input: &Option<TreeNode>) -> Digest {
 }
 
 /// Create an empty root node.
-pub(crate) async fn create_empty_root() -> Result<TreeNode, StorageError> {
+pub(crate) async fn new_root_node() -> Result<TreeNode, StorageError> {
     // Empty root hash is the same as empty node hash with no label
     let empty_root_hash = crate::hash::hash(&crate::EMPTY_VALUE);
     let node = TreeNode::new(
@@ -561,7 +561,7 @@ pub(crate) async fn create_empty_root() -> Result<TreeNode, StorageError> {
 }
 
 /// Create an interior node with an empty hash.
-pub(crate) async fn create_interior_node(
+pub(crate) async fn new_interior_node(
     label: NodeLabel,
     birth_epoch: u64,
 ) -> Result<TreeNode, StorageError> {
@@ -578,7 +578,7 @@ pub(crate) async fn create_interior_node(
 }
 
 /// Create a specific leaf node.
-pub(crate) async fn create_leaf_node(
+pub(crate) async fn new_leaf_node(
     label: NodeLabel,
     value: &Digest,
     birth_epoch: u64,
@@ -611,26 +611,26 @@ mod tests {
     async fn test_smallest_descendant_ep() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = create_empty_root().await?;
+        let mut root = new_root_node().await?;
 
         let mut right_child =
-            create_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
+            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
 
-        let mut new_leaf = create_leaf_node(
+        let mut new_leaf = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &crate::hash::hash(&EMPTY_VALUE),
             1,
         )
         .await?;
 
-        let mut leaf_1 = create_leaf_node(
+        let mut leaf_1 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &crate::hash::hash(&[1u8]),
             2,
         )
         .await?;
 
-        let mut leaf_2 = create_leaf_node(
+        let mut leaf_2 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &crate::hash::hash(&[1u8, 1u8]),
             3,
@@ -703,10 +703,10 @@ mod tests {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
 
-        let mut root = create_empty_root().await?;
+        let mut root = new_root_node().await?;
 
         // Prepare the leaf to be inserted with label 0.
-        let mut leaf_0 = create_leaf_node(
+        let mut leaf_0 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32),
             &crate::hash::hash(&EMPTY_VALUE),
             0,
@@ -714,7 +714,7 @@ mod tests {
         .await?;
 
         // Prepare another leaf to insert with label 1.
-        let mut leaf_1 = create_leaf_node(
+        let mut leaf_1 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
             &crate::hash::hash(&[1u8]),
             0,
@@ -762,26 +762,26 @@ mod tests {
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = create_empty_root().await?;
+        let mut root = new_root_node().await?;
 
         let mut right_child =
-            create_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
+            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
 
-        let mut leaf_0 = create_leaf_node(
+        let mut leaf_0 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &crate::hash::hash(&EMPTY_VALUE),
             1,
         )
         .await?;
 
-        let mut leaf_1 = create_leaf_node(
+        let mut leaf_1 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &crate::hash::hash(&[1u8]),
             2,
         )
         .await?;
 
-        let mut leaf_2 = create_leaf_node(
+        let mut leaf_2 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &crate::hash::hash(&[1u8, 1u8]),
             3,
@@ -841,36 +841,36 @@ mod tests {
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = create_empty_root().await?;
+        let mut root = new_root_node().await?;
 
         let mut left_child =
-            create_interior_node(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), 4).await?;
+            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), 4).await?;
 
         let mut right_child =
-            create_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
+            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3).await?;
 
-        let mut leaf_0 = create_leaf_node(
+        let mut leaf_0 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32),
             &crate::hash::hash(&EMPTY_VALUE),
             1,
         )
         .await?;
 
-        let mut leaf_1 = create_leaf_node(
+        let mut leaf_1 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
             &crate::hash::hash(&[1u8]),
             2,
         )
         .await?;
 
-        let mut leaf_2 = create_leaf_node(
+        let mut leaf_2 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
             &crate::hash::hash(&[1u8, 1u8]),
             3,
         )
         .await?;
 
-        let mut leaf_3 = create_leaf_node(
+        let mut leaf_3 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
             &crate::hash::hash(&[0u8, 1u8]),
             4,
@@ -949,13 +949,13 @@ mod tests {
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = create_empty_root().await?;
+        let mut root = new_root_node().await?;
 
         let mut leaves = Vec::<TreeNode>::new();
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i << 61;
-            let new_leaf = create_leaf_node(
+            let new_leaf = new_leaf_node(
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
                 &crate::hash::hash(&leaf_u64.to_be_bytes()),
                 7 - i,
@@ -973,7 +973,7 @@ mod tests {
         for (i, j) in (0u64..4).enumerate() {
             let interior_u64 = j << 62;
             layer_1_interior.push(
-                create_interior_node(
+                new_interior_node(
                     NodeLabel::new(byte_arr_from_u64(interior_u64), 2u32),
                     7 - (2 * j),
                 )
@@ -993,7 +993,7 @@ mod tests {
         for (i, j) in (0u64..2).enumerate() {
             let interior_u64 = j << 63;
             layer_2_interior.push(
-                create_interior_node(
+                new_interior_node(
                     NodeLabel::new(byte_arr_from_u64(interior_u64), 1u32),
                     7 - (4 * j),
                 )
