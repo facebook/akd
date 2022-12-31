@@ -20,7 +20,7 @@ winter-math = "0.2"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 async-trait = "0.1"
-tokio = { version = "1.10", features = ["full"] }
+tokio = { version = "1.21", features = ["full"] }
 async-recursion = "0.3"
 mysql_async = "0.31"
 mysql_common = "0.29.1"

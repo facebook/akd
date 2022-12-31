@@ -7,7 +7,7 @@ edition = "2018"
 publish = false
 
 [dependencies]
-tokio = { version = "1.10", features = ["full"] }
+tokio = { version = "1.21", features = ["full"] }
 colored = "2.0.0"
 hex = "0.4.3"
 rand = "0.8"
