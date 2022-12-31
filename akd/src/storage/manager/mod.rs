@@ -55,7 +55,7 @@ pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
     /// The underlying database managed by this storage manager
-    pub db: Db,
+    db: Db,
 
     metrics: [Arc<AtomicU64>; NUM_METRICS],
 }
