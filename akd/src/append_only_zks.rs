@@ -1092,6 +1092,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_insert_num_nodes() -> Result<(), AkdError> {
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(database.clone());
+        let mut azks = Azks::new::<_>(&db).await?;
+        azks.increment_epoch();
+
+        // insert 3 leaves
+        let nodes = vec![
+            NodeLabel::new(byte_arr_from_u64(0b0110 << 60), 64),
+            NodeLabel::new(byte_arr_from_u64(0b0111 << 60), 64),
+            NodeLabel::new(byte_arr_from_u64(0b0010 << 60), 64),
+        ]
+        .into_iter()
+        .map(|label| Node {
+            label,
+            hash: EMPTY_DIGEST,
+        })
+        .collect();
+
+        azks.batch_insert_nodes(&db, nodes, InsertMode::Directory)
+            .await?;
+
+        // expected nodes inserted: 3 leaves, 2 internal nodes, 1 root
+        //               <root>
+        //          0
+        //    0010     011
+        //          0110  0111
+        let expected_num_nodes = 6;
+        let azks_num_nodes = azks.num_nodes;
+        let database_num_nodes = database
+            .batch_get_type_direct::<TreeNodeWithPreviousValue>()
+            .await?
+            .len() as u64;
+
+        assert_eq!(expected_num_nodes, azks_num_nodes);
+        assert_eq!(expected_num_nodes, database_num_nodes);
+
+        // insert another 3 leaves
+        let nodes = vec![
+            NodeLabel::new(byte_arr_from_u64(0b1000 << 60), 64),
+            NodeLabel::new(byte_arr_from_u64(0b0110 << 60), 64),
+            NodeLabel::new(byte_arr_from_u64(0b0011 << 60), 64),
+        ]
+        .into_iter()
+        .map(|label| Node {
+            label,
+            hash: EMPTY_DIGEST,
+        })
+        .collect();
+
+        azks.batch_insert_nodes(&db, nodes, InsertMode::Directory)
+            .await?;
+
+        // expected nodes inserted: 2 leaves, 1 internal node
+        //                   -
+        //          -               1000
+        //    001         -
+        //  -  0011     -    -
+        let expected_num_nodes = 3 + 6;
+        let azks_num_nodes = azks.num_nodes;
+        let database_num_nodes = database
+            .batch_get_type_direct::<TreeNodeWithPreviousValue>()
+            .await?
+            .len() as u64;
+
+        assert_eq!(expected_num_nodes, azks_num_nodes);
+        assert_eq!(expected_num_nodes, database_num_nodes);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_preload_nodes_accuracy() {
         let database = AsyncInMemoryDatabase::new();
         let storage_manager =
