@@ -54,7 +54,7 @@ fn get_parallel_levels() -> Option<u8> {
     #[cfg(feature = "parallel_insert")]
     {
         // Based on profiling results, the best performance is achieved when the
-        // number of spawned tasks is equal to the number of available cores.
+        // number of spawned tasks is equal to the number of available threads.
         // We therefore get the number of available threads and calculate the
         // number of levels that should be executed in parallel to give the
         // number of tasks closest to the number of threads. While there might
@@ -62,6 +62,10 @@ fn get_parallel_levels() -> Option<u8> {
         // approximation that should yield good performance in most cases.
         let available_parallelism = std::thread::available_parallelism()
             .map_or(DEFAULT_AVAILABLE_PARALLELISM, |v| v.into());
+        // The number of tasks spawned at a level is the number of leaves at
+        // the level. As we are using a binary tree, the number of leaves at a
+        // level is 2^level. Therefore, the number of levels that should be
+        // executed in parallel is the log2 of the number of available threads.
         let levels = (available_parallelism as f32).log2().ceil() as u8;
         Some(levels)
     }
