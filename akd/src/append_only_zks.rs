@@ -296,7 +296,7 @@ impl Azks {
 
         if !node_set.is_empty() {
             // call recursive batch insert on the root
-            let (_, num_inserted) = Self::recursive_batch_insert_nodes(
+            let (root_node, num_inserted) = Self::recursive_batch_insert_nodes(
                 storage,
                 Some(NodeLabel::root()),
                 node_set,
@@ -305,6 +305,7 @@ impl Azks {
                 get_parallel_levels(),
             )
             .await?;
+            root_node.write_to_storage(storage).await?;
 
             // update the number of nodes
             self.num_nodes += num_inserted;
@@ -315,7 +316,10 @@ impl Azks {
         Ok(())
     }
 
-    /// Inserts a batch of leaves recursively from a given node label.
+    /// Inserts a batch of leaves recursively from a given node label. Note: it
+    /// is the caller's responsibility to write the returned node to storage.
+    /// This is done so that the caller may set the 'parent' field of nodes
+    /// before writing nodes to storage.
     #[async_recursion]
     pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
@@ -348,7 +352,8 @@ impl Azks {
                     // and replacing it with a new node whose label is equal to
                     // the longest common prefix.
                     current_node = new_interior_node(lcp_label, epoch);
-                    current_node.set_child(storage, &mut existing_node).await?;
+                    current_node.set_child(&mut existing_node)?;
+                    existing_node.write_to_storage(storage).await?;
                     num_inserted = 1;
                 } else {
                     // Case 1b: The existing node does not need to be
@@ -408,7 +413,8 @@ impl Azks {
                 // else handle the left child in the current task
                 let (mut left_node, left_num_inserted) = left_future.await?;
 
-                current_node.set_child(storage, &mut left_node).await?;
+                current_node.set_child(&mut left_node)?;
+                left_node.write_to_storage(storage).await?;
                 num_inserted += left_num_inserted;
                 None
             }
@@ -429,7 +435,8 @@ impl Azks {
             )
             .await?;
 
-            current_node.set_child(storage, &mut right_node).await?;
+            current_node.set_child(&mut right_node)?;
+            right_node.write_to_storage(storage).await?;
             num_inserted += right_num_inserted;
         }
 
@@ -438,7 +445,8 @@ impl Azks {
             let (mut left_node, left_num_inserted) = handle
                 .await
                 .map_err(|e| AkdError::Parallelism(ParallelismError::JoinErr(e.to_string())))??;
-            current_node.set_child(storage, &mut left_node).await?;
+            current_node.set_child(&mut left_node)?;
+            left_node.write_to_storage(storage).await?;
             num_inserted += left_num_inserted;
         }
 
@@ -447,7 +455,6 @@ impl Azks {
         current_node
             .update_node_hash::<_>(storage, NodeHashingMode::from(insert_mode))
             .await?;
-        current_node.write_to_storage(storage).await?;
 
         Ok((current_node, num_inserted))
     }
@@ -945,7 +952,6 @@ mod tests {
         azks1.increment_epoch();
 
         let mut node_set: Vec<Node> = vec![];
-
         for _ in 0..num_nodes {
             let label = crate::utils::random_label(&mut rng);
             let mut input = crate::hash::EMPTY_DIGEST;
@@ -953,7 +959,7 @@ mod tests {
             let hash = crate::hash::hash(&input);
             let node = Node { label, hash };
             node_set.push(node);
-            Azks::recursive_batch_insert_nodes(
+            let (root_node, _) = Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
                 NodeSet::from(vec![node]),
@@ -962,6 +968,7 @@ mod tests {
                 None,
             )
             .await?;
+            root_node.write_to_storage(&db).await?;
         }
 
         let database2 = AsyncInMemoryDatabase::new();
@@ -1060,7 +1067,7 @@ mod tests {
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             node_set.push(node);
-            Azks::recursive_batch_insert_nodes(
+            let (root_node, _) = Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
                 NodeSet::from(vec![node]),
@@ -1069,6 +1076,7 @@ mod tests {
                 None,
             )
             .await?;
+            root_node.write_to_storage(&db).await?;
         }
 
         // Try randomly permuting

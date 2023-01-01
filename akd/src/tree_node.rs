@@ -402,18 +402,10 @@ impl TreeNode {
 
     /// Inserts a child into this node, adding the state to the state at this epoch,
     /// without updating its own hash.
-    pub(crate) async fn set_child<S: Database>(
-        &mut self,
-        storage: &StorageManager<S>,
-        child_node: &mut TreeNode,
-    ) -> Result<(), StorageError> {
+    pub(crate) fn set_child(&mut self, child_node: &mut TreeNode) -> Result<(), TreeNodeError> {
         // Set child according to given direction.
         match self.label.get_dir(child_node.label) {
-            Direction::None => {
-                return Err(StorageError::Other(
-                    "Cannot set child with None direction".to_string(),
-                ))
-            }
+            Direction::None => return Err(TreeNodeError::InvalidDirection(Direction::None)),
             Direction::Left => {
                 self.left_child = Some(child_node.label);
             }
@@ -421,7 +413,7 @@ impl TreeNode {
                 self.right_child = Some(child_node.label);
             }
         }
-        // Update parent of the child.
+        // Uparent of the child.
         child_node.parent = self.label;
 
         // Update last updated epoch.
@@ -433,9 +425,7 @@ impl TreeNode {
         } else {
             self.min_descendant_epoch =
                 min(self.min_descendant_epoch, child_node.min_descendant_epoch);
-        }
-
-        child_node.write_to_storage(storage).await?;
+        };
 
         Ok(())
     }
@@ -618,17 +608,21 @@ mod tests {
             3,
         );
 
-        right_child.set_child(&db, &mut leaf_2).await?;
-        right_child.set_child(&db, &mut leaf_1).await?;
+        right_child.set_child(&mut leaf_2)?;
+        right_child.set_child(&mut leaf_1)?;
         right_child
             .update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
+        leaf_2.write_to_storage(&db).await?;
+        leaf_1.write_to_storage(&db).await?;
         right_child.write_to_storage(&db).await?;
 
-        root.set_child(&db, &mut new_leaf).await?;
-        root.set_child(&db, &mut right_child).await?;
+        root.set_child(&mut new_leaf)?;
+        root.set_child(&mut right_child)?;
         root.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
+        new_leaf.write_to_storage(&db).await?;
+        right_child.write_to_storage(&db).await?;
         root.write_to_storage(&db).await?;
 
         let stored_root = db
@@ -703,8 +697,11 @@ mod tests {
         );
 
         // Insert leaves.
-        root.set_child(&db, &mut leaf_0).await?;
-        root.set_child(&db, &mut leaf_1).await?;
+        root.set_child(&mut leaf_0)?;
+        root.set_child(&mut leaf_1)?;
+        leaf_0.write_to_storage(&db).await?;
+        leaf_1.write_to_storage(&db).await?;
+
         root.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db).await?;
@@ -767,15 +764,21 @@ mod tests {
             3,
         );
 
-        right_child.set_child(&db, &mut leaf_2).await?;
-        right_child.set_child(&db, &mut leaf_1).await?;
+        right_child.set_child(&mut leaf_2)?;
+        right_child.set_child(&mut leaf_1)?;
+        leaf_2.write_to_storage(&db).await?;
+        leaf_1.write_to_storage(&db).await?;
+
         right_child
             .update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         right_child.write_to_storage(&db).await?;
 
-        root.set_child(&db, &mut leaf_0).await?;
-        root.set_child(&db, &mut right_child).await?;
+        root.set_child(&mut leaf_0)?;
+        root.set_child(&mut right_child)?;
+        leaf_0.write_to_storage(&db).await?;
+        right_child.write_to_storage(&db).await?;
+
         root.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db).await?;
@@ -854,22 +857,31 @@ mod tests {
         );
 
         // Insert nodes.
-        left_child.set_child(&db, &mut leaf_0).await?;
-        left_child.set_child(&db, &mut leaf_3).await?;
+        left_child.set_child(&mut leaf_0)?;
+        left_child.set_child(&mut leaf_3)?;
+        leaf_0.write_to_storage(&db).await?;
+        leaf_3.write_to_storage(&db).await?;
+
         left_child
             .update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         left_child.write_to_storage(&db).await?;
 
-        right_child.set_child(&db, &mut leaf_2).await?;
-        right_child.set_child(&db, &mut leaf_1).await?;
+        right_child.set_child(&mut leaf_2)?;
+        right_child.set_child(&mut leaf_1)?;
+        leaf_2.write_to_storage(&db).await?;
+        leaf_1.write_to_storage(&db).await?;
+
         right_child
             .update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         right_child.write_to_storage(&db).await?;
 
-        root.set_child(&db, &mut left_child).await?;
-        root.set_child(&db, &mut right_child).await?;
+        root.set_child(&mut left_child)?;
+        root.set_child(&mut right_child)?;
+        left_child.write_to_storage(&db).await?;
+        right_child.write_to_storage(&db).await?;
+
         root.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db).await?;
@@ -989,8 +1001,11 @@ mod tests {
             let mut left_child = leaves.remove(0);
             let mut right_child = leaves.remove(0);
 
-            node.set_child(&db, &mut left_child).await?;
-            node.set_child(&db, &mut right_child).await?;
+            node.set_child(&mut left_child)?;
+            node.set_child(&mut right_child)?;
+            left_child.write_to_storage(&db).await?;
+            right_child.write_to_storage(&db).await?;
+
             node.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
                 .await?;
             node.write_to_storage(&db).await?;
@@ -1000,8 +1015,11 @@ mod tests {
             let mut left_child = layer_1_interior.remove(0);
             let mut right_child = layer_1_interior.remove(0);
 
-            node.set_child(&db, &mut left_child).await?;
-            node.set_child(&db, &mut right_child).await?;
+            node.set_child(&mut left_child)?;
+            node.set_child(&mut right_child)?;
+            left_child.write_to_storage(&db).await?;
+            right_child.write_to_storage(&db).await?;
+
             node.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
                 .await?;
             node.write_to_storage(&db).await?;
@@ -1010,8 +1028,11 @@ mod tests {
         let mut left_child = layer_2_interior.remove(0);
         let mut right_child = layer_2_interior.remove(0);
 
-        root.set_child(&db, &mut left_child).await?;
-        root.set_child(&db, &mut right_child).await?;
+        root.set_child(&mut left_child)?;
+        root.set_child(&mut right_child)?;
+        left_child.write_to_storage(&db).await?;
+        right_child.write_to_storage(&db).await?;
+
         root.update_node_hash(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db).await?;
