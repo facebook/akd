@@ -1,7 +1,7 @@
 [package]
 name = "akd_local_auditor"
 default-run = "akd_local_auditor"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Sean Lawlor <seanlawlor@fb.com>"]
 edition = "2018"
 publish = false
