@@ -62,7 +62,6 @@ once_cell = { version = "1" }
 ctor = "0.1"
 tokio-test = "0.4"
 tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
-akd = { path = ".", features = ["public-tests"], version = "0.8.3", default-features = false }
 
 [[bench]]
 name = "azks"
