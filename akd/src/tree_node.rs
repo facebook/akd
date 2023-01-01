@@ -413,7 +413,8 @@ impl TreeNode {
                 self.right_child = Some(child_node.label);
             }
         }
-        // Uparent of the child.
+
+        // Update parent of the child.
         child_node.parent = self.label;
 
         // Update last updated epoch.
