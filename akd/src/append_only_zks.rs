@@ -1104,7 +1104,17 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database.clone());
         let mut azks = Azks::new::<_>(&db).await?;
-        azks.increment_epoch();
+
+        // expected nodes inserted: 1 root
+        let expected_num_nodes = 1;
+        let azks_num_nodes = azks.num_nodes;
+        let database_num_nodes = database
+            .batch_get_type_direct::<TreeNodeWithPreviousValue>()
+            .await?
+            .len() as u64;
+
+        assert_eq!(expected_num_nodes, azks_num_nodes);
+        assert_eq!(expected_num_nodes, database_num_nodes);
 
         // insert 3 leaves
         let nodes = vec![
@@ -1122,12 +1132,12 @@ mod tests {
         azks.batch_insert_nodes(&db, nodes, InsertMode::Directory)
             .await?;
 
-        // expected nodes inserted: 3 leaves, 2 internal nodes, 1 root
-        //               <root>
+        // expected nodes inserted: 3 leaves, 2 internal nodes
+        //                   -
         //          0
         //    0010     011
         //          0110  0111
-        let expected_num_nodes = 6;
+        let expected_num_nodes = 5 + 1;
         let azks_num_nodes = azks.num_nodes;
         let database_num_nodes = database
             .batch_get_type_direct::<TreeNodeWithPreviousValue>()
@@ -1157,8 +1167,8 @@ mod tests {
         //                   -
         //          -               1000
         //    001         -
-        //  -  0011     -    -
-        let expected_num_nodes = 3 + 6;
+        //  -  0011     -   -
+        let expected_num_nodes = 3 + 5 + 1;
         let azks_num_nodes = azks.num_nodes;
         let database_num_nodes = database
             .batch_get_type_direct::<TreeNodeWithPreviousValue>()
