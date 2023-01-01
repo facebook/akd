@@ -318,8 +318,8 @@ impl Azks {
 
     /// Inserts a batch of leaves recursively from a given node label. Note: it
     /// is the caller's responsibility to write the returned node to storage.
-    /// This is done so that the caller may set the 'parent' field of nodes
-    /// before writing nodes to storage.
+    /// This is done so that the caller may set the 'parent' field of a node
+    /// before it is written to storage.
     #[async_recursion]
     pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
