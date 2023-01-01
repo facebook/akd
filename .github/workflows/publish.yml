@@ -24,10 +24,10 @@ jobs:
         CRATES_IO_TOKEN: ${{ secrets.crates_io_token }}
 
     - name: Dry run publish AKD_CORE
-      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_core
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_core -F blake3
 
     - name: Publish crate AKD_CORE
-      run: cargo publish --manifest-path Cargo.toml -p akd_core
+      run: cargo publish --manifest-path Cargo.toml -p akd_core -F blake3
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
 
