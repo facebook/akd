@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -34,7 +34,7 @@ default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert"]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { path = "../akd_core", version = "0.8.3", default-features = false, features = ["vrf"] }
+akd_core = { path = "../akd_core", version = "0.8.4", default-features = false, features = ["vrf"] }
 async-recursion = "0.3"
 async-trait = "0.1"
 curve25519-dalek = "3"
@@ -62,7 +62,9 @@ once_cell = { version = "1" }
 ctor = "0.1"
 tokio-test = "0.4"
 tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
-akd = { path = ".", features = ["public-tests"], version = "0.8.3", default-features = false }
+
+# To enable the public-test feature in tests
+akd = { path = ".", features = ["public-tests"], default-features = false }
 
 [[bench]]
 name = "azks"
