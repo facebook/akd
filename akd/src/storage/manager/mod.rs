@@ -300,6 +300,8 @@ impl<Db: Database> StorageManager<Db> {
         }
 
         // cache miss, read direct from db
+        self.increment_metric(METRIC_GET);
+
         let record = self
             .tic_toc(METRIC_READ_TIME, self.db.get::<St>(id))
             .await?;
@@ -307,7 +309,6 @@ impl<Db: Database> StorageManager<Db> {
             // cache the result
             cache.put(&record).await;
         }
-        self.increment_metric(METRIC_GET);
         Ok(record)
     }
 
