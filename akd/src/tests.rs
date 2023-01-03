@@ -8,15 +8,77 @@
 
 //! Contains the tests for the high-level API (directory, auditor, client)
 
+use std::collections::HashMap;
+
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
     directory::{Directory, PublishCorruption},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
-    errors::AkdError,
-    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, Database},
+    errors::{AkdError, StorageError},
+    storage::{
+        manager::StorageManager,
+        memory::AsyncInMemoryDatabase,
+        types::{DbRecord, KeyData, ValueState, ValueStateRetrievalFlag},
+        Database, DbSetState, Storable,
+    },
     AkdLabel, AkdValue, HistoryParams, HistoryVerificationParams, VerifyResult,
 };
+
+#[derive(Clone)]
+pub struct LocalDatabase;
+
+unsafe impl Send for LocalDatabase {}
+unsafe impl Sync for LocalDatabase {}
+
+mockall::mock! {
+    pub LocalDatabase {
+
+    }
+    impl Clone for LocalDatabase {
+        fn clone(&self) -> Self;
+    }
+    #[async_trait::async_trait]
+    impl Database for LocalDatabase {
+        /// Set a record in the database
+        async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
+
+        /// Set multiple records in the database with a minimal set of operations
+        async fn batch_set(
+            &self,
+            records: Vec<DbRecord>,
+            state: DbSetState,
+        ) -> Result<(), StorageError>;
+
+        /// Retrieve a stored record from the database
+        async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError>;
+
+        /// Retrieve a batch of records by id from the database
+        async fn batch_get<St: Storable>(
+            &self,
+            ids: &[St::StorageKey],
+        ) -> Result<Vec<DbRecord>, StorageError>;
+
+        /* User data searching */
+
+        /// Retrieve the user data for a given user
+        async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError>;
+
+        /// Retrieve a specific state for a given user
+        async fn get_user_state(
+            &self,
+            username: &AkdLabel,
+            flag: ValueStateRetrievalFlag,
+        ) -> Result<ValueState, StorageError>;
+
+        /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_states but with less data retrieved from the storage layer
+        async fn get_user_state_versions(
+            &self,
+            usernames: &[AkdLabel],
+            flag: ValueStateRetrievalFlag,
+        ) -> Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError>;
+    }
+}
 
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]

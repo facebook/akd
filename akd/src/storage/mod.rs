@@ -43,7 +43,7 @@ pub enum DbSetState {
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(feature = "serde_serialization")]
-pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
+pub trait Storable: Clone + Serialize + DeserializeOwned + Sync + 'static {
     /// This particular storage will have a key type
     type StorageKey: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
 
@@ -68,7 +68,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(not(feature = "serde_serialization"))]
-pub trait Storable: Clone + Sync {
+pub trait Storable: Clone + Sync + 'static {
     /// This particular storage will have a key type
     type StorageKey: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
 
