@@ -66,8 +66,13 @@ fn get_parallel_levels() -> Option<u8> {
         // the level. As we are using a binary tree, the number of leaves at a
         // level is 2^level. Therefore, the number of levels that should be
         // executed in parallel is the log2 of the number of available threads.
-        let levels = (available_parallelism as f32).log2().ceil() as u8;
-        Some(levels)
+        let parallel_levels = (available_parallelism as f32).log2().ceil() as u8;
+
+        info!(
+            "Insert will be performed in parallel (available parallelism: {}, parallel levels: {})",
+            available_parallelism, parallel_levels
+        );
+        Some(parallel_levels)
     }
 }
 
