@@ -66,8 +66,13 @@ fn get_parallel_levels() -> Option<u8> {
         // the level. As we are using a binary tree, the number of leaves at a
         // level is 2^level. Therefore, the number of levels that should be
         // executed in parallel is the log2 of the number of available threads.
-        let levels = (available_parallelism as f32).log2().ceil() as u8;
-        Some(levels)
+        let parallel_levels = (available_parallelism as f32).log2().ceil() as u8;
+
+        info!(
+            "Insert will be performed in parallel (available parallelism: {}, parallel levels: {})",
+            available_parallelism, parallel_levels
+        );
+        Some(parallel_levels)
     }
 }
 
@@ -266,7 +271,7 @@ impl Azks {
     /// Creates a new azks
     pub async fn new<S: Database>(storage: &StorageManager<S>) -> Result<Self, AkdError> {
         let root_node = new_root_node();
-        root_node.write_to_storage(storage).await?;
+        root_node.write_to_storage(storage, true).await?;
 
         let azks = Azks {
             latest_epoch: 0,
@@ -296,7 +301,7 @@ impl Azks {
 
         if !node_set.is_empty() {
             // call recursive batch insert on the root
-            let (root_node, num_inserted) = Self::recursive_batch_insert_nodes(
+            let (root_node, is_new, num_inserted) = Self::recursive_batch_insert_nodes(
                 storage,
                 Some(NodeLabel::root()),
                 node_set,
@@ -305,7 +310,7 @@ impl Azks {
                 get_parallel_levels(),
             )
             .await?;
-            root_node.write_to_storage(storage).await?;
+            root_node.write_to_storage(storage, is_new).await?;
 
             // update the number of nodes
             self.num_nodes += num_inserted;
@@ -319,7 +324,8 @@ impl Azks {
     /// Inserts a batch of leaves recursively from a given node label. Note: it
     /// is the caller's responsibility to write the returned node to storage.
     /// This is done so that the caller may set the 'parent' field of a node
-    /// before it is written to storage.
+    /// before it is written to storage. The is_new flag indicates whether the
+    /// returned node is new or not.
     #[async_recursion]
     pub(crate) async fn recursive_batch_insert_nodes<S: Database + 'static>(
         storage: &StorageManager<S>,
@@ -328,10 +334,11 @@ impl Azks {
         epoch: u64,
         insert_mode: InsertMode,
         parallel_levels: Option<u8>,
-    ) -> Result<(TreeNode, u64), AkdError> {
-        // Phase 1: Obtain the current root node of this subtree and count if a
-        // node is inserted.
+    ) -> Result<(TreeNode, bool, u64), AkdError> {
+        // Phase 1: Obtain the current root node of this subtree. If the node is
+        // new, mark it as so and count it towards the number of inserted nodes.
         let mut current_node;
+        let is_new;
         let mut num_inserted;
 
         match (node_label, &node_set[..]) {
@@ -353,13 +360,15 @@ impl Azks {
                     // the longest common prefix.
                     current_node = new_interior_node(lcp_label, epoch);
                     current_node.set_child(&mut existing_node)?;
-                    existing_node.write_to_storage(storage).await?;
+                    existing_node.write_to_storage(storage, false).await?;
+                    is_new = true;
                     num_inserted = 1;
                 } else {
                     // Case 1b: The existing node does not need to be
                     // decompressed as its label is longer than or equal to the
                     // longest common prefix of the node set.
                     current_node = existing_node;
+                    is_new = false;
                     num_inserted = 0;
                 }
             }
@@ -368,6 +377,7 @@ impl Azks {
                 // single element, meaning that a new leaf node should be
                 // created to represent the element.
                 current_node = new_leaf_node(node.label, &node.hash, epoch);
+                is_new = true;
                 num_inserted = 1;
             }
             (None, _) => {
@@ -377,6 +387,7 @@ impl Azks {
                 // the node set.
                 let lcp_label = node_set.get_longest_common_prefix();
                 current_node = new_interior_node(lcp_label, epoch);
+                is_new = true;
                 num_inserted = 1;
             }
         }
@@ -411,10 +422,10 @@ impl Azks {
                 Some(tokio::task::spawn(left_future))
             } else {
                 // else handle the left child in the current task
-                let (mut left_node, left_num_inserted) = left_future.await?;
+                let (mut left_node, left_is_new, left_num_inserted) = left_future.await?;
 
                 current_node.set_child(&mut left_node)?;
-                left_node.write_to_storage(storage).await?;
+                left_node.write_to_storage(storage, left_is_new).await?;
                 num_inserted += left_num_inserted;
                 None
             }
@@ -425,28 +436,29 @@ impl Azks {
         // handle the right child in the current task
         if !right_node_set.is_empty() {
             let right_child_label = current_node.get_child_label(Direction::Right)?;
-            let (mut right_node, right_num_inserted) = Azks::recursive_batch_insert_nodes(
-                storage,
-                right_child_label,
-                right_node_set,
-                epoch,
-                insert_mode,
-                child_parallel_levels,
-            )
-            .await?;
+            let (mut right_node, right_is_new, right_num_inserted) =
+                Azks::recursive_batch_insert_nodes(
+                    storage,
+                    right_child_label,
+                    right_node_set,
+                    epoch,
+                    insert_mode,
+                    child_parallel_levels,
+                )
+                .await?;
 
             current_node.set_child(&mut right_node)?;
-            right_node.write_to_storage(storage).await?;
+            right_node.write_to_storage(storage, right_is_new).await?;
             num_inserted += right_num_inserted;
         }
 
         // join on the handle for the left child, if present
         if let Some(handle) = maybe_handle {
-            let (mut left_node, left_num_inserted) = handle
+            let (mut left_node, left_is_new, left_num_inserted) = handle
                 .await
                 .map_err(|e| AkdError::Parallelism(ParallelismError::JoinErr(e.to_string())))??;
             current_node.set_child(&mut left_node)?;
-            left_node.write_to_storage(storage).await?;
+            left_node.write_to_storage(storage, left_is_new).await?;
             num_inserted += left_num_inserted;
         }
 
@@ -456,7 +468,7 @@ impl Azks {
             .update_node_hash::<_>(storage, NodeHashingMode::from(insert_mode))
             .await?;
 
-        Ok((current_node, num_inserted))
+        Ok((current_node, is_new, num_inserted))
     }
 
     pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
@@ -959,7 +971,7 @@ mod tests {
             let hash = crate::hash::hash(&input);
             let node = Node { label, hash };
             node_set.push(node);
-            let (root_node, _) = Azks::recursive_batch_insert_nodes(
+            let (root_node, is_new, _) = Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
                 NodeSet::from(vec![node]),
@@ -968,7 +980,7 @@ mod tests {
                 None,
             )
             .await?;
-            root_node.write_to_storage(&db).await?;
+            root_node.write_to_storage(&db, is_new).await?;
         }
 
         let database2 = AsyncInMemoryDatabase::new();
@@ -1067,7 +1079,7 @@ mod tests {
             rng.fill_bytes(&mut hash);
             let node = Node { label, hash };
             node_set.push(node);
-            let (root_node, _) = Azks::recursive_batch_insert_nodes(
+            let (root_node, is_new, _) = Azks::recursive_batch_insert_nodes(
                 &db,
                 Some(NodeLabel::root()),
                 NodeSet::from(vec![node]),
@@ -1076,7 +1088,7 @@ mod tests {
                 None,
             )
             .await?;
-            root_node.write_to_storage(&db).await?;
+            root_node.write_to_storage(&db, is_new).await?;
         }
 
         // Try randomly permuting

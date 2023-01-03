@@ -1,6 +1,6 @@
 [package]
 name = "akd_test_tools"
-version = "0.8.4"
+version = "0.8.5"
 authors = ["Evan Au <evanau@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Test utilities and tooling"
 license = "MIT OR Apache-2.0"
@@ -22,9 +22,9 @@ serde = "1.0"
 async-trait = "0.1"
 thread-id = "3"
 
-akd = { path = "../akd", features = ["serde_serialization"], version = "0.8.4" }
+akd = { path = "../akd", features = ["serde_serialization"], version = "0.8.5" }
 
 [dev-dependencies]
 assert_fs="1"
 
-akd = { path = "../akd", features = ["public-tests", "rand", "serde_serialization"], version = "0.8.4" }
+akd = { path = "../akd", features = ["public-tests", "rand", "serde_serialization"], version = "0.8.5" }
