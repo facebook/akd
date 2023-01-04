@@ -93,7 +93,7 @@ pub trait Storable: Clone + Sync + 'static {
 
 /// A database implementation backing storage for the AKD
 #[async_trait]
-pub trait Database: Clone + Send + Sync {
+pub trait Database: Send + Sync {
     /// Set a record in the database
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 

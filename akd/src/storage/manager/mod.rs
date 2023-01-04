@@ -51,14 +51,24 @@ mod tests;
 
 /// Represents the manager of the storage mediums, including caching
 /// and transactional operations (creating the transaction, committing it, etc)
-#[derive(Clone)]
 pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
     /// The underlying database managed by this storage manager
-    pub db: Db,
+    pub db: Arc<Db>,
 
     metrics: [Arc<AtomicU64>; NUM_METRICS],
+}
+
+impl<Db: Database> Clone for StorageManager<Db> {
+    fn clone(&self) -> Self {
+        Self {
+            cache: self.cache.clone(),
+            transaction: self.transaction.clone(),
+            db: self.db.clone(),
+            metrics: self.metrics.clone(),
+        }
+    }
 }
 
 unsafe impl<Db: Database> Sync for StorageManager<Db> {}
@@ -66,7 +76,7 @@ unsafe impl<Db: Database> Send for StorageManager<Db> {}
 
 impl<Db: Database> StorageManager<Db> {
     /// Create a new storage manager with NO CACHE
-    pub fn new_no_cache(db: Db) -> Self {
+    pub fn new_no_cache(db: Arc<Db>) -> Self {
         Self {
             cache: None,
             transaction: Transaction::new(),
@@ -77,7 +87,7 @@ impl<Db: Database> StorageManager<Db> {
 
     /// Create a new storage manager with a cache utilizing the options provided (or defaults)
     pub fn new(
-        db: Db,
+        db: Arc<Db>,
         cache_item_lifetime: Option<Duration>,
         cache_limit_bytes: Option<usize>,
         cache_clean_frequency: Option<Duration>,

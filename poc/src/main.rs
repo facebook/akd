@@ -22,6 +22,7 @@ use std::convert::From;
 use std::io::*;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
@@ -139,7 +140,7 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let storage_manager = StorageManager::new_no_cache(db);
+        let storage_manager = StorageManager::new_no_cache(Arc::new(db));
         let mut directory = Directory::<_, _>::new(storage_manager, vrf, false)
             .await
             .unwrap();
@@ -152,15 +153,17 @@ async fn main() {
         process_input(&cli, &tx, None).await;
     } else {
         // MySQL (the default)
-        let mysql_db = AsyncMySqlDatabase::new(
-            "localhost",
-            "default",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-            cli.mysql_insert_depth,
-        )
-        .await;
+        let mysql_db = Arc::new(
+            AsyncMySqlDatabase::new(
+                "localhost",
+                "default",
+                Option::from("root"),
+                Option::from("example"),
+                Option::from(8001),
+                cli.mysql_insert_depth,
+            )
+            .await,
+        );
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }

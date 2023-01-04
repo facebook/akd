@@ -119,7 +119,7 @@ pub(crate) async fn generate(args: Args) {
     writer.write_object(metadata);
 
     // initialize directory
-    let db = akd::storage::memory::AsyncInMemoryDatabase::new();
+    let db = std::sync::Arc::new(akd::storage::memory::AsyncInMemoryDatabase::new());
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db.clone());
     let akd = Directory::<_, _>::new(storage_manager, vrf, false)

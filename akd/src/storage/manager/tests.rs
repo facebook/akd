@@ -17,7 +17,7 @@ use crate::*;
 
 #[tokio::test]
 async fn test_storage_manager_transaction() {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage_manager = StorageManager::new_no_cache(db.clone());
 
     assert!(
@@ -108,7 +108,8 @@ async fn test_storage_manager_transaction() {
 
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_set() {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
+
     let storage_manager = StorageManager::new(db.clone(), None, None, None);
 
     let mut records = (0..10)
@@ -189,7 +190,7 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
 
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_get() {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage_manager = StorageManager::new(db.clone(), None, None, None);
 
     let mut keys = vec![];

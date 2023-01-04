@@ -63,6 +63,7 @@ ctor = "0.1"
 tokio-test = "0.4"
 tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
 mockall = "0.11"
+futures = "0.3"
 
 # To enable the public-test feature in tests
 akd = { path = ".", features = ["public-tests"], default-features = false }

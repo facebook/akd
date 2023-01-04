@@ -53,7 +53,7 @@ pub async fn verify_consecutive_append_only(
     let inserted = proof.inserted.clone();
 
     let db = AsyncInMemoryDatabase::new();
-    let manager = StorageManager::new_no_cache(db);
+    let manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 
     let mut azks = Azks::new::<_>(&manager).await?;
     azks.batch_insert_nodes::<_>(&manager, unchanged_nodes, InsertMode::Auditor)

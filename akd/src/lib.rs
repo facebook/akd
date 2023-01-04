@@ -54,7 +54,7 @@
 //! use akd::directory::Directory;
 //!
 //! let db = AsyncInMemoryDatabase::new();
-//! let storage_manager = StorageManager::new_no_cache(db);
+//! let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
@@ -75,7 +75,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! use akd::EpochHash;
 //! use akd::{AkdLabel, AkdValue};
@@ -86,7 +86,7 @@
 //!     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -109,7 +109,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -120,7 +120,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -142,7 +142,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -153,7 +153,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -196,7 +196,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -207,7 +207,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -236,7 +236,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::HistoryParams;
@@ -248,7 +248,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -300,7 +300,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -311,7 +311,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
@@ -339,7 +339,7 @@
 //! # use akd::directory::Directory;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
@@ -350,7 +350,7 @@
 //! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
-//! # let storage_manager = StorageManager::new_no_cache(db);
+//! # let storage_manager = StorageManager::new_no_cache(std::sync::Arc::new(db));
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};

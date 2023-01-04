@@ -8,6 +8,7 @@
 //! Example test utilizing a fixture file.
 
 use std::fs::File;
+use std::sync::Arc;
 
 use akd::{
     directory::Directory,
@@ -30,7 +31,7 @@ async fn test_use_fixture() {
 
     // prepare directory with initial state
     let initial_state = reader.read_state(epochs[0]).unwrap();
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     db.batch_set(initial_state.records, akd::storage::DbSetState::General)
         .await
         .unwrap();

@@ -583,6 +583,8 @@ pub(crate) fn new_leaf_node(label: NodeLabel, value: &Digest, birth_epoch: u64) 
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::utils::byte_arr_from_u64;
     use crate::{NodeLabel, EMPTY_VALUE};
@@ -595,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_smallest_descendant_ep() -> Result<(), AkdError> {
-        let database = InMemoryDb::new();
+        let database = Arc::new(InMemoryDb::new());
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node();
 
@@ -689,7 +691,7 @@ mod tests {
     // insert_single_leaf tests
     #[tokio::test]
     async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
-        let database = InMemoryDb::new();
+        let database = Arc::new(InMemoryDb::new());
         let db = StorageManager::new_no_cache(database);
 
         let mut root = new_root_node();
@@ -751,7 +753,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
-        let database = InMemoryDb::new();
+        let database = Arc::new(InMemoryDb::new());
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node();
 
@@ -835,7 +837,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
-        let database = InMemoryDb::new();
+        let database = Arc::new(InMemoryDb::new());
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node();
 
@@ -950,7 +952,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
-        let database = InMemoryDb::new();
+        let database = Arc::new(InMemoryDb::new());
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node();
 

@@ -9,6 +9,7 @@
 //! Contains the tests for the high-level API (directory, auditor, client)
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::{
     auditor::audit_verify,
@@ -66,72 +67,70 @@ mockall::mock! {
     }
 }
 
-fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: &AsyncInMemoryDatabase) {
-    let tokio_handle = tokio::runtime::Handle::current();
-
+fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: Arc<AsyncInMemoryDatabase>) {
     // ===== Set ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_set()
-        .returning(move |record| handle.block_on(tmp_db.set(record)));
+        .returning(move |record| futures::executor::block_on(tmp_db.set(record)));
 
     // ===== Batch Set ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
-    db.expect_batch_set()
-        .returning(move |record, other| handle.block_on(tmp_db.batch_set(record, other)));
+    db.expect_batch_set().returning(move |record, other| {
+        futures::executor::block_on(tmp_db.batch_set(record, other))
+    });
 
     // ===== Get ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_get::<Azks>()
-        .returning(move |key| handle.block_on(tmp_db.get::<Azks>(key)));
-    let handle = tokio_handle.clone();
+        .returning(move |key| futures::executor::block_on(tmp_db.get::<Azks>(key)));
+
     let tmp_db = test_db.clone();
     db.expect_get::<TreeNodeWithPreviousValue>()
-        .returning(move |key| handle.block_on(tmp_db.get::<TreeNodeWithPreviousValue>(key)));
-    let handle = tokio_handle.clone();
+        .returning(move |key| {
+            futures::executor::block_on(tmp_db.get::<TreeNodeWithPreviousValue>(key))
+        });
+
     let tmp_db = test_db.clone();
     db.expect_get::<Azks>()
-        .returning(move |key| handle.block_on(tmp_db.get::<Azks>(key)));
+        .returning(move |key| futures::executor::block_on(tmp_db.get::<Azks>(key)));
 
     // ===== Batch Get ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_batch_get::<Azks>()
-        .returning(move |key| handle.block_on(tmp_db.batch_get::<Azks>(key)));
-    let handle = tokio_handle.clone();
+        .returning(move |key| futures::executor::block_on(tmp_db.batch_get::<Azks>(key)));
+
     let tmp_db = test_db.clone();
     db.expect_batch_get::<TreeNodeWithPreviousValue>()
-        .returning(move |key| handle.block_on(tmp_db.batch_get::<TreeNodeWithPreviousValue>(key)));
-    let handle = tokio_handle.clone();
+        .returning(move |key| {
+            futures::executor::block_on(tmp_db.batch_get::<TreeNodeWithPreviousValue>(key))
+        });
+
     let tmp_db = test_db.clone();
     db.expect_batch_get::<Azks>()
-        .returning(move |key| handle.block_on(tmp_db.batch_get::<Azks>(key)));
+        .returning(move |key| futures::executor::block_on(tmp_db.batch_get::<Azks>(key)));
 
     // ===== Get User Data ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_get_user_data()
-        .returning(move |arg| handle.block_on(tmp_db.get_user_data(arg)));
+        .returning(move |arg| futures::executor::block_on(tmp_db.get_user_data(arg)));
 
     // ===== Get User State ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_get_user_state()
-        .returning(move |arg, flag| handle.block_on(tmp_db.get_user_state(arg, flag)));
+        .returning(move |arg, flag| futures::executor::block_on(tmp_db.get_user_state(arg, flag)));
 
     // ===== Get User State Versions ===== //
-    let handle = tokio_handle.clone();
     let tmp_db = test_db.clone();
     db.expect_get_user_state_versions()
-        .returning(move |arg, flag| handle.block_on(tmp_db.get_user_state_versions(arg, flag)));
+        .returning(move |arg, flag| {
+            futures::executor::block_on(tmp_db.get_user_state_versions(arg, flag))
+        });
 }
 
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]
 async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -188,7 +187,7 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
 // A simple publish test to make sure a publish doesn't throw an error.
 #[tokio::test]
 async fn test_simple_publish() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -207,7 +206,7 @@ async fn test_simple_publish() -> Result<(), AkdError> {
 // that the output of akd.lookup verifies on the client.
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -245,7 +244,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // This test has an akd with a single label: "hello"
     // The value of this label is updated two times.
     // Then the test verifies the key history.
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -304,7 +303,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
 // checks that the valid proofs verify. It doesn't do much more.
 #[tokio::test]
 async fn test_simple_key_history() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -481,7 +480,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
 // We also want this update to verify.
 #[tokio::test]
 async fn test_limited_key_history() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -653,7 +652,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // insertion of a new label "hello2". Meanwhile, the server has a one epoch
     // delay in marking the first version for "hello" as stale, which should
     // be caught by key history verifications for "hello".
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -728,7 +727,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
 // that invalid audit proofs fail.
 #[tokio::test]
 async fn test_simple_audit() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -888,7 +887,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_read_during_publish() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -993,7 +992,7 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
 // exists in storage.
 #[tokio::test]
 async fn test_directory_read_only_mode() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
@@ -1016,7 +1015,7 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
 // between the local cache and storage.
 #[tokio::test]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new(db, None, None, None);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
@@ -1078,7 +1077,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -1169,14 +1168,14 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_publish_op_makes_no_get_requests() {
-    let test_db = AsyncInMemoryDatabase::new();
+    let test_db = Arc::new(AsyncInMemoryDatabase::new());
 
     let mut db = MockLocalDatabase {
         ..Default::default()
     };
-    setup_mocked_db(&mut db, &test_db);
+    setup_mocked_db(&mut db, test_db.clone());
 
-    let storage = StorageManager::new_no_cache(db);
+    let storage = StorageManager::new_no_cache(Arc::new(db));
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false)
         .await
@@ -1202,11 +1201,11 @@ async fn test_publish_op_makes_no_get_requests() {
     let mut db2 = MockLocalDatabase {
         ..Default::default()
     };
-    setup_mocked_db(&mut db2, &test_db);
+    setup_mocked_db(&mut db2, test_db.clone());
     db2.expect_get::<TreeNodeWithPreviousValue>()
         .returning(|_| Err(StorageError::Other("Boom!".to_string())));
 
-    let storage = StorageManager::new_no_cache(db2);
+    let storage = StorageManager::new_no_cache(Arc::new(db2));
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false)
         .await
@@ -1237,7 +1236,7 @@ async fn test_publish_op_makes_no_get_requests() {
 // Test lookup in a smaller tree with 2 leaves, using the Blake3 hash function.
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -1290,7 +1289,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
 #[cfg(feature = "sha3_256")]
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
+    let db = Arc::new(AsyncInMemoryDatabase::new());
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0

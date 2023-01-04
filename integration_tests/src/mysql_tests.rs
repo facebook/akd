@@ -5,6 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
+use std::sync::Arc;
+
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::StorageManager;
 use akd_mysql::mysql::*;
@@ -31,15 +33,17 @@ async fn test_directory_operations() {
         }
 
         // connect to the newly created test db
-        let mysql_db = AsyncMySqlDatabase::new(
-            "localhost",
-            "test_db",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-            200,
-        )
-        .await;
+        let mysql_db = Arc::new(
+            AsyncMySqlDatabase::new(
+                "localhost",
+                "test_db",
+                Option::from("root"),
+                Option::from("example"),
+                Option::from(8001),
+                200,
+            )
+            .await,
+        );
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -92,15 +96,17 @@ async fn test_directory_operations_with_caching() {
         }
 
         // connect to the newly created test db
-        let mysql_db = AsyncMySqlDatabase::new(
-            "localhost",
-            "test_db",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-            200,
-        )
-        .await;
+        let mysql_db = Arc::new(
+            AsyncMySqlDatabase::new(
+                "localhost",
+                "test_db",
+                Option::from("root"),
+                Option::from("example"),
+                Option::from(8001),
+                200,
+            )
+            .await,
+        );
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -153,15 +159,17 @@ async fn test_lookups() {
         }
 
         // connect to the newly created test db
-        let mysql_db = AsyncMySqlDatabase::new(
-            "localhost",
-            "test_db",
-            Option::from("root"),
-            Option::from("example"),
-            Option::from(8001),
-            200,
-        )
-        .await;
+        let mysql_db = Arc::new(
+            AsyncMySqlDatabase::new(
+                "localhost",
+                "test_db",
+                Option::from("root"),
+                Option::from("example"),
+                Option::from(8001),
+                200,
+            )
+            .await,
+        );
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
