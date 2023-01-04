@@ -8,15 +8,123 @@
 
 //! Contains the tests for the high-level API (directory, auditor, client)
 
+use std::collections::HashMap;
+
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
     directory::{Directory, PublishCorruption},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
-    errors::AkdError,
-    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, Database},
-    AkdLabel, AkdValue, HistoryParams, HistoryVerificationParams, VerifyResult,
+    errors::{AkdError, StorageError},
+    storage::{
+        manager::StorageManager,
+        memory::AsyncInMemoryDatabase,
+        types::{DbRecord, KeyData, ValueState, ValueStateRetrievalFlag},
+        Database, DbSetState, Storable,
+    },
+    tree_node::TreeNodeWithPreviousValue,
+    AkdLabel, AkdValue, Azks, HistoryParams, HistoryVerificationParams, VerifyResult,
 };
+
+#[derive(Clone)]
+pub struct LocalDatabase;
+
+unsafe impl Send for LocalDatabase {}
+unsafe impl Sync for LocalDatabase {}
+
+mockall::mock! {
+    pub LocalDatabase {
+
+    }
+    impl Clone for LocalDatabase {
+        fn clone(&self) -> Self;
+    }
+    #[async_trait::async_trait]
+    impl Database for LocalDatabase {
+        async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
+        async fn batch_set(
+            &self,
+            records: Vec<DbRecord>,
+            state: DbSetState,
+        ) -> Result<(), StorageError>;
+        async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError>;
+        async fn batch_get<St: Storable>(
+            &self,
+            ids: &[St::StorageKey],
+        ) -> Result<Vec<DbRecord>, StorageError>;
+        async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError>;
+        async fn get_user_state(
+            &self,
+            username: &AkdLabel,
+            flag: ValueStateRetrievalFlag,
+        ) -> Result<ValueState, StorageError>;
+        async fn get_user_state_versions(
+            &self,
+            usernames: &[AkdLabel],
+            flag: ValueStateRetrievalFlag,
+        ) -> Result<HashMap<AkdLabel, (u64, AkdValue)>, StorageError>;
+    }
+}
+
+fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: &AsyncInMemoryDatabase) {
+    // ===== Set ===== //
+    let tmp_db = test_db.clone();
+    db.expect_set()
+        .returning(move |record| futures::executor::block_on(tmp_db.set(record)));
+
+    // ===== Batch Set ===== //
+    let tmp_db = test_db.clone();
+    db.expect_batch_set().returning(move |record, other| {
+        futures::executor::block_on(tmp_db.batch_set(record, other))
+    });
+
+    // ===== Get ===== //
+    let tmp_db = test_db.clone();
+    db.expect_get::<Azks>()
+        .returning(move |key| futures::executor::block_on(tmp_db.get::<Azks>(key)));
+
+    let tmp_db = test_db.clone();
+    db.expect_get::<TreeNodeWithPreviousValue>()
+        .returning(move |key| {
+            futures::executor::block_on(tmp_db.get::<TreeNodeWithPreviousValue>(key))
+        });
+
+    let tmp_db = test_db.clone();
+    db.expect_get::<Azks>()
+        .returning(move |key| futures::executor::block_on(tmp_db.get::<Azks>(key)));
+
+    // ===== Batch Get ===== //
+    let tmp_db = test_db.clone();
+    db.expect_batch_get::<Azks>()
+        .returning(move |key| futures::executor::block_on(tmp_db.batch_get::<Azks>(key)));
+
+    let tmp_db = test_db.clone();
+    db.expect_batch_get::<TreeNodeWithPreviousValue>()
+        .returning(move |key| {
+            futures::executor::block_on(tmp_db.batch_get::<TreeNodeWithPreviousValue>(key))
+        });
+
+    let tmp_db = test_db.clone();
+    db.expect_batch_get::<Azks>()
+        .returning(move |key| futures::executor::block_on(tmp_db.batch_get::<Azks>(key)));
+
+    // ===== Get User Data ===== //
+    let tmp_db = test_db.clone();
+    db.expect_get_user_data()
+        .returning(move |arg| futures::executor::block_on(tmp_db.get_user_data(arg)));
+
+    // ===== Get User State ===== //
+    let tmp_db = test_db.clone();
+    db.expect_get_user_state()
+        .returning(move |arg, flag| futures::executor::block_on(tmp_db.get_user_state(arg, flag)));
+
+    // ===== Get User State Versions ===== //
+    let tmp_db = test_db.clone();
+    db.expect_get_user_state_versions()
+        .returning(move |arg, flag| {
+            futures::executor::block_on(tmp_db.get_user_state_versions(arg, flag))
+        });
+}
 
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]
@@ -1055,6 +1163,67 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     assert_eq!(crate::TOMBSTONE, results[4].value.0);
 
     Ok(())
+}
+
+#[tokio::test]
+async fn test_publish_op_makes_no_get_requests() {
+    let test_db = AsyncInMemoryDatabase::new();
+
+    let mut db = MockLocalDatabase {
+        ..Default::default()
+    };
+    setup_mocked_db(&mut db, &test_db);
+
+    let storage = StorageManager::new_no_cache(db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new(storage, vrf, false)
+        .await
+        .expect("Failed to create directory");
+
+    // Create a set with 2 updates, (label, value) pairs
+    // ("hello10", "hello10")
+    // ("hello11", "hello11")
+    let mut updates = vec![];
+    for i in 0..1 {
+        updates.push((
+            AkdLabel(format!("hello1{}", i).as_bytes().to_vec()),
+            AkdValue(format!("hello1{}", i).as_bytes().to_vec()),
+        ));
+    }
+    // Publish the updates. Now the akd's epoch will be 1.
+    akd.publish(updates)
+        .await
+        .expect("Failed to do initial publish");
+
+    // create a new mock, this time which explodes on any "get" of tree-nodes (shouldn't happen). It is still backed by the same
+    // async in-mem db so all previous data should be there
+    let mut db2 = MockLocalDatabase {
+        ..Default::default()
+    };
+    setup_mocked_db(&mut db2, &test_db);
+    db2.expect_get::<TreeNodeWithPreviousValue>()
+        .returning(|_| Err(StorageError::Other("Boom!".to_string())));
+
+    let storage = StorageManager::new_no_cache(db2);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new(storage, vrf, false)
+        .await
+        .expect("Failed to create directory");
+
+    // create more updates
+    let mut updates = vec![];
+    for i in 0..1 {
+        updates.push((
+            AkdLabel(format!("hello1{}", i).as_bytes().to_vec()),
+            AkdValue(format!("hello1{}", i + 1).as_bytes().to_vec()),
+        ));
+    }
+
+    // try to publish again, this time with the "boom" returning from any mocked get-calls
+    // on tree nodes
+    akd.publish(updates)
+        .await
+        .expect("Failed to do subsequent publish");
 }
 
 // Test coverage on issue #144, verification failures with

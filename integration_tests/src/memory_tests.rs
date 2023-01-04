@@ -7,7 +7,6 @@
 
 use akd::{ecvrf::HardCodedAkdVRF, storage::StorageManager};
 use log::info;
-
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
 
 #[tokio::test]

@@ -404,7 +404,7 @@ async fn process_input(
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.db.delete_data().await {
+                    if let Err(error) = mysql_db.get_db().delete_data().await {
                         error!("Error flushing database: {}", error);
                     } else {
                         info!("Database flushed.");
@@ -414,7 +414,7 @@ async fn process_input(
             OtherMode::Drop => {
                 println!("======= Dropping database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.db.drop_tables().await {
+                    if let Err(error) = mysql_db.get_db().drop_tables().await {
                         error!("Error dropping database: {}", error);
                     } else {
                         info!("Database dropped.");
@@ -448,7 +448,7 @@ async fn process_input(
                 Command::Flush => {
                     println!("Flushing the database...");
                     if let Some(mysql_db) = &db {
-                        if let Err(error) = mysql_db.db.delete_data().await {
+                        if let Err(error) = mysql_db.get_db().delete_data().await {
                             println!("Error flushing database: {}", error);
                         } else {
                             println!(
@@ -464,7 +464,7 @@ async fn process_input(
                     }
                     println!("===== Auditable Key Directory Information =====");
                     if let Some(mysql) = &db {
-                        println!("      Database properties ({})", mysql.db);
+                        println!("      Database properties ({})", mysql.get_db());
                     } else {
                         println!("      Connected to an in-memory database");
                     }

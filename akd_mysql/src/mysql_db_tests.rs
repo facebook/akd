@@ -45,10 +45,10 @@ async fn test_mysql_db() {
         }
 
         // The test cases
-        akd::storage::tests::run_test_cases_for_storage_impl(&mysql_db).await;
+        let manager = akd::storage::tests::run_test_cases_for_storage_impl(mysql_db.clone()).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = manager.get_db().drop_tables().await {
             println!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error

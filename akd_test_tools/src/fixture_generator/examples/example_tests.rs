@@ -35,8 +35,8 @@ async fn test_use_fixture() {
         .await
         .unwrap();
     let vrf = HardCodedAkdVRF {};
-    let storage_manager = StorageManager::new_no_cache(db.clone());
-    let akd = Directory::<_, _>::new(storage_manager, vrf, false)
+    let storage_manager = StorageManager::new_no_cache(db);
+    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
         .await
         .unwrap();
 
@@ -46,7 +46,11 @@ async fn test_use_fixture() {
 
     // assert final directory state
     let final_state = reader.read_state(epochs[1]).unwrap();
-    let records = db.batch_get_all_direct().await.unwrap();
+    let records = storage_manager
+        .get_db()
+        .batch_get_all_direct()
+        .await
+        .unwrap();
     assert_eq!(final_state.records.len(), records.len());
     assert!(records.iter().all(|r| final_state.records.contains(r)));
 }

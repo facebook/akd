@@ -58,7 +58,8 @@ async fn test_directory_operations() {
         storage_manager.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
@@ -119,7 +120,8 @@ async fn test_directory_operations_with_caching() {
         storage_manager.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
@@ -169,12 +171,13 @@ async fn test_lookups() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
+        let storage_manager = StorageManager::new(mysql_db, None, None, None);
         crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
             .await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error

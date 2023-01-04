@@ -43,7 +43,7 @@ pub enum DbSetState {
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(feature = "serde_serialization")]
-pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
+pub trait Storable: Clone + Serialize + DeserializeOwned + Sync + 'static {
     /// This particular storage will have a key type
     type StorageKey: Clone + Serialize + Eq + Hash + Send + Sync + std::fmt::Debug;
 
@@ -68,7 +68,7 @@ pub trait Storable: Clone + Serialize + DeserializeOwned + Sync {
 
 /// Storable represents an _item_ which can be stored in the storage layer
 #[cfg(not(feature = "serde_serialization"))]
-pub trait Storable: Clone + Sync {
+pub trait Storable: Clone + Sync + 'static {
     /// This particular storage will have a key type
     type StorageKey: Clone + Eq + Hash + Send + Sync + std::fmt::Debug;
 
@@ -93,7 +93,7 @@ pub trait Storable: Clone + Sync {
 
 /// A database implementation backing storage for the AKD
 #[async_trait]
-pub trait Database: Clone + Send + Sync {
+pub trait Database: Send + Sync {
     /// Set a record in the database
     async fn set(&self, record: DbRecord) -> Result<(), StorageError>;
 

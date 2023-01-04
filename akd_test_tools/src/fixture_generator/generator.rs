@@ -121,8 +121,8 @@ pub(crate) async fn generate(args: Args) {
     // initialize directory
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
-    let storage_manager = StorageManager::new_no_cache(db.clone());
-    let akd = Directory::<_, _>::new(storage_manager, vrf, false)
+    let storage_manager = StorageManager::new_no_cache(db);
+    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
         .await
         .unwrap();
 
@@ -169,7 +169,11 @@ pub(crate) async fn generate(args: Args) {
                 let comment = format!("{} {}", STATE_COMMENT, epoch);
                 let state = State {
                     epoch,
-                    records: db.batch_get_all_direct().await.unwrap(),
+                    records: storage_manager
+                        .get_db()
+                        .batch_get_all_direct()
+                        .await
+                        .unwrap(),
                 };
                 writer.write_line();
                 writer.write_comment(&comment);

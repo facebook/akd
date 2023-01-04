@@ -18,7 +18,7 @@ use crate::*;
 #[tokio::test]
 async fn test_storage_manager_transaction() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new_no_cache(db.clone());
+    let storage_manager = StorageManager::new_no_cache(db);
 
     assert!(
         storage_manager.begin_transaction(),
@@ -67,7 +67,11 @@ async fn test_storage_manager_transaction() {
     // there should be no items in the db, as they should all be in the transaction log
     assert_eq!(
         Ok(0),
-        db.batch_get_all_direct().await.map(|items| items.len())
+        storage_manager
+            .db
+            .batch_get_all_direct()
+            .await
+            .map(|items| items.len())
     );
     assert_eq!(11, storage_manager.transaction.count());
 
@@ -101,7 +105,11 @@ async fn test_storage_manager_transaction() {
     // now the records should be in the database and the transaction log empty
     assert_eq!(
         Ok(11),
-        db.batch_get_all_direct().await.map(|items| items.len())
+        storage_manager
+            .db
+            .batch_get_all_direct()
+            .await
+            .map(|items| items.len())
     );
     assert_eq!(0, storage_manager.transaction.count());
 }
@@ -109,7 +117,8 @@ async fn test_storage_manager_transaction() {
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_set() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new(db.clone(), None, None, None);
+
+    let storage_manager = StorageManager::new(db, None, None, None);
 
     let mut records = (0..10)
         .into_iter()
@@ -153,7 +162,7 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
         .expect("Failed to set batch of records");
 
     // flush the database
-    db.clear().await;
+    storage_manager.db.clear().await;
 
     // test a retrieval still gets data (from the cache)
     let key = NodeKey(NodeLabel {
@@ -190,7 +199,7 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
 #[tokio::test]
 async fn test_storage_manager_cache_populated_by_batch_get() {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new(db.clone(), None, None, None);
+    let storage_manager = StorageManager::new(db, None, None, None);
 
     let mut keys = vec![];
     let mut records = (0..10)
@@ -235,12 +244,13 @@ async fn test_storage_manager_cache_populated_by_batch_get() {
         .await
         .expect("Failed to set batch of records");
 
+    let db_arc = storage_manager.get_db();
     // flush the cache by destroying the storage manager
     drop(storage_manager);
 
     // re-create the storage manager, and run a batch_get of the same data keys to populate the cache
     let storage_manager = StorageManager::new(
-        db.clone(),
+        Arc::try_unwrap(db_arc).expect("Failed to grab arc"),
         Some(std::time::Duration::from_secs(1000)),
         None,
         None,
@@ -252,7 +262,7 @@ async fn test_storage_manager_cache_populated_by_batch_get() {
         .expect("Failed to get a batch of records");
 
     // flush the database
-    db.clear().await;
+    storage_manager.db.clear().await;
 
     // test a retrieval still gets data (from the cache)
     let key = NodeKey(NodeLabel {
