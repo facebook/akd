@@ -66,17 +66,20 @@ impl Transaction {
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
     pub fn log_metrics(&self, level: log::Level) {
-        let r = self.num_reads.swap(0, Ordering::Relaxed);
-        let w = self.num_writes.swap(0, Ordering::Relaxed);
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let r = self.num_reads.swap(0, Ordering::Relaxed);
+            let w = self.num_writes.swap(0, Ordering::Relaxed);
 
-        let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
+            let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
 
-        match level {
-            log::Level::Trace => trace!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
+            match level {
+                log::Level::Trace => trace!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
         }
     }
 

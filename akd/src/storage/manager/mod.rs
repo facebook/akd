@@ -123,14 +123,16 @@ impl<Db: Database> StorageManager<Db> {
 
         self.transaction.log_metrics(level);
 
-        let snapshot = self
-            .metrics
-            .iter()
-            .map(|metric| metric.load(Ordering::Relaxed))
-            .collect::<Vec<_>>();
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let snapshot = self
+                .metrics
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect::<Vec<_>>();
 
-        let msg = format!(
-            "
+            let msg = format!(
+                "
 ===================================================
 ============ Database operation counts ============
 ===================================================
@@ -147,26 +149,27 @@ impl<Db: Database> StorageManager<Db> {
 ===================================================
     TIME READ {} ms
     TIME WRITE {} ms",
-            snapshot[METRIC_SET],
-            snapshot[METRIC_BATCH_SET],
-            snapshot[METRIC_GET],
-            snapshot[METRIC_BATCH_GET],
-            snapshot[METRIC_TOMBSTONE],
-            snapshot[METRIC_GET_USER_STATE],
-            snapshot[METRIC_GET_USER_DATA],
-            snapshot[METRIC_GET_USER_STATE_VERSIONS],
-            snapshot[METRIC_READ_TIME],
-            snapshot[METRIC_WRITE_TIME]
-        );
+                snapshot[METRIC_SET],
+                snapshot[METRIC_BATCH_SET],
+                snapshot[METRIC_GET],
+                snapshot[METRIC_BATCH_GET],
+                snapshot[METRIC_TOMBSTONE],
+                snapshot[METRIC_GET_USER_STATE],
+                snapshot[METRIC_GET_USER_DATA],
+                snapshot[METRIC_GET_USER_STATE_VERSIONS],
+                snapshot[METRIC_READ_TIME],
+                snapshot[METRIC_WRITE_TIME]
+            );
 
-        match level {
-            // Currently logs cannot be captured unless they are
-            // println!. Normally Level::Trace should use the trace! macro.
-            log::Level::Trace => println!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
+            match level {
+                // Currently logs cannot be captured unless they are
+                // println!. Normally Level::Trace should use the trace! macro.
+                log::Level::Trace => println!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
         }
     }
 
