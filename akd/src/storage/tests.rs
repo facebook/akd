@@ -381,7 +381,7 @@ async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
     let tic = Instant::now();
     assert!(storage.begin_transaction());
     assert_eq!(Ok(()), storage.batch_set(new_data).await);
-    assert_eq!(Ok(()), storage.commit_transaction().await);
+    assert!(matches!(storage.commit_transaction().await, Ok(_)));
     let toc: Duration = Instant::now() - tic;
     println!("Transactional storage batch op: {} ms", toc.as_millis());
 

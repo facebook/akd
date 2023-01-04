@@ -184,9 +184,10 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Commit a transaction in the database
-    pub async fn commit_transaction(&self) -> Result<(), StorageError> {
+    pub async fn commit_transaction(&self) -> Result<u64, StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let records = self.transaction.commit_transaction()?;
+        let num_records = records.len();
 
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
@@ -196,7 +197,7 @@ impl<Db: Database> StorageManager<Db> {
 
         if records.is_empty() {
             // no-op, there's nothing to commit
-            return Ok(());
+            return Ok(0);
         }
 
         let _epoch = match records.last() {
@@ -219,7 +220,7 @@ impl<Db: Database> StorageManager<Db> {
         )
         .await?;
         self.increment_metric(METRIC_BATCH_SET);
-        Ok(())
+        Ok(num_records as u64)
     }
 
     /// Rollback a transaction
