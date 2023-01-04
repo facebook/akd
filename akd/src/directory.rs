@@ -243,6 +243,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 info!("Transaction committed ({} records)", num_records);
             }
             Err(err) => {
+                error!("Failed to commit transaction, rolling back");
                 let _ = self.storage.rollback_transaction();
                 return Err(AkdError::Storage(err));
             }
