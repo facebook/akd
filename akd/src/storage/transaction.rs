@@ -17,7 +17,9 @@ use dashmap::DashMap;
 #[cfg(feature = "runtime_metrics")]
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+#[cfg(feature = "runtime_metrics")]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// Represents an in-memory transaction, keeping a mutable state
