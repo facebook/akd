@@ -238,12 +238,16 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         // Commit the transaction
         info!("Committing transaction");
-        if let Err(err) = self.storage.commit_transaction().await {
-            let _ = self.storage.rollback_transaction();
-            return Err(AkdError::Storage(err));
-        } else {
-            info!("Transaction committed");
-        }
+        match self.storage.commit_transaction().await {
+            Ok(num_records) => {
+                info!("Transaction committed ({} records)", num_records);
+            }
+            Err(err) => {
+                error!("Failed to commit transaction, rolling back");
+                let _ = self.storage.rollback_transaction();
+                return Err(AkdError::Storage(err));
+            }
+        };
 
         let root_hash = current_azks
             .get_root_hash_safe::<_>(&self.storage, next_epoch)

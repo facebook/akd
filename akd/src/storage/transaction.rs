@@ -14,9 +14,12 @@ use crate::storage::types::ValueStateRetrievalFlag;
 use crate::storage::Storable;
 
 use dashmap::DashMap;
+#[cfg(feature = "runtime_metrics")]
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+#[cfg(feature = "runtime_metrics")]
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// Represents an in-memory transaction, keeping a mutable state
@@ -28,7 +31,9 @@ pub struct Transaction {
     mods: Arc<DashMap<Vec<u8>, DbRecord>>,
     active: Arc<AtomicBool>,
 
+    #[cfg(feature = "runtime_metrics")]
     num_reads: Arc<AtomicU64>,
+    #[cfg(feature = "runtime_metrics")]
     num_writes: Arc<AtomicU64>,
 }
 
@@ -54,7 +59,9 @@ impl Transaction {
             mods: Arc::new(DashMap::new()),
             active: Arc::new(AtomicBool::new(false)),
 
+            #[cfg(feature = "runtime_metrics")]
             num_reads: Arc::new(AtomicU64::new(0)),
+            #[cfg(feature = "runtime_metrics")]
             num_writes: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -65,18 +72,21 @@ impl Transaction {
     }
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
-    pub fn log_metrics(&self, level: log::Level) {
-        let r = self.num_reads.swap(0, Ordering::Relaxed);
-        let w = self.num_writes.swap(0, Ordering::Relaxed);
+    pub fn log_metrics(&self, _level: log::Level) {
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let r = self.num_reads.swap(0, Ordering::Relaxed);
+            let w = self.num_writes.swap(0, Ordering::Relaxed);
 
-        let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
+            let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
 
-        match level {
-            log::Level::Trace => trace!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
+            match _level {
+                log::Level::Trace => trace!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
         }
     }
 

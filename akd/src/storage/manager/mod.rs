@@ -22,10 +22,14 @@ use crate::storage::StorageError;
 use crate::AkdLabel;
 use crate::AkdValue;
 
-use log::{debug, error, info, warn};
+use log::debug;
+#[cfg(feature = "runtime_metrics")]
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+#[cfg(feature = "runtime_metrics")]
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -123,14 +127,16 @@ impl<Db: Database> StorageManager<Db> {
 
         self.transaction.log_metrics(level);
 
-        let snapshot = self
-            .metrics
-            .iter()
-            .map(|metric| metric.load(Ordering::Relaxed))
-            .collect::<Vec<_>>();
+        #[cfg(feature = "runtime_metrics")]
+        {
+            let snapshot = self
+                .metrics
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect::<Vec<_>>();
 
-        let msg = format!(
-            "
+            let msg = format!(
+                "
 ===================================================
 ============ Database operation counts ============
 ===================================================
@@ -147,26 +153,27 @@ impl<Db: Database> StorageManager<Db> {
 ===================================================
     TIME READ {} ms
     TIME WRITE {} ms",
-            snapshot[METRIC_SET],
-            snapshot[METRIC_BATCH_SET],
-            snapshot[METRIC_GET],
-            snapshot[METRIC_BATCH_GET],
-            snapshot[METRIC_TOMBSTONE],
-            snapshot[METRIC_GET_USER_STATE],
-            snapshot[METRIC_GET_USER_DATA],
-            snapshot[METRIC_GET_USER_STATE_VERSIONS],
-            snapshot[METRIC_READ_TIME],
-            snapshot[METRIC_WRITE_TIME]
-        );
+                snapshot[METRIC_SET],
+                snapshot[METRIC_BATCH_SET],
+                snapshot[METRIC_GET],
+                snapshot[METRIC_BATCH_GET],
+                snapshot[METRIC_TOMBSTONE],
+                snapshot[METRIC_GET_USER_STATE],
+                snapshot[METRIC_GET_USER_DATA],
+                snapshot[METRIC_GET_USER_STATE_VERSIONS],
+                snapshot[METRIC_READ_TIME],
+                snapshot[METRIC_WRITE_TIME]
+            );
 
-        match level {
-            // Currently logs cannot be captured unless they are
-            // println!. Normally Level::Trace should use the trace! macro.
-            log::Level::Trace => println!("{}", msg),
-            log::Level::Debug => debug!("{}", msg),
-            log::Level::Info => info!("{}", msg),
-            log::Level::Warn => warn!("{}", msg),
-            _ => error!("{}", msg),
+            match level {
+                // Currently logs cannot be captured unless they are
+                // println!. Normally Level::Trace should use the trace! macro.
+                log::Level::Trace => println!("{}", msg),
+                log::Level::Debug => debug!("{}", msg),
+                log::Level::Info => info!("{}", msg),
+                log::Level::Warn => warn!("{}", msg),
+                _ => error!("{}", msg),
+            }
         }
     }
 
@@ -184,9 +191,10 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Commit a transaction in the database
-    pub async fn commit_transaction(&self) -> Result<(), StorageError> {
+    pub async fn commit_transaction(&self) -> Result<u64, StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let records = self.transaction.commit_transaction()?;
+        let num_records = records.len();
 
         // The transaction is now complete (or reverted) and therefore we can re-enable
         // the cache cleaning status
@@ -196,7 +204,7 @@ impl<Db: Database> StorageManager<Db> {
 
         if records.is_empty() {
             // no-op, there's nothing to commit
-            return Ok(());
+            return Ok(0);
         }
 
         let _epoch = match records.last() {
@@ -219,7 +227,7 @@ impl<Db: Database> StorageManager<Db> {
         )
         .await?;
         self.increment_metric(METRIC_BATCH_SET);
-        Ok(())
+        Ok(num_records as u64)
     }
 
     /// Rollback a transaction
