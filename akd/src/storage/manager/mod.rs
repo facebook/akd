@@ -22,10 +22,14 @@ use crate::storage::StorageError;
 use crate::AkdLabel;
 use crate::AkdValue;
 
-use log::{debug, error, info, warn};
+use log::debug;
+#[cfg(feature = "runtime_metrics")]
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+#[cfg(feature = "runtime_metrics")]
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
