@@ -22,7 +22,6 @@ use std::convert::From;
 use std::io::*;
 use std::marker::PhantomData;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
@@ -140,7 +139,7 @@ async fn main() {
     let vrf = HardCodedAkdVRF {};
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
-        let storage_manager = StorageManager::new_no_cache(Arc::new(db));
+        let storage_manager = StorageManager::new_no_cache(db);
         let mut directory = Directory::<_, _>::new(storage_manager, vrf, false)
             .await
             .unwrap();
@@ -153,17 +152,15 @@ async fn main() {
         process_input(&cli, &tx, None).await;
     } else {
         // MySQL (the default)
-        let mysql_db = Arc::new(
-            AsyncMySqlDatabase::new(
-                "localhost",
-                "default",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-                cli.mysql_insert_depth,
-            )
-            .await,
-        );
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "default",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+            cli.mysql_insert_depth,
+        )
+        .await;
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }
@@ -407,7 +404,7 @@ async fn process_input(
             OtherMode::Flush => {
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.db.delete_data().await {
+                    if let Err(error) = mysql_db.get_db().delete_data().await {
                         error!("Error flushing database: {}", error);
                     } else {
                         info!("Database flushed.");
@@ -417,7 +414,7 @@ async fn process_input(
             OtherMode::Drop => {
                 println!("======= Dropping database ======= ");
                 if let Some(mysql_db) = db {
-                    if let Err(error) = mysql_db.db.drop_tables().await {
+                    if let Err(error) = mysql_db.get_db().drop_tables().await {
                         error!("Error dropping database: {}", error);
                     } else {
                         info!("Database dropped.");
@@ -451,7 +448,7 @@ async fn process_input(
                 Command::Flush => {
                     println!("Flushing the database...");
                     if let Some(mysql_db) = &db {
-                        if let Err(error) = mysql_db.db.delete_data().await {
+                        if let Err(error) = mysql_db.get_db().delete_data().await {
                             println!("Error flushing database: {}", error);
                         } else {
                             println!(
@@ -467,7 +464,7 @@ async fn process_input(
                     }
                     println!("===== Auditable Key Directory Information =====");
                     if let Some(mysql) = &db {
-                        println!("      Database properties ({})", mysql.db);
+                        println!("      Database properties ({})", mysql.get_db());
                     } else {
                         println!("      Connected to an in-memory database");
                     }

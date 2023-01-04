@@ -8,8 +8,6 @@
 //! This module implements some common test functionality (i.e. proof generation and whatnot)
 //! for use in test infra
 
-use std::sync::Arc;
-
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::memory::AsyncInMemoryDatabase;
@@ -63,7 +61,7 @@ pub async fn generate_audit_proofs(
     expensive: bool,
 ) -> Result<Vec<AuditInformation>, akd::errors::AkdError> {
     let db = AsyncInMemoryDatabase::new();
-    let storage_manager = StorageManager::new_no_cache(Arc::new(db));
+    let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage_manager, vrf, false).await?;
     let mut proofs = vec![];

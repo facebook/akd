@@ -9,7 +9,6 @@
 //! Contains the tests for the high-level API (directory, auditor, client)
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::{
     auditor::audit_verify,
@@ -67,7 +66,7 @@ mockall::mock! {
     }
 }
 
-fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: Arc<AsyncInMemoryDatabase>) {
+fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: &AsyncInMemoryDatabase) {
     // ===== Set ===== //
     let tmp_db = test_db.clone();
     db.expect_set()
@@ -130,7 +129,7 @@ fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: Arc<AsyncInMemoryDatabas
 // A simple test to ensure that the empty tree hashes to the correct value
 #[tokio::test]
 async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -187,7 +186,7 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
 // A simple publish test to make sure a publish doesn't throw an error.
 #[tokio::test]
 async fn test_simple_publish() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -206,7 +205,7 @@ async fn test_simple_publish() -> Result<(), AkdError> {
 // that the output of akd.lookup verifies on the client.
 #[tokio::test]
 async fn test_simple_lookup() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -244,7 +243,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     // This test has an akd with a single label: "hello"
     // The value of this label is updated two times.
     // Then the test verifies the key history.
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -303,7 +302,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
 // checks that the valid proofs verify. It doesn't do much more.
 #[tokio::test]
 async fn test_simple_key_history() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -480,7 +479,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
 // We also want this update to verify.
 #[tokio::test]
 async fn test_limited_key_history() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -652,7 +651,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     // insertion of a new label "hello2". Meanwhile, the server has a one epoch
     // delay in marking the first version for "hello" as stale, which should
     // be caught by key history verifications for "hello".
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -727,7 +726,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
 // that invalid audit proofs fail.
 #[tokio::test]
 async fn test_simple_audit() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -887,7 +886,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_read_during_publish() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false).await?;
@@ -992,7 +991,7 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
 // exists in storage.
 #[tokio::test]
 async fn test_directory_read_only_mode() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
@@ -1015,7 +1014,7 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
 // between the local cache and storage.
 #[tokio::test]
 async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new(db, None, None, None);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
@@ -1077,7 +1076,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_tombstoned_key_history() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -1168,14 +1167,14 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
 
 #[tokio::test]
 async fn test_publish_op_makes_no_get_requests() {
-    let test_db = Arc::new(AsyncInMemoryDatabase::new());
+    let test_db = AsyncInMemoryDatabase::new();
 
     let mut db = MockLocalDatabase {
         ..Default::default()
     };
-    setup_mocked_db(&mut db, test_db.clone());
+    setup_mocked_db(&mut db, &test_db);
 
-    let storage = StorageManager::new_no_cache(Arc::new(db));
+    let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false)
         .await
@@ -1201,11 +1200,11 @@ async fn test_publish_op_makes_no_get_requests() {
     let mut db2 = MockLocalDatabase {
         ..Default::default()
     };
-    setup_mocked_db(&mut db2, test_db.clone());
+    setup_mocked_db(&mut db2, &test_db);
     db2.expect_get::<TreeNodeWithPreviousValue>()
         .returning(|_| Err(StorageError::Other("Boom!".to_string())));
 
-    let storage = StorageManager::new_no_cache(Arc::new(db2));
+    let storage = StorageManager::new_no_cache(db2);
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf, false)
         .await
@@ -1236,7 +1235,7 @@ async fn test_publish_op_makes_no_get_requests() {
 // Test lookup in a smaller tree with 2 leaves, using the Blake3 hash function.
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
@@ -1289,7 +1288,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
 #[cfg(feature = "sha3_256")]
 #[tokio::test]
 async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
-    let db = Arc::new(AsyncInMemoryDatabase::new());
+    let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0

@@ -55,7 +55,7 @@ pub struct StorageManager<Db: Database> {
     cache: Option<TimedCache>,
     transaction: Transaction,
     /// The underlying database managed by this storage manager
-    pub db: Arc<Db>,
+    db: Arc<Db>,
 
     metrics: [Arc<AtomicU64>; NUM_METRICS],
 }
@@ -76,18 +76,18 @@ unsafe impl<Db: Database> Send for StorageManager<Db> {}
 
 impl<Db: Database> StorageManager<Db> {
     /// Create a new storage manager with NO CACHE
-    pub fn new_no_cache(db: Arc<Db>) -> Self {
+    pub fn new_no_cache(db: Db) -> Self {
         Self {
             cache: None,
             transaction: Transaction::new(),
-            db,
+            db: Arc::new(db),
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
 
     /// Create a new storage manager with a cache utilizing the options provided (or defaults)
     pub fn new(
-        db: Arc<Db>,
+        db: Db,
         cache_item_lifetime: Option<Duration>,
         cache_limit_bytes: Option<usize>,
         cache_clean_frequency: Option<Duration>,
@@ -99,9 +99,15 @@ impl<Db: Database> StorageManager<Db> {
                 cache_clean_frequency,
             )),
             transaction: Transaction::new(),
-            db,
+            db: Arc::new(db),
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
+    }
+
+    /// Retrieve a reference to the database implementation
+    #[cfg(any(test, feature = "public-tests"))]
+    pub fn get_db(&self) -> Arc<Db> {
+        self.db.clone()
     }
 
     /// Returns whether the storage manager has a cache

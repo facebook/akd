@@ -7,8 +7,6 @@
 
 use akd::{ecvrf::HardCodedAkdVRF, storage::StorageManager};
 use log::info;
-use std::sync::Arc;
-
 type InMemoryDb = akd::storage::memory::AsyncInMemoryDatabase;
 
 #[tokio::test]
@@ -17,7 +15,7 @@ async fn test_directory_operations() {
 
     info!("\n\n******** Starting In-Memory Directory Operations Integration Test ********\n\n");
 
-    let db = Arc::new(InMemoryDb::new());
+    let db = InMemoryDb::new();
 
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
@@ -37,7 +35,7 @@ async fn test_directory_operations_with_caching() {
 
     info!("\n\n******** Starting In-Memory Directory Operations (w/caching) Integration Test ********\n\n");
 
-    let db = Arc::new(InMemoryDb::new());
+    let db = InMemoryDb::new();
 
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new(db, None, None, None);

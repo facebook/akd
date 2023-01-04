@@ -18,7 +18,6 @@ use crate::{AkdLabel, AkdValue};
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 type Azks = crate::append_only_zks::Azks;
@@ -29,8 +28,6 @@ type PvTreeNode = crate::tree_node::TreeNodeWithPreviousValue;
 
 #[cfg(test)]
 mod memory_storage_tests {
-    use std::sync::Arc;
-
     use crate::storage::memory::AsyncInMemoryDatabase;
     use serial_test::serial;
 
@@ -38,7 +35,7 @@ mod memory_storage_tests {
     #[serial]
     async fn test_in_memory_db() {
         let db = AsyncInMemoryDatabase::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(Arc::new(db)).await;
+        crate::storage::tests::run_test_cases_for_storage_impl(db).await;
     }
 }
 
@@ -46,18 +43,19 @@ mod memory_storage_tests {
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
 /// for consistency checks (e.g. mysql, memcached, etc)
-pub async fn run_test_cases_for_storage_impl<S: Database>(db: Arc<S>) {
-    test_get_and_set_item(db.clone()).await;
-    test_user_data(db.clone()).await;
-    test_transactions(db.clone()).await;
-    test_batch_get_items(db.clone()).await;
+pub async fn run_test_cases_for_storage_impl<S: Database>(db: S) -> StorageManager<S> {
+    test_get_and_set_item(&db).await;
+    test_user_data(&db).await;
+    test_batch_get_items(&db).await;
 
-    let manager = StorageManager::new_no_cache(db.clone());
+    let manager = StorageManager::new_no_cache(db);
+    test_transactions(&manager).await;
     test_tombstoning_data(&manager).await.unwrap();
+    manager
 }
 
 // *** New Test Helper Functions *** //
-async fn test_get_and_set_item<Ns: Database>(storage: Arc<Ns>) {
+async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
     // === Azks storage === //
     let azks = Azks {
         latest_epoch: 34,
@@ -147,7 +145,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: Arc<Ns>) {
     }
 }
 
-async fn test_batch_get_items<Ns: Database>(storage: Arc<Ns>) {
+async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
         let str: String = thread_rng()
@@ -315,9 +313,7 @@ async fn test_batch_get_items<Ns: Database>(storage: Arc<Ns>) {
     }
 }
 
-async fn test_transactions<S: Database>(db: Arc<S>) {
-    let storage = crate::storage::manager::StorageManager::new_no_cache(db.clone());
-
+async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
         let str: String = thread_rng()
@@ -397,7 +393,7 @@ async fn test_transactions<S: Database>(db: Arc<S>) {
     }
 }
 
-async fn test_user_data<S: Database>(storage: Arc<S>) {
+async fn test_user_data<S: Database>(storage: &S) {
     let rand_user = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(30)

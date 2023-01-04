@@ -5,8 +5,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::sync::Arc;
-
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::StorageManager;
 use akd_mysql::mysql::*;
@@ -33,17 +31,15 @@ async fn test_directory_operations() {
         }
 
         // connect to the newly created test db
-        let mysql_db = Arc::new(
-            AsyncMySqlDatabase::new(
-                "localhost",
-                "test_db",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-                200,
-            )
-            .await,
-        );
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "test_db",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+            200,
+        )
+        .await;
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -62,7 +58,8 @@ async fn test_directory_operations() {
         storage_manager.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
@@ -96,17 +93,15 @@ async fn test_directory_operations_with_caching() {
         }
 
         // connect to the newly created test db
-        let mysql_db = Arc::new(
-            AsyncMySqlDatabase::new(
-                "localhost",
-                "test_db",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-                200,
-            )
-            .await,
-        );
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "test_db",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+            200,
+        )
+        .await;
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -125,7 +120,8 @@ async fn test_directory_operations_with_caching() {
         storage_manager.log_metrics(log::Level::Trace).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
@@ -159,17 +155,15 @@ async fn test_lookups() {
         }
 
         // connect to the newly created test db
-        let mysql_db = Arc::new(
-            AsyncMySqlDatabase::new(
-                "localhost",
-                "test_db",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-                200,
-            )
-            .await,
-        );
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "test_db",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+            200,
+        )
+        .await;
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -177,12 +171,13 @@ async fn test_lookups() {
         }
 
         let vrf = HardCodedAkdVRF {};
-        let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
+        let storage_manager = StorageManager::new(mysql_db, None, None, None);
         crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
             .await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
+        {
             error!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error

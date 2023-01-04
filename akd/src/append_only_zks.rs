@@ -952,14 +952,13 @@ mod tests {
         EMPTY_VALUE,
     };
     use rand::{rngs::OsRng, seq::SliceRandom, RngCore};
-    use std::sync::Arc;
     use std::time::Duration;
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
         let mut rng = OsRng;
         let num_nodes = 10;
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
@@ -984,7 +983,7 @@ mod tests {
             root_node.write_to_storage(&db, is_new).await?;
         }
 
-        let database2 = Arc::new(AsyncInMemoryDatabase::new());
+        let database2 = AsyncInMemoryDatabase::new();
         let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new::<_>(&db2).await?;
 
@@ -1003,7 +1002,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_insert_root_hash() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
 
         // manually construct a 3-layer tree and compute the root hash
@@ -1068,7 +1067,7 @@ mod tests {
     async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
         let mut rng = OsRng;
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
@@ -1095,7 +1094,7 @@ mod tests {
         // Try randomly permuting
         node_set.shuffle(&mut rng);
 
-        let database2 = Arc::new(AsyncInMemoryDatabase::new());
+        let database2 = AsyncInMemoryDatabase::new();
         let db2 = StorageManager::new_no_cache(database2);
         let mut azks2 = Azks::new(&db2).await?;
 
@@ -1114,7 +1113,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_num_nodes() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database.clone());
         let mut azks = Azks::new::<_>(&db).await?;
 
@@ -1196,7 +1195,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_preload_nodes_accuracy() {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let storage_manager =
             StorageManager::new(database, Some(Duration::from_secs(180u64)), None, None);
         let mut azks = Azks::new::<_>(&storage_manager)
@@ -1276,7 +1275,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_set_partition() -> Result<(), AkdError> {
         let num_nodes = 5;
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
@@ -1323,7 +1322,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_set_get_longest_common_prefix() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
         azks1.increment_epoch();
@@ -1363,7 +1362,7 @@ mod tests {
 
         // Try randomly permuting
         node_set.shuffle(&mut rng);
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
@@ -1413,7 +1412,7 @@ mod tests {
 
         // Try randomly permuting
         node_set.shuffle(&mut rng);
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
@@ -1442,7 +1441,7 @@ mod tests {
                 node_set.push(node);
             }
 
-            let database = Arc::new(AsyncInMemoryDatabase::new());
+            let database = AsyncInMemoryDatabase::new();
             let db = StorageManager::new_no_cache(database);
             let mut azks = Azks::new::<_>(&db).await?;
             azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
@@ -1464,7 +1463,7 @@ mod tests {
 
         // Try randomly permuting
         node_set.shuffle(&mut rng);
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set.clone(), InsertMode::Directory)
@@ -1487,7 +1486,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_membership_proof_intermediate() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
 
         let node_set: Vec<Node> = vec![
@@ -1541,7 +1540,7 @@ mod tests {
             let node = Node { label, hash };
             node_set.push(node);
         }
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[0].label;
@@ -1561,7 +1560,7 @@ mod tests {
         let num_nodes = 3;
 
         let node_set = gen_nodes(num_nodes);
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
@@ -1583,7 +1582,7 @@ mod tests {
         let num_nodes = 10;
 
         let node_set = gen_nodes(num_nodes);
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         let search_label = node_set[num_nodes - 1].label;
@@ -1602,7 +1601,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_very_tiny() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
@@ -1631,7 +1630,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_only_proof_tiny() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
 
@@ -1676,7 +1675,7 @@ mod tests {
 
         let node_set_1 = gen_nodes(num_nodes);
 
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
         azks.batch_insert_nodes::<_>(&db, node_set_1.clone(), InsertMode::Directory)
@@ -1705,7 +1704,7 @@ mod tests {
 
     #[tokio::test]
     async fn future_epoch_throws_error() -> Result<(), AkdError> {
-        let database = Arc::new(AsyncInMemoryDatabase::new());
+        let database = AsyncInMemoryDatabase::new();
 
         let db = StorageManager::new_no_cache(database);
         let azks = Azks::new::<_>(&db).await?;

@@ -6,8 +6,6 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-use std::sync::Arc;
-
 use serial_test::serial;
 
 use crate::mysql::*;
@@ -32,27 +30,25 @@ async fn test_mysql_db() {
             panic!("Error creating test database: {}", error);
         }
 
-        let mysql_db = Arc::new(
-            AsyncMySqlDatabase::new(
-                "localhost",
-                "test_db",
-                Option::from("root"),
-                Option::from("example"),
-                Option::from(8001),
-                200,
-            )
-            .await,
-        );
+        let mysql_db = AsyncMySqlDatabase::new(
+            "localhost",
+            "test_db",
+            Option::from("root"),
+            Option::from("example"),
+            Option::from(8001),
+            200,
+        )
+        .await;
 
         if let Err(error) = mysql_db.delete_data().await {
             println!("Error cleaning mysql prior to test suite: {}", error);
         }
 
         // The test cases
-        akd::storage::tests::run_test_cases_for_storage_impl(mysql_db.clone()).await;
+        let manager = akd::storage::tests::run_test_cases_for_storage_impl(mysql_db.clone()).await;
 
         // clean the test infra
-        if let Err(mysql_async::Error::Server(error)) = mysql_db.drop_tables().await {
+        if let Err(mysql_async::Error::Server(error)) = manager.get_db().drop_tables().await {
             println!(
                 "ERROR: Failed to clean MySQL test database with error {}",
                 error
