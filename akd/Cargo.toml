@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.8.5"
+version = "0.8.6"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
