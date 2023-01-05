@@ -8,7 +8,7 @@
 //! Various storage and representation related types
 
 use crate::storage::Storable;
-use crate::tree_node::{NodeType, TreeNode, TreeNodeWithPreviousValue};
+use crate::tree_node::{TreeNode, TreeNodeType, TreeNodeWithPreviousValue};
 use crate::{AkdLabel, AkdValue};
 use crate::{Azks, NodeLabel};
 use std::convert::TryInto;
@@ -43,9 +43,9 @@ pub struct ValueStateKey(pub Vec<u8>, pub u64);
 #[cfg_attr(feature = "serde_serialization", serde(bound = ""))]
 pub struct ValueState {
     /// The plaintext value of the user information in the directory
-    pub plaintext_val: AkdValue, // This needs to be the plaintext value, to discuss
+    pub value: AkdValue, // The actual value
     /// The version of the user's value-state
-    pub version: u64, // to discuss
+    pub version: u64,
     /// The Node Label
     pub label: NodeLabel,
     /// The epoch this value state was published in
@@ -56,7 +56,7 @@ pub struct ValueState {
 
 impl akd_core::SizeOf for ValueState {
     fn size_of(&self) -> usize {
-        self.plaintext_val.size_of()
+        self.value.size_of()
             + std::mem::size_of::<u64>()
             + self.label.size_of()
             + std::mem::size_of::<u64>()
@@ -107,7 +107,7 @@ impl ValueState {
         epoch: u64,
     ) -> Self {
         ValueState {
-            plaintext_val,
+            value: plaintext_val,
             version,
             label,
             epoch,
@@ -251,7 +251,7 @@ impl DbRecord {
                 last_epoch: a,
                 min_descendant_epoch: b,
                 parent: NodeLabel::new(c, d),
-                node_type: NodeType::from_u8(e),
+                node_type: TreeNodeType::from_u8(e),
                 left_child: p_left_child,
                 right_child: p_right_child,
                 hash: f,
@@ -265,7 +265,7 @@ impl DbRecord {
                 last_epoch,
                 min_descendant_epoch: least_descendant_ep,
                 parent: NodeLabel::new(parent_label_val, parent_label_len),
-                node_type: NodeType::from_u8(node_type),
+                node_type: TreeNodeType::from_u8(node_type),
                 left_child,
                 right_child,
                 hash,
@@ -284,7 +284,7 @@ impl DbRecord {
         epoch: u64,
     ) -> ValueState {
         ValueState {
-            plaintext_val: AkdValue(plaintext_val),
+            value: AkdValue(plaintext_val),
             version,
             label: NodeLabel::new(label_val, label_len),
             epoch,

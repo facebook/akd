@@ -19,17 +19,17 @@ message NodeLabel {
     optional uint32 label_len = 2;
 }
 
-/* Node represents the "label" (location) of the node along with its associated hash */
-message Node {
+/* Element of an AZKS wihich contains a label and value */
+message AzksElement {
     optional NodeLabel label = 1;
-    optional bytes hash = 2;
+    optional bytes value = 2;
 }
 
 /* Represents a specific level of the tree with the parental sibling and the direction
 of the parent for use in tree hash calculations */
-message LayerProof {
+message SiblingProof {
     optional NodeLabel label = 1;
-    repeated Node siblings = 2;
+    repeated AzksElement siblings = 2;
     optional uint32 direction = 3;
 }
 
@@ -38,7 +38,7 @@ value in the tree at a given epoch */
 message MembershipProof {
     optional NodeLabel label = 1;
     optional bytes hash_val = 2;
-    repeated LayerProof layer_proofs = 3;
+    repeated SiblingProof sibling_proofs = 3;
 }
 
 /* Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
@@ -46,7 +46,7 @@ at a given epoch. */
 message NonMembershipProof {
     optional NodeLabel label = 1;
     optional NodeLabel longest_prefix = 2;
-    repeated Node longest_prefix_children = 3;
+    repeated AzksElement longest_prefix_children = 3;
     optional MembershipProof longest_prefix_membership_proof = 4;
 }
 
@@ -58,7 +58,7 @@ This means we need to show that the state and version we are claiming for this n
 This proof is sent in response to a lookup query for a particular key. */
 message LookupProof {
     optional uint64 epoch = 1;
-    optional bytes plaintext_value = 2;
+    optional bytes value = 2;
     optional uint64 version = 3;
     optional bytes existence_vrf_proof = 4;
     optional MembershipProof existence_proof = 5;
@@ -66,7 +66,7 @@ message LookupProof {
     optional MembershipProof marker_proof = 7;
     optional bytes freshness_vrf_proof = 8;
     optional NonMembershipProof freshness_proof = 9;
-    optional bytes commitment_proof = 10;
+    optional bytes commitment_nonce = 10;
 }
 
 /* A vector of UpdateProofs are sent as the proof to a history query for a particular key.
@@ -78,28 +78,30 @@ For each version of the value associated with the key, the verifier must check t
 * the future marker versions did  not exist at this epoch. */
 message UpdateProof {
     optional uint64 epoch = 1;
-    optional bytes plaintext_value = 2;
+    optional bytes value = 2;
     optional uint64 version = 3;
     optional bytes existence_vrf_proof = 4;
-    optional MembershipProof existence_at_ep = 5;
+    optional MembershipProof existence_proof = 5;
     optional bytes previous_version_vrf_proof = 6;
-    optional MembershipProof previous_version_stale_at_ep = 7;
-    optional bytes commitment_proof = 8;
+    optional MembershipProof previous_version_proof = 7;
+    optional bytes commitment_nonce = 8;
 }
 
-/* This proof is just an array of [`UpdateProof`]s. */
+/* This proof consists of an array of [`UpdateProof`]s, non-membership proofs for 
+the versions up until the next marker, and then non-membership proofs for future markers
+up until the current epoch. */
 message HistoryProof {
     repeated UpdateProof update_proofs = 1;
-    repeated bytes next_few_vrf_proofs = 2;
-    repeated NonMembershipProof non_existence_of_next_few = 3;
+    repeated bytes until_marker_vrf_proofs = 2;
+    repeated NonMembershipProof non_existence_until_marker_proofs = 3;
     repeated bytes future_marker_vrf_proofs = 4;
-    repeated NonMembershipProof non_existence_of_future_markers = 5;
+    repeated NonMembershipProof non_existence_of_future_marker_proofs = 5;
 }
 
 /* SingleEncodedProof represents a proof that no leaves were changed or removed between epoch t and t + 1 */
 message SingleAppendOnlyProof {
-    repeated Node inserted = 1;
-    repeated Node unchanged_nodes = 2;
+    repeated AzksElement inserted = 1;
+    repeated AzksElement unchanged_nodes = 2;
 }
 
 /* An append-only proof is a proof that no nodes were changes from epochs[0] to epochs[end], epoch-by-epoch */

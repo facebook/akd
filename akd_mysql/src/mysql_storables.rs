@@ -149,7 +149,7 @@ impl MySqlStorable for DbRecord {
                 "p_hash" => node.previous_node.clone().map(|a| a.hash),
             }),
             DbRecord::ValueState(state) => Some(
-                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.label_len, "node_label_val" => state.label.label_val, "data" => state.plaintext_val.0.clone() },
+                params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.label_len, "node_label_val" => state.label.label_val, "data" => state.value.0.clone() },
             ),
         }
     }
@@ -377,10 +377,7 @@ impl MySqlStorable for DbRecord {
                         format!("node_label_val{}", idx),
                         Value::from(state.label.label_val),
                     ),
-                    (
-                        format!("data{}", idx),
-                        Value::from(state.plaintext_val.0.clone()),
-                    ),
+                    (format!("data{}", idx), Value::from(state.value.0.clone())),
                 ]),
             })
             .into_iter()

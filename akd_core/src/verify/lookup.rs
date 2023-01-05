@@ -25,14 +25,14 @@ pub fn lookup_verify(
 ) -> Result<VerifyResult, VerificationError> {
     let version = proof.version;
 
-    let marker_version = 1 << crate::utils::get_marker_version(version);
+    let marker_version = 1 << crate::utils::get_marker_version_log2(version);
     let existence_proof = proof.existence_proof;
     let marker_proof = proof.marker_proof;
     let freshness_proof = proof.freshness_proof;
 
     let fresh_label = existence_proof.label;
 
-    if hash_leaf_with_value(&proof.plaintext_value, proof.epoch, &proof.commitment_proof)
+    if hash_leaf_with_value(&proof.value, proof.epoch, &proof.commitment_nonce)
         != existence_proof.hash_val
     {
         return Err(VerificationError::LookupProof(
@@ -77,6 +77,6 @@ pub fn lookup_verify(
     Ok(VerifyResult {
         epoch: proof.epoch,
         version: proof.version,
-        value: proof.plaintext_value,
+        value: proof.value,
     })
 }

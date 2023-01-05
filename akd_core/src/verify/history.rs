@@ -102,14 +102,14 @@ pub fn key_history_verify(
     }
 
     // Get the least and greatest marker entries for the current version
-    let next_marker = crate::utils::get_marker_version(last_version) + 1;
-    let final_marker = crate::utils::get_marker_version(current_epoch);
+    let next_marker = crate::utils::get_marker_version_log2(last_version) + 1;
+    let final_marker = crate::utils::get_marker_version_log2(current_epoch);
 
     // ***** Future checks below ***************************
     // Verify the VRFs and non-membership of future entries, up to the next marker
     for (i, ver) in (last_version + 1..(1 << next_marker)).enumerate() {
-        let pf = &proof.non_existence_of_next_few[i];
-        let vrf_pf = &proof.next_few_vrf_proofs[i];
+        let pf = &proof.non_existence_until_marker_proofs[i];
+        let vrf_pf = &proof.until_marker_vrf_proofs[i];
         let ver_label = pf.label;
         verify_label(
             vrf_public_key,
@@ -128,7 +128,7 @@ pub fn key_history_verify(
     // Verify the VRFs and non-membership proofs for future markers
     for (i, pow) in (next_marker + 1..final_marker).enumerate() {
         let ver = 1 << pow;
-        let pf = &proof.non_existence_of_future_markers[i];
+        let pf = &proof.non_existence_of_future_marker_proofs[i];
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
         let ver_label = pf.label;
         verify_label(
@@ -158,9 +158,9 @@ fn verify_single_update_proof(
 ) -> Result<VerifyResult, VerificationError> {
     let epoch = proof.epoch;
     let version = proof.version;
-    let existence_at_ep = &proof.existence_at_ep;
+    let existence_at_ep = &proof.existence_proof;
 
-    let value_hash_valid = match (params, &proof.plaintext_value) {
+    let value_hash_valid = match (params, &proof.value) {
         (HistoryVerificationParams::AllowMissingValues, bytes) if bytes.0 == crate::TOMBSTONE => {
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
@@ -169,7 +169,7 @@ fn verify_single_update_proof(
         }
         (_, bytes) => {
             // No tombstone so hash the value found, and compare to the existence proof's value
-            hash_leaf_with_value(bytes, proof.epoch, &proof.commitment_proof)
+            hash_leaf_with_value(bytes, proof.epoch, &proof.commitment_nonce)
                 == existence_at_ep.hash_val
         }
     };
@@ -195,8 +195,8 @@ fn verify_single_update_proof(
     // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
     if version > 1 {
         // Verify the membership proof the for stale label of the previous version
-        let previous_version_stale_at_ep =
-            proof.previous_version_stale_at_ep.as_ref().ok_or_else(|| {
+        let previous_version_stale_proof =
+            proof.previous_version_proof.as_ref().ok_or_else(|| {
                 VerificationError::HistoryProof(format!(
                     "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
                     uname,
@@ -205,7 +205,7 @@ fn verify_single_update_proof(
                 ))
             })?;
         // Check that the correct value is included in the previous stale proof
-        if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_stale_at_ep.hash_val
+        if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_stale_proof.hash_val
         {
             return Err(VerificationError::HistoryProof(format!(
                 "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
@@ -214,7 +214,7 @@ fn verify_single_update_proof(
                 epoch
             )));
         }
-        verify_membership(root_hash, previous_version_stale_at_ep)?;
+        verify_membership(root_hash, previous_version_stale_proof)?;
 
         // Verify the VRF for the stale label corresponding to the previous version for this username
         let previous_version_vrf_proof =
@@ -232,13 +232,13 @@ fn verify_single_update_proof(
             VersionFreshness::Stale,
             version - 1,
             previous_version_vrf_proof,
-            previous_version_stale_at_ep.label,
+            previous_version_stale_proof.label,
         )?;
     }
 
     Ok(VerifyResult {
         epoch: proof.epoch,
         version: proof.version,
-        value: proof.plaintext_value,
+        value: proof.value,
     })
 }

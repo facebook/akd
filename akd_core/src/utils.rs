@@ -15,8 +15,9 @@ use alloc::vec::Vec;
 #[cfg(feature = "rand")]
 use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
-/// Retrieve the marker version
-pub fn get_marker_version(version: u64) -> u64 {
+/// Retrieve log_2 of the marker version, referring to the exponent
+/// of the largest power of two that is at most the input version
+pub fn get_marker_version_log2(version: u64) -> u64 {
     64 - (version.leading_zeros() as u64) - 1
 }
 

@@ -83,7 +83,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         // FIXME: what should least_child_ep really be?
         min_descendant_epoch: 1,
         parent: NodeLabel::new(byte_arr_from_u64(1), 1),
-        node_type: NodeType::Leaf,
+        node_type: TreeNodeType::Leaf,
         left_child: None,
         right_child: None,
         hash: [0; crate::DIGEST_BYTES],
@@ -128,7 +128,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         epoch: 1,
         label: NodeLabel::new(byte_arr_from_u64(1), 1),
         version: 1,
-        plaintext_val: AkdValue::from_utf8_str("abc123"),
+        value: AkdValue::from_utf8_str("abc123"),
     };
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -138,7 +138,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         assert_eq!(got_state.username, value.username);
         assert_eq!(got_state.epoch, value.epoch);
         assert_eq!(got_state.label, value.label);
-        assert_eq!(got_state.plaintext_val, value.plaintext_val);
+        assert_eq!(got_state.value, value.value);
         assert_eq!(got_state.version, value.version);
     } else {
         panic!("Failed to retrieve history node state");
@@ -162,7 +162,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     for value in rand_users.iter() {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
-                plaintext_val: AkdValue(value.clone()),
+                value: AkdValue(value.clone()),
                 version: epoch,
                 label: NodeLabel {
                     label_val: byte_arr_from_u64(1),
@@ -330,7 +330,7 @@ async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
     for value in rand_users.iter() {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
-                plaintext_val: AkdValue(value.clone()),
+                value: AkdValue(value.clone()),
                 version: 1u64,
                 label: NodeLabel {
                     label_val: byte_arr_from_u64(1),
@@ -409,7 +409,7 @@ async fn test_user_data<S: Database>(storage: &S) {
         .as_bytes()
         .to_vec();
     let mut sample_state = ValueState {
-        plaintext_val: AkdValue(rand_value.clone()),
+        value: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
             label_val: byte_arr_from_u64(1),
@@ -488,7 +488,7 @@ async fn test_user_data<S: Database>(storage: &S) {
             epoch: 123,
             version: 2,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
-            plaintext_val: AkdValue(rand_value.clone()),
+            value: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -503,7 +503,7 @@ async fn test_user_data<S: Database>(storage: &S) {
                 epoch: 123,
                 version: 2,
                 label: NodeLabel::new(byte_arr_from_u64(1), 1),
-                plaintext_val: AkdValue(rand_value.clone()),
+                value: AkdValue(rand_value.clone()),
                 username: sample_state.username.clone(),
             },
             state
@@ -531,7 +531,7 @@ async fn test_user_data<S: Database>(storage: &S) {
             epoch: 123,
             version: 2,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
-            plaintext_val: AkdValue(rand_value.clone()),
+            value: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -545,7 +545,7 @@ async fn test_user_data<S: Database>(storage: &S) {
             epoch: 1,
             version: 1,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
-            plaintext_val: AkdValue(rand_value.clone()),
+            value: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -559,7 +559,7 @@ async fn test_user_data<S: Database>(storage: &S) {
             epoch: 456,
             version: 3,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
-            plaintext_val: AkdValue(rand_value.clone()),
+            value: AkdValue(rand_value.clone()),
             username: sample_state.username.clone(),
         }),
         specific_result
@@ -605,7 +605,7 @@ async fn test_tombstoning_data<S: Database>(
     let rand_value = rand_user.clone();
 
     let mut sample_state = ValueState {
-        plaintext_val: AkdValue(rand_value.clone()),
+        value: AkdValue(rand_value.clone()),
         version: 1u64,
         label: NodeLabel {
             label_val: byte_arr_from_u64(1),
@@ -669,10 +669,10 @@ async fn test_tombstoning_data<S: Database>(
                 assert_eq!(version, value_state.epoch);
                 if keys_to_tombstone.contains(&key) {
                     // should be a tombstone
-                    assert_eq!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
+                    assert_eq!(crate::TOMBSTONE.to_vec(), value_state.value.0);
                 } else {
                     // should NOT be a tombstone
-                    assert_ne!(crate::TOMBSTONE.to_vec(), value_state.plaintext_val.0);
+                    assert_ne!(crate::TOMBSTONE.to_vec(), value_state.value.0);
                 }
             } else {
                 panic!("Unable to retrieve value state {:?}", key);

@@ -905,7 +905,7 @@ impl Database for AsyncMySqlDatabase {
                                     label_val,
                                     label_len: node_label_len,
                                 },
-                                plaintext_val: AkdValue(data),
+                                value: AkdValue(data),
                                 username: AkdLabel(username),
                             });
                         }
@@ -995,7 +995,7 @@ impl Database for AsyncMySqlDatabase {
                                     label_val,
                                     label_len: node_label_len,
                                 },
-                                plaintext_val: AkdValue(data),
+                                value: AkdValue(data),
                                 username: AkdLabel(username),
                             });
                         }

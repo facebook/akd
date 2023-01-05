@@ -260,7 +260,7 @@ impl Database for AsyncInMemoryDatabase {
             if let Ok(result) = self.get_user_state(username, flag).await {
                 map.insert(
                     AkdLabel(result.username.to_vec()),
-                    (result.version, AkdValue(result.plaintext_val.to_vec())),
+                    (result.version, AkdValue(result.value.to_vec())),
                 );
             }
         }
