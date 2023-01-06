@@ -28,11 +28,11 @@ pub fn verify_membership(
 ) -> Result<(), VerificationError> {
     let mut current_hash = merge(&[proof.hash_val, proof.label.hash()]);
 
-    for parent in proof.layer_proofs.iter().rev() {
+    for parent in proof.sibling_proofs.iter().rev() {
         let hashes = parent
             .siblings
             .iter()
-            .map(|s| merge(&[s.hash, s.label.hash()]))
+            .map(|s| merge(&[s.value, s.label.hash()]))
             .collect();
         current_hash = build_and_hash_layer(hashes, parent.direction, current_hash, parent.label)?;
     }
@@ -57,12 +57,12 @@ pub fn verify_nonmembership(
     let mut lcp_real = proof.longest_prefix_children[0].label;
 
     let child_hash_left = merge(&[
-        proof.longest_prefix_children[0].hash,
+        proof.longest_prefix_children[0].value,
         proof.longest_prefix_children[0].label.hash(),
     ]);
 
     let child_hash_right = merge(&[
-        proof.longest_prefix_children[1].hash,
+        proof.longest_prefix_children[1].value,
         proof.longest_prefix_children[1].label.hash(),
     ]);
 

@@ -412,7 +412,7 @@ impl<Db: Database> StorageManager<Db> {
                 new_data.push(DbRecord::ValueState(ValueState {
                     epoch: value_state.epoch,
                     label: value_state.label,
-                    plaintext_val: crate::AkdValue(crate::TOMBSTONE.to_vec()),
+                    value: crate::AkdValue(crate::TOMBSTONE.to_vec()),
                     username: value_state.username,
                     version: value_state.version,
                 }));
@@ -547,12 +547,12 @@ impl<Db: Database> StorageManager<Db> {
                     if let Some(updated_record) =
                         Self::compare_db_and_transaction_records(*epoch, value_state, flag)
                     {
-                        data.insert(label, (*epoch, updated_record.plaintext_val));
+                        data.insert(label, (*epoch, updated_record.value));
                     }
                 } else {
                     // there is no db-equivalent record, but there IS a record in the transaction log.
                     // Take the transaction log value
-                    data.insert(label, (value_state.epoch, value_state.plaintext_val));
+                    data.insert(label, (value_state.epoch, value_state.value));
                 }
             }
         }

@@ -18,10 +18,10 @@ fn random_hash() -> [u8; 32] {
     thread_rng().gen::<[u8; 32]>()
 }
 
-fn random_node() -> crate::Node {
-    crate::Node {
+fn random_azks_element() -> crate::AzksElement {
+    crate::AzksElement {
         label: random_label(),
-        hash: random_hash(),
+        value: random_hash(),
     }
 }
 
@@ -43,22 +43,22 @@ fn test_convert_nodelabel() {
 }
 
 #[test]
-fn test_convert_node() {
-    let original = random_node();
+fn test_convert_azks_element() {
+    let original = random_azks_element();
 
-    let protobuf: Node = (&original).into();
+    let protobuf: AzksElement = (&original).into();
     assert_eq!(original, (&protobuf).try_into().unwrap());
 }
 
 #[test]
 fn test_convert_layer_proof() {
-    let original = crate::LayerProof {
+    let original = crate::SiblingProof {
         label: random_label(),
-        siblings: [random_node()],
+        siblings: [random_azks_element()],
         direction: Direction::Right,
     };
 
-    let protobuf: LayerProof = (&original).into();
+    let protobuf: SiblingProof = (&original).into();
     assert_eq!(original, (&protobuf).try_into().unwrap());
 }
 
@@ -67,9 +67,9 @@ fn test_convert_membership_proof() {
     let original = crate::MembershipProof {
         label: random_label(),
         hash_val: random_hash(),
-        layer_proofs: vec![crate::LayerProof {
+        sibling_proofs: vec![crate::SiblingProof {
             label: random_label(),
-            siblings: [random_node()],
+            siblings: [random_azks_element()],
             direction: Direction::Right,
         }],
     };
@@ -83,13 +83,13 @@ fn test_convert_non_membership_proof() {
     let original = crate::NonMembershipProof {
         label: random_label(),
         longest_prefix: random_label(),
-        longest_prefix_children: [random_node(), random_node()],
+        longest_prefix_children: [random_azks_element(), random_azks_element()],
         longest_prefix_membership_proof: crate::MembershipProof {
             label: random_label(),
             hash_val: random_hash(),
-            layer_proofs: vec![crate::LayerProof {
+            sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
-                siblings: [random_node()],
+                siblings: [random_azks_element()],
                 direction: Direction::Right,
             }],
         },
@@ -104,15 +104,15 @@ fn test_convert_lookup_proof() {
     let mut rng = thread_rng();
     let original = crate::LookupProof {
         epoch: rng.gen(),
-        plaintext_value: crate::AkdValue(random_hash().to_vec()),
+        value: crate::AkdValue(random_hash().to_vec()),
         version: rng.gen(),
         existence_vrf_proof: random_hash().to_vec(),
         existence_proof: crate::MembershipProof {
             label: random_label(),
             hash_val: random_hash(),
-            layer_proofs: vec![crate::LayerProof {
+            sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
-                siblings: [random_node()],
+                siblings: [random_azks_element()],
                 direction: Direction::Right,
             }],
         },
@@ -120,9 +120,9 @@ fn test_convert_lookup_proof() {
         marker_proof: crate::MembershipProof {
             label: random_label(),
             hash_val: random_hash(),
-            layer_proofs: vec![crate::LayerProof {
+            sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
-                siblings: [random_node()],
+                siblings: [random_azks_element()],
                 direction: Direction::Right,
             }],
         },
@@ -130,18 +130,18 @@ fn test_convert_lookup_proof() {
         freshness_proof: crate::NonMembershipProof {
             label: random_label(),
             longest_prefix: random_label(),
-            longest_prefix_children: [random_node(), random_node()],
+            longest_prefix_children: [random_azks_element(), random_azks_element()],
             longest_prefix_membership_proof: crate::MembershipProof {
                 label: random_label(),
                 hash_val: random_hash(),
-                layer_proofs: vec![crate::LayerProof {
+                sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
-                    siblings: [random_node()],
+                    siblings: [random_azks_element()],
                     direction: Direction::Right,
                 }],
             },
         },
-        commitment_proof: random_hash().to_vec(),
+        commitment_nonce: random_hash().to_vec(),
     };
 
     let protobuf: LookupProof = (&original).into();
@@ -153,29 +153,29 @@ fn test_convert_update_proof() {
     let mut rng = thread_rng();
     let original = crate::UpdateProof {
         epoch: rng.gen(),
-        plaintext_value: crate::AkdValue(random_hash().to_vec()),
+        value: crate::AkdValue(random_hash().to_vec()),
         version: rng.gen(),
         existence_vrf_proof: random_hash().to_vec(),
-        existence_at_ep: crate::MembershipProof {
+        existence_proof: crate::MembershipProof {
             label: random_label(),
             hash_val: random_hash(),
-            layer_proofs: vec![crate::LayerProof {
+            sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
-                siblings: [random_node()],
+                siblings: [random_azks_element()],
                 direction: Direction::Right,
             }],
         },
         previous_version_vrf_proof: Some(random_hash().to_vec()),
-        previous_version_stale_at_ep: Some(crate::MembershipProof {
+        previous_version_proof: Some(crate::MembershipProof {
             label: random_label(),
             hash_val: random_hash(),
-            layer_proofs: vec![crate::LayerProof {
+            sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
-                siblings: [random_node()],
+                siblings: [random_azks_element()],
                 direction: Direction::Right,
             }],
         }),
-        commitment_proof: random_hash().to_vec(),
+        commitment_nonce: random_hash().to_vec(),
     };
 
     let protobuf: UpdateProof = (&original).into();
@@ -188,13 +188,13 @@ fn test_convert_history_proof() {
         crate::NonMembershipProof {
             label: random_label(),
             longest_prefix: random_label(),
-            longest_prefix_children: [random_node(), random_node()],
+            longest_prefix_children: [random_azks_element(), random_azks_element()],
             longest_prefix_membership_proof: crate::MembershipProof {
                 label: random_label(),
                 hash_val: random_hash(),
-                layer_proofs: vec![crate::LayerProof {
+                sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
-                    siblings: [random_node()],
+                    siblings: [random_azks_element()],
                     direction: Direction::Right,
                 }],
             },
@@ -205,40 +205,40 @@ fn test_convert_history_proof() {
         let mut rng = thread_rng();
         crate::UpdateProof {
             epoch: rng.gen(),
-            plaintext_value: crate::AkdValue(random_hash().to_vec()),
+            value: crate::AkdValue(random_hash().to_vec()),
             version: rng.gen(),
             existence_vrf_proof: random_hash().to_vec(),
-            existence_at_ep: crate::MembershipProof {
+            existence_proof: crate::MembershipProof {
                 label: random_label(),
                 hash_val: random_hash(),
-                layer_proofs: vec![crate::LayerProof {
+                sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
-                    siblings: [random_node()],
+                    siblings: [random_azks_element()],
                     direction: Direction::Right,
                 }],
             },
             previous_version_vrf_proof: Some(random_hash().to_vec()),
-            previous_version_stale_at_ep: Some(crate::MembershipProof {
+            previous_version_proof: Some(crate::MembershipProof {
                 label: random_label(),
                 hash_val: random_hash(),
-                layer_proofs: vec![crate::LayerProof {
+                sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
-                    siblings: [random_node()],
+                    siblings: [random_azks_element()],
                     direction: Direction::Right,
                 }],
             }),
-            commitment_proof: random_hash().to_vec(),
+            commitment_nonce: random_hash().to_vec(),
         }
     }
 
     let original = crate::HistoryProof {
         update_proofs: vec![upd_proof(), upd_proof(), upd_proof()],
-        next_few_vrf_proofs: vec![
+        until_marker_vrf_proofs: vec![
             random_hash().to_vec(),
             random_hash().to_vec(),
             random_hash().to_vec(),
         ],
-        non_existence_of_next_few: vec![
+        non_existence_until_marker_proofs: vec![
             non_membership_proof(),
             non_membership_proof(),
             non_membership_proof(),
@@ -248,7 +248,7 @@ fn test_convert_history_proof() {
             random_hash().to_vec(),
             random_hash().to_vec(),
         ],
-        non_existence_of_future_markers: vec![
+        non_existence_of_future_marker_proofs: vec![
             non_membership_proof(),
             non_membership_proof(),
             non_membership_proof(),
@@ -261,14 +261,18 @@ fn test_convert_history_proof() {
 
 #[test]
 fn test_convert_single_append_only_proof() {
-    let inserted = [random_node(), random_node(), random_node()];
+    let inserted = [
+        random_azks_element(),
+        random_azks_element(),
+        random_azks_element(),
+    ];
     let unchanged_nodes = [
-        random_node(),
-        random_node(),
-        random_node(),
-        random_node(),
-        random_node(),
-        random_node(),
+        random_azks_element(),
+        random_azks_element(),
+        random_azks_element(),
+        random_azks_element(),
+        random_azks_element(),
+        random_azks_element(),
     ];
     let original = crate::SingleAppendOnlyProof {
         inserted: inserted.to_vec(),

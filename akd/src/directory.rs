@@ -15,7 +15,7 @@ use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
-    AkdLabel, AkdValue, AppendOnlyProof, Digest, EpochHash, HistoryProof, LookupProof, Node,
+    AkdLabel, AkdValue, AppendOnlyProof, AzksElement, Digest, EpochHash, HistoryProof, LookupProof,
     NonMembershipProof, UpdateProof,
 };
 
@@ -96,7 +96,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
-        let mut update_set = Vec::<Node>::new();
+        let mut update_set = Vec::<AzksElement>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
 
         let mut current_azks = self.retrieve_current_azks().await?;
@@ -155,11 +155,8 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                             )
                         })?;
 
-                    let value_to_add = commit_value(&commitment_key, &label, latest_version, &val);
-                    update_set.push(Node {
-                        label,
-                        hash: value_to_add,
-                    });
+                    let value = commit_value(&commitment_key, &label, latest_version, &val);
+                    update_set.push(AzksElement { label, value });
                     let latest_state =
                         ValueState::new(uname, val, latest_version, label, next_epoch);
                     user_data_update_set.push(latest_state);
@@ -188,13 +185,13 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                     let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
                     let fresh_value_to_add =
                         commit_value(&commitment_key, &fresh_label, latest_version, &val);
-                    update_set.push(Node {
+                    update_set.push(AzksElement {
                         label: stale_label,
-                        hash: stale_value_to_add,
+                        value: stale_value_to_add,
                     });
-                    update_set.push(Node {
+                    update_set.push(AzksElement {
                         label: fresh_label,
-                        hash: fresh_value_to_add,
+                        value: fresh_value_to_add,
                     });
                     let new_state =
                         ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
@@ -289,7 +286,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
-        let plaintext_value = lookup_info.value_state.plaintext_val;
+        let plaintext_value = lookup_info.value_state.value;
         let existence_vrf = self
             .vrf
             .get_label_proof(&uname, VersionFreshness::Fresh, current_version)
@@ -297,7 +294,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         let commitment_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let lookup_proof = LookupProof {
             epoch: lookup_info.value_state.epoch,
-            plaintext_value: plaintext_value.clone(),
+            value: plaintext_value.clone(),
             version: lookup_info.value_state.version,
             existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
             existence_proof: current_azks
@@ -321,7 +318,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             freshness_proof: current_azks
                 .get_non_membership_proof(&self.storage, lookup_info.non_existent_label)
                 .await?,
-            commitment_proof: get_commitment_nonce(
+            commitment_nonce: get_commitment_nonce(
                 &commitment_key,
                 &commitment_label,
                 lookup_info.value_state.version,
@@ -487,8 +484,8 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         let next_marker = get_marker_version(last_version) + 1;
         let final_marker = get_marker_version(current_epoch);
 
-        let mut next_few_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_of_next_few = Vec::<NonMembershipProof>::new();
+        let mut until_marker_vrf_proofs = Vec::<Vec<u8>>::new();
+        let mut non_existence_until_marker_proofs = Vec::<NonMembershipProof>::new();
 
         for ver in last_version + 1..(1 << next_marker) {
             let label_for_ver = self
@@ -498,8 +495,8 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver)
                 .await?;
-            non_existence_of_next_few.push(non_existence_of_ver);
-            next_few_vrf_proofs.push(
+            non_existence_until_marker_proofs.push(non_existence_of_ver);
+            until_marker_vrf_proofs.push(
                 self.vrf
                     .get_label_proof(uname, VersionFreshness::Fresh, ver)
                     .await?
@@ -509,7 +506,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         }
 
         let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_of_future_markers = Vec::<NonMembershipProof>::new();
+        let mut non_existence_of_future_marker_proofs = Vec::<NonMembershipProof>::new();
 
         for marker_power in next_marker..final_marker + 1 {
             let ver = 1 << marker_power;
@@ -520,7 +517,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             let non_existence_of_ver = current_azks
                 .get_non_membership_proof(&self.storage, label_for_ver)
                 .await?;
-            non_existence_of_future_markers.push(non_existence_of_ver);
+            non_existence_of_future_marker_proofs.push(non_existence_of_ver);
             future_marker_vrf_proofs.push(
                 self.vrf
                     .get_label_proof(uname, VersionFreshness::Fresh, ver)
@@ -535,10 +532,10 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         Ok((
             HistoryProof {
                 update_proofs,
-                next_few_vrf_proofs,
-                non_existence_of_next_few,
+                until_marker_vrf_proofs,
+                non_existence_until_marker_proofs,
                 future_marker_vrf_proofs,
-                non_existence_of_future_markers,
+                non_existence_of_future_marker_proofs,
             },
             root_hash,
         ))
@@ -669,7 +666,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         user_state: &ValueState,
     ) -> Result<UpdateProof, AkdError> {
         let epoch = user_state.epoch;
-        let plaintext_value = &user_state.plaintext_val;
+        let value = &user_state.value;
         let version = user_state.version;
 
         let label_at_ep = self
@@ -684,17 +681,17 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             .await?;
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
         let existence_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
-        let existence_at_ep = current_azks
+        let existence_proof = current_azks
             .get_membership_proof(&self.storage, label_at_ep, epoch)
             .await?;
-        let mut previous_version_stale_at_ep = Option::None;
+        let mut previous_version_proof = Option::None;
         let mut previous_version_vrf_proof = Option::None;
         if version > 1 {
             let prev_label_at_ep = self
                 .vrf
                 .get_node_label(uname, VersionFreshness::Stale, version - 1)
                 .await?;
-            previous_version_stale_at_ep = Option::Some(
+            previous_version_proof = Option::Some(
                 current_azks
                     .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
                     .await?,
@@ -709,19 +706,18 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         }
 
         let commitment_key = self.derive_commitment_key().await?;
-        let commitment_proof =
-            get_commitment_nonce(&commitment_key, &existence_label, version, plaintext_value)
-                .to_vec();
+        let commitment_nonce =
+            get_commitment_nonce(&commitment_key, &existence_label, version, value).to_vec();
 
         Ok(UpdateProof {
             epoch,
             version,
-            plaintext_value: plaintext_value.clone(),
+            value: value.clone(),
             existence_vrf_proof,
-            existence_at_ep,
+            existence_proof,
             previous_version_vrf_proof,
-            previous_version_stale_at_ep,
-            commitment_proof,
+            previous_version_proof,
+            commitment_nonce,
         })
     }
 
@@ -817,7 +813,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
-        let mut update_set = Vec::<Node>::new();
+        let mut update_set = Vec::<AzksElement>::new();
 
         if let PublishCorruption::MarkVersionStale(ref uname, version_number) = corruption {
             // In the malicious case, sometimes the server may not mark the old version stale immediately.
@@ -827,9 +823,9 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 .get_node_label(uname, VersionFreshness::Stale, version_number)
                 .await?;
             let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-            update_set.push(Node {
+            update_set.push(AzksElement {
                 label: stale_label,
-                hash: stale_value_to_add,
+                value: stale_value_to_add,
             })
         };
 
@@ -876,9 +872,9 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                         latest_version,
                         &val,
                     );
-                    update_set.push(Node {
+                    update_set.push(AzksElement {
                         label,
-                        hash: value_to_add,
+                        value: value_to_add,
                     });
                     let latest_state =
                         ValueState::new(uname, val, latest_version, label, next_epoch);
@@ -912,21 +908,21 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                         // or the corruption is not of the type that asks you to delay marking a stale value correctly.
                         PublishCorruption::UnmarkedStaleVersion(target_uname) => {
                             if *target_uname != uname {
-                                update_set.push(Node {
+                                update_set.push(AzksElement {
                                     label: stale_label,
-                                    hash: stale_value_to_add,
+                                    value: stale_value_to_add,
                                 })
                             }
                         }
-                        _ => update_set.push(Node {
+                        _ => update_set.push(AzksElement {
                             label: stale_label,
-                            hash: stale_value_to_add,
+                            value: stale_value_to_add,
                         }),
                     };
 
-                    update_set.push(Node {
+                    update_set.push(AzksElement {
                         label: fresh_label,
-                        hash: fresh_value_to_add,
+                        value: fresh_value_to_add,
                     });
                     let new_state =
                         ValueState::new(uname, val, latest_version, fresh_label, next_epoch);
@@ -934,9 +930,9 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 }
             }
         }
-        let node_set: Vec<Node> = update_set.to_vec();
+        let azks_element_set: Vec<AzksElement> = update_set.to_vec();
 
-        if node_set.is_empty() {
+        if azks_element_set.is_empty() {
             info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<_>(&self.storage).await?;
@@ -952,7 +948,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         info!("Starting database insertion");
 
         current_azks
-            .batch_insert_nodes::<_>(&self.storage, node_set, InsertMode::Directory)
+            .batch_insert_nodes::<_>(&self.storage, azks_element_set, InsertMode::Directory)
             .await?;
 
         // batch all the inserts into a single transactional write to storage

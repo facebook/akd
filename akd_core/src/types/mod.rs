@@ -219,13 +219,18 @@ pub const TOMBSTONE: &[u8] = &[];
 // Structs
 // ============================================
 
-/// Represents a node (label + hash) in the AKD
+/// Represents an element to be inserted into the AZKS. This
+/// is a pair consisting of a label ([NodeLabel]) and a value.
+/// The purpose of [Directory::publish] is to convert an
+/// insertion set of ([AkdLabel], [AkdValue]) tuples into a
+/// set of [AzksElement]s, which are then inserted into
+/// the [Azks::batch_insert_leaves] function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
-pub struct Node {
+pub struct AzksElement {
     /// The label of the node
     pub label: NodeLabel,
     /// The associated hash of the node
@@ -236,22 +241,22 @@ pub struct Node {
             deserialize_with = "digest_deserialize"
         )
     )]
-    pub hash: Digest,
+    pub value: Digest,
 }
 
-impl SizeOf for Node {
+impl SizeOf for AzksElement {
     fn size_of(&self) -> usize {
-        self.label.size_of() + self.hash.len()
+        self.label.size_of() + self.value.len()
     }
 }
 
-impl PartialOrd for Node {
+impl PartialOrd for AzksElement {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Node {
+impl Ord for AzksElement {
     fn cmp(&self, other: &Self) -> Ordering {
         self.label.cmp(&other.label)
     }
@@ -264,11 +269,11 @@ impl Ord for Node {
     feature = "serde_serialization",
     derive(serde::Serialize, serde::Deserialize)
 )]
-pub struct LayerProof {
+pub struct SiblingProof {
     /// The parent's label
     pub label: NodeLabel,
-    /// Siblings of the parent
-    pub siblings: [Node; ARITY - 1],
+    /// Sibling of the parent that is not on the path
+    pub siblings: [AzksElement; 1],
     /// The direction
     pub direction: Direction,
 }
@@ -293,7 +298,7 @@ pub struct MembershipProof {
     )]
     pub hash_val: Digest,
     /// The parents of the node in question
-    pub layer_proofs: Vec<LayerProof>,
+    pub sibling_proofs: Vec<SiblingProof>,
 }
 
 /// Merkle Patricia proof of non-membership for a [`NodeLabel`] in the tree
@@ -309,7 +314,7 @@ pub struct NonMembershipProof {
     /// The longest prefix in the tree
     pub longest_prefix: NodeLabel,
     /// The children of the longest prefix
-    pub longest_prefix_children: [Node; ARITY],
+    pub longest_prefix_children: [AzksElement; ARITY],
     /// The membership proof of the longest prefix
     pub longest_prefix_membership_proof: MembershipProof,
 }
@@ -329,7 +334,7 @@ pub struct LookupProof {
     /// The epoch of this record
     pub epoch: u64,
     /// The plaintext value in question
-    pub plaintext_value: AkdValue,
+    pub value: AkdValue,
     /// The version of the record
     pub version: u64,
     /// VRF proof for the label corresponding to this version
@@ -345,7 +350,7 @@ pub struct LookupProof {
     /// Freshness proof (non member at previous epoch)
     pub freshness_proof: NonMembershipProof,
     /// Proof for commitment value derived from raw AkdLabel and AkdValue
-    pub commitment_proof: Vec<u8>,
+    pub commitment_nonce: Vec<u8>,
 }
 
 /// A vector of UpdateProofs are sent as the proof to a history query for a particular key.
@@ -364,19 +369,19 @@ pub struct UpdateProof {
     /// Epoch of this update
     pub epoch: u64,
     /// Value at this update
-    pub plaintext_value: AkdValue,
+    pub value: AkdValue,
     /// Version at this update
     pub version: u64,
     /// VRF proof for the label for the current version
     pub existence_vrf_proof: Vec<u8>,
     /// Membership proof to show that the key was included in this epoch
-    pub existence_at_ep: MembershipProof,
+    pub existence_proof: MembershipProof,
     /// VRF proof for the label for the previous version which became stale
     pub previous_version_vrf_proof: Option<Vec<u8>>,
     /// Proof that previous value was set to old at this epoch
-    pub previous_version_stale_at_ep: Option<MembershipProof>,
-    /// Proof for commitment value derived from raw AkdLabel and AkdValue
-    pub commitment_proof: Vec<u8>,
+    pub previous_version_proof: Option<MembershipProof>,
+    /// Nonce for commitment value derived from raw AkdLabel and AkdValue
+    pub commitment_nonce: Vec<u8>,
 }
 
 /// This proof is just an array of [`UpdateProof`]s.
@@ -388,14 +393,14 @@ pub struct UpdateProof {
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,
-    /// VRF Proofs for the labels of the next few values
-    pub next_few_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that the next few values did not exist at this time
-    pub non_existence_of_next_few: Vec<NonMembershipProof>,
+    /// VRF Proofs for the labels of the values until the next marker version
+    pub until_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the values until the next marker version did not exist at this time
+    pub non_existence_until_marker_proofs: Vec<NonMembershipProof>,
     /// VRF proofs for the labels of future marker entries
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
-    pub non_existence_of_future_markers: Vec<NonMembershipProof>,
+    pub non_existence_of_future_marker_proofs: Vec<NonMembershipProof>,
 }
 
 /// The payload that is outputted as a result of successful verification of
@@ -429,9 +434,9 @@ pub struct VerifyResult {
 )]
 pub struct SingleAppendOnlyProof {
     /// The inserted nodes & digests
-    pub inserted: Vec<Node>,
+    pub inserted: Vec<AzksElement>,
     /// The unchanged nodes & digests
-    pub unchanged_nodes: Vec<Node>,
+    pub unchanged_nodes: Vec<AzksElement>,
 }
 
 /// Proof that no leaves were deleted from the initial epoch.

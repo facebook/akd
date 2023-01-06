@@ -303,7 +303,7 @@ mod tests {
             last_epoch: 1,
             min_descendant_epoch: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
-            node_type: NodeType::Root,
+            node_type: TreeNodeType::Root,
             left_child: None,
             right_child: None,
             hash: crate::hash::EMPTY_DIGEST,
@@ -313,7 +313,7 @@ mod tests {
             last_epoch: 1,
             min_descendant_epoch: 1,
             parent: NodeLabel::new(byte_arr_from_u64(0), 0),
-            node_type: NodeType::Leaf,
+            node_type: TreeNodeType::Leaf,
             left_child: None,
             right_child: None,
             hash: crate::hash::EMPTY_DIGEST,
@@ -323,14 +323,14 @@ mod tests {
             epoch: 1,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 1,
-            plaintext_val: AkdValue::from_utf8_str("abc123"),
+            value: AkdValue::from_utf8_str("abc123"),
         });
         let value2 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from_utf8_str("test"),
             epoch: 2,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 2,
-            plaintext_val: AkdValue::from_utf8_str("abc1234"),
+            value: AkdValue::from_utf8_str("abc1234"),
         });
 
         let records = vec![azks, node1, node2, value1, value2];

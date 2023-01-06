@@ -27,7 +27,7 @@ use std::marker::Sync;
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
 )]
-pub enum NodeType {
+pub enum TreeNodeType {
     /// Nodes with this type only have dummy children. Their value is
     /// an input when they're created and the hash is H(value, creation_epoch)
     Leaf = 1,
@@ -40,13 +40,13 @@ pub enum NodeType {
     Interior = 3,
 }
 
-impl akd_core::SizeOf for NodeType {
+impl akd_core::SizeOf for TreeNodeType {
     fn size_of(&self) -> usize {
         1
     }
 }
 
-impl NodeType {
+impl TreeNodeType {
     pub(crate) fn from_u8(code: u8) -> Self {
         match code {
             1 => Self::Leaf,
@@ -233,7 +233,7 @@ pub struct TreeNode {
     /// The label of this node's parent. where the root node is marked its own parent.
     pub parent: NodeLabel,
     /// The type of node: Leaf, Root, or Interior.
-    pub node_type: NodeType,
+    pub node_type: TreeNodeType,
     /// Label of the left child, None if there is none.
     pub left_child: Option<NodeLabel>,
     /// Label of the right child, None if there is none.
@@ -358,7 +358,7 @@ impl TreeNode {
     fn new(
         label: NodeLabel,
         parent: NodeLabel,
-        node_type: NodeType,
+        node_type: TreeNodeType,
         birth_epoch: u64,
         min_descendant_epoch: u64,
         hash: crate::Digest,
@@ -383,7 +383,7 @@ impl TreeNode {
     ) -> Result<(), AkdError> {
         match self.node_type {
             // For leaf nodes, updates the hash of the node by using the `hash` field (hash of the public key) and the hashed label.
-            NodeType::Leaf => {
+            TreeNodeType::Leaf => {
                 // The leaf is initialized with its value.
                 // When it's used later, it'll be hashed with the epoch.
             }
@@ -519,7 +519,7 @@ fn optional_child_state_label_hash(input: &Option<TreeNode>, hash_mode: NodeHash
     match input {
         Some(child_state) => {
             let mut hash = child_state.hash;
-            if let (NodeType::Leaf, NodeHashingMode::WithLeafEpoch) =
+            if let (TreeNodeType::Leaf, NodeHashingMode::WithLeafEpoch) =
                 (child_state.node_type, hash_mode)
             {
                 hash = crate::hash::merge_with_int(hash, child_state.last_epoch);
@@ -533,7 +533,7 @@ fn optional_child_state_label_hash(input: &Option<TreeNode>, hash_mode: NodeHash
 pub(crate) fn optional_child_state_hash(input: &Option<TreeNode>) -> Digest {
     match input {
         Some(child_state) => {
-            if child_state.node_type == NodeType::Leaf {
+            if child_state.node_type == TreeNodeType::Leaf {
                 crate::hash::merge_with_int(child_state.hash, child_state.last_epoch)
             } else {
                 child_state.hash
@@ -550,7 +550,7 @@ pub(crate) fn new_root_node() -> TreeNode {
     TreeNode::new(
         NodeLabel::root(),
         NodeLabel::root(),
-        NodeType::Root,
+        TreeNodeType::Root,
         0u64,
         0u64,
         empty_root_hash,
@@ -562,7 +562,7 @@ pub(crate) fn new_interior_node(label: NodeLabel, birth_epoch: u64) -> TreeNode 
     TreeNode::new(
         label,
         EMPTY_LABEL,
-        NodeType::Interior,
+        TreeNodeType::Interior,
         birth_epoch,
         birth_epoch,
         EMPTY_DIGEST,
@@ -574,7 +574,7 @@ pub(crate) fn new_leaf_node(label: NodeLabel, value: &Digest, birth_epoch: u64) 
     TreeNode::new(
         label,
         EMPTY_LABEL,
-        NodeType::Leaf,
+        TreeNodeType::Leaf,
         birth_epoch,
         birth_epoch,
         *value,

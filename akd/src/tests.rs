@@ -964,10 +964,7 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
 
     // Lookup proof should contain the checkpoint epoch's value and still verify
     let (lookup_proof, root_hash) = akd.lookup(AkdLabel::from_utf8_str("hello")).await?;
-    assert_eq!(
-        AkdValue::from_utf8_str("world_2"),
-        lookup_proof.plaintext_value
-    );
+    assert_eq!(AkdValue::from_utf8_str("world_2"), lookup_proof.value);
     lookup_verify(
         vrf_pk.as_bytes(),
         root_hash.hash(),
@@ -1351,7 +1348,7 @@ async fn async_poll_helper_proof<T: Database + 'static, V: VRFKeyStorage>(
 ) -> Result<(), AkdError> {
     // reader should read "hello" and this will populate the "cache" a log
     let (lookup_proof, root_hash) = reader.lookup(AkdLabel::from_utf8_str("hello")).await?;
-    assert_eq!(value, lookup_proof.plaintext_value);
+    assert_eq!(value, lookup_proof.value);
     let pk = reader.get_public_key().await?;
     lookup_verify(
         pk.as_bytes(),

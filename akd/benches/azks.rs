@@ -11,7 +11,7 @@ extern crate criterion;
 use akd::append_only_zks::InsertMode;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
-use akd::{Azks, Node, NodeLabel};
+use akd::{Azks, AzksElement, NodeLabel};
 use criterion::{BatchSize, Criterion};
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
@@ -30,7 +30,7 @@ fn batch_insertion(c: &mut Criterion) {
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        initial_node_set.push(Node { label, hash });
+        initial_node_set.push(AzksElement { label, value: hash });
     }
 
     // prepare node set for batch insertion
@@ -40,7 +40,7 @@ fn batch_insertion(c: &mut Criterion) {
         let mut input = [0u8; 32];
         rng.fill_bytes(&mut input);
         let hash = akd_core::hash::hash(&input);
-        node_set.push(Node { label, hash });
+        node_set.push(AzksElement { label, value: hash });
     }
 
     // benchmark batch insertion
