@@ -126,7 +126,7 @@ pub fn key_history_verify(
     }
 
     // Verify the VRFs and non-membership proofs for future markers
-    for (i, pow) in (next_marker + 1..final_marker).enumerate() {
+    for (i, pow) in (next_marker..final_marker + 1).enumerate() {
         let ver = 1 << pow;
         let pf = &proof.non_existence_of_future_marker_proofs[i];
         let vrf_pf = &proof.future_marker_vrf_proofs[i];
@@ -191,54 +191,57 @@ fn verify_single_update_proof(
     )?;
     verify_membership(root_hash, existence_at_ep)?;
 
-    // ***** PART 2 ***************************
-    // Edge case here! We need to account for version = 1 where the previous version won't have a proof.
-    if version > 1 {
-        // Verify the membership proof the for stale label of the previous version
-        let previous_version_stale_proof =
-            proof.previous_version_proof.as_ref().ok_or_else(|| {
-                VerificationError::HistoryProof(format!(
-                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-                    uname,
-                    (version - 1),
-                    epoch
-                ))
-            })?;
-        // Check that the correct value is included in the previous stale proof
-        if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_stale_proof.hash_val
-        {
-            return Err(VerificationError::HistoryProof(format!(
-                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
-                uname,
-                (version - 1),
-                epoch
-            )));
-        }
-        verify_membership(root_hash, previous_version_stale_proof)?;
-
-        // Verify the VRF for the stale label corresponding to the previous version for this username
-        let previous_version_vrf_proof =
-            proof.previous_version_vrf_proof.as_ref().ok_or_else(|| {
-                VerificationError::HistoryProof(format!(
-                    "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-                    uname,
-                    (version - 1),
-                    epoch
-                ))
-            })?;
-        verify_label(
-            vrf_public_key,
-            uname,
-            VersionFreshness::Stale,
-            version - 1,
-            previous_version_vrf_proof,
-            previous_version_stale_proof.label,
-        )?;
-    }
-
-    Ok(VerifyResult {
+    let verify_result = VerifyResult {
         epoch: proof.epoch,
         version: proof.version,
         value: proof.value,
-    })
+    };
+
+    // ***** PART 2 ***************************
+    // Verify the membership proof the for stale label of the previous version
+
+    if version <= 1 {
+        // There is no previous version, so we can just return here
+        return Ok(verify_result);
+    }
+
+    let previous_version_proof = proof.previous_version_proof.as_ref().ok_or_else(|| {
+        VerificationError::HistoryProof(format!(
+            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+            uname,
+            (version - 1),
+            epoch
+        ))
+    })?;
+    // Check that the correct value is included in the previous stale proof
+    if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_proof.hash_val {
+        return Err(VerificationError::HistoryProof(format!(
+            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
+            uname,
+            (version - 1),
+            epoch
+        )));
+    }
+    verify_membership(root_hash, previous_version_proof)?;
+
+    // Verify the VRF for the stale label corresponding to the previous version for this username
+    let previous_version_vrf_proof =
+        proof.previous_version_vrf_proof.as_ref().ok_or_else(|| {
+            VerificationError::HistoryProof(format!(
+                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
+                uname,
+                (version - 1),
+                epoch
+            ))
+        })?;
+    verify_label(
+        vrf_public_key,
+        uname,
+        VersionFreshness::Stale,
+        version - 1,
+        previous_version_vrf_proof,
+        previous_version_proof.label,
+    )?;
+
+    Ok(verify_result)
 }
