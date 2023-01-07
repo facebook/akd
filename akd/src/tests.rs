@@ -475,6 +475,91 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     Ok(())
 }
 
+// This test will publish many versions for a small set of users, each with varying frequencies of publish rate, and
+// test the validity of lookup, key history, and audit proofs
+#[tokio::test]
+async fn test_complex_verification_many_versions() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let storage_manager = StorageManager::new_no_cache(db);
+    let vrf = HardCodedAkdVRF {};
+    // epoch 0
+    let akd = Directory::<_, _>::new(storage_manager, vrf, false).await?;
+    let vrf_pk = akd.get_public_key().await?;
+
+    let num_labels = 4;
+    let num_iterations = 20;
+    let mut previous_hash = [0u8; crate::DIGEST_BYTES];
+    for epoch in 1..num_iterations {
+        let mut to_insert = vec![];
+        for i in 0..num_labels {
+            let index = 1 << i;
+            let label = AkdLabel::from_utf8_str(format!("{index}").as_str());
+            let value = AkdValue::from_utf8_str(format!("{index},{epoch}").as_str());
+            if epoch % index == 0 {
+                to_insert.push((label, value));
+            }
+        }
+        let epoch_hash = akd.publish(to_insert).await?;
+
+        if epoch > 1 {
+            let audit_proof = akd
+                .audit(epoch_hash.epoch() - 1, epoch_hash.epoch())
+                .await?;
+            crate::auditor::audit_verify(vec![previous_hash, epoch_hash.hash()], audit_proof)
+                .await?;
+        }
+
+        previous_hash = epoch_hash.hash();
+
+        for i in 0..num_labels {
+            let index = 1 << i;
+            if epoch < index {
+                // Cannot produce proofs if there are no versions added yet for that user
+                continue;
+            }
+            let latest_added_epoch = epoch_hash.epoch() - (epoch_hash.epoch() % index);
+            let label = AkdLabel::from_utf8_str(format!("{index}").as_str());
+            let lookup_value =
+                AkdValue::from_utf8_str(format!("{index},{latest_added_epoch}").as_str());
+
+            let (lookup_proof, epoch_hash_from_lookup) = akd.lookup(label.clone()).await?;
+            assert_eq!(epoch_hash, epoch_hash_from_lookup);
+            let lookup_verify_result = lookup_verify(
+                vrf_pk.as_bytes(),
+                epoch_hash.hash(),
+                label.clone(),
+                lookup_proof,
+            )?;
+            assert_eq!(lookup_verify_result.epoch, latest_added_epoch);
+            assert_eq!(lookup_verify_result.value, lookup_value);
+            assert_eq!(lookup_verify_result.version, epoch / index);
+
+            let (history_proof, epoch_hash_from_history) =
+                akd.key_history(&label, HistoryParams::Complete).await?;
+            assert_eq!(epoch_hash, epoch_hash_from_history);
+            let history_results = key_history_verify(
+                vrf_pk.as_bytes(),
+                epoch_hash.hash(),
+                epoch_hash.epoch(),
+                label,
+                history_proof,
+                HistoryVerificationParams::default(),
+            )?;
+            for (j, res) in history_results.iter().enumerate() {
+                let added_in_epoch =
+                    epoch_hash.epoch() - (epoch_hash.epoch() % index) - (j as u64) * index;
+                let history_value =
+                    AkdValue::from_utf8_str(format!("{index},{added_in_epoch}").as_str());
+                assert_eq!(res.epoch, added_in_epoch);
+                assert_eq!(res.value, history_value);
+                assert_eq!(res.version, epoch / index - j as u64);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 // This test is testing the key_history function with a limited history.
 // We also want this update to verify.
 #[tokio::test]

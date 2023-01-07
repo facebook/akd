@@ -46,7 +46,7 @@ pub async fn verify_consecutive_append_only(
     proof: &SingleAppendOnlyProof,
     start_hash: Digest,
     end_hash: Digest,
-    epoch: u64,
+    end_epoch: u64,
 ) -> Result<(), AkdError> {
     // FIXME: Need to get rid of the clone here. Will need modifications to the functions called here.
     let unchanged_nodes = proof.unchanged_nodes.clone();
@@ -60,12 +60,12 @@ pub async fn verify_consecutive_append_only(
         .await?;
     let computed_start_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
-    azks.latest_epoch = epoch - 1;
+    azks.latest_epoch = end_epoch - 1;
     let updated_inserted = inserted
         .iter()
         .map(|x| {
             let mut y = *x;
-            y.value = akd_core::hash::merge_with_int(x.value, epoch);
+            y.value = akd_core::hash::merge_with_int(x.value, end_epoch);
             y
         })
         .collect();
