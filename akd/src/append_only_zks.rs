@@ -614,7 +614,7 @@ impl Azks {
     /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
     /// tree after `start_epoch` and  up until `end_epoch`.
     /// If there is no errors, this function returns an `Ok` result, containing the
-    ///  append-only proof and otherwise, it returns a [errors::AkdError].
+    ///  append-only proof and otherwise, it returns an [AkdError].
     ///
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
@@ -925,7 +925,7 @@ impl Azks {
             sibling_proofs.pop();
         }
         let hash_val = if curr_node.node_type == TreeNodeType::Leaf {
-            crate::hash::merge_with_int(curr_node.hash, curr_node.last_epoch)
+            crate::hash::merge_with_u64(curr_node.hash, curr_node.last_epoch)
         } else {
             curr_node.hash
         };
@@ -1024,7 +1024,7 @@ mod tests {
 
             let new_leaf = new_leaf_node(label, value, 7 - i + 1);
             leaf_hashes.push(crate::hash::merge(&[
-                crate::hash::merge_with_int(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
+                crate::hash::merge_with_u64(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
                 new_leaf.label.hash(),
             ]));
             leaves.push(new_leaf);

@@ -122,7 +122,7 @@ fn parse_user_events(s: &str) -> Result<User, String> {
                 let value: Option<AkdValue>;
                 if event.get(1).is_some() {
                     epoch = event.get(2).unwrap().as_str().parse().unwrap();
-                    value = Some(AkdValue::from_utf8_str(event.get(3).unwrap().as_str()));
+                    value = Some(AkdValue::from(event.get(3).unwrap().as_str()));
                 } else {
                     epoch = event.get(0).unwrap().as_str().parse().unwrap();
                     value = None;
@@ -135,7 +135,7 @@ fn parse_user_events(s: &str) -> Result<User, String> {
     };
 
     Ok(User {
-        label: AkdLabel::from_utf8_str(username),
+        label: AkdLabel::from(username),
         events,
     })
 }

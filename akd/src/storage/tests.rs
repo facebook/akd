@@ -124,11 +124,11 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
     // === ValueState storage === //
     let key = ValueStateKey("test".as_bytes().to_vec(), 1);
     let value = ValueState {
-        username: AkdLabel::from_utf8_str("test"),
+        username: AkdLabel::from("test"),
         epoch: 1,
         label: NodeLabel::new(byte_arr_from_u64(1), 1),
         version: 1,
-        value: AkdValue::from_utf8_str("abc123"),
+        value: AkdValue::from("abc123"),
     };
     let set_result = storage.set(DbRecord::ValueState(value.clone())).await;
     assert_eq!(Ok(()), set_result);
@@ -419,7 +419,7 @@ async fn test_user_data<S: Database>(storage: &S) {
         username: AkdLabel(rand_user),
     };
     let mut sample_state_2 = sample_state.clone();
-    sample_state_2.username = AkdLabel::from_utf8_str("test_user");
+    sample_state_2.username = AkdLabel::from("test_user");
 
     let result = storage
         .set(DbRecord::ValueState(sample_state.clone()))
@@ -615,7 +615,7 @@ async fn test_tombstoning_data<S: Database>(
         username: AkdLabel(rand_user.clone()),
     };
     let mut sample_state2 = sample_state.clone();
-    sample_state2.username = AkdLabel::from_utf8_str("tombstone_test_user");
+    sample_state2.username = AkdLabel::from("tombstone_test_user");
 
     // Load up a bunch of data into the storage layer
     for i in 0..5 {
@@ -657,10 +657,7 @@ async fn test_tombstoning_data<S: Database>(
     // tombstone the given states
     storage.tombstone_value_states(&keys_to_tombstone).await?;
 
-    for label in [
-        AkdLabel::from_utf8_str("tombstone_test_user"),
-        AkdLabel(rand_user),
-    ] {
+    for label in [AkdLabel::from("tombstone_test_user"), AkdLabel(rand_user)] {
         for version in 0..5 {
             let key = ValueStateKey(label.to_vec(), version);
             let got = storage.get::<ValueState>(&key).await?;

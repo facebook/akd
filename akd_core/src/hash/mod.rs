@@ -8,15 +8,10 @@
 //! This module contains all the hashing utilities needed for the AKD directory
 //! and verification operations
 
-use crate::Direction;
-use crate::NodeLabel;
-
 #[cfg(feature = "nostd")]
 use alloc::format;
 #[cfg(feature = "nostd")]
 use alloc::string::String;
-#[cfg(feature = "nostd")]
-use alloc::vec::Vec;
 use core::slice;
 
 /// A hash digest of a specified number of bytes
@@ -69,12 +64,12 @@ impl core::fmt::Display for HashError {
         let code = match &self {
             HashError::NoDirection(msg) => format!("(No Direction) - {}", msg),
         };
-        write!(f, "Hashing error {}", code)
+        write!(f, "Hashing error: {}", code)
     }
 }
 
-/// Try and parse a digest from an unknown length of bytes. Helpful for converting a Vec<u8>
-/// to a Digest
+/// Try and parse a digest from an unknown length of bytes. Helpful for converting a `Vec<u8>`
+/// to a [Digest]
 pub fn try_parse_digest(value: &[u8]) -> Result<Digest, String> {
     if value.len() != DIGEST_BYTES {
         Err(format!(
@@ -98,33 +93,9 @@ pub fn merge(items: &[Digest]) -> Digest {
 }
 
 /// Takes the hash of a value and merges it with a `u64`, hashing the result.
-pub fn merge_with_int(digest: Digest, value: u64) -> Digest {
+pub fn merge_with_u64(digest: Digest, value: u64) -> Digest {
     let mut data = [0; DIGEST_BYTES + 8];
     data[..DIGEST_BYTES].copy_from_slice(&digest);
     data[DIGEST_BYTES..].copy_from_slice(&value.to_be_bytes());
     hash(&data)
-}
-
-/// Hashes all the children of a node, as well as their labels
-pub(crate) fn build_and_hash_layer(
-    hashes: Vec<Digest>,
-    dir: Direction,
-    ancestor_hash: Digest,
-    parent_label: NodeLabel,
-) -> Result<Digest, HashError> {
-    if dir == Direction::None {
-        return Err(HashError::NoDirection(format!(
-            "Empty direction for {:?}",
-            parent_label.label_val
-        )));
-    }
-    let mut hashes_mut = hashes.to_vec();
-    hashes_mut.insert(dir as usize, ancestor_hash);
-    Ok(hash_layer(hashes_mut, parent_label))
-}
-
-/// Helper for build_and_hash_layer
-fn hash_layer(hashes: Vec<Digest>, parent_label: NodeLabel) -> Digest {
-    let new_hash = merge(&[hashes[0], hashes[1]]);
-    merge(&[new_hash, parent_label.hash()])
 }

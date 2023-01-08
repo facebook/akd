@@ -159,15 +159,12 @@ pub mod tests {
             .await
             .expect("Failed to construct directory");
 
-        let target_label = AkdLabel::from_utf8_str("hello");
+        let target_label = AkdLabel::from("hello");
 
         // Add two labels and corresponding values to the akd
         akd.publish(vec![
-            (target_label.clone(), AkdValue::from_utf8_str("world")),
-            (
-                AkdLabel::from_utf8_str("hello2"),
-                AkdValue::from_utf8_str("world2"),
-            ),
+            (target_label.clone(), AkdValue::from("world")),
+            (AkdLabel::from("hello2"), AkdValue::from("world2")),
         ])
         .await
         .expect("Failed to publish test data");

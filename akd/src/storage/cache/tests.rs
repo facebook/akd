@@ -29,10 +29,10 @@ async fn test_cache_put_and_expires() {
             label_len: 1,
             label_val: [0u8; 32],
         },
-        value: AkdValue::from_utf8_str("some value"),
-        username: AkdLabel::from_utf8_str("user"),
+        value: AkdValue::from("some value"),
+        username: AkdLabel::from("user"),
     });
-    let key = ValueStateKey(AkdLabel::from_utf8_str("user").0.to_vec(), 1);
+    let key = ValueStateKey(AkdLabel::from("user").0.to_vec(), 1);
     cache.put(&value_state).await;
 
     let got = cache.hit_test::<ValueState>(&key).await;
@@ -55,10 +55,10 @@ async fn test_cache_overwrite() {
             label_len: 1,
             label_val: [0u8; 32],
         },
-        value: AkdValue::from_utf8_str("some value"),
-        username: AkdLabel::from_utf8_str("user"),
+        value: AkdValue::from("some value"),
+        username: AkdLabel::from("user"),
     };
-    let key = ValueStateKey(AkdLabel::from_utf8_str("user").0.to_vec(), 1);
+    let key = ValueStateKey(AkdLabel::from("user").0.to_vec(), 1);
 
     let value_state_2 = ValueState {
         epoch: 1,
@@ -67,8 +67,8 @@ async fn test_cache_overwrite() {
             label_len: 2,
             label_val: [0u8; 32],
         },
-        value: AkdValue::from_utf8_str("some value"),
-        username: AkdLabel::from_utf8_str("user"),
+        value: AkdValue::from("some value"),
+        username: AkdLabel::from("user"),
     };
     cache.put(&DbRecord::ValueState(value_state)).await;
     cache
@@ -94,10 +94,10 @@ async fn test_cache_memory_pressure() {
             label_len: 1,
             label_val: [0u8; 32],
         },
-        value: AkdValue::from_utf8_str("some value"),
-        username: AkdLabel::from_utf8_str("user"),
+        value: AkdValue::from("some value"),
+        username: AkdLabel::from("user"),
     });
-    let key = ValueStateKey(AkdLabel::from_utf8_str("user").0.to_vec(), 1);
+    let key = ValueStateKey(AkdLabel::from("user").0.to_vec(), 1);
     cache.put(&value_state).await;
 
     // we only do an "automated" clean every 50ms in test, which is when memory pressure is evaluated.
@@ -125,8 +125,8 @@ async fn test_many_memory_pressure() {
                 label_len: 1,
                 label_val: [0u8; 32],
             },
-            value: AkdValue::from_utf8_str("test"),
-            username: AkdLabel::from_utf8_str("user"),
+            value: AkdValue::from("test"),
+            username: AkdLabel::from("user"),
         })
         .map(DbRecord::ValueState)
         .collect::<Vec<_>>();

@@ -48,7 +48,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                 let mut data = Vec::new();
                 for value in users.iter() {
                     data.push((
-                        AkdLabel::from_utf8_str(value),
+                        AkdLabel::from(value),
                         AkdValue(format!("{}", i).as_bytes().to_vec()),
                     ));
                 }
@@ -62,7 +62,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
 
             // Perform 10 random lookup proofs on the published users
             for user in users.iter().choose_multiple(&mut rng, 10) {
-                let key = AkdLabel::from_utf8_str(user);
+                let key = AkdLabel::from(user);
                 match dir.lookup(key.clone()).await {
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok((proof, root_hash)) => {
@@ -81,7 +81,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
 
             // Perform 2 random history proofs on the published material
             for user in users.iter().choose_multiple(&mut rng, 2) {
-                let key = AkdLabel::from_utf8_str(user);
+                let key = AkdLabel::from(user);
                 match dir.key_history(&key, HistoryParams::default()).await {
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok((proof, root_hash)) => {
