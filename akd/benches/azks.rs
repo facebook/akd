@@ -65,7 +65,7 @@ fn batch_insertion(c: &mut Criterion) {
     });
 }
 
-fn audit(c: &mut Criterion) {
+fn audit_verify(c: &mut Criterion) {
     let num_initial_leaves = 10000;
     let num_inserted_leaves = 10000;
 
@@ -136,5 +136,5 @@ fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
         .collect()
 }
 
-criterion_group!(azks_benches, batch_insertion, audit);
+criterion_group!(azks_benches, batch_insertion, audit_verify);
 criterion_main!(azks_benches);

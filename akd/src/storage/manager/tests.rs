@@ -162,7 +162,7 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
         .expect("Failed to set batch of records");
 
     // flush the database
-    storage_manager.db.clear().await;
+    storage_manager.db.clear();
 
     // test a retrieval still gets data (from the cache)
     let key = NodeKey(NodeLabel {
@@ -262,7 +262,7 @@ async fn test_storage_manager_cache_populated_by_batch_get() {
         .expect("Failed to get a batch of records");
 
     // flush the database
-    storage_manager.db.clear().await;
+    storage_manager.db.clear();
 
     // test a retrieval still gets data (from the cache)
     let key = NodeKey(NodeLabel {
