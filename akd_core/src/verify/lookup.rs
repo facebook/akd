@@ -7,14 +7,11 @@
 
 //! Verification of lookup proofs
 
-use super::base::{verify_label, verify_membership, verify_nonmembership};
+use super::base::{verify_existence, verify_existence_with_val, verify_nonexistence};
 use super::VerificationError;
-use crate::utils::hash_leaf_with_value;
 
 use crate::hash::Digest;
 use crate::{AkdLabel, LookupProof, VerifyResult, VersionFreshness};
-#[cfg(feature = "nostd")]
-use alloc::string::ToString;
 
 /// Verifies a lookup with respect to the root_hash
 pub fn lookup_verify(
@@ -23,56 +20,39 @@ pub fn lookup_verify(
     akd_label: AkdLabel,
     proof: LookupProof,
 ) -> Result<VerifyResult, VerificationError> {
-    let version = proof.version;
-
-    let marker_version = 1 << crate::utils::get_marker_version_log2(version);
-    let existence_proof = proof.existence_proof;
-    let marker_proof = proof.marker_proof;
-    let freshness_proof = proof.freshness_proof;
-
-    let fresh_label = existence_proof.label;
-
-    if hash_leaf_with_value(&proof.value, proof.epoch, &proof.commitment_nonce)
-        != existence_proof.hash_val
-    {
-        return Err(VerificationError::LookupProof(
-            "Hash of plaintext value did not match existence proof hash".to_string(),
-        ));
-    }
-
-    verify_label(
+    verify_existence_with_val(
         vrf_public_key,
+        root_hash,
         &akd_label,
+        &proof.value,
+        proof.epoch,
+        &proof.commitment_nonce,
         VersionFreshness::Fresh,
-        version,
+        proof.version,
         &proof.existence_vrf_proof,
-        fresh_label,
+        &proof.existence_proof,
     )?;
-    verify_membership(root_hash, &existence_proof)?;
 
-    let marker_label = marker_proof.label;
-    verify_label(
+    let marker_version = 1 << crate::utils::get_marker_version_log2(proof.version);
+    verify_existence(
         vrf_public_key,
+        root_hash,
         &akd_label,
         VersionFreshness::Fresh,
         marker_version,
         &proof.marker_vrf_proof,
-        marker_label,
+        &proof.marker_proof,
     )?;
 
-    verify_membership(root_hash, &marker_proof)?;
-
-    let stale_label = freshness_proof.label;
-    verify_label(
+    verify_nonexistence(
         vrf_public_key,
+        root_hash,
         &akd_label,
         VersionFreshness::Stale,
-        version,
+        proof.version,
         &proof.freshness_vrf_proof,
-        stale_label,
+        &proof.freshness_proof,
     )?;
-
-    verify_nonmembership(root_hash, &freshness_proof)?;
 
     Ok(VerifyResult {
         epoch: proof.epoch,

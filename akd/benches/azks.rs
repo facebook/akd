@@ -18,8 +18,8 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 fn batch_insertion(c: &mut Criterion) {
-    let num_initial_leaves = 10000;
-    let num_inserted_leaves = 100000;
+    let num_initial_leaves = 1000;
+    let num_inserted_leaves = 1000;
 
     let mut rng = StdRng::seed_from_u64(42);
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();

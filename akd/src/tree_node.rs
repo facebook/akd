@@ -522,7 +522,7 @@ fn optional_child_state_label_hash(input: &Option<TreeNode>, hash_mode: NodeHash
             if let (TreeNodeType::Leaf, NodeHashingMode::WithLeafEpoch) =
                 (child_state.node_type, hash_mode)
             {
-                hash = crate::hash::merge_with_int(hash, child_state.last_epoch);
+                hash = crate::hash::merge_with_u64(hash, child_state.last_epoch);
             }
             merge_digest_with_label_hash(&hash, child_state.label)
         }
@@ -534,7 +534,7 @@ pub(crate) fn optional_child_state_hash(input: &Option<TreeNode>) -> Digest {
     match input {
         Some(child_state) => {
             if child_state.node_type == TreeNodeType::Leaf {
-                crate::hash::merge_with_int(child_state.hash, child_state.last_epoch)
+                crate::hash::merge_with_u64(child_state.hash, child_state.last_epoch)
             } else {
                 child_state.hash
             }
@@ -720,12 +720,12 @@ mod tests {
 
         // Calculate expected root hash.
         let leaf_0_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&EMPTY_VALUE), 0),
+            crate::hash::merge_with_u64(crate::hash::hash(&EMPTY_VALUE), 0),
             hash_label(leaf_0.label),
         ]);
 
         let leaf_1_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[1u8]), 0),
+            crate::hash::merge_with_u64(crate::hash::hash(&[1u8]), 0),
             hash_label(leaf_1.label),
         ]);
 
@@ -796,17 +796,17 @@ mod tests {
         root.write_to_storage(&db, false).await?;
 
         let leaf_0_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&EMPTY_VALUE), 1),
+            crate::hash::merge_with_u64(crate::hash::hash(&EMPTY_VALUE), 1),
             hash_label(leaf_0.label),
         ]);
 
         let leaf_1_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[0b1u8]), 2),
+            crate::hash::merge_with_u64(crate::hash::hash(&[0b1u8]), 2),
             hash_label(leaf_1.label),
         ]);
 
         let leaf_2_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[1u8, 1u8]), 3),
+            crate::hash::merge_with_u64(crate::hash::hash(&[1u8, 1u8]), 3),
             hash_label(leaf_2.label),
         ]);
 
@@ -899,21 +899,21 @@ mod tests {
         root.write_to_storage(&db, false).await?;
 
         let leaf_0_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&EMPTY_VALUE), 1),
+            crate::hash::merge_with_u64(crate::hash::hash(&EMPTY_VALUE), 1),
             hash_label(leaf_0.label),
         ]);
 
         let leaf_1_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[1u8]), 2),
+            crate::hash::merge_with_u64(crate::hash::hash(&[1u8]), 2),
             hash_label(leaf_1.label),
         ]);
         let leaf_2_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[1u8, 1u8]), 3),
+            crate::hash::merge_with_u64(crate::hash::hash(&[1u8, 1u8]), 3),
             hash_label(leaf_2.label),
         ]);
 
         let leaf_3_hash = crate::hash::merge(&[
-            crate::hash::merge_with_int(crate::hash::hash(&[0u8, 1u8]), 4),
+            crate::hash::merge_with_u64(crate::hash::hash(&[0u8, 1u8]), 4),
             hash_label(leaf_3.label),
         ]);
 
@@ -964,7 +964,7 @@ mod tests {
                 7 - i,
             );
             leaf_hashes.push(crate::hash::merge(&[
-                crate::hash::merge_with_int(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i),
+                crate::hash::merge_with_u64(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i),
                 hash_label(new_leaf.label),
             ]));
             leaves.push(new_leaf);

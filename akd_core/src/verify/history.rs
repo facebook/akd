@@ -7,11 +7,13 @@
 
 //! Verification of key history proofs
 
-use super::base::{verify_label, verify_membership, verify_nonmembership};
+use super::base::{
+    verify_existence, verify_existence_with_commitment, verify_existence_with_val,
+    verify_nonexistence,
+};
 use super::VerificationError;
-use crate::utils::hash_leaf_with_value;
 
-use crate::hash::{hash, merge_with_int, Digest};
+use crate::hash::{hash, Digest};
 use crate::{AkdLabel, HistoryProof, UpdateProof, VerifyResult, VersionFreshness};
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -106,43 +108,35 @@ pub fn key_history_verify(
     let final_marker = crate::utils::get_marker_version_log2(current_epoch);
 
     // ***** Future checks below ***************************
-    // Verify the VRFs and non-membership of future entries, up to the next marker
-    for (i, ver) in (last_version + 1..(1 << next_marker)).enumerate() {
-        let pf = &proof.non_existence_until_marker_proofs[i];
-        let vrf_pf = &proof.until_marker_vrf_proofs[i];
-        let ver_label = pf.label;
-        verify_label(
+    // Verify the non-existence of future entries, up to the next marker
+    for (i, version) in (last_version + 1..(1 << next_marker)).enumerate() {
+        verify_nonexistence(
             vrf_public_key,
+            root_hash,
             &akd_key,
             VersionFreshness::Fresh,
-            ver,
-            vrf_pf,
-            ver_label,
-        )?;
-        if verify_nonmembership(root_hash, pf).is_err() {
-            return Err(VerificationError::HistoryProof(format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-            &akd_key, ver, current_epoch)));
-        }
+            version,
+            &proof.until_marker_vrf_proofs[i],
+            &proof.non_existence_until_marker_proofs[i],
+        ).map_err(|_|
+            VerificationError::HistoryProof(format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+                    &akd_key, version, current_epoch)))?;
     }
 
     // Verify the VRFs and non-membership proofs for future markers
     for (i, pow) in (next_marker..final_marker + 1).enumerate() {
-        let ver = 1 << pow;
-        let pf = &proof.non_existence_of_future_marker_proofs[i];
-        let vrf_pf = &proof.future_marker_vrf_proofs[i];
-        let ver_label = pf.label;
-        verify_label(
+        let version = 1 << pow;
+        verify_nonexistence(
             vrf_public_key,
+            root_hash,
             &akd_key,
             VersionFreshness::Fresh,
-            ver,
-            vrf_pf,
-            ver_label,
-        )?;
-        if verify_nonmembership(root_hash, pf).is_err() {
-            return Err(VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-            akd_key, ver, current_epoch)));
-        }
+            version,
+            &proof.future_marker_vrf_proofs[i],
+            &proof.non_existence_of_future_marker_proofs[i],
+        ).map_err(|_|
+            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
+            akd_key, version, current_epoch)))?;
     }
 
     Ok(results)
@@ -153,43 +147,41 @@ fn verify_single_update_proof(
     root_hash: Digest,
     vrf_public_key: &[u8],
     proof: UpdateProof,
-    uname: &AkdLabel,
+    akd_label: &AkdLabel,
     params: HistoryVerificationParams,
 ) -> Result<VerifyResult, VerificationError> {
-    let epoch = proof.epoch;
-    let version = proof.version;
-    let existence_at_ep = &proof.existence_proof;
-
-    let value_hash_valid = match (params, &proof.value) {
+    // Verify the VRF and membership proof for the corresponding label for the version being updated to.
+    match (params, &proof.value) {
         (HistoryVerificationParams::AllowMissingValues, bytes) if bytes.0 == crate::TOMBSTONE => {
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
             // the real value available
-            true
+            verify_existence(
+                vrf_public_key,
+                root_hash,
+                akd_label,
+                VersionFreshness::Fresh,
+                proof.version,
+                &proof.existence_vrf_proof,
+                &proof.existence_proof,
+            )?;
         }
-        (_, bytes) => {
+        (_, akd_value) => {
             // No tombstone so hash the value found, and compare to the existence proof's value
-            hash_leaf_with_value(bytes, proof.epoch, &proof.commitment_nonce)
-                == existence_at_ep.hash_val
+            verify_existence_with_val(
+                vrf_public_key,
+                root_hash,
+                akd_label,
+                akd_value,
+                proof.epoch,
+                &proof.commitment_nonce,
+                VersionFreshness::Fresh,
+                proof.version,
+                &proof.existence_vrf_proof,
+                &proof.existence_proof,
+            )?;
         }
     };
-    if !value_hash_valid {
-        return Err(VerificationError::HistoryProof(
-            "Hash of plaintext value did not match existence proof hash".to_string(),
-        ));
-    }
-
-    // ***** PART 1 ***************************
-    // Verify the VRF and membership proof for the corresponding label for the version being updated to.
-    verify_label(
-        vrf_public_key,
-        uname,
-        VersionFreshness::Fresh,
-        version,
-        &proof.existence_vrf_proof,
-        existence_at_ep.label,
-    )?;
-    verify_membership(root_hash, existence_at_ep)?;
 
     let verify_result = VerifyResult {
         epoch: proof.epoch,
@@ -197,50 +189,32 @@ fn verify_single_update_proof(
         value: proof.value,
     };
 
-    // ***** PART 2 ***************************
-    // Verify the membership proof the for stale label of the previous version
-
-    if version <= 1 {
+    if proof.version <= 1 {
         // There is no previous version, so we can just return here
         return Ok(verify_result);
     }
 
-    let previous_version_proof = proof.previous_version_proof.as_ref().ok_or_else(|| {
-        VerificationError::HistoryProof(format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-            uname,
-            (version - 1),
-            epoch
-        ))
-    })?;
-    // Check that the correct value is included in the previous stale proof
-    if merge_with_int(hash(&crate::EMPTY_VALUE), epoch) != previous_version_proof.hash_val {
-        return Err(VerificationError::HistoryProof(format!(
-            "Staleness proof of user {:?}'s version {:?} at epoch {:?} is doesn't include the right hash.",
-            uname,
-            (version - 1),
-            epoch
-        )));
-    }
-    verify_membership(root_hash, previous_version_proof)?;
+    // ***** PART 2 ***************************
+    // Verify the membership proof the for stale label of the previous version
 
-    // Verify the VRF for the stale label corresponding to the previous version for this username
+    let previous_version_proof = proof.previous_version_proof.as_ref().ok_or_else(|| {
+        VerificationError::HistoryProof("Missing membership proof for previous version".to_string())
+    })?;
     let previous_version_vrf_proof =
         proof.previous_version_vrf_proof.as_ref().ok_or_else(|| {
-            VerificationError::HistoryProof(format!(
-                "Staleness proof of user {:?}'s version {:?} at epoch {:?} is None",
-                uname,
-                (version - 1),
-                epoch
-            ))
+            VerificationError::HistoryProof("Missing VRF proof for previous version".to_string())
         })?;
-    verify_label(
+
+    verify_existence_with_commitment(
         vrf_public_key,
-        uname,
+        root_hash,
+        akd_label,
+        hash(&crate::EMPTY_VALUE),
+        proof.epoch,
         VersionFreshness::Stale,
-        version - 1,
+        proof.version - 1,
         previous_version_vrf_proof,
-        previous_version_proof.label,
+        previous_version_proof,
     )?;
 
     Ok(verify_result)

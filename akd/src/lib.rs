@@ -42,7 +42,7 @@
 //!
 //! ## Setup
 //! A [`Directory`] represents an AKD. To set up a [`Directory`], we first need to pick on
-//! a database, a hash function, and a VRF. For this example, we use [blake3] as the hash function,
+//! a database, a hash function, and a VRF. For this example, we use Blake3 as the hash function,
 //! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
 //! The [`Directory::new`] function also takes as input a third parameter indicating whether or not it is "read-only".
 //! Note that a read-only directory cannot be updated, and so we most likely will want to keep this variable set
@@ -82,8 +82,8 @@
 //! use akd::Digest;
 //!
 //! let entries = vec![
-//!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//!     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//!     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//!     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -116,8 +116,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -128,7 +128,7 @@
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let (lookup_proof, _) = akd.lookup(
-//!     AkdLabel::from_utf8_str("first entry")
+//!     AkdLabel::from("first entry")
 //! ).await.expect("Could not generate proof");
 //! # });
 //! ```
@@ -149,8 +149,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -161,14 +161,14 @@
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let (lookup_proof, epoch_hash) = akd.lookup(
-//! #         AkdLabel::from_utf8_str("first entry")
+//! #         AkdLabel::from("first entry")
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
 //! let lookup_result = akd::client::lookup_verify(
 //!     public_key.as_bytes(),
 //!     epoch_hash.hash(),
-//!     AkdLabel::from_utf8_str("first entry"),
+//!     AkdLabel::from("first entry"),
 //!     lookup_proof,
 //! ).expect("Could not verify lookup proof");
 //!
@@ -177,7 +177,7 @@
 //!     akd::VerifyResult {
 //!         epoch: 1,
 //!         version: 1,
-//!         value: AkdValue::from_utf8_str("first value"),
+//!         value: AkdValue::from("first value"),
 //!     },
 //! );
 //! # });
@@ -203,8 +203,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -217,10 +217,10 @@
 //! use akd::HistoryParams;
 //!
 //! let EpochHash(epoch2, root_hash2) = akd.publish(
-//!     vec![(AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("updated value"))],
+//!     vec![(AkdLabel::from("first entry"), AkdValue::from("updated value"))],
 //! ).await.expect("Error with publishing");
 //! let (history_proof, _) = akd.key_history(
-//!     &AkdLabel::from_utf8_str("first entry"),
+//!     &AkdLabel::from("first entry"),
 //!     HistoryParams::default(),
 //! ).await.expect("Could not generate proof");
 //! # });
@@ -244,8 +244,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -256,10 +256,10 @@
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let _ = akd.publish(
-//! #         vec![(AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("updated value"))],
+//! #         vec![(AkdLabel::from("first entry"), AkdValue::from("updated value"))],
 //! #     ).await.expect("Error with publishing");
 //! #     let (history_proof, epoch_hash) = akd.key_history(
-//! #         &AkdLabel::from_utf8_str("first entry"),
+//! #         &AkdLabel::from("first entry"),
 //! #         HistoryParams::default(),
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
@@ -267,7 +267,7 @@
 //!     public_key.as_bytes(),
 //!     epoch_hash.hash(),
 //!     epoch_hash.epoch(),
-//!     AkdLabel::from_utf8_str("first entry"),
+//!     AkdLabel::from("first entry"),
 //!     history_proof,
 //!     akd::HistoryVerificationParams::default(),
 //! ).expect("Could not verify history");
@@ -278,12 +278,12 @@
 //!         akd::VerifyResult {
 //!             epoch: 2,
 //!             version: 2,
-//!             value: AkdValue::from_utf8_str("updated value"),
+//!             value: AkdValue::from("updated value"),
 //!         },
 //!         akd::VerifyResult {
 //!             epoch: 1,
 //!             version: 1,
-//!             value: AkdValue::from_utf8_str("first value"),
+//!             value: AkdValue::from("first value"),
 //!         },
 //!     ],
 //! );
@@ -307,8 +307,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -320,8 +320,8 @@
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
 //! let entries = vec![
-//!     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
-//!     (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
+//!     (AkdLabel::from("first entry"), AkdValue::from("new first value")),
+//!     (AkdLabel::from("third entry"), AkdValue::from("third value")),
 //! ];
 //! let EpochHash(epoch2, root_hash2) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
@@ -346,8 +346,8 @@
 //! # use akd::Digest;
 //! #
 //! # let entries = vec![
-//! #     (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("first value")),
-//! #     (AkdLabel::from_utf8_str("second entry"), AkdValue::from_utf8_str("second value")),
+//! #     (AkdLabel::from("first entry"), AkdValue::from("first value")),
+//! #     (AkdLabel::from("second entry"), AkdValue::from("second value")),
 //! # ];
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -359,8 +359,8 @@
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
 //! #     let new_entries = vec![
-//! #         (AkdLabel::from_utf8_str("first entry"), AkdValue::from_utf8_str("new first value")),
-//! #         (AkdLabel::from_utf8_str("third entry"), AkdValue::from_utf8_str("third value")),
+//! #         (AkdLabel::from("first entry"), AkdValue::from("new first value")),
+//! #         (AkdLabel::from("third entry"), AkdValue::from("third value")),
 //! #     ];
 //! #     let EpochHash(epoch2, root_hash2) = akd.publish(new_entries)
 //! #         .await.expect("Error with publishing");

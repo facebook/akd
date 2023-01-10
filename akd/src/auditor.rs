@@ -65,7 +65,7 @@ pub async fn verify_consecutive_append_only(
         .iter()
         .map(|x| {
             let mut y = *x;
-            y.value = akd_core::hash::merge_with_int(x.value, end_epoch);
+            y.value = akd_core::hash::merge_with_u64(x.value, end_epoch);
             y
         })
         .collect();

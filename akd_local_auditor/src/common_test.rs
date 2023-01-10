@@ -76,21 +76,15 @@ pub async fn generate_audit_proofs(
                 .map(|item| {
                     let user = format!("user{}", item);
                     let value = format!("value{}_{}", _epoch, item);
-                    (
-                        AkdLabel::from_utf8_str(&user),
-                        AkdValue::from_utf8_str(&value),
-                    )
+                    (AkdLabel::from(&user), AkdValue::from(&value))
                 })
                 .collect::<Vec<(AkdLabel, AkdValue)>>();
             akd.publish(data).await?;
         } else {
             // generate (n) epochs of updates on the same user
             let t_value = format!("certificate{}", _epoch);
-            akd.publish(vec![(
-                AkdLabel::from_utf8_str("user"),
-                AkdValue::from_utf8_str(&t_value),
-            )])
-            .await?;
+            akd.publish(vec![(AkdLabel::from("user"), AkdValue::from(&t_value))])
+                .await?;
         }
         // generate the append-only proof
         let proof = akd.audit((_epoch - 1) as u64, _epoch as u64).await?;

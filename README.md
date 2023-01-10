@@ -15,7 +15,8 @@ This library provides a stateless API for an auditable key directory, meaning th
 Documentation
 -------------
 
-The API can be found [here](https://docs.rs/akd/) along with an example for usage.
+The API can be found [here](https://docs.rs/akd/) along with an example for usage. To learn more about the technical details
+behind how the directory is constructed, see [here](https://docs.rs/akd_core/).
 
 Installation
 ------------

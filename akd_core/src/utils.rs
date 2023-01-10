@@ -12,8 +12,6 @@ use crate::{AkdLabel, AkdValue, NodeLabel, VersionFreshness};
 
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
-#[cfg(feature = "rand")]
-use rand::{distributions::Alphanumeric, CryptoRng, Rng};
 
 /// Retrieve log_2 of the marker version, referring to the exponent
 /// of the largest power of two that is at most the input version
@@ -41,7 +39,12 @@ pub(crate) fn generate_commitment_from_nonce_client(
 /// Hash a leaf epoch and proof with a given [AkdValue]
 pub(crate) fn hash_leaf_with_value(value: &crate::AkdValue, epoch: u64, proof: &[u8]) -> Digest {
     let commitment = crate::utils::generate_commitment_from_nonce_client(value, proof);
-    crate::hash::merge_with_int(commitment, epoch)
+    hash_leaf_with_commitment(commitment, epoch)
+}
+
+/// Hash a leaf epoch and proof with a given [AkdValue]
+pub(crate) fn hash_leaf_with_commitment(commitment: Digest, epoch: u64) -> Digest {
+    crate::hash::merge_with_u64(commitment, epoch)
 }
 
 /// Used by the server to produce a commitment proof for an AkdLabel, version, and AkdValue.
@@ -107,14 +110,6 @@ pub fn commit_value(
 ) -> Digest {
     let nonce = get_commitment_nonce(commitment_key, label, version, value);
     crate::hash::hash(&[i2osp_array(value), i2osp_array(&nonce)].concat())
-}
-
-#[cfg(feature = "rand")]
-pub(crate) fn get_random_str<R: CryptoRng + Rng>(rng: &mut R) -> String {
-    rng.sample_iter(&Alphanumeric)
-        .take(32)
-        .map(char::from)
-        .collect()
 }
 
 /// Serde serialization helpers

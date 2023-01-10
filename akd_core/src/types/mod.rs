@@ -141,16 +141,25 @@ impl core::ops::DerefMut for AkdLabel {
     }
 }
 
-impl AkdLabel {
-    /// Build an [`AkdLabel`] struct from an UTF8 string
-    pub fn from_utf8_str(value: &str) -> Self {
-        Self(value.as_bytes().to_vec())
+impl core::convert::From<&str> for AkdLabel {
+    fn from(s: &str) -> Self {
+        Self(s.as_bytes().to_vec())
     }
+}
 
+impl core::convert::From<&String> for AkdLabel {
+    fn from(s: &String) -> Self {
+        Self(s.as_bytes().to_vec())
+    }
+}
+
+impl AkdLabel {
     #[cfg(feature = "rand")]
-    /// Gets a random value for a AKD
+    /// Gets a random label
     pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
-        Self::from_utf8_str(&crate::utils::get_random_str(rng))
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        Self(bytes.to_vec())
     }
 }
 
@@ -192,16 +201,25 @@ impl core::ops::DerefMut for AkdValue {
     }
 }
 
-impl AkdValue {
-    /// Build an [`AkdValue`] struct from an UTF8 string
-    pub fn from_utf8_str(value: &str) -> Self {
-        Self(value.as_bytes().to_vec())
+impl core::convert::From<&str> for AkdValue {
+    fn from(s: &str) -> Self {
+        Self(s.as_bytes().to_vec())
     }
+}
 
+impl core::convert::From<&String> for AkdValue {
+    fn from(s: &String) -> Self {
+        Self(s.as_bytes().to_vec())
+    }
+}
+
+impl AkdValue {
     #[cfg(feature = "rand")]
     /// Gets a random value for a AKD
     pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
-        Self::from_utf8_str(&crate::utils::get_random_str(rng))
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        Self(bytes.to_vec())
     }
 }
 
@@ -221,10 +239,10 @@ pub const TOMBSTONE: &[u8] = &[];
 
 /// Represents an element to be inserted into the AZKS. This
 /// is a pair consisting of a label ([NodeLabel]) and a value.
-/// The purpose of [Directory::publish] is to convert an
+/// The purpose of the directory publish is to convert an
 /// insertion set of ([AkdLabel], [AkdValue]) tuples into a
 /// set of [AzksElement]s, which are then inserted into
-/// the [Azks::batch_insert_leaves] function.
+/// the AZKS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",

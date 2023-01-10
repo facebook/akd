@@ -153,7 +153,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                 let mut data = Vec::new();
                 for value in users.iter() {
                     data.push((
-                        AkdLabel::from_utf8_str(value),
+                        AkdLabel::from(value),
                         AkdValue(format!("{}", i).as_bytes().to_vec()),
                     ));
                 }
@@ -170,7 +170,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
             // Pick a set of users to lookup
             let mut labels = Vec::new();
             for user in users.iter().choose_multiple(&mut rng, num_lookups) {
-                let label = AkdLabel::from_utf8_str(user);
+                let label = AkdLabel::from(user);
                 labels.push(label);
             }
 

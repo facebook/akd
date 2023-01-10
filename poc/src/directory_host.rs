@@ -60,10 +60,7 @@ where
             (DirectoryCommand::Publish(a, b), Some(response)) => {
                 let tic = Instant::now();
                 match directory
-                    .publish(vec![(
-                        AkdLabel::from_utf8_str(&a),
-                        AkdValue::from_utf8_str(&b),
-                    )])
+                    .publish(vec![(AkdLabel::from(&a), AkdValue::from(&b))])
                     .await
                 {
                     Ok(EpochHash(epoch, hash)) => {
@@ -91,12 +88,7 @@ where
                     .publish(
                         batches
                             .into_iter()
-                            .map(|(key, value)| {
-                                (
-                                    AkdLabel::from_utf8_str(&key),
-                                    AkdValue::from_utf8_str(&value),
-                                )
-                            })
+                            .map(|(key, value)| (AkdLabel::from(&key), AkdValue::from(&value)))
                             .collect(),
                     )
                     .await
@@ -113,13 +105,13 @@ where
                 }
             }
             (DirectoryCommand::Lookup(a), Some(response)) => {
-                match directory.lookup(AkdLabel::from_utf8_str(&a)).await {
+                match directory.lookup(AkdLabel::from(&a)).await {
                     Ok((proof, root_hash)) => {
                         let vrf_pk = directory.get_public_key().await.unwrap();
                         let verification = akd::client::lookup_verify(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
-                            AkdLabel::from_utf8_str(&a),
+                            AkdLabel::from(&a),
                             proof,
                         );
                         if verification.is_err() {
@@ -138,7 +130,7 @@ where
             }
             (DirectoryCommand::KeyHistory(a), Some(response)) => {
                 match directory
-                    .key_history(&AkdLabel::from_utf8_str(&a), HistoryParams::default())
+                    .key_history(&AkdLabel::from(&a), HistoryParams::default())
                     .await
                 {
                     Ok(_proof) => {

@@ -319,18 +319,18 @@ mod tests {
             hash: crate::hash::EMPTY_DIGEST,
         }));
         let value1 = DbRecord::ValueState(ValueState {
-            username: AkdLabel::from_utf8_str("test"),
+            username: AkdLabel::from("test"),
             epoch: 1,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 1,
-            value: AkdValue::from_utf8_str("abc123"),
+            value: AkdValue::from("abc123"),
         });
         let value2 = DbRecord::ValueState(ValueState {
-            username: AkdLabel::from_utf8_str("test"),
+            username: AkdLabel::from("test"),
             epoch: 2,
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
             version: 2,
-            value: AkdValue::from_utf8_str("abc1234"),
+            value: AkdValue::from("abc1234"),
         });
 
         let records = vec![azks, node1, node2, value1, value2];
