@@ -1,6 +1,9 @@
 .DS_Store
 .vs
 
+debug/
+coverage/
+
 .vscode/**
 !.vscode/launch.json
 !.vscode/settings.json
@@ -14,6 +17,7 @@ Cargo.lock
 **/target
 
 **/*.log
+**/*.profraw
 
 .idea/**
 *.iml

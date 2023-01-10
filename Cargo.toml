@@ -7,7 +7,7 @@ members = [
     "akd_mysql",
     "akd_test_tools",
     "akd_local_auditor",
-    
     "poc",
     "integration_tests",
+    "xtask",
 ]
