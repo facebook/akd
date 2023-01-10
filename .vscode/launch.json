@@ -4,7 +4,22 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug AKD Auditor User Interface",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=akd_local_auditor",
+                    "--package=akd_local_auditor"
+                ],
+            },
+            "args": [
+                "ui"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
         {
             "type": "lldb",
             "request": "launch",
