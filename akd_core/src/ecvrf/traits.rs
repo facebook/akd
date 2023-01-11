@@ -8,7 +8,7 @@
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
 use super::{Output, Proof, VRFExpandedPrivateKey, VRFPrivateKey, VRFPublicKey, VrfError};
-use crate::{AkdLabel, NodeLabel, VersionFreshness};
+use crate::{AkdLabel, AkdValue, NodeLabel, VersionFreshness};
 
 #[cfg(feature = "nostd")]
 use alloc::boxed::Box;
@@ -137,8 +137,8 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
     /// or a version that we are retiring.
     async fn get_node_labels(
         &self,
-        labels: &[(AkdLabel, VersionFreshness, u64)],
-    ) -> Result<Vec<((AkdLabel, VersionFreshness, u64), NodeLabel)>, VrfError> {
+        labels: &[(AkdLabel, VersionFreshness, u64, AkdValue)],
+    ) -> Result<Vec<((AkdLabel, VersionFreshness, u64, AkdValue), NodeLabel)>, VrfError> {
         let key = self.get_vrf_private_key().await?;
         let expanded_key = VRFExpandedPrivateKey::from(&key);
         let pk = VRFPublicKey::from(&key);
@@ -150,7 +150,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
 
             let mut join_set = tokio::task::JoinSet::new();
             let labels_vec = labels.to_vec();
-            for (label, freshness, version) in labels_vec.into_iter() {
+            for (label, freshness, version, value) in labels_vec.into_iter() {
                 let expanded_key_ref = expanded_key.clone();
                 let pk_ref = pk.clone();
 
@@ -164,7 +164,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                                 freshness,
                                 version,
                             ),
-                            (label, freshness, version),
+                            (label, freshness, version, value),
                         )
                     }
                 };
@@ -180,8 +180,8 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                             join_err
                         )))
                     }
-                    Ok((node_label, (label, freshness, version))) => {
-                        results.push(((label, freshness, version), node_label));
+                    Ok((node_label, (label, freshness, version, value))) => {
+                        results.push(((label, freshness, version, value), node_label));
                     }
                 }
             }
@@ -190,7 +190,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         #[cfg(not(feature = "parallel_vrf"))]
         {
             let mut results = Vec::new();
-            for (label, freshness, version) in labels {
+            for (label, freshness, version, value) in labels {
                 let node_label = Self::get_node_label_with_expanded_key(
                     &expanded_key,
                     &pk,
@@ -198,7 +198,10 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                     *freshness,
                     *version,
                 );
-                results.push(((label.clone(), *freshness, *version), node_label));
+                results.push((
+                    (label.clone(), *freshness, *version, value.clone()),
+                    node_label,
+                ));
             }
             Ok(results)
         }

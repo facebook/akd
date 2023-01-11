@@ -103,6 +103,17 @@ impl core::convert::TryFrom<u8> for Direction {
     }
 }
 
+impl Direction {
+    /// Returns the opposite of the direction
+    pub fn other(&self) -> Self {
+        match self {
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+            Direction::None => Direction::None,
+        }
+    }
+}
+
 /// The label of a particular entry in the AKD
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(
