@@ -38,7 +38,8 @@ async fn test_mysql_db() {
             Option::from(8001),
             200,
         )
-        .await;
+        .await
+        .expect("Failed to create async mysql db");
 
         if let Err(error) = mysql_db.delete_data().await {
             println!("Error cleaning mysql prior to test suite: {}", error);

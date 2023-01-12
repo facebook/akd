@@ -15,7 +15,7 @@ use crate::{Direction, SizeOf};
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 
 #[cfg(test)]
 mod tests;
@@ -137,7 +137,7 @@ impl NodeLabel {
             return 0;
         }
 
-        let usize_index: usize = index.try_into().unwrap();
+        let usize_index: usize = index as usize;
         let index_full_blocks = usize_index / 8;
         let index_remainder = usize_index % 8;
         (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1
@@ -155,7 +155,7 @@ impl NodeLabel {
             };
         }
 
-        let usize_len: usize = (len - 1).try_into().unwrap();
+        let usize_len: usize = (len - 1) as usize;
         let len_remainder = usize_len % 8;
         let len_div = usize_len / 8;
 
@@ -207,7 +207,7 @@ impl NodeLabel {
             return Self::new([0u8; 32], 0);
         }
 
-        let usize_len: usize = (len - 1).try_into().unwrap();
+        let usize_len: usize = (len - 1) as usize;
         let byte_index = usize_len / 8;
         let bit_index = usize_len % 8;
 

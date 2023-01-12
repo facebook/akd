@@ -27,6 +27,17 @@ use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 
+impl Clone for VRFPrivateKey {
+    fn clone(&self) -> Self {
+        // In theory, creating a key from bytes could be a DecodingError, except
+        // we just copied these bytes out of the source key, so ...
+        Self(
+            ed25519_PrivateKey::from_bytes(self.0.as_bytes())
+                .expect("Copied bytes from source key should be valid"),
+        )
+    }
+}
+
 /// A type family for schemes which know how to generate key material from
 /// a cryptographically-secure [`CryptoRng`][::rand::CryptoRng].
 pub trait Uniform {

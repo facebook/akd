@@ -144,7 +144,7 @@ pub fn test_get_bit_at_large() {
     }
     // Everything after the first 24 indixes is 0
     for index in 24..256 {
-        let index_32: u32 = index.try_into().unwrap();
+        let index_32 = index as u32;
         assert!(
             0 == label.get_bit_at(index_32),
             "get_bit_at({}) wrong for the 256 digit label 0000 0000 0000 0000 1010 0000! Expected {:?} and got {:?}",

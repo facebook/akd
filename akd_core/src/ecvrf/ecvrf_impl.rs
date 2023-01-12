@@ -62,14 +62,6 @@ impl core::ops::Deref for VRFPrivateKey {
     }
 }
 
-impl Clone for VRFPrivateKey {
-    fn clone(&self) -> Self {
-        // In theory, creating a key from bytes could be a DecodingError, except
-        // we just copied these bytes out of the source key, so ...
-        Self(ed25519_PrivateKey::from_bytes(self.0.as_bytes()).unwrap())
-    }
-}
-
 /// An ECVRF public key
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(
@@ -217,9 +209,7 @@ impl VRFPublicKey {
     pub(super) fn hash_to_curve(&self, alpha: &[u8]) -> EdwardsPoint {
         let mut result = [0u8; 32];
         let mut counter = 0;
-        let mut wrapped_point: Option<EdwardsPoint> = None;
-
-        while wrapped_point.is_none() {
+        loop {
             let hash = Sha512::new()
                 .chain([SUITE, ONE])
                 .chain(self.0.as_bytes())
@@ -227,11 +217,12 @@ impl VRFPublicKey {
                 .chain([counter, ZERO])
                 .finalize();
             result.copy_from_slice(&hash[..32]);
-            wrapped_point = CompressedEdwardsY::from_slice(&result).decompress();
+            let wrapped_point = CompressedEdwardsY::from_slice(&result).decompress();
             counter += 1;
+            if let Some(wp) = wrapped_point {
+                return wp.mul_by_cofactor();
+            }
         }
-
-        wrapped_point.unwrap().mul_by_cofactor()
     }
 }
 
