@@ -468,6 +468,8 @@ impl TreeNode {
                         )))),
                     }
                 } else {
+                    // klewi: This actually cannot happen because direction will never be None.
+                    // We should rewrite this to be cleaner
                     Ok(None)
                 }
             }

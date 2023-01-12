@@ -11,7 +11,7 @@ extern crate criterion;
 use self::criterion::*;
 use akd_core::ecvrf::{VRFExpandedPrivateKey, VRFPublicKey};
 use akd_core::VersionFreshness;
-use akd_core::{ecvrf::VRFKeyStorage, AkdLabel};
+use akd_core::{ecvrf::VRFKeyStorage, AkdLabel, AkdValue};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 
@@ -60,7 +60,12 @@ fn bench_parallel_vrfs(c: &mut Criterion) {
         .into_iter()
         .map(|i| {
             let name = format!("user {}", i);
-            (AkdLabel::from(&name), VersionFreshness::Fresh, i as u64)
+            (
+                AkdLabel::from(&name),
+                VersionFreshness::Fresh,
+                i as u64,
+                AkdValue::from(&name),
+            )
         })
         .collect::<Vec<_>>();
     let labels_clone = labels.clone();
@@ -72,7 +77,7 @@ fn bench_parallel_vrfs(c: &mut Criterion) {
                 .unwrap();
             let expanded_key = VRFExpandedPrivateKey::from(&key);
             let pk = VRFPublicKey::from(&key);
-            for (label, stale, version) in labels.iter() {
+            for (label, stale, version, _) in labels.iter() {
                 akd_core::ecvrf::HardCodedAkdVRF::get_node_label_with_expanded_key(
                     &expanded_key,
                     &pk,

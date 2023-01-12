@@ -127,13 +127,36 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         let vrf_computations = updates
             .iter()
-            .flat_map(|(label, _)| match all_user_versions_retrieved.get(label) {
-                None => vec![(label.clone(), VersionFreshness::Fresh, 1u64)],
-                Some((latest_version, _)) => vec![
-                    (label.clone(), VersionFreshness::Stale, *latest_version),
-                    (label.clone(), VersionFreshness::Fresh, *latest_version + 1),
-                ],
-            })
+            .flat_map(
+                |(akd_label, akd_value)| match all_user_versions_retrieved.get(akd_label) {
+                    None => vec![(
+                        akd_label.clone(),
+                        VersionFreshness::Fresh,
+                        1u64,
+                        akd_value.clone(),
+                    )],
+                    Some((latest_version, existing_akd_value)) => {
+                        if existing_akd_value == akd_value {
+                            // Skip this because the user is trying to re-publish the same value
+                            return vec![];
+                        }
+                        vec![
+                            (
+                                akd_label.clone(),
+                                VersionFreshness::Stale,
+                                *latest_version,
+                                akd_value.clone(),
+                            ),
+                            (
+                                akd_label.clone(),
+                                VersionFreshness::Fresh,
+                                *latest_version + 1,
+                                akd_value.clone(),
+                            ),
+                        ]
+                    }
+                },
+            )
             .collect::<Vec<_>>();
 
         let vrf_map = self
@@ -145,65 +168,22 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         let commitment_key = self.derive_commitment_key().await?;
 
-        for (akd_label, val) in updates {
-            match all_user_versions_retrieved.get(&akd_label) {
-                None => {
-                    // no data found for the user
-                    let latest_version = 1;
-                    let label = *vrf_map
-                        .get(&(akd_label.clone(), VersionFreshness::Fresh, 1))
-                        .ok_or_else(|| {
-                            crate::ecvrf::VrfError::SigningKey(
-                                "Failed to generate VRF for given username".to_string(),
-                            )
-                        })?;
+        for ((akd_label, freshness, version, akd_value), node_label) in vrf_map {
+            let node_value = match freshness {
+                VersionFreshness::Stale => crate::hash::hash(&crate::EMPTY_VALUE),
+                VersionFreshness::Fresh => {
+                    commit_value(&commitment_key, &node_label, version, &akd_value)
+                }
+            };
+            update_set.push(AzksElement {
+                label: node_label,
+                value: node_value,
+            });
 
-                    let value = commit_value(&commitment_key, &label, latest_version, &val);
-                    update_set.push(AzksElement { label, value });
-                    let latest_state =
-                        ValueState::new(akd_label, val, latest_version, label, next_epoch);
-                    user_data_update_set.push(latest_state);
-                }
-                Some((_, previous_value)) if val == *previous_value => {
-                    // skip this version because the user is trying to re-publish the already most recent value
-                    // Issue #197: https://github.com/novifinancial/akd/issues/197
-                }
-                Some((previous_version, _)) => {
-                    // Data found for the given user
-                    let latest_version = *previous_version + 1;
-                    let stale_label = *vrf_map
-                        .get(&(
-                            akd_label.clone(),
-                            VersionFreshness::Stale,
-                            *previous_version,
-                        ))
-                        .ok_or_else(|| {
-                            crate::ecvrf::VrfError::SigningKey(
-                                "Failed to generate VRF for given username".to_string(),
-                            )
-                        })?;
-                    let fresh_label = *vrf_map
-                        .get(&(akd_label.clone(), VersionFreshness::Fresh, latest_version))
-                        .ok_or_else(|| {
-                            crate::ecvrf::VrfError::SigningKey(
-                                "Failed to generate VRF for given username".to_string(),
-                            )
-                        })?;
-                    let stale_value_to_add = crate::hash::hash(&crate::EMPTY_VALUE);
-                    let fresh_value_to_add =
-                        commit_value(&commitment_key, &fresh_label, latest_version, &val);
-                    update_set.push(AzksElement {
-                        label: stale_label,
-                        value: stale_value_to_add,
-                    });
-                    update_set.push(AzksElement {
-                        label: fresh_label,
-                        value: fresh_value_to_add,
-                    });
-                    let new_state =
-                        ValueState::new(akd_label, val, latest_version, fresh_label, next_epoch);
-                    user_data_update_set.push(new_state);
-                }
+            if freshness == VersionFreshness::Fresh {
+                let latest_state =
+                    ValueState::new(akd_label, akd_value, version, node_label, next_epoch);
+                user_data_update_set.push(latest_state);
             }
         }
 
@@ -214,7 +194,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction() {
+        if !self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),
