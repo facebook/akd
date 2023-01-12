@@ -13,7 +13,8 @@ use super::base::{
 };
 use super::VerificationError;
 
-use crate::hash::{hash, Digest};
+use crate::crypto::commit_stale_value;
+use crate::hash::Digest;
 use crate::{AkdLabel, HistoryProof, UpdateProof, VerifyResult, VersionFreshness};
 #[cfg(feature = "nostd")]
 use alloc::format;
@@ -209,7 +210,7 @@ fn verify_single_update_proof(
         vrf_public_key,
         root_hash,
         akd_label,
-        hash(&crate::EMPTY_VALUE),
+        commit_stale_value(),
         proof.epoch,
         VersionFreshness::Stale,
         proof.version - 1,

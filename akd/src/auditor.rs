@@ -7,6 +7,8 @@
 
 //! Code for an auditor of a authenticated key directory
 
+use crate::crypto::hash_leaf_with_commitment;
+
 use crate::{
     append_only_zks::InsertMode,
     errors::{AkdError, AuditorError, AzksError},
@@ -65,7 +67,7 @@ pub async fn verify_consecutive_append_only(
         .iter()
         .map(|x| {
             let mut y = *x;
-            y.value = akd_core::hash::merge_with_u64(x.value, end_epoch);
+            y.value = hash_leaf_with_commitment(x.value, end_epoch);
             y
         })
         .collect();
