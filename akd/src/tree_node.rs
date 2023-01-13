@@ -22,7 +22,7 @@ use std::marker::Sync;
 
 /// There are three types of nodes: root, leaf and interior.
 /// This enum is used to mark the type of a [TreeNode].
-#[derive(Eq, PartialEq, Debug, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -70,7 +70,7 @@ impl TreeNodeType {
 /// that a new epoch is available, flush their caches, and retrieve data from storage directly again.
 ///
 /// This structure holds the label along with the current value & epoch - 1
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -217,7 +217,7 @@ impl TreeNodeWithPreviousValue {
 /// At a later time, we may need to access older sub-trees of the tree built with these nodes.
 /// To facilitate this, we require this struct to include the last time a node was updated
 /// as well as the oldest descendant it holds.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)

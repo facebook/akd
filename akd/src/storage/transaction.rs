@@ -290,7 +290,7 @@ mod tests {
     use crate::tree_node::*;
     use crate::utils::byte_arr_from_u64;
     use crate::{AkdLabel, AkdValue};
-    use rand::{rngs::OsRng, seq::SliceRandom};
+    use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
     #[test]
     fn test_commit_order() -> Result<(), StorageError> {
@@ -334,7 +334,7 @@ mod tests {
         });
 
         let records = vec![azks, node1, node2, value1, value2];
-        let mut rng = OsRng;
+        let mut rng = StdRng::seed_from_u64(42);
 
         for _ in 1..10 {
             let txn = Transaction::new();

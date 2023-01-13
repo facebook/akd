@@ -108,7 +108,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             .map(|(akd_label, _val)| akd_label.clone())
             .collect();
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
-        keys.sort_by(|a, b| a.cmp(b));
+        keys.sort();
 
         // we're only using the maximum "version" of the user's state at the last epoch
         // they were seen in the directory. Therefore we've minimized the call to only
