@@ -160,7 +160,8 @@ async fn main() {
             Option::from(8001),
             cli.mysql_insert_depth,
         )
-        .await;
+        .await
+        .expect("Failed to create async mysql db");
         if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
             return;
         }

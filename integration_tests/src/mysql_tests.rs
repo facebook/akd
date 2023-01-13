@@ -39,7 +39,8 @@ async fn test_directory_operations() {
             Option::from(8001),
             200,
         )
-        .await;
+        .await
+        .expect("Failed to create async mysql db");
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -101,7 +102,8 @@ async fn test_directory_operations_with_caching() {
             Option::from(8001),
             200,
         )
-        .await;
+        .await
+        .expect("Failed to create async mysql db");
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
@@ -163,7 +165,8 @@ async fn test_lookups() {
             Option::from(8001),
             200,
         )
-        .await;
+        .await
+        .expect("Failed to create async mysql db");
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {

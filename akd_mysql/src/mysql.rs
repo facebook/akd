@@ -114,7 +114,7 @@ impl<'a> AsyncMySqlDatabase {
         password: Option<T>,
         port: Option<u16>,
         depth: usize,
-    ) -> Self {
+    ) -> core::result::Result<Self, StorageError> {
         let dport = port.unwrap_or(3306u16);
         let mut builder = OptsBuilder::default()
             .ip_or_hostname(endpoint)
@@ -129,9 +129,9 @@ impl<'a> AsyncMySqlDatabase {
         // Exception to issue 139. This call SHOULD panic if we cannot create a connection pool
         // object to fail the entire app. It'll fail very early as we need to create the db
         // prior to the directory
-        let pool = Self::new_connection_pool(&opts, &healthy).await.unwrap();
+        let pool = Self::new_connection_pool(&opts, &healthy).await?;
 
-        Self {
+        Ok(Self {
             opts,
             pool: Arc::new(tokio::sync::RwLock::new(pool)),
             is_healthy: healthy,
@@ -139,7 +139,7 @@ impl<'a> AsyncMySqlDatabase {
             write_call_stats: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
 
             tunable_insert_depth: depth,
-        }
+        })
     }
 
     /// Determine if the db connection is healthy at present
@@ -896,8 +896,8 @@ impl Database for AsyncMySqlDatabase {
                         row.take(5),
                     ) {
                         // explicitly check the array length for safety
-                        if node_label_val.len() == 32 {
-                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
+                        let r: core::result::Result<[u8; 32], _> = node_label_val.try_into();
+                        if let Ok(label_val) = r {
                             return Some(ValueState {
                                 epoch,
                                 version,
@@ -986,8 +986,8 @@ impl Database for AsyncMySqlDatabase {
                         row.take(5),
                     ) {
                         // explicitly check the array length for safety
-                        if node_label_val.len() == 32 {
-                            let label_val: [u8; 32] = node_label_val.try_into().unwrap();
+                        let r: core::result::Result<[u8; 32], _> = node_label_val.try_into();
+                        if let Ok(label_val) = r {
                             return Some(ValueState {
                                 epoch,
                                 version,

@@ -900,10 +900,15 @@ impl Azks {
             });
 
             prev_node = curr_node.clone();
-            curr_node = curr_node
-                .get_child_node(storage, dir, latest_epoch)
-                .await?
-                .unwrap();
+            match curr_node.get_child_node(storage, dir, latest_epoch).await? {
+                Some(n) => curr_node = n,
+                None => {
+                    return Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
+                        latest_epoch,
+                        dir,
+                    )));
+                }
+            }
             dir = curr_node.label.get_dir(label);
             equal = label == curr_node.label;
         }
