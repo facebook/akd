@@ -9,7 +9,7 @@
 
 use super::specs::types::*;
 use super::*;
-use crate::Direction;
+use crate::{AzksValue, Direction};
 use rand::{thread_rng, Rng};
 
 // ================= Test helpers ================= //
@@ -21,7 +21,7 @@ fn random_hash() -> [u8; 32] {
 fn random_azks_element() -> crate::AzksElement {
     crate::AzksElement {
         label: random_label(),
-        value: random_hash(),
+        value: AzksValue(random_hash()),
     }
 }
 
@@ -66,7 +66,7 @@ fn test_convert_layer_proof() {
 fn test_convert_membership_proof() {
     let original = crate::MembershipProof {
         label: random_label(),
-        hash_val: random_hash(),
+        hash_val: AzksValue(random_hash()),
         sibling_proofs: vec![crate::SiblingProof {
             label: random_label(),
             siblings: [random_azks_element()],
@@ -86,7 +86,7 @@ fn test_convert_non_membership_proof() {
         longest_prefix_children: [random_azks_element(), random_azks_element()],
         longest_prefix_membership_proof: crate::MembershipProof {
             label: random_label(),
-            hash_val: random_hash(),
+            hash_val: AzksValue(random_hash()),
             sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
                 siblings: [random_azks_element()],
@@ -109,7 +109,7 @@ fn test_convert_lookup_proof() {
         existence_vrf_proof: random_hash().to_vec(),
         existence_proof: crate::MembershipProof {
             label: random_label(),
-            hash_val: random_hash(),
+            hash_val: AzksValue(random_hash()),
             sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
                 siblings: [random_azks_element()],
@@ -119,7 +119,7 @@ fn test_convert_lookup_proof() {
         marker_vrf_proof: random_hash().to_vec(),
         marker_proof: crate::MembershipProof {
             label: random_label(),
-            hash_val: random_hash(),
+            hash_val: AzksValue(random_hash()),
             sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
                 siblings: [random_azks_element()],
@@ -133,7 +133,7 @@ fn test_convert_lookup_proof() {
             longest_prefix_children: [random_azks_element(), random_azks_element()],
             longest_prefix_membership_proof: crate::MembershipProof {
                 label: random_label(),
-                hash_val: random_hash(),
+                hash_val: AzksValue(random_hash()),
                 sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
                     siblings: [random_azks_element()],
@@ -158,7 +158,7 @@ fn test_convert_update_proof() {
         existence_vrf_proof: random_hash().to_vec(),
         existence_proof: crate::MembershipProof {
             label: random_label(),
-            hash_val: random_hash(),
+            hash_val: AzksValue(random_hash()),
             sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
                 siblings: [random_azks_element()],
@@ -168,7 +168,7 @@ fn test_convert_update_proof() {
         previous_version_vrf_proof: Some(random_hash().to_vec()),
         previous_version_proof: Some(crate::MembershipProof {
             label: random_label(),
-            hash_val: random_hash(),
+            hash_val: AzksValue(random_hash()),
             sibling_proofs: vec![crate::SiblingProof {
                 label: random_label(),
                 siblings: [random_azks_element()],
@@ -191,7 +191,7 @@ fn test_convert_history_proof() {
             longest_prefix_children: [random_azks_element(), random_azks_element()],
             longest_prefix_membership_proof: crate::MembershipProof {
                 label: random_label(),
-                hash_val: random_hash(),
+                hash_val: AzksValue(random_hash()),
                 sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
                     siblings: [random_azks_element()],
@@ -210,7 +210,7 @@ fn test_convert_history_proof() {
             existence_vrf_proof: random_hash().to_vec(),
             existence_proof: crate::MembershipProof {
                 label: random_label(),
-                hash_val: random_hash(),
+                hash_val: AzksValue(random_hash()),
                 sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
                     siblings: [random_azks_element()],
@@ -220,7 +220,7 @@ fn test_convert_history_proof() {
             previous_version_vrf_proof: Some(random_hash().to_vec()),
             previous_version_proof: Some(crate::MembershipProof {
                 label: random_label(),
-                hash_val: random_hash(),
+                hash_val: AzksValue(random_hash()),
                 sibling_proofs: vec![crate::SiblingProof {
                     label: random_label(),
                     siblings: [random_azks_element()],

@@ -43,7 +43,7 @@
 //!
 //! There are multiple steps for inserting a single ([AkdLabel], [AkdValue]) pair into the tree:
 //!
-//! ## Step 1: Deriving the NodeLabel
+//! ## Step 1: Deriving an [AzksElement]
 //!
 //! The server computes a VRF on [AkdLabel] to derive a [NodeLabel] which determines the leaf's position in the tree.
 //! This is computed by the
@@ -56,29 +56,29 @@
 //! - The label in bytes
 //! - A single byte encoded as `0u8` if "stale", `1u8` if "fresh"
 //! - A `u64` representing the version (starting at 1 for newly inserted labels, and incremented by 1 for each update)
-//! The resulting values are hashed together and used as the bytestring (truncated to 256 bits) that is stored
-//! as the [NodeLabel]'s value.
+//! The resulting values are hashed together and used as the byte string (truncated to 256 bits) that is stored
+//! as the [NodeLabel].
 //!
 //! The server then computes a VRF on the [NodeLabel] to derive a value for the leaf node. This is computed as:
 //! `node_label = VRF(vsk, vrf_input)`.
 //!
-//! Once the node label for this entry is derived (as `node_label`), the functions [crypto::commit_fresh_value()]
-//! and [crypto::commit_stale_value()]
+//! Once the node label for this entry is derived (as `node_label`), the functions [crypto::compute_fresh_azks_value()]
+//! and [crypto::stale_azks_value()]
 //! are used to commit the [AkdValue] to the tree. The actual value
-//! that is stored in the node is a commitment, generated using the server's commitment key as follows:
+//! that is stored in the node is an [AzksValue], generated using the server's commitment key as follows:
 //! - `commitment_nonce = Hash(commitment_key, node_label, version, I2OSP(len(value) as u64), value)`
 //! - `commmitment = Hash(I2OSP(len(value) as u64), value, I2OSP(len(commitment_nonce) as u64), commitment_nonce)`
 //!
 //! Finally, the commitment is hashed together with the epoch that it ends up being inserted into the tree,
-//! computed as: `node_value = Hash(commitment, epoch)`
+//! computed as: `azks_value = Hash(commitment, epoch)`
 //!
-//! For each entry, the server constructs `node_label` and `node_value` in the above-described manner with staleness set to [VersionFreshness::Fresh] and
+//! For each entry, the server constructs an [AzksElement] out of `node_label` and `azks_value` in the above-described manner with staleness set to [VersionFreshness::Fresh] and
 //! `version` to `1`. If this is the `n`th time the label is being inserted into the tree where `n > 1`, then the server constructs two
-//! (`node_label`, `node_value`) pairs,
+//! [AzksElement]s,
 //! one with `version` set to `n-1` and freshness set to [VersionFreshness::Stale] with `node_value = Hash(0u8)`, and the other
 //! with `version` set to `n` and freshness set to [VersionFreshness::Fresh], and `node_value` derived as above.
 //!
-//! ## Step 2: Inserting a node label and value pair into the tree
+//! ## Step 2: Inserting an [AzksElement] into the Merkle tree
 //!
 //! In order to insert a single node label and value pair into the tree, the server constructs a leaf node `new_node` with this
 //! [NodeLabel] and commitment value, and identifies the leaf node `lcp_node` with the longest common prefix with this node in the tree.

@@ -12,7 +12,7 @@ use akd::append_only_zks::InsertMode;
 use akd::auditor;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
-use akd::{Azks, AzksElement, NodeLabel};
+use akd::{Azks, AzksElement, AzksValue, NodeLabel};
 use criterion::{BatchSize, Criterion};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -130,7 +130,7 @@ fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
             };
             let mut input = [0u8; 32];
             rng.fill_bytes(&mut input);
-            let value = akd_core::hash::hash(&input);
+            let value = AzksValue(input);
             AzksElement { label, value }
         })
         .collect()

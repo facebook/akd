@@ -7,14 +7,13 @@
 
 //! Code for an auditor of a authenticated key directory
 
-use crate::crypto::hash_leaf_with_commitment;
-
 use crate::{
     append_only_zks::InsertMode,
     errors::{AkdError, AuditorError, AzksError},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
     AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
 };
+use crate::{crypto::hash_leaf_with_commitment, AzksValue};
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
 pub async fn audit_verify(hashes: Vec<Digest>, proof: AppendOnlyProof) -> Result<(), AkdError> {
@@ -67,7 +66,7 @@ pub async fn verify_consecutive_append_only(
         .iter()
         .map(|x| {
             let mut y = *x;
-            y.value = hash_leaf_with_commitment(x.value, end_epoch);
+            y.value = AzksValue(hash_leaf_with_commitment(x.value, end_epoch).0);
             y
         })
         .collect();

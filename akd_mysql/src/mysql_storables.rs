@@ -135,7 +135,7 @@ impl MySqlStorable for DbRecord {
                 "left_child_label_val" => node.latest_node.left_child.map(|lc| lc.label_val),
                 "right_child_len" => node.latest_node.right_child.map(|rc| rc.label_len),
                 "right_child_label_val" => node.latest_node.right_child.map(|rc| rc.label_val),
-                "hash" => node.latest_node.hash,
+                "hash" => node.latest_node.hash.0,
                 // "Previous" node values
                 "p_last_epoch" => node.previous_node.clone().map(|a| a.last_epoch),
                 "p_least_descendant_ep" => node.previous_node.clone().map(|a| a.min_descendant_epoch),
@@ -146,7 +146,7 @@ impl MySqlStorable for DbRecord {
                 "p_left_child_label_val" => node.previous_node.clone().and_then(|a| a.left_child.map(|lc| lc.label_val)),
                 "p_right_child_len" => node.previous_node.clone().and_then(|a| a.right_child.map(|rc| rc.label_len)),
                 "p_right_child_label_val" => node.previous_node.clone().and_then(|a| a.right_child.map(|rc| rc.label_val)),
-                "p_hash" => node.previous_node.clone().map(|a| a.hash),
+                "p_hash" => node.previous_node.clone().map(|a| a.hash.0),
             }),
             DbRecord::ValueState(state) => Some(
                 params! { "username" => state.get_id().0, "epoch" => state.epoch, "version" => state.version, "node_label_len" => state.label.label_len, "node_label_val" => state.label.label_val, "data" => state.value.0.clone() },
@@ -306,7 +306,7 @@ impl MySqlStorable for DbRecord {
                             format!("right_child_label_val{}", idx),
                             Value::from(node.latest_node.right_child.map(|rc| rc.label_val)),
                         ),
-                        (format!("hash{}", idx), Value::from(node.latest_node.hash)),
+                        (format!("hash{}", idx), Value::from(node.latest_node.hash.0)),
                         (
                             format!("p_last_epoch{}", idx),
                             Value::from(pnode.clone().map(|a| a.last_epoch)),
@@ -361,7 +361,7 @@ impl MySqlStorable for DbRecord {
                         ),
                         (
                             format!("p_hash{}", idx),
-                            Value::from(pnode.clone().map(|a| a.hash)),
+                            Value::from(pnode.clone().map(|a| a.hash.0)),
                         ),
                     ])
                 }

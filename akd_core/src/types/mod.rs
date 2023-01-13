@@ -15,7 +15,8 @@
 use crate::hash::Digest;
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{
-    bytes_deserialize_hex, bytes_serialize_hex, digest_deserialize, digest_serialize,
+    azks_value_hex_deserialize, azks_value_hex_serialize, bytes_deserialize_hex,
+    bytes_serialize_hex,
 };
 use crate::ARITY;
 
@@ -248,6 +249,22 @@ pub const TOMBSTONE: &[u8] = &[];
 // Structs
 // ============================================
 
+/// The value associated with an element of the AZKS
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub struct AzksValue(pub Digest);
+
+/// Used to denote an azks value that has been hashed together with an epoch
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub struct AzksValueWithEpoch(pub Digest);
+
 /// Represents an element to be inserted into the AZKS. This
 /// is a pair consisting of a label ([NodeLabel]) and a value.
 /// The purpose of the directory publish is to convert an
@@ -265,17 +282,18 @@ pub struct AzksElement {
     /// The associated hash of the node
     #[cfg_attr(
         feature = "serde_serialization",
-        serde(
-            serialize_with = "digest_serialize",
-            deserialize_with = "digest_deserialize"
-        )
+        serde(serialize_with = "azks_value_hex_serialize")
     )]
-    pub value: Digest,
+    #[cfg_attr(
+        feature = "serde_serialization",
+        serde(deserialize_with = "azks_value_hex_deserialize")
+    )]
+    pub value: AzksValue,
 }
 
 impl SizeOf for AzksElement {
     fn size_of(&self) -> usize {
-        self.label.size_of() + self.value.len()
+        self.label.size_of() + self.value.0.len()
     }
 }
 
@@ -318,14 +336,7 @@ pub struct MembershipProof {
     /// The node label
     pub label: NodeLabel,
     /// The hash of the value
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(
-            serialize_with = "digest_serialize",
-            deserialize_with = "digest_deserialize"
-        )
-    )]
-    pub hash_val: Digest,
+    pub hash_val: AzksValue,
     /// The parents of the node in question
     pub sibling_proofs: Vec<SiblingProof>,
 }

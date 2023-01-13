@@ -7,6 +7,8 @@
 
 //! Various storage and representation related types
 
+use akd_core::AzksValue;
+
 use crate::storage::Storable;
 use crate::tree_node::{TreeNode, TreeNodeType, TreeNodeWithPreviousValue};
 use crate::{AkdLabel, AkdValue};
@@ -227,7 +229,7 @@ impl DbRecord {
         node_type: u8,
         left_child: Option<NodeLabel>,
         right_child: Option<NodeLabel>,
-        hash: crate::Digest,
+        value: crate::Digest,
         p_last_epoch: Option<u64>,
         p_least_descendant_ep: Option<u64>,
         p_parent_label_val: Option<[u8; 32]>,
@@ -235,7 +237,7 @@ impl DbRecord {
         p_node_type: Option<u8>,
         p_left_child: Option<NodeLabel>,
         p_right_child: Option<NodeLabel>,
-        p_hash: Option<crate::Digest>,
+        p_value: Option<crate::Digest>,
     ) -> TreeNodeWithPreviousValue {
         let label = NodeLabel::new(label_val, label_len);
         let p_node = match (
@@ -244,7 +246,7 @@ impl DbRecord {
             p_parent_label_val,
             p_parent_label_len,
             p_node_type,
-            p_hash,
+            p_value,
         ) {
             (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) => Some(TreeNode {
                 label,
@@ -254,7 +256,7 @@ impl DbRecord {
                 node_type: TreeNodeType::from_u8(e),
                 left_child: p_left_child,
                 right_child: p_right_child,
-                hash: f,
+                hash: AzksValue(f),
             }),
             _ => None,
         };
@@ -268,7 +270,7 @@ impl DbRecord {
                 node_type: TreeNodeType::from_u8(node_type),
                 left_child,
                 right_child,
-                hash,
+                hash: AzksValue(value),
             },
             previous_node: p_node,
         }

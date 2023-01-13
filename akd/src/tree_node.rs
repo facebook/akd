@@ -11,14 +11,14 @@ use crate::crypto::{
     compute_parent_hash_from_children, empty_node_hash, empty_root_value, hash_leaf_with_commitment,
 };
 use crate::errors::{AkdError, StorageError, TreeNodeError};
+use crate::hash::EMPTY_DIGEST;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
-use crate::Digest;
+use crate::AzksValue;
 use crate::{node_label::*, Direction, EMPTY_LABEL};
-use akd_core::hash::EMPTY_DIGEST;
 #[cfg(feature = "serde_serialization")]
-use akd_core::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
+use akd_core::utils::serde_helpers::{azks_value_hex_deserialize, azks_value_hex_serialize};
 use std::cmp::{max, min};
 use std::convert::TryInto;
 use std::marker::Sync;
@@ -244,13 +244,13 @@ pub struct TreeNode {
     /// Hash (aka state) of the node.
     #[cfg_attr(
         feature = "serde_serialization",
-        serde(serialize_with = "bytes_serialize_hex")
+        serde(serialize_with = "azks_value_hex_serialize")
     )]
     #[cfg_attr(
         feature = "serde_serialization",
-        serde(deserialize_with = "bytes_deserialize_hex")
+        serde(deserialize_with = "azks_value_hex_deserialize")
     )]
-    pub hash: [u8; crate::hash::DIGEST_BYTES],
+    pub hash: AzksValue, // FIXME: we should rename this field to "value"
 }
 
 impl akd_core::SizeOf for TreeNode {
@@ -364,7 +364,7 @@ impl TreeNode {
         node_type: TreeNodeType,
         birth_epoch: u64,
         min_descendant_epoch: u64,
-        hash: crate::Digest,
+        value: AzksValue,
     ) -> Self {
         TreeNode {
             label,
@@ -374,7 +374,7 @@ impl TreeNode {
             node_type,
             left_child: None,
             right_child: None,
-            hash,
+            hash: value,
         }
     }
 
@@ -400,10 +400,10 @@ impl TreeNode {
                     .get_child_node(storage, Direction::Right, self.last_epoch)
                     .await?;
                 self.hash = compute_parent_hash_from_children(
-                    &maybe_node_to_hash(&left_child, hash_mode),
-                    &maybe_node_to_label(&left_child).hash(),
-                    &maybe_node_to_hash(&right_child, hash_mode),
-                    &maybe_node_to_label(&right_child).hash(),
+                    &node_to_azks_value(&left_child, hash_mode),
+                    &node_to_label(&left_child).hash(),
+                    &node_to_azks_value(&right_child, hash_mode),
+                    &node_to_label(&right_child).hash(),
                 );
             }
         }
@@ -505,23 +505,26 @@ pub(crate) enum NodeHashingMode {
     NoLeafEpoch,
 }
 
-pub(crate) fn maybe_node_to_label(input: &Option<TreeNode>) -> NodeLabel {
+pub(crate) fn node_to_label(input: &Option<TreeNode>) -> NodeLabel {
     match input {
         Some(child_state) => child_state.label,
         None => EMPTY_LABEL,
     }
 }
 
-pub(crate) fn maybe_node_to_hash(input: &Option<TreeNode>, hash_mode: NodeHashingMode) -> Digest {
+pub(crate) fn node_to_azks_value(
+    input: &Option<TreeNode>,
+    hash_mode: NodeHashingMode,
+) -> AzksValue {
     match input {
         Some(child_state) => {
-            let mut hash = child_state.hash;
+            let mut value = child_state.hash;
             if let (TreeNodeType::Leaf, NodeHashingMode::WithLeafEpoch) =
                 (child_state.node_type, hash_mode)
             {
-                hash = hash_leaf_with_commitment(hash, child_state.last_epoch);
+                value = AzksValue(hash_leaf_with_commitment(value, child_state.last_epoch).0);
             }
-            hash
+            value
         }
         None => empty_node_hash(),
     }
@@ -549,12 +552,12 @@ pub(crate) fn new_interior_node(label: NodeLabel, birth_epoch: u64) -> TreeNode 
         TreeNodeType::Interior,
         birth_epoch,
         birth_epoch,
-        EMPTY_DIGEST, // A placeholder that will get updated once the node is inserted
+        AzksValue(EMPTY_DIGEST), // A placeholder that will get updated once the node is inserted
     )
 }
 
 /// Create a specific leaf node.
-pub(crate) fn new_leaf_node(label: NodeLabel, value: &Digest, birth_epoch: u64) -> TreeNode {
+pub(crate) fn new_leaf_node(label: NodeLabel, value: &AzksValue, birth_epoch: u64) -> TreeNode {
     TreeNode::new(
         label,
         EMPTY_LABEL, // A placeholder that will get updated once the node is inserted
@@ -591,19 +594,19 @@ mod tests {
 
         let mut new_leaf = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
-            &[0u8; DIGEST_BYTES],
+            &AzksValue([0u8; DIGEST_BYTES]),
             1,
         );
 
         let mut leaf_1 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
-            &[1u8; DIGEST_BYTES],
+            &AzksValue([1u8; DIGEST_BYTES]),
             2,
         );
 
         let mut leaf_2 = new_leaf_node(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
-            &[2u8; DIGEST_BYTES],
+            &AzksValue([2u8; DIGEST_BYTES]),
             3,
         );
 
@@ -681,8 +684,8 @@ mod tests {
 
         let mut root = new_root_node();
 
-        let val_0 = [0u8; DIGEST_BYTES];
-        let val_1 = [1u8; DIGEST_BYTES];
+        let val_0 = AzksValue([0u8; DIGEST_BYTES]);
+        let val_1 = AzksValue([1u8; DIGEST_BYTES]);
 
         // Prepare the leaf to be inserted with label 0.
         let mut leaf_0 = new_leaf_node(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), &val_0, 0);
@@ -706,9 +709,9 @@ mod tests {
 
         // Merge leaves hash along with the root label.
         let leaves_hash = compute_parent_hash_from_children(
-            &hash_leaf_with_commitment(val_0, 0),
+            &AzksValue(hash_leaf_with_commitment(val_0, 0).0),
             &hash_label(leaf_0.label),
-            &hash_leaf_with_commitment(val_1, 0),
+            &AzksValue(hash_leaf_with_commitment(val_1, 0).0),
             &hash_label(leaf_1.label),
         );
         let expected = compute_root_hash_from_val(&leaves_hash);
@@ -733,9 +736,9 @@ mod tests {
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node();
 
-        let val_0 = [0u8; DIGEST_BYTES];
-        let val_1 = [1u8; DIGEST_BYTES];
-        let val_2 = [2u8; DIGEST_BYTES];
+        let val_0 = AzksValue([0u8; DIGEST_BYTES]);
+        let val_1 = AzksValue([1u8; DIGEST_BYTES]);
+        let val_2 = AzksValue([2u8; DIGEST_BYTES]);
 
         let mut right_child =
             new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
@@ -790,9 +793,9 @@ mod tests {
 
         let right_child_expected_hash = (
             compute_parent_hash_from_children(
-                &leaf_2_hash.0,
+                &AzksValue(leaf_2_hash.0 .0),
                 &leaf_2_hash.1,
-                &leaf_1_hash.0,
+                &AzksValue(leaf_1_hash.0 .0),
                 &leaf_1_hash.1,
             ),
             hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
@@ -807,9 +810,9 @@ mod tests {
         };
 
         let expected = compute_root_hash_from_val(&compute_parent_hash_from_children(
-            &leaf_0_hash.0,
+            &AzksValue(leaf_0_hash.0 .0),
             &leaf_0_hash.1,
-            &right_child_expected_hash.0,
+            &AzksValue(right_child_expected_hash.0 .0),
             &right_child_expected_hash.1,
         ));
         assert!(root_digest == expected, "Root hash not equal to expected");
@@ -827,10 +830,10 @@ mod tests {
         let mut right_child =
             new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
 
-        let val_0 = [0u8; DIGEST_BYTES];
-        let val_1 = [1u8; DIGEST_BYTES];
-        let val_2 = [2u8; DIGEST_BYTES];
-        let val_3 = [3u8; DIGEST_BYTES];
+        let val_0 = AzksValue([0u8; DIGEST_BYTES]);
+        let val_1 = AzksValue([1u8; DIGEST_BYTES]);
+        let val_2 = AzksValue([2u8; DIGEST_BYTES]);
+        let val_3 = AzksValue([3u8; DIGEST_BYTES]);
 
         let mut leaf_0 =
             new_leaf_node(NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32), &val_0, 1);
@@ -905,9 +908,9 @@ mod tests {
         // Children: left: leaf2, right: leaf1, label: 1
         let right_child_expected_hash = (
             compute_parent_hash_from_children(
-                &leaf_2_hash.0,
+                &AzksValue(leaf_2_hash.0 .0),
                 &leaf_2_hash.1,
-                &leaf_1_hash.0,
+                &AzksValue(leaf_1_hash.0 .0),
                 &leaf_1_hash.1,
             ),
             hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
@@ -916,9 +919,9 @@ mod tests {
         // Children: left: new_leaf, right: leaf3, label: 0
         let left_child_expected_hash = (
             compute_parent_hash_from_children(
-                &leaf_0_hash.0,
+                &AzksValue(leaf_0_hash.0 .0),
                 &leaf_0_hash.1,
-                &leaf_3_hash.0,
+                &AzksValue(leaf_3_hash.0 .0),
                 &leaf_3_hash.1,
             ),
             hash_label(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
@@ -955,11 +958,14 @@ mod tests {
             let leaf_u64 = i << 61;
             let new_leaf = new_leaf_node(
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
-                &crate::hash::hash(&leaf_u64.to_be_bytes()),
+                &AzksValue(crate::hash::hash(&leaf_u64.to_be_bytes())),
                 7 - i,
             );
             leaf_hashes.push((
-                hash_leaf_with_commitment(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i),
+                hash_leaf_with_commitment(
+                    AzksValue(crate::hash::hash(&leaf_u64.to_be_bytes())),
+                    7 - i,
+                ),
                 hash_label(new_leaf.label),
             ));
             leaves.push(new_leaf);
@@ -978,9 +984,9 @@ mod tests {
             let right_child_hash = leaf_hashes[2 * i + 1].clone();
             layer_1_hashes.push((
                 compute_parent_hash_from_children(
-                    &left_child_hash.0,
+                    &AzksValue(left_child_hash.0 .0),
                     &left_child_hash.1,
-                    &right_child_hash.0,
+                    &AzksValue(right_child_hash.0 .0),
                     &right_child_hash.1,
                 ),
                 hash_label(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),

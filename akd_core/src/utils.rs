@@ -30,6 +30,8 @@ pub mod serde_helpers {
     use hex::{FromHex, ToHex};
     use serde::Deserialize;
 
+    use crate::AzksValue;
+
     /// A serde hex serializer for bytes
     pub fn bytes_serialize_hex<S, T>(x: &T, s: S) -> Result<S::Ok, S::Error>
     where
@@ -52,22 +54,38 @@ pub mod serde_helpers {
     }
 
     /// Serialize a digest
-    pub fn digest_serialize<S>(x: &[u8], s: S) -> Result<S::Ok, S::Error>
+    pub fn azks_value_hex_serialize<S>(x: &AzksValue, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        bytes_serialize_hex(&x.0, s)
+    }
+
+    /// Deserialize an [AzksValue]
+    pub fn azks_value_hex_deserialize<'de, D>(deserializer: D) -> Result<AzksValue, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(AzksValue(bytes_deserialize_hex(deserializer)?))
+    }
+
+    /// Serialize a digest
+    pub fn azks_value_serialize<S>(x: &AzksValue, s: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         use serde_bytes::Serialize;
-        x.to_vec().serialize(s)
+        x.0.to_vec().serialize(s)
     }
 
-    /// Deserialize a digest
-    pub fn digest_deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<[u8; crate::hash::DIGEST_BYTES], D::Error>
+    /// Deserialize an [AzksValue]
+    pub fn azks_value_deserialize<'de, D>(deserializer: D) -> Result<AzksValue, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let buf = <Vec<u8> as serde_bytes::Deserialize>::deserialize(deserializer)?;
-        crate::hash::try_parse_digest(&buf).map_err(serde::de::Error::custom)
+        Ok(AzksValue(
+            crate::hash::try_parse_digest(&buf).map_err(serde::de::Error::custom)?,
+        ))
     }
 }

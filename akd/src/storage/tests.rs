@@ -16,6 +16,8 @@ use crate::utils::byte_arr_from_u64;
 use crate::NodeLabel;
 use crate::{AkdLabel, AkdValue};
 
+use akd_core::hash::EMPTY_DIGEST;
+use akd_core::AzksValue;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::time::{Duration, Instant};
@@ -86,7 +88,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
         node_type: TreeNodeType::Leaf,
         left_child: None,
         right_child: None,
-        hash: [0; crate::DIGEST_BYTES],
+        hash: AzksValue(EMPTY_DIGEST),
     };
     let mut node2 = node.clone();
     node2.label = NodeLabel::new(byte_arr_from_u64(16), 4);

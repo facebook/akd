@@ -142,9 +142,6 @@ jobs:
           - name: Build the akd benches
             package: akd
             flags: -F bench
-
-            
-
     steps:
       - uses: actions/checkout@main
       - name: Install rust
@@ -163,6 +160,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTDOCFLAGS: -Dwarnings
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: akd
+          - package: akd_core
+          - package: akd_client
+          - package: akd_mysql
     steps:
       - uses: actions/checkout@main
       - name: Install rust
@@ -171,10 +176,11 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run rustdoc
+      - name: Run rustdoc for ${{matrix.package}}
         uses: actions-rs/cargo@v1
         with:
           command: doc
+          args: --package ${{matrix.package}}
 
   wasm-tests:
     name: ${{matrix.name}}
