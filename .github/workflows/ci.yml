@@ -133,6 +133,18 @@ jobs:
   benches:
     name: benches
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: Build the akd_core benches
+            package: akd_core
+            flags: -F bench
+          - name: Build the akd benches
+            package: akd
+            flags: -F bench
+
+            
+
     steps:
       - uses: actions/checkout@main
       - name: Install rust
@@ -140,18 +152,11 @@ jobs:
         with:
           toolchain: stable
           override: true
-
-      - name: Run akd_core benches
+      - name: Run test
         uses: actions-rs/cargo@v1
         with:
           command: bench
-          args: -p akd_core -F bench --no-run
-
-      - name: Run akd benches
-        uses: actions-rs/cargo@v1
-        with:
-          command: bench
-          args: -p akd -F bench --no-run
+          args: --package ${{matrix.package}} ${{matrix.flags}}
 
   docs:
     name: docs
