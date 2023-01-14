@@ -8,7 +8,6 @@
 //! This module contains the specifics for NodeLabel only, other types don't have the
 //! same level of detail and aren't broken into sub-modules
 
-use crate::hash::Digest;
 use crate::{Direction, SizeOf};
 
 #[cfg(feature = "serde_serialization")]
@@ -22,7 +21,7 @@ mod tests;
 
 /// The label used for an empty node
 pub const EMPTY_LABEL: NodeLabel = NodeLabel {
-    label_val: [1u8; 32],
+    label_val: [1u8; 32], // FIXME(#344): Let's use a more concise value here, like [1u8, 0u8, ..., 0u8]
     label_len: 0,
 };
 
@@ -79,8 +78,10 @@ impl core::fmt::Display for NodeLabel {
 
 impl NodeLabel {
     /// Hash a [NodeLabel] into a digest, length-prefixing the label's value
-    pub fn hash(&self) -> Digest {
-        crate::hash::hash(&self.to_bytes())
+    pub fn hash(&self) -> Vec<u8> {
+        // FIXME(#344): We souldn't need to actually hash the label, it is redundant. Change this to:
+        // self.to_bytes()
+        crate::hash::hash(&self.to_bytes()).to_vec()
     }
 
     pub(crate) fn to_bytes(self) -> Vec<u8> {

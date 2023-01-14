@@ -19,6 +19,8 @@ use crate::{
     NonMembershipProof, SiblingProof, SingleAppendOnlyProof, ARITY, DIRECTIONS, EMPTY_LABEL,
 };
 
+use crate::crypto::empty_node_hash;
+use crate::crypto::{compute_root_hash_from_val, hash_leaf_with_commitment};
 use akd_core::hash::EMPTY_DIGEST;
 use akd_core::SizeOf;
 use async_recursion::async_recursion;
@@ -235,8 +237,8 @@ impl AzksElementSet {
 pub struct Azks {
     /// The latest complete epoch
     pub latest_epoch: u64,
-    /// The number of nodes ie the size of this tree
-    pub num_nodes: u64, // The size of the tree
+    /// The number of nodes is the total size of this tree
+    pub num_nodes: u64,
 }
 
 impl SizeOf for Azks {
@@ -469,7 +471,7 @@ impl Azks {
         // Phase 3: Update the hash of the current node and return it along with
         // the number of nodes inserted.
         current_node
-            .update_node_hash::<_>(storage, NodeHashingMode::from(insert_mode))
+            .update_hash::<_>(storage, NodeHashingMode::from(insert_mode))
             .await?;
 
         Ok((current_node, is_new, num_inserted))
@@ -577,9 +579,10 @@ impl Azks {
                 .await?;
         let longest_prefix = lcp_node.label;
         // load with placeholder nodes, to be replaced in the loop below
+        // FIXME: rework this to avoid the need for placeholder nodes
         let mut longest_prefix_children = [AzksElement {
             label: EMPTY_LABEL,
-            value: crate::utils::empty_node_hash(),
+            value: empty_node_hash(),
         }; ARITY];
         for dir in DIRECTIONS {
             let child = lcp_node
@@ -598,7 +601,10 @@ impl Azks {
                     .await?;
                     longest_prefix_children[dir as usize] = AzksElement {
                         label: unwrapped_child.label,
-                        value: optional_child_state_hash(&Some(unwrapped_child)),
+                        value: maybe_node_to_hash(
+                            &Some(unwrapped_child),
+                            NodeHashingMode::WithLeafEpoch,
+                        ),
                     };
                 }
             }
@@ -750,7 +756,7 @@ impl Azks {
             }
             unchanged.push(AzksElement {
                 label: node.label,
-                value: optional_child_state_hash(&Some(node)),
+                value: maybe_node_to_hash(&Some(node), NodeHashingMode::WithLeafEpoch),
             });
 
             return Ok((unchanged, leaves));
@@ -822,10 +828,7 @@ impl Azks {
         let root_node: TreeNode =
             TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), self.latest_epoch)
                 .await?;
-        Ok(merge_digest_with_label_hash(
-            &root_node.hash,
-            root_node.label,
-        ))
+        Ok(compute_root_hash_from_val(&root_node.hash))
     }
 
     /// Gets the latest epoch of this azks. If an update aka epoch transition
@@ -858,8 +861,8 @@ impl Azks {
             dir => curr_node.get_child_node(storage, dir, latest_epoch).await?,
         };
         Ok(AzksElement {
-            label: optional_child_state_to_label(&sibling),
-            value: optional_child_state_hash(&sibling),
+            label: maybe_node_to_label(&sibling),
+            value: maybe_node_to_hash(&sibling, NodeHashingMode::WithLeafEpoch),
         })
     }
 
@@ -918,7 +921,7 @@ impl Azks {
             sibling_proofs.pop();
         }
         let hash_val = if curr_node.node_type == TreeNodeType::Leaf {
-            crate::hash::merge_with_u64(curr_node.hash, curr_node.last_epoch)
+            hash_leaf_with_commitment(curr_node.hash, curr_node.last_epoch)
         } else {
             curr_node.hash
         };
@@ -939,6 +942,7 @@ type AppendOnlyHelper = (Vec<AzksElement>, Vec<AzksElement>);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::{compute_parent_hash_from_children, compute_root_hash_from_val};
     use crate::storage::types::DbRecord;
     use crate::storage::StorageUtil;
     use crate::utils::byte_arr_from_u64;
@@ -946,7 +950,6 @@ mod tests {
         auditor::audit_verify,
         client::{verify_membership, verify_nonmembership},
         storage::memory::AsyncInMemoryDatabase,
-        EMPTY_VALUE,
     };
     use itertools::Itertools;
     use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
@@ -1017,37 +1020,49 @@ mod tests {
             });
 
             let new_leaf = new_leaf_node(label, value, 7 - i + 1);
-            leaf_hashes.push(crate::hash::merge(&[
-                crate::hash::merge_with_u64(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
+            leaf_hashes.push((
+                hash_leaf_with_commitment(crate::hash::hash(&leaf_u64.to_be_bytes()), 7 - i + 1),
                 new_leaf.label.hash(),
-            ]));
+            ));
             leaves.push(new_leaf);
         }
 
         let mut layer_1_hashes = Vec::new();
         for (i, j) in (0u64..4).enumerate() {
-            let left_child_hash = leaf_hashes[2 * i];
-            let right_child_hash = leaf_hashes[2 * i + 1];
-            layer_1_hashes.push(crate::hash::merge(&[
-                crate::hash::merge(&[left_child_hash, right_child_hash]),
+            let left_child_hash = leaf_hashes[2 * i].clone();
+            let right_child_hash = leaf_hashes[2 * i + 1].clone();
+            layer_1_hashes.push((
+                compute_parent_hash_from_children(
+                    &left_child_hash.0,
+                    &left_child_hash.1,
+                    &right_child_hash.0,
+                    &right_child_hash.1,
+                ),
                 NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).hash(),
-            ]));
+            ));
         }
 
         let mut layer_2_hashes = Vec::new();
         for (i, j) in (0u64..2).enumerate() {
-            let left_child_hash = layer_1_hashes[2 * i];
-            let right_child_hash = layer_1_hashes[2 * i + 1];
-            layer_2_hashes.push(crate::hash::merge(&[
-                crate::hash::merge(&[left_child_hash, right_child_hash]),
+            let left_child_hash = layer_1_hashes[2 * i].clone();
+            let right_child_hash = layer_1_hashes[2 * i + 1].clone();
+            layer_2_hashes.push((
+                compute_parent_hash_from_children(
+                    &left_child_hash.0,
+                    &left_child_hash.1,
+                    &right_child_hash.0,
+                    &right_child_hash.1,
+                ),
                 NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).hash(),
-            ]));
+            ));
         }
 
-        let expected = crate::hash::merge(&[
-            crate::hash::merge(&[layer_2_hashes[0], layer_2_hashes[1]]),
-            NodeLabel::root().hash(),
-        ]);
+        let expected = compute_root_hash_from_val(&compute_parent_hash_from_children(
+            &layer_2_hashes[0].0,
+            &layer_2_hashes[0].1,
+            &layer_2_hashes[1].0,
+            &layer_2_hashes[1].1,
+        ));
 
         // create a 3-layer tree with batch insert operations and get root hash
         let mut azks = Azks::new::<_>(&db).await?;
@@ -1482,7 +1497,7 @@ mod tests {
         let mut proof = azks
             .get_membership_proof(&db, azks_element_set[0].label, 1)
             .await?;
-        let hash_val = crate::hash::hash(&EMPTY_VALUE);
+        let hash_val = EMPTY_DIGEST;
         proof = MembershipProof {
             label: proof.label,
             hash_val,
@@ -1504,23 +1519,23 @@ mod tests {
         let azks_element_set: Vec<AzksElement> = vec![
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b11 << 62), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
         ];
 
@@ -1625,7 +1640,7 @@ mod tests {
 
         let azks_element_set_1: Vec<AzksElement> = vec![AzksElement {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-            value: crate::hash::hash(&EMPTY_VALUE),
+            value: EMPTY_DIGEST,
         }];
         azks.batch_insert_nodes::<_>(&db, azks_element_set_1, InsertMode::Directory)
             .await?;
@@ -1633,7 +1648,7 @@ mod tests {
 
         let azks_element_set_2: Vec<AzksElement> = vec![AzksElement {
             label: NodeLabel::new(byte_arr_from_u64(0b01 << 62), 64),
-            value: crate::hash::hash(&EMPTY_VALUE),
+            value: EMPTY_DIGEST,
         }];
 
         azks.batch_insert_nodes::<_>(&db, azks_element_set_2, InsertMode::Directory)
@@ -1655,11 +1670,11 @@ mod tests {
         let azks_element_set_1: Vec<AzksElement> = vec![
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 63), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
         ];
 
@@ -1670,11 +1685,11 @@ mod tests {
         let azks_element_set_2: Vec<AzksElement> = vec![
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b1 << 62), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
             AzksElement {
                 label: NodeLabel::new(byte_arr_from_u64(0b111 << 61), 64),
-                value: crate::hash::hash(&EMPTY_VALUE),
+                value: EMPTY_DIGEST,
             },
         ];
 
@@ -1741,7 +1756,7 @@ mod tests {
         (0..num_nodes)
             .map(|_| {
                 let label = crate::utils::random_label(rng);
-                let mut value = crate::hash::EMPTY_DIGEST;
+                let mut value = EMPTY_DIGEST;
                 rng.fill_bytes(&mut value);
                 AzksElement { label, value }
             })

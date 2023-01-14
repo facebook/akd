@@ -6,13 +6,14 @@
 // of this source tree.
 
 //! Core utilities for the auditable key directory `akd` and `akd_client` crates.
-//! Mainly contains (1) hashing utilities and (2) type definitions as well as (3)
+//! Mainly contains (1) hashing utilities for the core cryptographic operations
+//! involved in building an AKD and issuing proofs, (2) type definitions, and (3)
 //! protobuf specifications for all external types
 //!
 //! The default configuration is to utilize the standard library (`std`) along with
 //! blake3 hashing (from the [blake3] crate). If you wish to customize which hash and
-//! which features are utilized, you can pass --no-default-features on the command line
-//! or `default-features = false` in your Cargo.toml import to disable all the default features
+//! which features are utilized, you can pass `--no-default-features` on the command line
+//! or `default-features = false` in your Cargo.toml import to disable all of the default features
 //! which you can then enable one-by-one as you wish.
 //!
 //! In the following, we will cover the protocol-level implementation details behind:
@@ -22,7 +23,7 @@
 //!
 //! # Setup parameters
 //!
-//! An AKD is configured by a set of parameters, which are set by the server when it is initialized. The server
+//! An AKD is configured by a set of parameters which are set by the server when it is initialized. The server
 //! picks a random VRF private key `vsk` and derives (and distributes) a public key `vpk` to its clients. The server also
 //! produces a commitment key (`commitment_key`) by hashing the VRF private key. The VRF private key will be used to provide
 //! selective privacy of the database's inserted labels to auditors and other clients, while the commitment key
@@ -61,8 +62,9 @@
 //! The server then computes a VRF on the [NodeLabel] to derive a value for the leaf node. This is computed as:
 //! `node_label = VRF(vsk, vrf_input)`.
 //!
-//! Once the node label for this entry is derived (as `node_label`), the function [utils::commit_value]
-//! is used to commit the [AkdValue] to the tree. The actual value
+//! Once the node label for this entry is derived (as `node_label`), the functions [crypto::commit_fresh_value()]
+//! and [crypto::commit_stale_value()]
+//! are used to commit the [AkdValue] to the tree. The actual value
 //! that is stored in the node is a commitment, generated using the server's commitment key as follows:
 //! - `commitment_nonce = Hash(commitment_key, node_label, version, I2OSP(len(value) as u64), value)`
 //! - `commmitment = Hash(I2OSP(len(value) as u64), value, I2OSP(len(commitment_nonce) as u64), commitment_nonce)`
@@ -180,6 +182,7 @@ extern crate alloc;
 #[cfg(all(feature = "protobuf", not(feature = "nostd")))]
 pub mod proto;
 
+pub mod crypto;
 pub mod ecvrf;
 pub mod hash;
 pub mod utils;

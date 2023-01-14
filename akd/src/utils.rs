@@ -9,12 +9,6 @@
 // 2. For each node in current_nodes set, check if each child is in prefix hashmap
 // 3. If so, add child label to batch set
 
-use crate::{EMPTY_LABEL, EMPTY_VALUE};
-
-pub(crate) fn empty_node_hash() -> crate::Digest {
-    crate::hash::merge(&[crate::hash::hash(&EMPTY_VALUE), EMPTY_LABEL.hash()])
-}
-
 // Creates a byte array of 32 bytes from a u64
 // Note that this representation is big-endian, and
 // places the bits to the front of the output byte_array.

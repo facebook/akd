@@ -9,9 +9,12 @@
 
 use super::VerificationError;
 
+use crate::crypto::{
+    compute_parent_hash_from_children, compute_root_hash_from_val, get_hash_from_label_input,
+    hash_leaf_with_commitment, hash_leaf_with_value,
+};
 use crate::ecvrf::{Proof, VrfError};
-use crate::hash::{merge, Digest, HashError};
-use crate::utils::{hash_leaf_with_commitment, hash_leaf_with_value};
+use crate::hash::Digest;
 use crate::{
     AkdLabel, AkdValue, Direction, MembershipProof, NodeLabel, NonMembershipProof,
     VersionFreshness, EMPTY_LABEL,
@@ -21,47 +24,44 @@ use crate::{
 use alloc::format;
 #[cfg(feature = "nostd")]
 use alloc::string::ToString;
-#[cfg(feature = "nostd")]
-use alloc::vec;
 use core::convert::TryFrom;
-
-fn compute_parent_hash(
-    node_hash: Digest,
-    node_dir: Direction,
-    other_node_hash: Digest,
-    parent_label: NodeLabel,
-) -> Result<Digest, HashError> {
-    if node_dir == Direction::None {
-        return Err(HashError::NoDirection(format!(
-            "Empty direction for {:?}",
-            parent_label.label_val
-        )));
-    }
-    let mut hashes_mut = vec![other_node_hash];
-    hashes_mut.insert(node_dir as usize, node_hash);
-    let new_hash = merge(&hashes_mut);
-    Ok(merge(&[new_hash, parent_label.hash()]))
-}
 
 /// Verify the membership proof
 pub fn verify_membership(
     root_hash: Digest,
     proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    let mut current_hash = merge(&[proof.hash_val, proof.label.hash()]);
+    let mut curr_val = proof.hash_val;
+    let mut curr_label = proof.label;
 
     for sibling_proof in proof.sibling_proofs.iter().rev() {
         let sibling = sibling_proof.siblings[0];
-        let sibling_hash = merge(&[sibling.value, sibling.label.hash()]);
-        current_hash = compute_parent_hash(
-            current_hash,
-            sibling_proof.direction,
-            sibling_hash,
-            sibling_proof.label,
-        )?;
+        let (left_val, left_label, right_val, right_label) = match sibling_proof.direction {
+            Direction::None => {
+                return Err(VerificationError::MembershipProof(format!(
+                    "Empty direction for {:?}",
+                    sibling_proof.label.label_val
+                )))
+            }
+            Direction::Left => (
+                curr_val,
+                curr_label.hash(),
+                sibling.value,
+                sibling.label.hash(),
+            ),
+            Direction::Right => (
+                sibling.value,
+                sibling.label.hash(),
+                curr_val,
+                curr_label.hash(),
+            ),
+        };
+        curr_val =
+            compute_parent_hash_from_children(&left_val, &left_label, &right_val, &right_label);
+        curr_label = sibling_proof.label;
     }
 
-    if current_hash == root_hash {
+    if compute_root_hash_from_val(&curr_val) == root_hash {
         Ok(())
     } else {
         Err(VerificationError::MembershipProof(format!(
@@ -107,15 +107,12 @@ pub fn verify_nonmembership(
         ));
     }
 
-    let child_hash_left = merge(&[
-        proof.longest_prefix_children[0].value,
-        proof.longest_prefix_children[0].label.hash(),
-    ]);
-    let child_hash_right = merge(&[
-        proof.longest_prefix_children[1].value,
-        proof.longest_prefix_children[1].label.hash(),
-    ]);
-    let lcp_hash = merge(&[child_hash_left, child_hash_right]);
+    let lcp_hash = compute_parent_hash_from_children(
+        &proof.longest_prefix_children[0].value,
+        &proof.longest_prefix_children[0].label.hash(),
+        &proof.longest_prefix_children[1].value,
+        &proof.longest_prefix_children[1].label.hash(),
+    );
     if lcp_children != proof.longest_prefix_membership_proof.label
         || lcp_hash != proof.longest_prefix_membership_proof.hash_val
     {
@@ -140,7 +137,7 @@ fn verify_label(
     node_label: NodeLabel,
 ) -> Result<(), VerificationError> {
     let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
-    let hashed_label = crate::utils::get_hash_from_label_input(akd_label, freshness, version);
+    let hashed_label = get_hash_from_label_input(akd_label, freshness, version);
 
     // VRF proof verification (returns VRF hash output)
     let proof = Proof::try_from(vrf_proof)?;

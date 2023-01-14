@@ -8,6 +8,7 @@
 //! This module implements traits for managing ECVRF, mainly pertaining to storage
 //! of public and private keys
 use super::{Output, Proof, VRFExpandedPrivateKey, VRFPrivateKey, VRFPublicKey, VrfError};
+use crate::crypto::get_hash_from_label_input;
 use crate::{AkdLabel, AkdValue, NodeLabel, VersionFreshness};
 
 #[cfg(feature = "nostd")]
@@ -114,7 +115,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         freshness: VersionFreshness,
         version: u64,
     ) -> Proof {
-        let hashed_label = crate::utils::get_hash_from_label_input(label, freshness, version);
+        let hashed_label = get_hash_from_label_input(label, freshness, version);
         key.prove(&hashed_label)
     }
 
@@ -126,7 +127,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
         freshness: VersionFreshness,
         version: u64,
     ) -> Output {
-        let hashed_label = crate::utils::get_hash_from_label_input(label, freshness, version);
+        let hashed_label = get_hash_from_label_input(label, freshness, version);
         expanded_private_key.evaluate(pk, &hashed_label)
     }
 

@@ -29,8 +29,6 @@ pub enum VerificationError {
     LookupProof(String),
     /// Error verifying a history proof
     HistoryProof(String),
-    /// Error hashing during verification
-    Hash(crate::hash::HashError),
     /// Error verifying a VRF proof
     #[cfg(feature = "vrf")]
     Vrf(crate::ecvrf::VrfError),
@@ -48,7 +46,6 @@ impl core::fmt::Display for VerificationError {
             }
             VerificationError::LookupProof(err) => format!("(Lookup proof) - {}", err),
             VerificationError::HistoryProof(err) => format!("(History proof) - {}", err),
-            VerificationError::Hash(hash) => hash.to_string(),
             #[cfg(feature = "vrf")]
             VerificationError::Vrf(vrf) => vrf.to_string(),
             #[cfg(feature = "protobuf")]
@@ -62,12 +59,6 @@ impl core::fmt::Display for VerificationError {
 impl From<crate::ecvrf::VrfError> for VerificationError {
     fn from(input: crate::ecvrf::VrfError) -> Self {
         VerificationError::Vrf(input)
-    }
-}
-
-impl From<crate::hash::HashError> for VerificationError {
-    fn from(input: crate::hash::HashError) -> Self {
-        VerificationError::Hash(input)
     }
 }
 
