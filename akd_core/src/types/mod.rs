@@ -115,7 +115,7 @@ impl Direction {
 }
 
 /// The label of a particular entry in the AKD
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Serialize, serde::Deserialize)
@@ -175,7 +175,7 @@ impl AkdLabel {
 }
 
 /// The value of a particular entry in the AKD
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Serialize, serde::Deserialize)

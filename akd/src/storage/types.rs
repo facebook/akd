@@ -35,7 +35,7 @@ pub enum StorageType {
 pub struct ValueStateKey(pub Vec<u8>, pub u64);
 
 /// The state of the value for a given key, starting at a particular epoch.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -147,7 +147,7 @@ pub enum ValueStateRetrievalFlag {
 
 /// This needs to be PUBLIC public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)

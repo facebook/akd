@@ -10,6 +10,8 @@
 
 use std::collections::HashMap;
 
+use rand::{rngs::StdRng, SeedableRng};
+
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
@@ -194,6 +196,26 @@ async fn test_simple_publish() -> Result<(), AkdError> {
     // won't throw errors.
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
         .await?;
+    Ok(())
+}
+
+// A more complex publish test
+#[tokio::test]
+async fn test_complex_publish() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+
+    let num_entries = 10000;
+    let mut entries = vec![];
+    let mut rng = StdRng::seed_from_u64(42);
+    for _ in 0..num_entries {
+        let label = AkdLabel::random(&mut rng);
+        let value = AkdValue::random(&mut rng);
+        entries.push((label, value));
+    }
+    akd.publish(entries).await?;
     Ok(())
 }
 

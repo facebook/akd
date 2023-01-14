@@ -18,7 +18,9 @@ use akd::storage::types::DbRecord;
 use akd::storage::{StorageManager, StorageUtil};
 use akd::{AkdLabel, AkdValue};
 use clap::Parser;
-use rand::{rngs::OsRng, Rng};
+use rand::rngs::StdRng;
+use rand::Rng;
+use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
 use crate::fixture_generator::parser::Args;
@@ -65,7 +67,7 @@ pub async fn run() {
 }
 
 pub(crate) async fn generate(args: Args) {
-    let mut rng = OsRng;
+    let mut rng = StdRng::seed_from_u64(42);
 
     // args assertions
     assert!(args.max_updates >= args.min_updates);
@@ -167,14 +169,17 @@ pub(crate) async fn generate(args: Args) {
         if let Some(ref states) = args.capture_states {
             if states.contains(&epoch) {
                 let comment = format!("{} {}", STATE_COMMENT, epoch);
-                let state = State {
-                    epoch,
-                    records: storage_manager
-                        .get_db()
-                        .batch_get_all_direct()
-                        .await
-                        .unwrap(),
-                };
+
+                // Sort the records by label to make the output deterministic.
+                let mut records = storage_manager
+                    .get_db()
+                    .batch_get_all_direct()
+                    .await
+                    .unwrap();
+                records.sort();
+
+                let state = State { epoch, records };
+
                 writer.write_line();
                 writer.write_comment(&comment);
                 writer.write_object(state);

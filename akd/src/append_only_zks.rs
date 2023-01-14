@@ -226,7 +226,7 @@ impl AzksElementSet {
 
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -949,16 +949,12 @@ mod tests {
         EMPTY_VALUE,
     };
     use itertools::Itertools;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        seq::SliceRandom,
-        RngCore, SeedableRng,
-    };
+    use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
     use std::time::Duration;
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {
-        let mut rng = OsRng;
+        let mut rng = StdRng::seed_from_u64(42);
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
@@ -1071,7 +1067,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let mut rng = OsRng;
+        let mut rng = StdRng::seed_from_u64(42);
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks1 = Azks::new::<_>(&db).await?;
@@ -1286,7 +1282,8 @@ mod tests {
         azks1.increment_epoch();
 
         // manually construct both types of node sets with the same data
-        let nodes = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let nodes = gen_random_elements(num_nodes, &mut rng);
         let unsorted_set = AzksElementSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes;
@@ -1336,7 +1333,8 @@ mod tests {
         azks1.increment_epoch();
 
         // manually construct both types of node sets with the same data
-        let nodes = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let nodes = gen_random_elements(num_nodes, &mut rng);
         let unsorted_set = AzksElementSet::Unsorted(nodes.clone());
         let bin_searchable_set = {
             let mut nodes = nodes;
@@ -1414,9 +1412,9 @@ mod tests {
     #[tokio::test]
     async fn test_membership_proof_permuted() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let mut rng = OsRng;
 
-        let mut azks_element_set = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut azks_element_set = gen_random_elements(num_nodes, &mut rng);
 
         // Try randomly permuting
         azks_element_set.shuffle(&mut rng);
@@ -1469,9 +1467,9 @@ mod tests {
     #[tokio::test]
     async fn test_membership_proof_failing() -> Result<(), AkdError> {
         let num_nodes = 10;
-        let mut rng = OsRng;
 
-        let mut azks_element_set = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let mut azks_element_set = gen_random_elements(num_nodes, &mut rng);
 
         // Try randomly permuting
         azks_element_set.shuffle(&mut rng);
@@ -1577,7 +1575,8 @@ mod tests {
     async fn test_nonmembership_proof_small() -> Result<(), AkdError> {
         let num_nodes = 3;
 
-        let azks_element_set = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let azks_element_set = gen_random_elements(num_nodes, &mut rng);
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
@@ -1599,7 +1598,8 @@ mod tests {
     async fn test_nonmembership_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
 
-        let azks_element_set = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let azks_element_set = gen_random_elements(num_nodes, &mut rng);
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<_>(&db).await?;
@@ -1691,7 +1691,8 @@ mod tests {
     async fn test_append_only_proof() -> Result<(), AkdError> {
         let num_nodes = 10;
 
-        let azks_element_set_1 = gen_nodes(num_nodes);
+        let mut rng = StdRng::seed_from_u64(42);
+        let azks_element_set_1 = gen_random_elements(num_nodes, &mut rng);
 
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
@@ -1701,13 +1702,13 @@ mod tests {
 
         let start_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let azks_element_set_2 = gen_nodes(num_nodes);
+        let azks_element_set_2 = gen_random_elements(num_nodes, &mut rng);
         azks.batch_insert_nodes::<_>(&db, azks_element_set_2.clone(), InsertMode::Directory)
             .await?;
 
         let middle_hash = azks.get_root_hash::<_>(&db).await?;
 
-        let azks_element_set_3: Vec<AzksElement> = gen_nodes(num_nodes);
+        let azks_element_set_3: Vec<AzksElement> = gen_random_elements(num_nodes, &mut rng);
         azks.batch_insert_nodes::<_>(&db, azks_element_set_3.clone(), InsertMode::Directory)
             .await?;
 
@@ -1736,12 +1737,10 @@ mod tests {
         Ok(())
     }
 
-    fn gen_nodes(num_nodes: usize) -> Vec<AzksElement> {
-        let mut rng = OsRng;
-
+    fn gen_random_elements(num_nodes: usize, rng: &mut StdRng) -> Vec<AzksElement> {
         (0..num_nodes)
             .map(|_| {
-                let label = crate::utils::random_label(&mut rng);
+                let label = crate::utils::random_label(rng);
                 let mut value = crate::hash::EMPTY_DIGEST;
                 rng.fill_bytes(&mut value);
                 AzksElement { label, value }
