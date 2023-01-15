@@ -15,7 +15,7 @@ pub mod specs;
 #[cfg(test)]
 mod tests;
 
-use crate::hash::Digest;
+use crate::{hash::Digest, AzksValue};
 
 use core::convert::{TryFrom, TryInto};
 use protobuf::MessageField;
@@ -146,7 +146,7 @@ impl From<&crate::AzksElement> for specs::types::AzksElement {
     fn from(input: &crate::AzksElement) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
-            value: Some(input.value.to_vec()),
+            value: Some(input.value.0.to_vec()),
             ..Default::default()
         }
     }
@@ -163,7 +163,10 @@ impl TryFrom<&specs::types::AzksElement> for crate::AzksElement {
         // get the raw data & it's length, but at most crate::hash::DIGEST_BYTES bytes
         let value = hash_from_bytes!(input.value());
 
-        Ok(Self { label, value })
+        Ok(Self {
+            label,
+            value: AzksValue(value),
+        })
     }
 }
 
@@ -218,7 +221,7 @@ impl From<&crate::MembershipProof> for specs::types::MembershipProof {
     fn from(input: &crate::MembershipProof) -> Self {
         Self {
             label: MessageField::some((&input.label).into()),
-            hash_val: Some(input.hash_val.to_vec()),
+            hash_val: Some(input.hash_val.0.to_vec()),
             sibling_proofs: input
                 .sibling_proofs
                 .iter()
@@ -246,7 +249,7 @@ impl TryFrom<&specs::types::MembershipProof> for crate::MembershipProof {
 
         Ok(Self {
             label,
-            hash_val,
+            hash_val: AzksValue(hash_val),
             sibling_proofs,
         })
     }

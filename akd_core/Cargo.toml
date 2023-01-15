@@ -33,8 +33,8 @@ parallel_vrf = ["tokio"]
 
 bench = ["parallel_vrf", "blake3", "vrf", "tokio/rt-multi-thread"]
 
-# Default features mix (no hash function is selected at this point)
-default = ["vrf"]
+# Default features mix (with blake3 as the default hash function)
+default = ["vrf", "blake3"]
 
 [dependencies]
 ## Required dependencies ##

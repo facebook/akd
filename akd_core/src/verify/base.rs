@@ -16,7 +16,7 @@ use crate::crypto::{
 use crate::ecvrf::{Proof, VrfError};
 use crate::hash::Digest;
 use crate::{
-    AkdLabel, AkdValue, Direction, MembershipProof, NodeLabel, NonMembershipProof,
+    AkdLabel, AkdValue, AzksValue, Direction, MembershipProof, NodeLabel, NonMembershipProof,
     VersionFreshness, EMPTY_LABEL,
 };
 
@@ -187,7 +187,7 @@ pub(crate) fn verify_existence_with_val(
     vrf_proof: &[u8],
     membership_proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    if hash_leaf_with_value(akd_value, epoch, commitment_nonce) != membership_proof.hash_val {
+    if hash_leaf_with_value(akd_value, epoch, commitment_nonce).0 != membership_proof.hash_val.0 {
         return Err(VerificationError::MembershipProof(
             "Hash of plaintext value did not match existence proof hash".to_string(),
         ));
@@ -210,14 +210,14 @@ pub(crate) fn verify_existence_with_commitment(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: &AkdLabel,
-    commitment: Digest,
+    commitment: AzksValue,
     epoch: u64,
     freshness: VersionFreshness,
     version: u64,
     vrf_proof: &[u8],
     membership_proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    if hash_leaf_with_commitment(commitment, epoch) != membership_proof.hash_val {
+    if hash_leaf_with_commitment(commitment, epoch).0 != membership_proof.hash_val.0 {
         return Err(VerificationError::MembershipProof(
             "Hash of plaintext value did not match existence proof hash".to_string(),
         ));

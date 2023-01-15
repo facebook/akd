@@ -19,8 +19,8 @@ use crate::{
     NonMembershipProof, UpdateProof,
 };
 
-use crate::crypto::{commit_fresh_value, commit_stale_value, get_commitment_nonce};
-use akd_core::VersionFreshness;
+use crate::crypto::{compute_fresh_azks_value, get_commitment_nonce, stale_azks_value};
+use crate::VersionFreshness;
 use log::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -169,15 +169,15 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         let commitment_key = self.derive_commitment_key().await?;
 
         for ((akd_label, freshness, version, akd_value), node_label) in vrf_map {
-            let node_value = match freshness {
-                VersionFreshness::Stale => commit_stale_value(),
+            let azks_value = match freshness {
+                VersionFreshness::Stale => stale_azks_value(),
                 VersionFreshness::Fresh => {
-                    commit_fresh_value(&commitment_key, &node_label, version, &akd_value)
+                    compute_fresh_azks_value(&commitment_key, &node_label, version, &akd_value)
                 }
             };
             update_set.push(AzksElement {
                 label: node_label,
-                value: node_value,
+                value: azks_value,
             });
 
             if freshness == VersionFreshness::Fresh {
@@ -238,8 +238,6 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             .await?;
 
         Ok(EpochHash(next_epoch, root_hash))
-        // At the moment the tree root is not being written anywhere. Eventually we
-        // want to change this to call a write operation to post to a blockchain or some such thing
     }
 
     /// Provides proof for correctness of latest version
@@ -822,7 +820,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 .vrf
                 .get_node_label(akd_label, VersionFreshness::Stale, version_number)
                 .await?;
-            let stale_value_to_add = commit_stale_value();
+            let stale_value_to_add = stale_azks_value();
             update_set.push(AzksElement {
                 label: stale_label,
                 value: stale_value_to_add,
@@ -870,7 +868,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                         .await?;
 
                     let value_to_add =
-                        commit_fresh_value(&commitment_key, &label, latest_version, &val);
+                        compute_fresh_azks_value(&commitment_key, &label, latest_version, &val);
                     update_set.push(AzksElement {
                         label,
                         value: value_to_add,
@@ -894,9 +892,13 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                         .vrf
                         .get_node_label(&akd_label, VersionFreshness::Fresh, latest_version)
                         .await?;
-                    let stale_value_to_add = commit_stale_value();
-                    let fresh_value_to_add =
-                        commit_fresh_value(&commitment_key, &fresh_label, latest_version, &val);
+                    let stale_value_to_add = stale_azks_value();
+                    let fresh_value_to_add = compute_fresh_azks_value(
+                        &commitment_key,
+                        &fresh_label,
+                        latest_version,
+                        &val,
+                    );
                     match &corruption {
                         // Some malicious server might not want to mark an old and compromised key as stale.
                         // Thus, you only push the key if either the corruption is for some other username,

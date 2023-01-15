@@ -289,7 +289,7 @@ mod tests {
     use crate::storage::types::*;
     use crate::tree_node::*;
     use crate::utils::byte_arr_from_u64;
-    use crate::{AkdLabel, AkdValue};
+    use crate::{AkdLabel, AkdValue, AzksValue};
     use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
     #[test]
@@ -306,7 +306,7 @@ mod tests {
             node_type: TreeNodeType::Root,
             left_child: None,
             right_child: None,
-            hash: crate::hash::EMPTY_DIGEST,
+            hash: AzksValue(crate::hash::EMPTY_DIGEST),
         }));
         let node2 = DbRecord::TreeNode(TreeNodeWithPreviousValue::from_tree_node(TreeNode {
             label: NodeLabel::new(byte_arr_from_u64(1), 1),
@@ -316,7 +316,7 @@ mod tests {
             node_type: TreeNodeType::Leaf,
             left_child: None,
             right_child: None,
-            hash: crate::hash::EMPTY_DIGEST,
+            hash: AzksValue(crate::hash::EMPTY_DIGEST),
         }));
         let value1 = DbRecord::ValueState(ValueState {
             username: AkdLabel::from("test"),
