@@ -16,6 +16,7 @@ use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
 use crate::AzksValue;
+use crate::PrefixOrdering;
 use crate::{node_label::*, Direction, EMPTY_LABEL};
 #[cfg(feature = "serde_serialization")]
 use akd_core::utils::serde_helpers::{azks_value_hex_deserialize, azks_value_hex_serialize};
@@ -414,12 +415,14 @@ impl TreeNode {
     /// Inserts a child into this node and updates various metrics based on the child node
     pub(crate) fn set_child(&mut self, child_node: &mut TreeNode) -> Result<(), TreeNodeError> {
         // Set child according to given direction.
-        match self.label.get_dir(child_node.label) {
-            Direction::None => return Err(TreeNodeError::InvalidDirection(Direction::None)),
-            Direction::Left => {
+        match self.label.get_prefix_ordering(child_node.label) {
+            PrefixOrdering::Invalid => {
+                return Err(TreeNodeError::NoDirection(child_node.label, None))
+            }
+            PrefixOrdering::WithZero => {
                 self.left_child = Some(child_node.label);
             }
-            Direction::Right => {
+            PrefixOrdering::WithOne => {
                 self.right_child = Some(child_node.label);
             }
         }
@@ -450,41 +453,26 @@ impl TreeNode {
         direction: Direction,
         epoch: u64,
     ) -> Result<Option<TreeNode>, AkdError> {
-        match direction {
-            Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
-                self.label, None,
-            ))),
-            _ => {
-                if let Some(child_label) = self.get_child_label(direction)? {
-                    let child_key = NodeKey(child_label);
-                    let get_result = Self::get_from_storage(storage, &child_key, epoch).await;
-                    match get_result {
-                        Ok(node) => Ok(Some(node)),
-                        Err(StorageError::NotFound(_)) => Ok(None),
-                        _ => Err(AkdError::Storage(StorageError::NotFound(format!(
-                            "TreeNode {:?}",
-                            child_key
-                        )))),
-                    }
-                } else {
-                    // klewi: This actually cannot happen because direction will never be None.
-                    // We should rewrite this to be cleaner
-                    Ok(None)
-                }
+        if let Some(child_label) = self.get_child_label(direction) {
+            let child_key = NodeKey(child_label);
+            let get_result = Self::get_from_storage(storage, &child_key, epoch).await;
+            match get_result {
+                Ok(node) => Ok(Some(node)),
+                Err(StorageError::NotFound(_)) => Ok(None),
+                _ => Err(AkdError::Storage(StorageError::NotFound(format!(
+                    "TreeNode {:?}",
+                    child_key
+                )))),
             }
+        } else {
+            Ok(None)
         }
     }
 
-    pub(crate) fn get_child_label(
-        &self,
-        direction: Direction,
-    ) -> Result<Option<NodeLabel>, AkdError> {
+    pub(crate) fn get_child_label(&self, direction: Direction) -> Option<NodeLabel> {
         match direction {
-            Direction::None => Err(AkdError::TreeNode(TreeNodeError::NoDirection(
-                self.label, None,
-            ))),
-            Direction::Left => Ok(self.left_child),
-            Direction::Right => Ok(self.right_child),
+            Direction::Left => self.left_child,
+            Direction::Right => self.right_child,
         }
     }
 

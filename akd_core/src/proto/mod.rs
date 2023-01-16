@@ -15,7 +15,7 @@ pub mod specs;
 #[cfg(test)]
 mod tests;
 
-use crate::{hash::Digest, AzksValue};
+use crate::{hash::Digest, AzksValue, Bit};
 
 use core::convert::{TryFrom, TryInto};
 use protobuf::MessageField;
@@ -203,12 +203,21 @@ impl TryFrom<&specs::types::SiblingProof> for crate::SiblingProof {
 
         // blind out the highest bits to all 0's, since we're pulling it down to a u8
         let direction = (input.direction() & DIRECTION_BLINDING_FACTOR) as u8;
+        let bit = match direction {
+            0 => Bit::Zero,
+            1 => Bit::One,
+            _ => {
+                return Err(ConversionError::Deserialization(format!(
+                    "Invalid direction: {}",
+                    direction
+                )))
+            }
+        };
 
         Ok(Self {
             label,
             siblings: [siblings.unwrap().try_into()?],
-            direction: crate::types::Direction::try_from(direction)
-                .map_err(ConversionError::Deserialization)?,
+            direction: crate::types::Direction::from(bit),
         })
     }
 }

@@ -191,6 +191,5 @@ pub mod verify;
 pub mod types;
 pub use types::*;
 
-/// The arity of the tree. Should EXACTLY match the ARITY within
-/// the AKD crate (i.e. akd::ARITY)
+/// The number of children each non-leaf node has in the tree
 pub const ARITY: usize = 2;
