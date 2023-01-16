@@ -21,9 +21,9 @@ use crate::utils::serde_helpers::{
 use crate::ARITY;
 
 #[cfg(feature = "nostd")]
-use alloc::vec::Vec;
+use alloc::string::{String, ToString};
 #[cfg(feature = "nostd")]
-use alloc::{format, string::String};
+use alloc::vec::Vec;
 #[cfg(feature = "nostd")]
 use core::cmp::{Ord, Ordering, PartialOrd};
 #[cfg(feature = "rand")]
@@ -33,9 +33,6 @@ use std::cmp::{Ord, Ordering, PartialOrd};
 
 pub mod node_label;
 pub use node_label::*;
-
-/// The possible VALID child directions
-pub const DIRECTIONS: [Direction; 2] = [Direction::Left, Direction::Right];
 
 // ============================================
 // Traits
@@ -63,6 +60,45 @@ pub enum VersionFreshness {
     Fresh = 1u8,
 }
 
+/// This type is used to indicate whether or not
+/// one label is a prefix of another, and if so,
+/// whether the longer string has a 0 after the prefix,
+/// or a 1 after the prefix. If the first label is equal
+/// to the second, or not a prefix of the second, then it
+/// is considered invalid.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[cfg_attr(
+    feature = "serde_serialization",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[repr(u8)]
+pub enum PrefixOrdering {
+    /// Corresponds to a [Direction::Left]
+    WithZero = 0u8,
+    /// Corresponds to a [Direction::Right]
+    WithOne = 1u8,
+    /// First label is either equal to the second, or
+    /// simply not a prefix of the second
+    Invalid = u8::MAX,
+}
+
+impl SizeOf for PrefixOrdering {
+    fn size_of(&self) -> usize {
+        // The size of the enum is 24 bytes. The extra 8 bytes are used to store a 64-bit
+        // discriminator that is used to identify the variant currently saved in the enum.
+        24usize
+    }
+}
+
+impl From<Bit> for PrefixOrdering {
+    fn from(bit: Bit) -> Self {
+        match bit {
+            Bit::Zero => Self::WithZero,
+            Bit::One => Self::WithOne,
+        }
+    }
+}
+
 /// This type is used to indicate a direction for a
 /// particular node relative to its parent. We use
 /// 0 to represent "left" and 1 to represent "right".
@@ -77,29 +113,32 @@ pub enum Direction {
     Left = 0u8,
     /// Right
     Right = 1u8,
-    /// No direction
-    None = u8::MAX,
 }
 
 impl SizeOf for Direction {
     fn size_of(&self) -> usize {
-        // The size of the enum is 24 bytes. The extra 8 bytes are used to store a 64-bit discriminator that is used to identify the variant currently saved in the enum.
+        // The size of the enum is 24 bytes. The extra 8 bytes are used to store a 64-bit
+        // discriminator that is used to identify the variant currently saved in the enum.
         24usize
     }
 }
 
-impl core::convert::TryFrom<u8> for Direction {
+impl From<Bit> for Direction {
+    fn from(bit: Bit) -> Self {
+        match bit {
+            Bit::Zero => Self::Left,
+            Bit::One => Self::Right,
+        }
+    }
+}
+
+impl core::convert::TryFrom<PrefixOrdering> for Direction {
     type Error = String;
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            u8::MAX => Ok(Direction::None),
-            0u8 => Ok(Direction::Left),
-            1u8 => Ok(Direction::Right),
-            _ => Err(format!(
-                "Invalid value for direction received: {}. Supported values are 0, 1, {}",
-                value,
-                u8::MAX
-            )),
+    fn try_from(prefix_ordering: PrefixOrdering) -> Result<Self, Self::Error> {
+        match prefix_ordering {
+            PrefixOrdering::WithZero => Ok(Direction::Left),
+            PrefixOrdering::WithOne => Ok(Direction::Right),
+            _ => Err("Could not convert from PrefixOrdering to Direction".to_string()),
         }
     }
 }
@@ -110,7 +149,6 @@ impl Direction {
         match self {
             Direction::Left => Direction::Right,
             Direction::Right => Direction::Left,
-            Direction::None => Direction::None,
         }
     }
 }

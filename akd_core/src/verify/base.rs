@@ -37,12 +37,6 @@ pub fn verify_membership(
     for sibling_proof in proof.sibling_proofs.iter().rev() {
         let sibling = sibling_proof.siblings[0];
         let (left_val, left_label, right_val, right_label) = match sibling_proof.direction {
-            Direction::None => {
-                return Err(VerificationError::MembershipProof(format!(
-                    "Empty direction for {:?}",
-                    sibling_proof.label.label_val
-                )))
-            }
             Direction::Left => (
                 curr_val,
                 curr_label.hash(),

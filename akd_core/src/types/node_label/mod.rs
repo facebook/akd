@@ -8,13 +8,12 @@
 //! This module contains the specifics for NodeLabel only, other types don't have the
 //! same level of detail and aren't broken into sub-modules
 
-use crate::{Direction, SizeOf};
+use crate::{PrefixOrdering, SizeOf};
 
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
-use core::convert::TryFrom;
 
 #[cfg(test)]
 mod tests;
@@ -76,6 +75,13 @@ impl core::fmt::Display for NodeLabel {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub(crate) enum Bit {
+    Zero = 0u8,
+    One = 1u8,
+}
+
 impl NodeLabel {
     /// Hash a [NodeLabel] into a digest, length-prefixing the label's value
     pub fn hash(&self) -> Vec<u8> {
@@ -133,15 +139,19 @@ impl NodeLabel {
     /// * label.get_bit_at(5) = 0
     /// * label.get_bit_at(6) = 0
     /// * label.get_bit_at(7) = 0
-    fn get_bit_at(&self, index: u32) -> u8 {
+    fn get_bit_at(&self, index: u32) -> Bit {
         if index >= self.label_len {
-            return 0;
+            return Bit::Zero;
         }
 
         let usize_index: usize = index as usize;
         let index_full_blocks = usize_index / 8;
         let index_remainder = usize_index % 8;
-        (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1
+        if (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1 == 0 {
+            Bit::Zero
+        } else {
+            Bit::One
+        }
     }
 
     /// Returns the prefix of a specified length, and the entire value on an out of range length
@@ -193,59 +203,15 @@ impl NodeLabel {
         self.label_val
     }
 
-    /// The sibling of a node in a binary tree has the same label as its sibling
-    /// except its last bit is flipped (e.g., 000 and 001 are siblings).
-    /// This function returns the sibling prefix of a specified length.
-    /// The rest of the node label after the flipped bit is padded with zeroes.
-    /// For instance, 010100 (length = 6) with sibling prefix length = 3 is 01{1}000 (length = 3)
-    /// -- {bit} denoting flipped bit.
-    pub fn get_sibling_prefix(&self, mut len: u32) -> Self {
-        if len > self.get_len() {
-            len = self.get_len();
-        }
-
-        if len == 0 {
-            return Self::new([0u8; 32], 0);
-        }
-
-        let usize_len: usize = (len - 1) as usize;
-        let byte_index = usize_len / 8;
-        let bit_index = usize_len % 8;
-
-        let bit_flip_marker: u8 = 0b1 << (7 - bit_index);
-
-        let mut val = self.get_val();
-        val[byte_index] ^= bit_flip_marker;
-
-        let mut out_val = [0u8; 32];
-        out_val[..byte_index].clone_from_slice(&self.label_val[..byte_index]);
-        out_val[byte_index] = (val[byte_index] >> (7 - bit_index)) << (7 - bit_index);
-
-        Self::new(out_val, len)
-    }
-
-    /// Takes as input a pointer to self, another NodeLabel and returns the tuple representing:
-    /// * the longest common prefix,
-    /// * the direction, with respect to the longest common prefix, of other,
-    /// * the direction, with respect to the longest common prefix, of self.
-    /// If either the node itself, or other is the longest common prefix, the
-    /// direction of the longest common prefix node is None.
-    pub fn get_longest_common_prefix_and_dirs(&self, other: Self) -> (Self, Direction, Direction) {
-        let lcp_label = self.get_longest_common_prefix(other);
-        let dir_other = lcp_label.get_dir(other);
-        let dir_self = lcp_label.get_dir(*self);
-        (lcp_label, dir_other, dir_self)
-    }
-
-    /// Gets the direction of other with respect to self, if self is a prefix of other.
-    /// If self is not a prefix of other, then returns None.
-    pub fn get_dir(&self, other: Self) -> Direction {
+    /// Gets the prefix ordering of other with respect to self, if self is a prefix of other.
+    /// If self is not a prefix of other, then this returns [PrefixOrdering::Invalid].
+    pub fn get_prefix_ordering(&self, other: Self) -> PrefixOrdering {
         if self.get_len() >= other.get_len() {
-            return Direction::None;
+            return PrefixOrdering::Invalid;
         }
         if other.get_prefix(self.get_len()) != *self {
-            return Direction::None;
+            return PrefixOrdering::Invalid;
         }
-        Direction::try_from(other.get_bit_at(self.get_len())).unwrap()
+        PrefixOrdering::from(other.get_bit_at(self.get_len()))
     }
 }

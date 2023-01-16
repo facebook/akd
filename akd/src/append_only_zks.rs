@@ -6,27 +6,28 @@
 // of this source tree.
 
 //! An implementation of an append-only zero knowledge set
-use crate::errors::ParallelismError;
-use crate::errors::TreeNodeError;
-use crate::helper_structs::LookupInfo;
-use crate::storage::manager::StorageManager;
-use crate::storage::types::StorageType;
-use crate::{
-    errors::{AkdError, DirectoryError},
-    storage::{Database, Storable},
-    tree_node::*,
-    AppendOnlyProof, AzksElement, Digest, Direction, MembershipProof, NodeLabel,
-    NonMembershipProof, SiblingProof, SingleAppendOnlyProof, ARITY, DIRECTIONS, EMPTY_LABEL,
-};
 
 use crate::crypto::empty_node_hash;
 use crate::crypto::{compute_root_hash_from_val, hash_leaf_with_commitment};
-use akd_core::hash::EMPTY_DIGEST;
-use akd_core::AzksValue;
-use akd_core::SizeOf;
+use crate::hash::EMPTY_DIGEST;
+use crate::helper_structs::LookupInfo;
+use crate::storage::manager::StorageManager;
+use crate::storage::types::StorageType;
+use crate::tree_node::{
+    new_interior_node, new_leaf_node, new_root_node, node_to_azks_value, node_to_label,
+    NodeHashingMode, NodeKey, TreeNode, TreeNodeType,
+};
+use crate::{
+    errors::{AkdError, DirectoryError, ParallelismError, TreeNodeError},
+    storage::{Database, Storable},
+    AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
+    NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf, ARITY,
+    EMPTY_LABEL,
+};
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::marker::Sync;
 use std::ops::Deref;
 
@@ -144,9 +145,9 @@ impl AzksElementSet {
             AzksElementSet::BinarySearchable(mut nodes) => {
                 // binary search for partition point
                 let partition_point = nodes.partition_point(|candidate| {
-                    match prefix_label.get_dir(candidate.label) {
-                        Direction::Left | Direction::None => true,
-                        Direction::Right => false,
+                    match prefix_label.get_prefix_ordering(candidate.label) {
+                        PrefixOrdering::WithZero | PrefixOrdering::Invalid => true,
+                        PrefixOrdering::WithOne => false,
                     }
                 });
 
@@ -154,9 +155,11 @@ impl AzksElementSet {
                 let right = nodes.split_off(partition_point);
                 let mut left = nodes;
 
-                // drop nodes with direction None
-                while left.last().map(|node| prefix_label.get_dir(node.label))
-                    == Some(Direction::None)
+                // drop nodes with invalid prefix ordering
+                while left
+                    .last()
+                    .map(|node| prefix_label.get_prefix_ordering(node.label))
+                    == Some(PrefixOrdering::Invalid)
                 {
                     left.pop();
                 }
@@ -171,10 +174,10 @@ impl AzksElementSet {
                     nodes
                         .into_iter()
                         .fold((vec![], vec![]), |(mut left, mut right), node| {
-                            match prefix_label.get_dir(node.label) {
-                                Direction::Left => left.push(node),
-                                Direction::Right => right.push(node),
-                                Direction::None => (),
+                            match prefix_label.get_prefix_ordering(node.label) {
+                                PrefixOrdering::WithZero => left.push(node),
+                                PrefixOrdering::WithOne => right.push(node),
+                                PrefixOrdering::Invalid => (),
                             };
                             (left, right)
                         });
@@ -410,7 +413,7 @@ impl Azks {
         // handle the left child
         let maybe_handle = if !left_azks_element_set.is_empty() {
             let storage_clone = storage.clone();
-            let left_child_label = current_node.get_child_label(Direction::Left)?;
+            let left_child_label = current_node.get_child_label(Direction::Left);
             let left_future = async move {
                 Azks::recursive_batch_insert_nodes(
                     &storage_clone,
@@ -442,7 +445,7 @@ impl Azks {
 
         // handle the right child in the current task
         if !right_azks_element_set.is_empty() {
-            let right_child_label = current_node.get_child_label(Direction::Right)?;
+            let right_child_label = current_node.get_child_label(Direction::Right);
             let (mut right_node, right_is_new, right_num_inserted) =
                 Azks::recursive_batch_insert_nodes(
                     storage,
@@ -525,17 +528,9 @@ impl Azks {
                 .iter()
                 .filter(|node| azks_element_set.contains_prefix(&node.label))
                 .flat_map(|node| {
-                    DIRECTIONS
+                    [Direction::Left, Direction::Right]
                         .iter()
-                        .filter_map(|dir| {
-                            // TODO (Issue #314): Migrate away from a panic in favor of a compile-time
-                            // error for an invalid directional state.
-                            node.get_child_label(*dir)
-                                .unwrap_or_else(|_| {
-                                    panic!("Attempted to load an invalid direction: {:?}", dir)
-                                })
-                                .map(NodeKey)
-                        })
+                        .filter_map(|dir| node.get_child_label(*dir).map(NodeKey))
                         .collect::<Vec<NodeKey>>()
                 })
                 .collect();
@@ -560,10 +555,6 @@ impl Azks {
         Ok(proof)
     }
 
-    // EOZ: There is a needless_range_loop warning by Clippy for `for i in 0..ARITY`
-    // and the suggestion is to use `for (i, <item>) in longest_prefix_children.iter_mut().enumerate().take(ARITY)`
-    // but I think this is inaccurate
-    #[allow(clippy::needless_range_loop)]
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
@@ -579,19 +570,20 @@ impl Azks {
             TreeNode::get_from_storage(storage, &NodeKey(lcp_node_label), self.get_latest_epoch())
                 .await?;
         let longest_prefix = lcp_node.label;
-        // load with placeholder nodes, to be replaced in the loop below
-        // FIXME: rework this to avoid the need for placeholder nodes
-        let mut longest_prefix_children = [AzksElement {
+
+        let empty_azks_element = AzksElement {
             label: EMPTY_LABEL,
             value: empty_node_hash(),
-        }; ARITY];
-        for dir in DIRECTIONS {
-            let child = lcp_node
-                .get_child_node(storage, dir, self.latest_epoch)
-                .await?;
-            match child {
+        };
+
+        let mut longest_prefix_children = [empty_azks_element; ARITY];
+        for (i, dir) in [Direction::Left, Direction::Right].iter().enumerate() {
+            match lcp_node
+                .get_child_node(storage, *dir, self.latest_epoch)
+                .await?
+            {
                 None => {
-                    continue;
+                    longest_prefix_children[i] = empty_azks_element;
                 }
                 Some(child) => {
                     let unwrapped_child: TreeNode = TreeNode::get_from_storage(
@@ -600,7 +592,7 @@ impl Azks {
                         self.get_latest_epoch(),
                     )
                     .await?;
-                    longest_prefix_children[dir as usize] = AzksElement {
+                    longest_prefix_children[i] = AzksElement {
                         label: unwrapped_child.label,
                         value: node_to_azks_value(
                             &Some(unwrapped_child),
@@ -852,15 +844,7 @@ impl Azks {
         latest_epoch: u64,
     ) -> Result<AzksElement, AkdError> {
         // Find the sibling in the "other" direction
-        let sibling = match dir {
-            Direction::None => {
-                return Err(AkdError::TreeNode(TreeNodeError::NoDirection(
-                    curr_node.label,
-                    None,
-                )));
-            }
-            dir => curr_node.get_child_node(storage, dir, latest_epoch).await?,
-        };
+        let sibling = curr_node.get_child_node(storage, dir, latest_epoch).await?;
         Ok(AzksElement {
             label: node_to_label(&sibling),
             value: node_to_azks_value(&sibling, NodeHashingMode::WithLeafEpoch),
@@ -882,11 +866,16 @@ impl Azks {
         let mut curr_node =
             TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), latest_epoch).await?;
 
-        let mut dir = curr_node.label.get_dir(label);
+        let mut prefix_ordering = curr_node.label.get_prefix_ordering(label);
         let mut equal = label == curr_node.label;
         let mut prev_node = curr_node.clone();
-        while !equal && dir != Direction::None {
-            let child = curr_node.get_child_node(storage, dir, latest_epoch).await?;
+        while !equal && prefix_ordering != PrefixOrdering::Invalid {
+            let direction = Direction::try_from(prefix_ordering).map_err(|_| {
+                AkdError::TreeNode(TreeNodeError::NoDirection(curr_node.label, None))
+            })?;
+            let child = curr_node
+                .get_child_node(storage, direction, latest_epoch)
+                .await?;
             if child.is_none() {
                 // Special case, if the root node has a direction with no child there
                 break;
@@ -895,25 +884,28 @@ impl Azks {
             // Find the sibling node. Note that for ARITY = 2, this does not need to be
             // an array, as it can just be a single node.
             let child_azks_element = self
-                .get_child_azks_element_in_dir(storage, &curr_node, dir.other(), latest_epoch)
+                .get_child_azks_element_in_dir(storage, &curr_node, direction.other(), latest_epoch)
                 .await?;
             sibling_proofs.push(SiblingProof {
                 label: curr_node.label,
                 siblings: [child_azks_element],
-                direction: dir,
+                direction,
             });
 
             prev_node = curr_node.clone();
-            match curr_node.get_child_node(storage, dir, latest_epoch).await? {
+            match curr_node
+                .get_child_node(storage, direction, latest_epoch)
+                .await?
+            {
                 Some(n) => curr_node = n,
                 None => {
                     return Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
                         latest_epoch,
-                        dir,
+                        direction,
                     )));
                 }
             }
-            dir = curr_node.label.get_dir(label);
+            prefix_ordering = curr_node.label.get_prefix_ordering(label);
             equal = label == curr_node.label;
         }
 
@@ -946,6 +938,7 @@ mod tests {
     use crate::crypto::{compute_parent_hash_from_children, compute_root_hash_from_val};
     use crate::storage::types::DbRecord;
     use crate::storage::StorageUtil;
+    use crate::tree_node::TreeNodeWithPreviousValue;
     use crate::utils::byte_arr_from_u64;
     use crate::{
         auditor::audit_verify,

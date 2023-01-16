@@ -10,7 +10,6 @@
 use super::*;
 #[cfg(feature = "nostd")]
 use alloc::vec;
-use core::convert::TryFrom;
 use rand::{thread_rng, Rng};
 
 // ================= Test helpers ================= //
@@ -43,23 +42,13 @@ fn byte_arr_from_u64_le(input_int: u64) -> [u8; 32] {
     output_arr
 }
 
-// Creates a byte array of 32 bytes from a u64
-// Note that this representation is big-endian, and
-// places the bits to the back of the output byte_array.
-fn byte_arr_from_u64_suffix(input_int: u64) -> [u8; 32] {
-    let mut output_arr = [0u8; 32];
-    let input_arr = input_int.to_be_bytes();
-    output_arr[24..32].clone_from_slice(&input_arr[..8]);
-    output_arr
-}
-
 /// This test tests get_bit_at on a small label of len 4.
 /// The label is logically equal to the binary string "1010"
 /// and should return the corresponding bits.
 #[test]
 pub fn test_get_bit_at_small() {
     let val = 0b1010u64 << 60;
-    let expected = vec![1, 0, 1, 0];
+    let expected = vec![Bit::One, Bit::Zero, Bit::One, Bit::Zero];
     let label = NodeLabel::new(byte_arr_from_u64(val), 4);
     for (index, item) in expected.iter().enumerate().take(4) {
         assert!(
@@ -73,7 +62,7 @@ pub fn test_get_bit_at_small() {
     for index in 4u32..256u32 {
         assert_eq!(
             label.get_bit_at(index),
-            0,
+            Bit::Zero,
             "Index {} should be 0 in a label of length 4 but it doesn't!",
             index
         );
@@ -85,7 +74,7 @@ pub fn test_get_bit_at_small() {
 #[test]
 pub fn test_get_bit_at_medium_1() {
     let val = 0b1u64 << 63;
-    let expected = 1;
+    let expected = Bit::One;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
     let computed = label.get_bit_at(0);
     assert!(
@@ -103,7 +92,7 @@ pub fn test_get_bit_at_medium_1() {
 #[test]
 pub fn test_get_bit_at_medium_2() {
     let val = 0b1u64 << 63;
-    let expected = 0;
+    let expected = Bit::Zero;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
     let computed = label.get_bit_at(190);
     assert!(
@@ -127,9 +116,13 @@ pub fn test_get_bit_at_large() {
     let label = NodeLabel::new(val, 256);
     // val[2] is positions 16-23 (both included),
     // so we want to check everything till there.
-    let expected = vec![
+    let expected_raw = vec![
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,
     ];
+    let expected = expected_raw
+        .iter()
+        .map(|x| if *x == 0 { Bit::Zero } else { Bit::One })
+        .collect::<Vec<Bit>>();
 
     // the vector expected covers the first 24 indices.
     for (index, item) in expected.iter().enumerate().take(24) {
@@ -146,10 +139,10 @@ pub fn test_get_bit_at_large() {
     for index in 24..256 {
         let index_32 = index as u32;
         assert!(
-            0 == label.get_bit_at(index_32),
+            Bit::Zero == label.get_bit_at(index_32),
             "get_bit_at({}) wrong for the 256 digit label 0000 0000 0000 0000 1010 0000! Expected {:?} and got {:?}",
             index,
-            0,
+            Bit::Zero,
             label.get_bit_at(index_32)
         )
     }
@@ -404,67 +397,6 @@ pub fn test_node_label_lcp_some_leading_zero() {
     )
 }
 
-/// Test for get_longest_common_prefix_and_dirs with leading bit 0, where the lcp is equal to neither
-/// label and hence both self and other get directions with respect to the lcp. Lcp has leading bit 0.
-#[test]
-pub fn test_node_label_lcp_dirs_some_leading_zero() {
-    let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64 << 55), 9u32);
-    let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64 << 55), 9u32);
-    let expected = (
-        NodeLabel::new(byte_arr_from_u64(0b1101u64 << 59), 5u32),
-        // label_2 should go to the right
-        Direction::Right,
-        // label_1 should go to the left
-        Direction::Left,
-    );
-    let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
-    assert!(
-    computed == expected,
-    "Longest common substring or direction with other with leading zero, not equal to expected!"
-)
-}
-
-/// Test for get_longest_common_prefix_and_dirs with leading bit 0, where the lcp is equal to neither
-/// label and hence both self and other get directions with respect to the lcp. Lcp has leading bit 1.
-#[test]
-pub fn test_node_label_lcp_dirs_some_leading_one() {
-    let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64 << 56), 8u32);
-    let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64 << 56), 8u32);
-    let expected = (
-        NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32),
-        // label_2 should go right
-        Direction::Right,
-        // label_1 should go left
-        Direction::Left,
-    );
-    let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
-    assert!(
-    computed == expected,
-    "Longest common substring or direction with other with leading zero, not equal to expected!"
-)
-}
-
-/// Test for get_longest_common_prefix_and_dirs with leading bit 1, where the lcp is equal to one of
-/// the queried labels.
-#[test]
-pub fn test_node_label_lcp_dirs_self_leading_one() {
-    let label_1 = NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32);
-    let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64 << 56), 8u32);
-    let expected = (
-        NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32),
-        // label_2 includes a 1 appended to label_1
-        Direction::Right,
-        // label_1 is the lcp
-        Direction::None,
-    );
-    let computed = label_1.get_longest_common_prefix_and_dirs(label_2);
-    assert!(
-        computed == expected,
-        "Longest common substring or direction with other with leading zero, not equal to expected! Computed = {:?} and expected = {:?}",
-        computed, expected
-    )
-}
-
 /// This test tests get_dir by manually computing the prefix and the bit
 /// immediately following the prefix of that length.
 #[test]
@@ -476,13 +408,13 @@ pub fn test_get_dir_large() {
         let label_2 = label_1.get_prefix(pos);
         // if the prefix is of length pos, then we want to get the prefix in that position, since the
         // label's value is indexed on 0, so the bit following the prefix of len "pos" is at position pos.
-        let mut direction = Direction::try_from(label_1.get_bit_at(pos)).unwrap();
+        let mut expected = PrefixOrdering::from(label_1.get_bit_at(pos));
         if pos == 256 {
-            direction = Direction::None;
+            expected = PrefixOrdering::Invalid;
         }
-        let computed = label_2.get_dir(label_1);
+        let computed = label_2.get_prefix_ordering(label_1);
         assert!(
-            computed == direction,
+            computed == expected,
             "Direction not equal to expected. Node = {:?}, prefix = {:?}",
             label_1,
             label_2
@@ -498,10 +430,10 @@ pub fn test_get_dir_example() {
     // the prefix 00110100, hence, label_1 is not a prefix of label_2.
     let label_1 = NodeLabel::new(byte_arr_from_u64_le(10049430782486799941u64), 64u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64_le(23u64), 5u32);
-    let direction = Direction::None;
-    let computed = label_2.get_dir(label_1);
+    let expected = PrefixOrdering::Invalid;
+    let computed = label_2.get_prefix_ordering(label_1);
     assert!(
-        computed == direction,
+        computed == expected,
         "Direction not equal to expected. Node = {:?}, prefix = {:?}, computed = {:?}",
         label_1,
         label_2,
@@ -526,50 +458,6 @@ pub fn test_get_prefix_small() {
         label_2,
         computed
     )
-}
-
-/// Test for the function get_sibling_prefix.
-#[test]
-pub fn test_get_sibling_prefix() {
-    let label0 = NodeLabel::new(byte_arr_from_u64(0b0 << 63), 1);
-    let label0_sibling = NodeLabel::new(byte_arr_from_u64(0b1 << 63), 1);
-
-    assert!(label0.get_sibling_prefix(1) == label0_sibling);
-
-    let label1 = NodeLabel::new(byte_arr_from_u64(0b1 << 63), 1);
-    let label1_sibling = NodeLabel::new(byte_arr_from_u64(0b0 << 63), 1);
-
-    assert!(label1.get_sibling_prefix(1) == label1_sibling);
-
-    // Our hand-coded random string to be parsed with len 30
-    let label_rand_len_30 = NodeLabel::new(
-        byte_arr_from_u64(0b1010000000000110001111001000001000001000110100101010111111001110u64),
-        30,
-    );
-    // Another hand-coded random string of length 15 with common prefix 1010 0000 0000 01
-    // with label_rand_len_30 and the next bit after this should be flipped and hence 0.
-    let label_rand_len_30_prefix_15_sibling =
-        NodeLabel::new(byte_arr_from_u64(0b10100000000001u64 << 50), 15);
-    // The prefix with len 15 of label_rand_len_30 is 1000000000011 and to get a
-    // sibling of len 15, we replace it with 1010000000010
-    assert!(label_rand_len_30.get_sibling_prefix(15) == label_rand_len_30_prefix_15_sibling);
-
-    let label_rand_len_256 = NodeLabel::new(
-        byte_arr_from_u64_suffix(
-            0b1010000000000110001111001000001000001000110100101010111111001110u64,
-        ),
-        256,
-    );
-
-    // Only the last bit is flipped!
-    let label_rand_len_256_prefix_256_sibling = NodeLabel::new(
-        byte_arr_from_u64_suffix(
-            0b1010000000000110001111001000001000001000110100101010111111001111u64,
-        ),
-        256,
-    );
-
-    assert!(label_rand_len_256.get_sibling_prefix(256) == label_rand_len_256_prefix_256_sibling);
 }
 
 #[test]
