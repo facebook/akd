@@ -28,6 +28,10 @@ runtime_metrics = []
 parallel_vrf = ["akd_core/parallel_vrf"]
 # Parallelize node insertion during publish
 parallel_insert = []
+# Enable pre-loading of the nodes when generating history proofs
+preload_history = []
+# TESTING ONLY: Artifically slow the in-memory database (for benchmarking)
+slow_internal_db = []
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
 default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert"]
@@ -71,5 +75,10 @@ akd = { path = ".", features = ["public-tests"], default-features = false }
 
 [[bench]]
 name = "azks"
+harness = false
+required-features = ["bench"]
+
+[[bench]]
+name = "directory"
 harness = false
 required-features = ["bench"]
