@@ -22,15 +22,14 @@ use std::sync::Arc;
 
 type Epoch = u64;
 type UserValueMap = HashMap<Epoch, ValueState>;
-type UserStates = DashMap<Vec<u8>, UserValueMap>;
 
 // ===== Basic In-Memory database ==== //
 
 /// This struct represents a basic in-memory database.
-#[derive(Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct AsyncInMemoryDatabase {
     db: Arc<DashMap<Vec<u8>, DbRecord>>,
-    user_info: Arc<UserStates>,
+    user_info: Arc<DashMap<Vec<u8>, UserValueMap>>,
 }
 
 unsafe impl Send for AsyncInMemoryDatabase {}
@@ -39,10 +38,7 @@ unsafe impl Sync for AsyncInMemoryDatabase {}
 impl AsyncInMemoryDatabase {
     /// Creates a new in memory db
     pub fn new() -> Self {
-        Self {
-            db: Arc::new(DashMap::new()),
-            user_info: Arc::new(DashMap::new()),
-        }
+        Self::default()
     }
 
     #[cfg(test)]
@@ -50,19 +46,32 @@ impl AsyncInMemoryDatabase {
         self.db.clear();
         self.user_info.clear();
     }
-}
 
-impl Default for AsyncInMemoryDatabase {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Clone for AsyncInMemoryDatabase {
-    fn clone(&self) -> Self {
-        Self {
-            db: self.db.clone(),
-            user_info: self.user_info.clone(),
+    async fn get_internal<St: Storable>(
+        &self,
+        id: &St::StorageKey,
+    ) -> Result<DbRecord, StorageError> {
+        let bin_id = St::get_full_binary_key_id(id);
+        // if the request is for a value state, look in the value state set
+        if St::data_type() == StorageType::ValueState {
+            if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
+                if let Some(state) = self.user_info.get(&username) {
+                    if let Some(found) = state.get(&epoch) {
+                        return Ok(DbRecord::ValueState(found.clone()));
+                    }
+                }
+                return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
+            }
+        }
+        // fallback to regular get/set db
+        if let Some(result) = self.db.get(&bin_id) {
+            Ok(result.clone())
+        } else {
+            Err(StorageError::NotFound(format!(
+                "{:?} {:?}",
+                St::data_type(),
+                id
+            )))
         }
     }
 }
@@ -121,28 +130,10 @@ impl Database for AsyncInMemoryDatabase {
 
     /// Retrieve a stored record from the data layer
     async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
-        let bin_id = St::get_full_binary_key_id(id);
-        // if the request is for a value state, look in the value state set
-        if St::data_type() == StorageType::ValueState {
-            if let Ok(ValueStateKey(username, epoch)) = ValueState::key_from_full_binary(&bin_id) {
-                if let Some(state) = self.user_info.get(&username) {
-                    if let Some(found) = state.get(&epoch) {
-                        return Ok(DbRecord::ValueState(found.clone()));
-                    }
-                }
-                return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
-            }
-        }
-        // fallback to regular get/set db
-        if let Some(result) = self.db.get(&bin_id) {
-            Ok(result.clone())
-        } else {
-            Err(StorageError::NotFound(format!(
-                "{:?} {:?}",
-                St::data_type(),
-                id
-            )))
-        }
+        #[cfg(feature = "slow_internal_db")]
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        self.get_internal::<St>(id).await
     }
 
     /// Retrieve a batch of records by id
@@ -150,9 +141,12 @@ impl Database for AsyncInMemoryDatabase {
         &self,
         ids: &[St::StorageKey],
     ) -> Result<Vec<DbRecord>, StorageError> {
+        #[cfg(feature = "slow_internal_db")]
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
         let mut records = Vec::new();
         for key in ids.iter() {
-            if let Ok(result) = self.get::<St>(key).await {
+            if let Ok(result) = self.get_internal::<St>(key).await {
                 records.push(result);
             }
             // swallow errors (i.e. not found)

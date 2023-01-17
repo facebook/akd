@@ -369,6 +369,33 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         Ok((lookup_proofs, root_hash))
     }
 
+    async fn build_lookup_info(&self, latest_st: &ValueState) -> Result<LookupInfo, AkdError> {
+        let akd_label = &latest_st.username;
+        // Need to account for the case where the latest state is
+        // added but the database is in the middle of an update
+        let version = latest_st.version;
+        let marker_version = 1 << get_marker_version(version);
+        let existent_label = self
+            .vrf
+            .get_node_label(akd_label, VersionFreshness::Fresh, version)
+            .await?;
+        let marker_label = self
+            .vrf
+            .get_node_label(akd_label, VersionFreshness::Fresh, marker_version)
+            .await?;
+        let non_existent_label = self
+            .vrf
+            .get_node_label(akd_label, VersionFreshness::Stale, version)
+            .await?;
+        Ok(LookupInfo {
+            value_state: latest_st.clone(),
+            marker_version,
+            existent_label,
+            marker_label,
+            non_existent_label,
+        })
+    }
+
     async fn get_lookup_info(
         &self,
         akd_label: AkdLabel,
@@ -392,31 +419,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                     )))),
                 }
             }
-            Ok(latest_st) => {
-                // Need to account for the case where the latest state is
-                // added but the database is in the middle of an update
-                let version = latest_st.version;
-                let marker_version = 1 << get_marker_version(version);
-                let existent_label = self
-                    .vrf
-                    .get_node_label(&akd_label, VersionFreshness::Fresh, version)
-                    .await?;
-                let marker_label = self
-                    .vrf
-                    .get_node_label(&akd_label, VersionFreshness::Fresh, marker_version)
-                    .await?;
-                let non_existent_label = self
-                    .vrf
-                    .get_node_label(&akd_label, VersionFreshness::Stale, version)
-                    .await?;
-                Ok(LookupInfo {
-                    value_state: latest_st,
-                    marker_version,
-                    existent_label,
-                    marker_label,
-                    non_existent_label,
-                })
-            }
+            Ok(latest_st) => self.build_lookup_info(&latest_st).await,
         }
     }
 
@@ -462,6 +465,19 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 format!("User {:?}", akd_label)
             };
             return Err(AkdError::Storage(StorageError::NotFound(msg)));
+        }
+
+        #[cfg(feature = "preload_history")]
+        {
+            let mut lookup_infos = vec![];
+            for ud in user_data.iter() {
+                if let Ok(lo) = self.build_lookup_info(ud).await {
+                    lookup_infos.push(lo);
+                }
+            }
+            current_azks
+                .preload_lookup_nodes(&self.storage, &lookup_infos)
+                .await?;
         }
 
         let mut update_proofs = Vec::<UpdateProof>::new();
@@ -838,7 +854,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             .map(|(akd_label, _val)| akd_label.clone())
             .collect();
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
-        keys.sort_by(|a, b| a.cmp(b));
+        keys.sort();
 
         // we're only using the maximum "version" of the user's state at the last epoch
         // they were seen in the directory. Therefore we've minimized the call to only
