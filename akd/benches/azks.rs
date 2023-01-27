@@ -121,6 +121,47 @@ fn audit_verify(c: &mut Criterion) {
     });
 }
 
+fn audit_generate(c: &mut Criterion) {
+    let num_leaves = 10000;
+    let num_epochs = 100;
+    
+    let mut rng = StdRng::seed_from_u64(42);
+    let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
+
+    let database = AsyncInMemoryDatabase::new();
+    let db = StorageManager::new(database, None, None, None);
+    let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+
+    // publish 10 epochs
+    for _epoch in 0..num_epochs {
+        let node_set = gen_nodes(&mut rng, num_leaves);
+        runtime
+        .block_on(azks.batch_insert_nodes(
+            &db,
+            node_set,
+            InsertMode::Directory,
+        ))
+        .unwrap();
+    }
+    let epoch = azks.get_latest_epoch();
+
+    // benchmark audit verify
+    let id = format!(
+        "Audit proof generation. {num_leaves} leaves over {num_epochs} epochs"
+    );
+    c.bench_function(&id, move |b| {
+        b.iter_batched(
+            || {},
+            |_| {
+                let _proof = runtime
+                    .block_on(azks.get_append_only_proof(&db, epoch - 1, epoch))
+                    .unwrap();
+            },
+            BatchSize::PerIteration,
+        );
+    });
+}
+
 fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
     (0..num_nodes)
         .map(|_| {
@@ -128,13 +169,11 @@ fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
                 label_val: rng.gen::<[u8; 32]>(),
                 label_len: 256,
             };
-            let mut input = [0u8; 32];
-            rng.fill_bytes(&mut input);
-            let value = AzksValue(input);
+            let value = AzksValue(rng.gen::<[u8; 32]>());
             AzksElement { label, value }
         })
         .collect()
 }
 
-criterion_group!(azks_benches, batch_insertion, audit_verify);
+criterion_group!(azks_benches, batch_insertion, audit_verify, audit_generate);
 criterion_main!(azks_benches);

@@ -34,7 +34,7 @@ preload_history = []
 slow_internal_db = []
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert"]
+default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert", "preload_history"]
 
 [dependencies]
 ## Required dependencies ##

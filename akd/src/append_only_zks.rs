@@ -621,7 +621,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
-    pub async fn get_append_only_proof<S: Database>(
+    pub async fn get_append_only_proof<S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
         start_epoch: u64,
@@ -662,9 +662,17 @@ impl Azks {
             }
             storage.log_metrics(log::Level::Info).await;
 
-            let (unchanged, leaves) = self
-                .get_append_only_proof_helper::<_>(storage, node.clone(), ep, ep + 1)
-                .await?;
+            let (unchanged, leaves) = Self::get_append_only_proof_helper::<_>(
+                self.get_latest_epoch(),
+                storage,
+                node.clone(),
+                ep,
+                ep + 1,
+                0,
+                get_parallel_levels(),
+            )
+            .await?;
+            info!("Generated audit proof for {} -> {}", ep, ep + 1);
             proofs.push(SingleAppendOnlyProof {
                 inserted: leaves,
                 unchanged_nodes: unchanged,
@@ -732,12 +740,14 @@ impl Azks {
     }
 
     #[async_recursion]
-    async fn get_append_only_proof_helper<S: Database>(
-        &self,
+    async fn get_append_only_proof_helper<S: Database + 'static>(
+        latest_epoch: u64,
         storage: &StorageManager<S>,
         node: TreeNode,
         start_epoch: u64,
         end_epoch: u64,
+        level: u64,
+        parallel_levels: Option<u8>,
     ) -> Result<AppendOnlyHelper, AkdError> {
         let mut unchanged = Vec::<AzksElement>::new();
         let mut leaves = Vec::<AzksElement>::new();
@@ -765,30 +775,111 @@ impl Azks {
                 value: node.hash,
             });
         } else {
-            for child_label in [node.left_child, node.right_child] {
-                match child_label {
-                    None => {
-                        continue;
-                    }
-                    Some(label) => {
-                        let child_node = TreeNode::get_from_storage(
-                            storage,
-                            &NodeKey(label),
-                            self.get_latest_epoch(),
-                        )
-                        .await?;
-                        let (mut inner_unchanged, mut inner_leaf) = self
-                            .get_append_only_proof_helper::<_>(
+            let maybe_task: Option<
+                tokio::task::JoinHandle<Result<(Vec<AzksElement>, Vec<AzksElement>), AkdError>>,
+            > = if let Some(left_child) = node.left_child {
+                #[cfg(feature = "parallel_insert")]
+                {
+                    if parallel_levels.map(|p| p as u64 > level).unwrap_or(false) {
+                        // we can parallelise further!
+                        let storage_clone = storage.clone();
+                        let tsk: tokio::task::JoinHandle<
+                            Result<(Vec<AzksElement>, Vec<AzksElement>), AkdError>,
+                        > = tokio::spawn(async move {
+                            let my_storage = storage_clone;
+                            let child_node = TreeNode::get_from_storage(
+                                &my_storage,
+                                &NodeKey(left_child),
+                                latest_epoch,
+                            )
+                            .await?;
+                            Self::get_append_only_proof_helper::<_>(
+                                latest_epoch,
+                                &my_storage,
+                                child_node,
+                                start_epoch,
+                                end_epoch,
+                                level + 1,
+                                parallel_levels,
+                            )
+                            .await
+                        });
+
+                        Some(tsk)
+                    } else {
+                        // Enough parallelism already, STOP IT! Don't make me get the belt!
+                        let child_node =
+                            TreeNode::get_from_storage(storage, &NodeKey(left_child), latest_epoch)
+                                .await?;
+                        let (mut inner_unchanged, mut inner_leaf) =
+                            Self::get_append_only_proof_helper::<_>(
+                                latest_epoch,
                                 storage,
                                 child_node,
                                 start_epoch,
                                 end_epoch,
+                                level + 1,
+                                parallel_levels,
                             )
                             .await?;
                         unchanged.append(&mut inner_unchanged);
                         leaves.append(&mut inner_leaf);
+                        None
                     }
                 }
+
+                #[cfg(not(feature = "parallel_insert"))]
+                {
+                    // NO Parallelism, BAD! parallelism. Get your nose out of the garbage!
+                    let child_node = TreeNode::get_from_storage(
+                        storage,
+                        &NodeKey(left_child),
+                        latest_epoch,
+                    )
+                    .await?;
+                    let (mut inner_unchanged, mut inner_leaf) = Self::get_append_only_proof_helper::<_>(
+                            latest_epoch,
+                            storage,
+                            child_node,
+                            start_epoch,
+                            end_epoch,
+                            level + 1,
+                            parallel_levels,
+                        )
+                        .await?;
+                    unchanged.append(&mut inner_unchanged);
+                    leaves.append(&mut inner_leaf);
+                    None
+                }
+            } else {
+                None
+            };
+
+            if let Some(right_child) = node.right_child {
+                let child_node =
+                    TreeNode::get_from_storage(storage, &NodeKey(right_child), latest_epoch)
+                        .await?;
+                let (mut inner_unchanged, mut inner_leaf) =
+                    Self::get_append_only_proof_helper::<_>(
+                        latest_epoch,
+                        storage,
+                        child_node,
+                        start_epoch,
+                        end_epoch,
+                        level + 1,
+                        parallel_levels,
+                    )
+                    .await?;
+                unchanged.append(&mut inner_unchanged);
+                leaves.append(&mut inner_leaf);
+            }
+
+            if let Some(task) = maybe_task {
+                let (mut inner_unchanged, mut inner_leaf) = task.await.map_err(|join_err| {
+                    AkdError::Parallelism(ParallelismError::JoinErr(join_err.to_string()))
+                })??;
+                unchanged.append(&mut inner_unchanged);
+                leaves.append(&mut inner_leaf);
             }
         }
         Ok((unchanged, leaves))
