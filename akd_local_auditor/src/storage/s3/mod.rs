@@ -48,7 +48,7 @@ pub(crate) fn validate_bucket_name(s: &str) -> Result<String, String> {
 
     for c in str.chars() {
         if !ALLOWED_BUCKET_CHARS.iter().any(|v| c == *v) {
-            return Err(format!("Character '{}' is not allowed in bucket name. Bucket names must contain lower-case letters, numbers, '-', and '.' only.", c));
+            return Err(format!("Character '{c}' is not allowed in bucket name. Bucket names must contain lower-case letters, numbers, '-', and '.' only."));
         }
     }
     Ok(str)

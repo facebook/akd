@@ -33,9 +33,9 @@ impl ConsoleLogger {
         let target = {
             if let Some(target_str) = record.target().split(':').last() {
                 if let Some(line) = record.line() {
-                    format!(" ({}:{})", target_str, line)
+                    format!(" ({target_str}:{line})")
                 } else {
-                    format!(" ({})", target_str)
+                    format!(" ({target_str})")
                 }
             } else {
                 "".to_string()
@@ -66,7 +66,7 @@ impl ConsoleLogger {
             target
         );
         if no_color {
-            let _ = writeln!(io, "{}", msg);
+            let _ = writeln!(io, "{msg}");
         } else {
             let msg = match record.level() {
                 Level::Trace | Level::Debug => msg.white(),
@@ -74,7 +74,7 @@ impl ConsoleLogger {
                 Level::Warn => msg.yellow(),
                 Level::Error => msg.red(),
             };
-            let _ = writeln!(io, "{}", msg);
+            let _ = writeln!(io, "{msg}");
         }
     }
 }

@@ -783,8 +783,9 @@ impl Azks {
                     if parallel_levels.map(|p| p as u64 > level).unwrap_or(false) {
                         // we can parallelise further!
                         let storage_clone = storage.clone();
+                        #[allow(clippy::type_complexity)]
                         let tsk: tokio::task::JoinHandle<
-                            Result<(Vec<AzksElement>, Vec<AzksElement>), AkdError>,
+                            Result<_, AkdError>,
                         > = tokio::spawn(async move {
                             let my_storage = storage_clone;
                             let child_node = TreeNode::get_from_storage(
@@ -831,13 +832,11 @@ impl Azks {
                 #[cfg(not(feature = "parallel_insert"))]
                 {
                     // NO Parallelism, BAD! parallelism. Get your nose out of the garbage!
-                    let child_node = TreeNode::get_from_storage(
-                        storage,
-                        &NodeKey(left_child),
-                        latest_epoch,
-                    )
-                    .await?;
-                    let (mut inner_unchanged, mut inner_leaf) = Self::get_append_only_proof_helper::<_>(
+                    let child_node =
+                        TreeNode::get_from_storage(storage, &NodeKey(left_child), latest_epoch)
+                            .await?;
+                    let (mut inner_unchanged, mut inner_leaf) =
+                        Self::get_append_only_proof_helper::<_>(
                             latest_epoch,
                             storage,
                             child_node,

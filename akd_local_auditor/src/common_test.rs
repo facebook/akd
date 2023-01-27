@@ -74,15 +74,15 @@ pub async fn generate_audit_proofs(
             // generate (n) epochs of updates on many users
             let data = (1..100000)
                 .map(|item| {
-                    let user = format!("user{}", item);
-                    let value = format!("value{}_{}", _epoch, item);
+                    let user = format!("user{item}");
+                    let value = format!("value{_epoch}_{item}");
                     (AkdLabel::from(&user), AkdValue::from(&value))
                 })
                 .collect::<Vec<(AkdLabel, AkdValue)>>();
             akd.publish(data).await?;
         } else {
             // generate (n) epochs of updates on the same user
-            let t_value = format!("certificate{}", _epoch);
+            let t_value = format!("certificate{_epoch}");
             akd.publish(vec![(AkdLabel::from("user"), AkdValue::from(&t_value))])
                 .await?;
         }

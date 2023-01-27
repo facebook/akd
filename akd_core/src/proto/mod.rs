@@ -34,8 +34,7 @@ pub enum ConversionError {
 impl From<protobuf::Error> for ConversionError {
     fn from(err: protobuf::Error) -> Self {
         Self::Protobuf(format!(
-            "An error occurred in protobuf serialization/deserialization {}",
-            err
+            "An error occurred in protobuf serialization/deserialization {err}"
         ))
     }
 }
@@ -43,10 +42,10 @@ impl From<protobuf::Error> for ConversionError {
 impl core::fmt::Display for ConversionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> core::fmt::Result {
         let code = match &self {
-            ConversionError::Deserialization(msg) => format!("(Deserialization) - {}", msg),
-            ConversionError::Protobuf(msg) => format!("(Protobuf) - {}", msg),
+            ConversionError::Deserialization(msg) => format!("(Deserialization) - {msg}"),
+            ConversionError::Protobuf(msg) => format!("(Protobuf) - {msg}"),
         };
-        write!(f, "Type conversion error {}", code)
+        write!(f, "Type conversion error {code}")
     }
 }
 
@@ -208,8 +207,7 @@ impl TryFrom<&specs::types::SiblingProof> for crate::SiblingProof {
             1 => Bit::One,
             _ => {
                 return Err(ConversionError::Deserialization(format!(
-                    "Invalid direction: {}",
-                    direction
+                    "Invalid direction: {direction}"
                 )))
             }
         };

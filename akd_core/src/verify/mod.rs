@@ -40,18 +40,18 @@ pub enum VerificationError {
 impl core::fmt::Display for VerificationError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let code = match &self {
-            VerificationError::MembershipProof(err) => format!("(Membership proof) - {}", err),
+            VerificationError::MembershipProof(err) => format!("(Membership proof) - {err}"),
             VerificationError::NonMembershipProof(err) => {
-                format!("(Non-membership proof) - {}", err)
+                format!("(Non-membership proof) - {err}")
             }
-            VerificationError::LookupProof(err) => format!("(Lookup proof) - {}", err),
-            VerificationError::HistoryProof(err) => format!("(History proof) - {}", err),
+            VerificationError::LookupProof(err) => format!("(Lookup proof) - {err}"),
+            VerificationError::HistoryProof(err) => format!("(History proof) - {err}"),
             #[cfg(feature = "vrf")]
             VerificationError::Vrf(vrf) => vrf.to_string(),
             #[cfg(feature = "protobuf")]
             VerificationError::Serialization(proto) => proto.to_string(),
         };
-        write!(f, "Verification error {}", code)
+        write!(f, "Verification error {code}")
     }
 }
 

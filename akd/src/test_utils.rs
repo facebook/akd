@@ -25,9 +25,9 @@ impl TestConsoleLogger {
         let target = {
             if let Some(target_str) = record.target().split(':').last() {
                 if let Some(line) = record.line() {
-                    format!(" ({}:{})", target_str, line)
+                    format!(" ({target_str}:{line})")
                 } else {
-                    format!(" ({})", target_str)
+                    format!(" ({target_str})")
                 }
             } else {
                 "".to_string()
@@ -62,7 +62,7 @@ impl TestConsoleLogger {
             Level::Warn => msg.yellow(),
             Level::Error => msg.red(),
         };
-        println!("{}", msg);
+        println!("{msg}");
     }
 }
 

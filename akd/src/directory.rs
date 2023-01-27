@@ -410,12 +410,10 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 // Need to throw an error
                 match std::str::from_utf8(&akd_label) {
                     Ok(name) => Err(AkdError::Storage(StorageError::NotFound(format!(
-                        "User {} at epoch {}",
-                        name, epoch
+                        "User {name} at epoch {epoch}"
                     )))),
                     _ => Err(AkdError::Storage(StorageError::NotFound(format!(
-                        "User {:?} at epoch {}",
-                        akd_label, epoch
+                        "User {akd_label:?} at epoch {epoch}"
                     )))),
                 }
             }
@@ -460,9 +458,9 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         if user_data.is_empty() {
             let msg = if let Ok(username_str) = std::str::from_utf8(akd_label) {
-                format!("User {}", username_str)
+                format!("User {username_str}")
             } else {
-                format!("User {:?}", akd_label)
+                format!("User {akd_label:?}")
             };
             return Err(AkdError::Storage(StorageError::NotFound(msg)));
         }
@@ -595,8 +593,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                     if let Some(channel) = &change_detected {
                         channel.send(()).await.map_err(|send_err| {
                             AkdError::Storage(StorageError::Connection(format!(
-                                "Tokio MPSC sender failed to publish notification with error {:?}",
-                                send_err
+                                "Tokio MPSC sender failed to publish notification with error {send_err:?}"
                             )))
                         })?;
                     }
@@ -624,13 +621,11 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         if audit_start_ep >= audit_end_ep {
             Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
-                "Start epoch {} is greater than or equal the end epoch {}",
-                audit_start_ep, audit_end_ep
+                "Start epoch {audit_start_ep} is greater than or equal the end epoch {audit_end_ep}"
             ))))
         } else if current_epoch < audit_end_ep {
             Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
-                "End epoch {} is greater than the current epoch {}",
-                audit_end_ep, current_epoch
+                "End epoch {audit_end_ep} is greater than the current epoch {current_epoch}"
             ))))
         } else {
             current_azks

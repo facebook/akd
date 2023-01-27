@@ -278,7 +278,7 @@ impl StorageSettings {
                     }
                     Err(err) => {
                         log::error!("Failed to save settings: {:?}", err);
-                        crate::ui::logstream::warn(format!("Failed to save settings: {:?}", err))
+                        crate::ui::logstream::warn(format!("Failed to save settings: {err:?}"))
                     }
                 }
             }
@@ -293,7 +293,7 @@ impl StorageSettings {
                 }
                 Err(err) => {
                     log::error!("Failed to load settings: {:?}", err);
-                    crate::ui::logstream::warn(format!("Failed to load settings: {:?}", err))
+                    crate::ui::logstream::warn(format!("Failed to load settings: {err:?}"))
                 }
             },
         }
@@ -445,7 +445,7 @@ impl super::AuditorTab for StorageSettings {
                 row![text("Storage Type: ")].spacing(DEFAULT_SPACING),
                 |row, ty| {
                     row.push(radio(
-                        format!("{}", ty),
+                        format!("{ty}"),
                         *ty,
                         Some(match self.settings {
                             SpecificStorageSettings::S3(_) => StorageType::S3,

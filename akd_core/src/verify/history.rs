@@ -60,8 +60,7 @@ pub fn key_history_verify(
     // Make sure the update proofs are non-empty
     if num_proofs == 0 {
         return Err(VerificationError::HistoryProof(format!(
-            "No update proofs included in the proof of user {:?} at epoch {:?}!",
-            akd_key, current_epoch
+            "No update proofs included in the proof of user {akd_key:?} at epoch {current_epoch:?}!"
         )));
     }
 
@@ -136,8 +135,7 @@ pub fn key_history_verify(
             &proof.future_marker_vrf_proofs[i],
             &proof.non_existence_of_future_marker_proofs[i],
         ).map_err(|_|
-            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-            akd_key, version, current_epoch)))?;
+            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {akd_key:?}'s version {version:?} at epoch {current_epoch:?} does not verify")))?;
     }
 
     Ok(results)

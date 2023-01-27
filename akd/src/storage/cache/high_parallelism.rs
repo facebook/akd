@@ -50,12 +50,9 @@ impl TimedCache {
             let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
             let cache_size = self.map.len();
 
-            let msg = format!(
-                "Cache hit since last: {}, cached size: {} items",
-                hit_count, cache_size
-            );
+            let msg = format!("Cache hit since last: {hit_count}, cached size: {cache_size} items");
             match _level {
-                log::Level::Trace => println!("{}", msg),
+                log::Level::Trace => println!("{msg}"),
                 log::Level::Debug => debug!("{}", msg),
                 log::Level::Info => info!("{}", msg),
                 log::Level::Warn => warn!("{}", msg),

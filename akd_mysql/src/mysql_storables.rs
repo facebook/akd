@@ -62,12 +62,12 @@ pub(crate) trait MySqlStorable {
 impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
-            DbRecord::Azks(_) => format!("INSERT INTO `{}` (`key`, {})
+            DbRecord::Azks(_) => format!("INSERT INTO `{TABLE_AZKS}` (`key`, {SELECT_AZKS_DATA})
             VALUES (:key, :epoch, :num_nodes)
             ON DUPLICATE KEY UPDATE
                 `epoch` = :epoch
-                , `num_nodes` = :num_nodes", TABLE_AZKS, SELECT_AZKS_DATA),
-            DbRecord::TreeNode(_) => format!("INSERT INTO `{}` ({})
+                , `num_nodes` = :num_nodes"),
+            DbRecord::TreeNode(_) => format!("INSERT INTO `{TABLE_HISTORY_TREE_NODES}` ({SELECT_HISTORY_TREE_NODE_DATA})
             VALUES (:label_len
                 , :label_val
                 , :last_epoch
@@ -112,8 +112,8 @@ impl MySqlStorable for DbRecord {
                 , `p_left_child_label_val` = :p_left_child_label_val
                 , `p_right_child_len` = :p_right_child_len
                 , `p_right_child_label_val` = :p_right_child_label_val
-                , `p_hash` = :p_hash", TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA),
-            DbRecord::ValueState(_) => format!("INSERT INTO `{}` ({}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)", TABLE_USER, SELECT_USER_DATA),
+                , `p_hash` = :p_hash"),
+            DbRecord::ValueState(_) => format!("INSERT INTO `{TABLE_USER}` ({SELECT_USER_DATA}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)"),
         }
     }
 
@@ -160,35 +160,33 @@ impl MySqlStorable for DbRecord {
             match St::data_type() {
                 StorageType::TreeNode => {
                     parts = format!(
-                        "{}(:label_len{}
-                            , :label_val{}
-                            , :last_epoch{}
-                            , :least_descendant_ep{}
-                            , :parent_label_len{}
-                            , :parent_label_val{}
-                            , :node_type{}
-                            , :left_child_len{}
-                            , :left_child_label_val{}
-                            , :right_child_len{}
-                            , :right_child_label_val{}
-                            , :hash{}
-                            , :p_last_epoch{}
-                            , :p_least_descendant_ep{}
-                            , :p_parent_label_len{}
-                            , :p_parent_label_val{}
-                            , :p_node_type{}
-                            , :p_left_child_len{}
-                            , :p_left_child_label_val{}
-                            , :p_right_child_len{}
-                            , :p_right_child_label_val{}
-                            , :p_hash{})",
-                        parts, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i
+                        "{parts}(:label_len{i}
+                            , :label_val{i}
+                            , :last_epoch{i}
+                            , :least_descendant_ep{i}
+                            , :parent_label_len{i}
+                            , :parent_label_val{i}
+                            , :node_type{i}
+                            , :left_child_len{i}
+                            , :left_child_label_val{i}
+                            , :right_child_len{i}
+                            , :right_child_label_val{i}
+                            , :hash{i}
+                            , :p_last_epoch{i}
+                            , :p_least_descendant_ep{i}
+                            , :p_parent_label_len{i}
+                            , :p_parent_label_val{i}
+                            , :p_node_type{i}
+                            , :p_left_child_len{i}
+                            , :p_left_child_label_val{i}
+                            , :p_right_child_len{i}
+                            , :p_right_child_label_val{i}
+                            , :p_hash{i})"
                     );
                 }
                 StorageType::ValueState => {
                     parts = format!(
-                        "{}(:username{}, :epoch{}, :version{}, :node_label_val{}, :node_label_len{}, :data{})",
-                        parts, i, i, i, i, i, i
+                        "{parts}(:username{i}, :epoch{i}, :version{i}, :node_label_val{i}, :node_label_len{i}, :data{i})"
                     );
                 }
                 _ => {
@@ -203,14 +201,13 @@ impl MySqlStorable for DbRecord {
 
         match St::data_type() {
             StorageType::Azks => format!(
-                "INSERT INTO `{}` (`key`, {})
+                "INSERT INTO `{TABLE_AZKS}` (`key`, {SELECT_AZKS_DATA})
             VALUES (:key, :epoch, :num_nodes) as new
-            ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes",
-                TABLE_AZKS, SELECT_AZKS_DATA
+            ON DUPLICATE KEY UPDATE `epoch` = new.epoch, `num_nodes` = new.num_nodes"
             ),
             StorageType::TreeNode => format!(
-                "INSERT INTO `{}` ({})
-            VALUES {} as new
+                "INSERT INTO `{TABLE_HISTORY_TREE_NODES}` ({SELECT_HISTORY_TREE_NODE_DATA})
+            VALUES {parts} as new
             ON DUPLICATE KEY UPDATE
                 `label_len` = new.label_len
                 , `label_val` = new.label_val
@@ -233,18 +230,16 @@ impl MySqlStorable for DbRecord {
                 , `p_left_child_label_val` = new.p_left_child_label_val
                 , `p_right_child_len` = new.p_right_child_len
                 , `p_right_child_label_val` = new.p_right_child_label_val
-                , `p_hash` = new.p_hash",
-                TABLE_HISTORY_TREE_NODES, SELECT_HISTORY_TREE_NODE_DATA, parts
+                , `p_hash` = new.p_hash"
             ),
             StorageType::ValueState => format!(
-                "INSERT INTO `{}` ({})
-            VALUES {} as new
+                "INSERT INTO `{TABLE_USER}` ({SELECT_USER_DATA})
+            VALUES {parts} as new
             ON DUPLICATE KEY UPDATE
                 `data` = new.data
                 , `node_label_val` = new.node_label_val
                 , `node_label_len` = new.node_label_len
-                , `version` = new.version",
-                TABLE_USER, SELECT_USER_DATA, parts
+                , `version` = new.version"
             ),
         }
     }
@@ -262,73 +257,67 @@ impl MySqlStorable for DbRecord {
                 DbRecord::TreeNode(node) => {
                     let pnode = &node.previous_node;
                     Ok(vec![
+                        (format!("label_len{idx}"), Value::from(node.label.label_len)),
+                        (format!("label_val{idx}"), Value::from(node.label.label_val)),
                         (
-                            format!("label_len{}", idx),
-                            Value::from(node.label.label_len),
-                        ),
-                        (
-                            format!("label_val{}", idx),
-                            Value::from(node.label.label_val),
-                        ),
-                        (
-                            format!("last_epoch{}", idx),
+                            format!("last_epoch{idx}"),
                             Value::from(node.latest_node.last_epoch),
                         ),
                         (
-                            format!("least_descendant_ep{}", idx),
+                            format!("least_descendant_ep{idx}"),
                             Value::from(node.latest_node.min_descendant_epoch),
                         ),
                         (
-                            format!("parent_label_len{}", idx),
+                            format!("parent_label_len{idx}"),
                             Value::from(node.latest_node.parent.label_len),
                         ),
                         (
-                            format!("parent_label_val{}", idx),
+                            format!("parent_label_val{idx}"),
                             Value::from(node.latest_node.parent.label_val),
                         ),
                         (
-                            format!("node_type{}", idx),
+                            format!("node_type{idx}"),
                             Value::from(node.latest_node.node_type as u8),
                         ),
                         (
-                            format!("left_child_len{}", idx),
+                            format!("left_child_len{idx}"),
                             Value::from(node.latest_node.left_child.map(|lc| lc.label_len)),
                         ),
                         (
-                            format!("left_child_label_val{}", idx),
+                            format!("left_child_label_val{idx}"),
                             Value::from(node.latest_node.left_child.map(|lc| lc.label_val)),
                         ),
                         (
-                            format!("right_child_len{}", idx),
+                            format!("right_child_len{idx}"),
                             Value::from(node.latest_node.right_child.map(|rc| rc.label_len)),
                         ),
                         (
-                            format!("right_child_label_val{}", idx),
+                            format!("right_child_label_val{idx}"),
                             Value::from(node.latest_node.right_child.map(|rc| rc.label_val)),
                         ),
-                        (format!("hash{}", idx), Value::from(node.latest_node.hash.0)),
+                        (format!("hash{idx}"), Value::from(node.latest_node.hash.0)),
                         (
-                            format!("p_last_epoch{}", idx),
+                            format!("p_last_epoch{idx}"),
                             Value::from(pnode.clone().map(|a| a.last_epoch)),
                         ),
                         (
-                            format!("p_least_descendant_ep{}", idx),
+                            format!("p_least_descendant_ep{idx}"),
                             Value::from(pnode.clone().map(|a| a.min_descendant_epoch)),
                         ),
                         (
-                            format!("p_parent_label_len{}", idx),
+                            format!("p_parent_label_len{idx}"),
                             Value::from(pnode.clone().map(|a| a.parent.label_len)),
                         ),
                         (
-                            format!("p_parent_label_val{}", idx),
+                            format!("p_parent_label_val{idx}"),
                             Value::from(pnode.clone().map(|a| a.parent.label_val)),
                         ),
                         (
-                            format!("p_node_type{}", idx),
+                            format!("p_node_type{idx}"),
                             Value::from(pnode.clone().map(|a| a.node_type as u8)),
                         ),
                         (
-                            format!("p_left_child_len{}", idx),
+                            format!("p_left_child_len{idx}"),
                             Value::from(
                                 pnode
                                     .clone()
@@ -336,7 +325,7 @@ impl MySqlStorable for DbRecord {
                             ),
                         ),
                         (
-                            format!("p_left_child_label_val{}", idx),
+                            format!("p_left_child_label_val{idx}"),
                             Value::from(
                                 pnode
                                     .clone()
@@ -344,7 +333,7 @@ impl MySqlStorable for DbRecord {
                             ),
                         ),
                         (
-                            format!("p_right_child_len{}", idx),
+                            format!("p_right_child_len{idx}"),
                             Value::from(
                                 pnode
                                     .clone()
@@ -352,7 +341,7 @@ impl MySqlStorable for DbRecord {
                             ),
                         ),
                         (
-                            format!("p_right_child_label_val{}", idx),
+                            format!("p_right_child_label_val{idx}"),
                             Value::from(
                                 pnode
                                     .clone()
@@ -360,24 +349,24 @@ impl MySqlStorable for DbRecord {
                             ),
                         ),
                         (
-                            format!("p_hash{}", idx),
+                            format!("p_hash{idx}"),
                             Value::from(pnode.clone().map(|a| a.hash.0)),
                         ),
                     ])
                 }
                 DbRecord::ValueState(state) => Ok(vec![
-                    (format!("username{}", idx), Value::from(state.get_id().0)),
-                    (format!("epoch{}", idx), Value::from(state.epoch)),
-                    (format!("version{}", idx), Value::from(state.version)),
+                    (format!("username{idx}"), Value::from(state.get_id().0)),
+                    (format!("epoch{idx}"), Value::from(state.epoch)),
+                    (format!("version{idx}"), Value::from(state.version)),
                     (
-                        format!("node_label_len{}", idx),
+                        format!("node_label_len{idx}"),
                         Value::from(state.label.label_len),
                     ),
                     (
-                        format!("node_label_val{}", idx),
+                        format!("node_label_val{idx}"),
                         Value::from(state.label.label_val),
                     ),
-                    (format!("data{}", idx), Value::from(state.value.0.clone())),
+                    (format!("data{idx}"), Value::from(state.value.0.clone())),
                 ]),
             })
             .into_iter()
@@ -390,12 +379,11 @@ impl MySqlStorable for DbRecord {
 
     fn get_statement<St: Storable>() -> String {
         match St::data_type() {
-            StorageType::Azks => format!("SELECT {} FROM `{}`", SELECT_AZKS_DATA, TABLE_AZKS),
-            StorageType::TreeNode => format!(
-                "SELECT {} FROM `{}`",
-                SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
-            ),
-            StorageType::ValueState => format!("SELECT {} FROM `{}`", SELECT_USER_DATA, TABLE_USER),
+            StorageType::Azks => format!("SELECT {SELECT_AZKS_DATA} FROM `{TABLE_AZKS}`"),
+            StorageType::TreeNode => {
+                format!("SELECT {SELECT_HISTORY_TREE_NODE_DATA} FROM `{TABLE_HISTORY_TREE_NODES}`")
+            }
+            StorageType::ValueState => format!("SELECT {SELECT_USER_DATA} FROM `{TABLE_USER}`"),
         }
     }
 
@@ -405,16 +393,14 @@ impl MySqlStorable for DbRecord {
             StorageType::TreeNode => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))",
-                        TEMP_IDS_TABLE
+                        "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))"
                     )
                 )
             },
             StorageType::ValueState => {
                 Some(
                     format!(
-                        "CREATE TEMPORARY TABLE `{}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))",
-                        TEMP_IDS_TABLE
+                        "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))"
                     )
                 )
             },
@@ -425,16 +411,10 @@ impl MySqlStorable for DbRecord {
         let mut statement = match St::data_type() {
             StorageType::Azks => "".to_string(),
             StorageType::TreeNode => {
-                format!(
-                    "INSERT INTO `{}` (`label_len`, `label_val`) VALUES ",
-                    TEMP_IDS_TABLE
-                )
+                format!("INSERT INTO `{TEMP_IDS_TABLE}` (`label_len`, `label_val`) VALUES ")
             }
             StorageType::ValueState => {
-                format!(
-                    "INSERT INTO `{}` (`username`, `epoch`) VALUES ",
-                    TEMP_IDS_TABLE
-                )
+                format!("INSERT INTO `{TEMP_IDS_TABLE}` (`username`, `epoch`) VALUES ")
             }
         };
         if let Some(item_count) = num_items {
@@ -442,13 +422,13 @@ impl MySqlStorable for DbRecord {
                 let append = match St::data_type() {
                     StorageType::Azks => String::from(""),
                     StorageType::TreeNode => {
-                        format!("(:label_len{}, :label_val{})", i, i)
+                        format!("(:label_len{i}, :label_val{i})")
                     }
                     StorageType::ValueState => {
-                        format!("(:username{}, :epoch{})", i, i)
+                        format!("(:username{i}, :epoch{i})")
                     }
                 };
-                statement = format!("{}{}", statement, append);
+                statement = format!("{statement}{append}");
 
                 if i < item_count - 1 {
                     // inner-item, append a comma
@@ -468,7 +448,7 @@ impl MySqlStorable for DbRecord {
     fn get_batch_statement<St: Storable>() -> String {
         match St::data_type() {
             StorageType::Azks => {
-                format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
+                format!("SELECT {SELECT_AZKS_DATA} FROM `{TABLE_AZKS}` LIMIT 1")
             }
             StorageType::TreeNode => {
                 format!(
@@ -494,11 +474,10 @@ impl MySqlStorable for DbRecord {
                         , a.`p_right_child_len`
                         , a.`p_right_child_label_val`
                         , a.`p_hash`
-                    FROM `{}` a
-                    INNER JOIN {} ids
+                    FROM `{TABLE_HISTORY_TREE_NODES}` a
+                    INNER JOIN {TEMP_IDS_TABLE} ids
                         ON ids.`label_len` = a.`label_len`
-                        AND ids.`label_val` = a.`label_val`",
-                    TABLE_HISTORY_TREE_NODES, TEMP_IDS_TABLE
+                        AND ids.`label_val` = a.`label_val`"
                 )
             }
             StorageType::ValueState => {
@@ -510,11 +489,10 @@ impl MySqlStorable for DbRecord {
                         , a.`node_label_val`
                         , a.`node_label_len`
                         , a.`data`
-                    FROM `{}` a
-                    INNER JOIN {} ids
+                    FROM `{TABLE_USER}` a
+                    INNER JOIN {TEMP_IDS_TABLE} ids
                         ON ids.`username` = a.`username`
-                        AND ids.`epoch` = a.`epoch`",
-                    TABLE_USER, TEMP_IDS_TABLE
+                        AND ids.`epoch` = a.`epoch`"
                 )
             }
         }
@@ -523,15 +501,13 @@ impl MySqlStorable for DbRecord {
     fn get_specific_statement<St: Storable>() -> String {
         match St::data_type() {
             StorageType::Azks => {
-                format!("SELECT {} FROM `{}` LIMIT 1", SELECT_AZKS_DATA, TABLE_AZKS)
+                format!("SELECT {SELECT_AZKS_DATA} FROM `{TABLE_AZKS}` LIMIT 1")
             }
             StorageType::TreeNode => format!(
-                "SELECT {} FROM `{}` WHERE `label_len` = :label_len AND `label_val` = :label_val",
-                SELECT_HISTORY_TREE_NODE_DATA, TABLE_HISTORY_TREE_NODES
+                "SELECT {SELECT_HISTORY_TREE_NODE_DATA} FROM `{TABLE_HISTORY_TREE_NODES}` WHERE `label_len` = :label_len AND `label_val` = :label_val"
             ),
             StorageType::ValueState => format!(
-                "SELECT {} FROM `{}` WHERE `username` = :username AND `epoch` = :epoch",
-                SELECT_USER_DATA, TABLE_USER
+                "SELECT {SELECT_USER_DATA} FROM `{TABLE_USER}` WHERE `username` = :username AND `epoch` = :epoch"
             ),
         }
     }
@@ -580,8 +556,8 @@ impl MySqlStorable for DbRecord {
                         let back: NodeKey =
                             TreeNodeWithPreviousValue::key_from_full_binary(&bin).unwrap();
                         vec![
-                            (format!("label_len{}", idx), Value::from(back.0.label_len)),
-                            (format!("label_val{}", idx), Value::from(back.0.label_val)),
+                            (format!("label_len{idx}"), Value::from(back.0.label_len)),
+                            (format!("label_val{idx}"), Value::from(back.0.label_val)),
                         ]
                     })
                     .into_iter()
@@ -600,8 +576,8 @@ impl MySqlStorable for DbRecord {
                         let back: akd::storage::types::ValueStateKey =
                             akd::storage::types::ValueState::key_from_full_binary(&bin).unwrap();
                         vec![
-                            (format!("username{}", idx), Value::from(back.0.clone())),
-                            (format!("epoch{}", idx), Value::from(back.1)),
+                            (format!("username{idx}"), Value::from(back.0.clone())),
+                            (format!("epoch{idx}"), Value::from(back.1)),
                         ]
                     })
                     .into_iter()

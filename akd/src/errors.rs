@@ -87,28 +87,28 @@ impl std::fmt::Display for AkdError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             AkdError::TreeNode(err) => {
-                writeln!(f, "AKD Tree Node Error: {}", err)
+                writeln!(f, "AKD Tree Node Error: {err}")
             }
             AkdError::Directory(err) => {
-                writeln!(f, "AKD Directory Error: {}", err)
+                writeln!(f, "AKD Directory Error: {err}")
             }
             AkdError::AzksErr(err) => {
-                writeln!(f, "AKD AZKS Error: {}", err)
+                writeln!(f, "AKD AZKS Error: {err}")
             }
             AkdError::Vrf(err) => {
-                writeln!(f, "AKD VRF Error: {}", err)
+                writeln!(f, "AKD VRF Error: {err}")
             }
             AkdError::Storage(err) => {
-                writeln!(f, "AKD Storage Error: {}", err)
+                writeln!(f, "AKD Storage Error: {err}")
             }
             AkdError::AuditErr(err) => {
-                writeln!(f, "AKD Auditor Error {}", err)
+                writeln!(f, "AKD Auditor Error {err}")
             }
             AkdError::Parallelism(err) => {
-                writeln!(f, "AKD Parallelism Error: {}", err)
+                writeln!(f, "AKD Parallelism Error: {err}")
             }
             AkdError::TestErr(err) => {
-                writeln!(f, "{}", err)
+                writeln!(f, "{err}")
             }
         }
     }
@@ -145,24 +145,23 @@ impl fmt::Display for TreeNodeError {
             Self::InvalidDirection(dir) => {
                 write!(
                     f,
-                    "AKD is based on a binary tree. No child with a given direction: {:?}",
-                    dir
+                    "AKD is based on a binary tree. No child with a given direction: {dir:?}"
                 )
             }
             Self::NoDirection(node_label, child_label) => {
-                let mut to_print = format!("no direction provided for the node {:?}", node_label);
+                let mut to_print = format!("no direction provided for the node {node_label:?}");
                 // Add child info if given.
                 if let Some(child_label) = child_label {
-                    let child_str = format!(" and child {:?}", child_label);
+                    let child_str = format!(" and child {child_label:?}");
                     to_print.push_str(&child_str);
                 }
-                write!(f, "{}", to_print)
+                write!(f, "{to_print}")
             }
             Self::NoChildAtEpoch(epoch, direction) => {
-                write!(f, "no node in direction {:?} at epoch {}", direction, epoch)
+                write!(f, "no node in direction {direction:?} at epoch {epoch}")
             }
             Self::ParentNextEpochInvalid(epoch) => {
-                write!(f, "Next epoch of parent is invalid, epoch = {}", epoch)
+                write!(f, "Next epoch of parent is invalid, epoch = {epoch}")
             }
             Self::HashUpdateOrderInconsistent => {
                 write!(
@@ -173,19 +172,17 @@ impl fmt::Display for TreeNodeError {
             Self::NonexistentAtEpoch(label, epoch) => {
                 write!(
                     f,
-                    "This node, labelled {:?}, did not exist at epoch {:?}.",
-                    label, epoch
+                    "This node, labelled {label:?}, did not exist at epoch {epoch:?}."
                 )
             }
             Self::NoStateAtEpoch(label, epoch) => {
                 write!(
                     f,
-                    "This node, labelled {:?}, did not exist at epoch {:?}.",
-                    label, epoch
+                    "This node, labelled {label:?}, did not exist at epoch {epoch:?}."
                 )
             }
             Self::DigestDeserializationFailed(inner_error) => {
-                write!(f, "Encountered a serialization error {}", inner_error)
+                write!(f, "Encountered a serialization error {inner_error}")
             }
         }
     }
@@ -209,7 +206,7 @@ impl fmt::Display for AzksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::VerifyMembershipProof(error_string) => {
-                write!(f, "{}", error_string)
+                write!(f, "{error_string}")
             }
             Self::VerifyAppendOnlyProof => {
                 write!(f, "Append only proof did not verify!")
@@ -239,13 +236,13 @@ impl fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Verification(err) => {
-                write!(f, "Verification failure {}", err)
+                write!(f, "Verification failure {err}")
             }
             Self::InvalidEpoch(err_string) => {
-                write!(f, "Invalid epoch {}", err_string)
+                write!(f, "Invalid epoch {err_string}")
             }
             Self::ReadOnlyDirectory(inner_message) => {
-                write!(f, "Directory in read-only mode: {}", inner_message)
+                write!(f, "Directory in read-only mode: {inner_message}")
             }
         }
     }
@@ -277,16 +274,16 @@ impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StorageError::Connection(inner) => {
-                write!(f, "Storage connection: {}", inner)
+                write!(f, "Storage connection: {inner}")
             }
             StorageError::Transaction(inner) => {
-                write!(f, "Transaction: {}", inner)
+                write!(f, "Transaction: {inner}")
             }
             StorageError::NotFound(inner) => {
-                write!(f, "Data not found: {}", inner)
+                write!(f, "Data not found: {inner}")
             }
             StorageError::Other(inner) => {
-                write!(f, "Other storage error: {}", inner)
+                write!(f, "Other storage error: {inner}")
             }
         }
     }
@@ -306,7 +303,7 @@ impl fmt::Display for AuditorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::VerifyAuditProof(err_string) => {
-                write!(f, "Failed to verify audit {}", err_string)
+                write!(f, "Failed to verify audit {err_string}")
             }
         }
     }
@@ -326,7 +323,7 @@ impl fmt::Display for ParallelismError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::JoinErr(err_string) => {
-                write!(f, "Failed to join tokio task {}", err_string)
+                write!(f, "Failed to join tokio task {err_string}")
             }
         }
     }

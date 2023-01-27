@@ -42,7 +42,7 @@ async fn test_mysql_db() {
         .expect("Failed to create async mysql db");
 
         if let Err(error) = mysql_db.delete_data().await {
-            println!("Error cleaning mysql prior to test suite: {}", error);
+            println!("Error cleaning mysql prior to test suite: {error}");
         }
 
         // The test cases
@@ -50,10 +50,7 @@ async fn test_mysql_db() {
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = manager.get_db().drop_tables().await {
-            println!(
-                "ERROR: Failed to clean MySQL test database with error {}",
-                error
-            );
+            println!("ERROR: Failed to clean MySQL test database with error {error}");
         }
     } else {
         println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");

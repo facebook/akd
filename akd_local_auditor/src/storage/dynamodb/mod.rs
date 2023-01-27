@@ -49,7 +49,7 @@ fn validate_table_name(s: &str) -> Result<String, String> {
 
     for c in str.chars() {
         if !ALLOWED_TABLE_CHARS.iter().any(|v| c == *v) {
-            return Err(format!("Character '{}' is not allowed in table name. Table names must contain lower-case letters, numbers, '-', '_', and '.' only.", c));
+            return Err(format!("Character '{c}' is not allowed in table name. Table names must contain lower-case letters, numbers, '-', '_', and '.' only."));
         }
     }
     Ok(str)

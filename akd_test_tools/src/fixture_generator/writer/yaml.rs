@@ -31,7 +31,7 @@ impl<T: Write> Writer for YamlWriter<T> {
 
     fn write_comment(&mut self, comment: &str) {
         let lines = comment.split('\n');
-        lines.for_each(|line| writeln!(self.out, "# {}", line).unwrap());
+        lines.for_each(|line| writeln!(self.out, "# {line}").unwrap());
     }
 
     fn write_line(&mut self) {

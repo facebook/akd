@@ -91,8 +91,7 @@ impl TryFrom<&str> for AuditBlobName {
         // PART[1] = PREVIOUS_HASH
         let previous_hash_bytes = hex::decode(parts[1]).map_err(|hex_err| {
             LocalAuditorError::NameParseError(format!(
-                "Failed to decode previous hash from hex string: {}",
-                hex_err
+                "Failed to decode previous hash from hex string: {hex_err}"
             ))
         })?;
         let previous_hash = hash_from_ref!(&previous_hash_bytes)?;
@@ -100,8 +99,7 @@ impl TryFrom<&str> for AuditBlobName {
         // PART[2] = CURRENT_HASH
         let current_hash_bytes = hex::decode(parts[2]).map_err(|hex_err| {
             LocalAuditorError::NameParseError(format!(
-                "Failed to decode current hash from hex string: {}",
-                hex_err
+                "Failed to decode current hash from hex string: {hex_err}"
             ))
         })?;
         let current_hash = hash_from_ref!(&current_hash_bytes)?;

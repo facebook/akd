@@ -124,7 +124,7 @@ fn audit_verify(c: &mut Criterion) {
 fn audit_generate(c: &mut Criterion) {
     let num_leaves = 10000;
     let num_epochs = 100;
-    
+
     let mut rng = StdRng::seed_from_u64(42);
     let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
 
@@ -136,19 +136,13 @@ fn audit_generate(c: &mut Criterion) {
     for _epoch in 0..num_epochs {
         let node_set = gen_nodes(&mut rng, num_leaves);
         runtime
-        .block_on(azks.batch_insert_nodes(
-            &db,
-            node_set,
-            InsertMode::Directory,
-        ))
-        .unwrap();
+            .block_on(azks.batch_insert_nodes(&db, node_set, InsertMode::Directory))
+            .unwrap();
     }
     let epoch = azks.get_latest_epoch();
 
     // benchmark audit verify
-    let id = format!(
-        "Audit proof generation. {num_leaves} leaves over {num_epochs} epochs"
-    );
+    let id = format!("Audit proof generation. {num_leaves} leaves over {num_epochs} epochs");
     c.bench_function(&id, move |b| {
         b.iter_batched(
             || {},

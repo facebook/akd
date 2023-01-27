@@ -107,7 +107,7 @@ pub(crate) async fn generate(args: Args) {
     raw_args
         .split(" -")
         .skip(1)
-        .map(|arg| format!("  -{} \\", arg))
+        .map(|arg| format!("  -{arg} \\"))
         .for_each(|comment| writer.write_comment(&comment));
 
     // write fixture metadata
@@ -151,7 +151,7 @@ pub(crate) async fn generate(args: Args) {
         // write delta if required
         if let Some(ref deltas) = args.capture_deltas {
             if deltas.contains(&epoch) {
-                let comment = format!("{} {}", DELTA_COMMENT, epoch);
+                let comment = format!("{DELTA_COMMENT} {epoch}");
                 let delta = Delta {
                     epoch,
                     updates: updates.clone(),
@@ -168,7 +168,7 @@ pub(crate) async fn generate(args: Args) {
         // write state if required
         if let Some(ref states) = args.capture_states {
             if states.contains(&epoch) {
-                let comment = format!("{} {}", STATE_COMMENT, epoch);
+                let comment = format!("{STATE_COMMENT} {epoch}");
 
                 // Sort the records by label to make the output deterministic.
                 let mut records = storage_manager

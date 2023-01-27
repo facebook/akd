@@ -78,7 +78,7 @@ impl Transaction {
             let r = self.num_reads.swap(0, Ordering::Relaxed);
             let w = self.num_writes.swap(0, Ordering::Relaxed);
 
-            let msg = format!("Transaction writes: {}, Transaction reads: {}", w, r);
+            let msg = format!("Transaction writes: {w}, Transaction reads: {r}");
 
             match _level {
                 log::Level::Trace => trace!("{}", msg),
