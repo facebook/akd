@@ -245,6 +245,20 @@ impl<Db: Database> StorageManager<Db> {
         self.transaction.is_transaction_active()
     }
 
+    /// Disable cache cleaning (if present)
+    pub fn disable_cache_cleaning(&self) {
+        if let Some(cache) = &self.cache {
+            cache.disable_clean();
+        }
+    }
+
+    /// Enable cache cleaning (if present)
+    pub fn enable_cache_cleaning(&self) {
+        if let Some(cache) = &self.cache {
+            cache.enable_clean();
+        }
+    }
+
     /// Store a record in the database
     pub async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
         // we're in a transaction, set the item in the transaction

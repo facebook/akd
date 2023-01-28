@@ -628,9 +628,12 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
                 "End epoch {audit_end_ep} is greater than the current epoch {current_epoch}"
             ))))
         } else {
-            current_azks
+            self.storage.disable_cache_cleaning();
+            let result = current_azks
                 .get_append_only_proof::<_>(&self.storage, audit_start_ep, audit_end_ep)
-                .await
+                .await;
+            self.storage.enable_cache_cleaning();
+            result
         }
     }
 
