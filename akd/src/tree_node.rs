@@ -184,8 +184,7 @@ impl TreeNodeWithPreviousValue {
         match storage.get::<Self>(key).await? {
             DbRecord::TreeNode(node) => node.determine_node_to_get(target_epoch),
             _ => Err(StorageError::NotFound(format!(
-                "TreeNodeWithPreviousValue {:?}",
-                key
+                "TreeNodeWithPreviousValue {key:?}"
             ))),
         }
     }
@@ -460,8 +459,7 @@ impl TreeNode {
                 Ok(node) => Ok(Some(node)),
                 Err(StorageError::NotFound(_)) => Ok(None),
                 _ => Err(AkdError::Storage(StorageError::NotFound(format!(
-                    "TreeNode {:?}",
-                    child_key
+                    "TreeNode {child_key:?}"
                 )))),
             }
         } else {
@@ -645,8 +643,7 @@ mod tests {
         let root_expected_min_dec = 1u64;
         assert_eq!(
             root_expected_min_dec, root_smallest_descendant_ep,
-            "Minimum descendant epoch not equal to expected: root, expected: {:?}, got: {:?}",
-            root_expected_min_dec, root_smallest_descendant_ep
+            "Minimum descendant epoch not equal to expected: root, expected: {root_expected_min_dec:?}, got: {root_smallest_descendant_ep:?}"
         );
 
         let right_child_expected_min_dec = 2u64;

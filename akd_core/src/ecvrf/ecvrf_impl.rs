@@ -140,7 +140,7 @@ impl TryFrom<&[u8]> for VRFPrivateKey {
     fn try_from(bytes: &[u8]) -> Result<VRFPrivateKey, VrfError> {
         match ed25519_PrivateKey::from_bytes(bytes) {
             Ok(result) => Ok(VRFPrivateKey(result)),
-            Err(sig_err) => Err(VrfError::SigningKey(format!("Signature error {}", sig_err))),
+            Err(sig_err) => Err(VrfError::SigningKey(format!("Signature error {sig_err}"))),
         }
     }
 }
@@ -169,7 +169,7 @@ impl TryFrom<&[u8]> for VRFPublicKey {
 
         match ed25519_PublicKey::from_bytes(bytes) {
             Ok(result) => Ok(VRFPublicKey(result)),
-            Err(sig_err) => Err(VrfError::PublicKey(format!("Signature error {}", sig_err))),
+            Err(sig_err) => Err(VrfError::PublicKey(format!("Signature error {sig_err}"))),
         }
     }
 }

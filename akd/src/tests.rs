@@ -447,7 +447,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
         borked_proof,
         HistoryVerificationParams::default(),
     );
-    assert!(matches!(result, Err(_)), "{:?}", result);
+    assert!(matches!(result, Err(_)), "{}", "{result:?}");
 
     Ok(())
 }
@@ -1114,8 +1114,8 @@ async fn test_publish_op_makes_no_get_requests() {
     let mut updates = vec![];
     for i in 0..1 {
         updates.push((
-            AkdLabel(format!("hello1{}", i).as_bytes().to_vec()),
-            AkdValue(format!("hello1{}", i).as_bytes().to_vec()),
+            AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
+            AkdValue(format!("hello1{i}").as_bytes().to_vec()),
         ));
     }
     // Publish the updates. Now the akd's epoch will be 1.
@@ -1142,7 +1142,7 @@ async fn test_publish_op_makes_no_get_requests() {
     let mut updates = vec![];
     for i in 0..1 {
         updates.push((
-            AkdLabel(format!("hello1{}", i).as_bytes().to_vec()),
+            AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
             AkdValue(format!("hello1{}", i + 1).as_bytes().to_vec()),
         ));
     }
@@ -1175,8 +1175,8 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let mut updates = vec![];
     for i in 0..1 {
         updates.push((
-            AkdLabel(format!("hello1{}", i).as_bytes().to_vec()),
-            AkdValue(format!("hello1{}", i).as_bytes().to_vec()),
+            AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
+            AkdValue(format!("hello1{i}").as_bytes().to_vec()),
         ));
     }
     // Publish the updates. Now the akd's epoch will be 1.

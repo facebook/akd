@@ -121,7 +121,7 @@ async fn main() {
     let level = if cli.debug {
         // File-logging enabled in debug mode
         match logs::FileLogger::new("akd_app.log") {
-            Err(err) => println!("Error initializing file logger {}", err),
+            Err(err) => println!("Error initializing file logger {err}"),
             Ok(flogger) => loggers.push(Box::new(flogger)),
         }
         // drop the log level to debug (console has a max-level of "Info")
@@ -131,7 +131,7 @@ async fn main() {
     };
 
     if let Err(err) = multi_log::MultiLogger::init(loggers, level) {
-        println!("Error initializing multi-logger {}", err);
+        println!("Error initializing multi-logger {err}");
     }
 
     let (tx, mut rx) = channel(2);
@@ -212,7 +212,7 @@ async fn process_input(
         match other_mode {
             OtherMode::BenchDbInsert { num_users } => {
                 println!("======= Benchmark operation requested ======= ");
-                println!("Beginning DB INSERT benchmark of {} users", num_users);
+                println!("Beginning DB INSERT benchmark of {num_users} users");
 
                 let mut values: Vec<String> = vec![];
                 for i in 0..*num_users {
@@ -257,8 +257,7 @@ async fn process_input(
             } => {
                 println!("======= Benchmark operation requested ======= ");
                 println!(
-                    "Beginning PUBLISH benchmark of {} users with {} updates/user",
-                    num_users, num_updates_per_user
+                    "Beginning PUBLISH benchmark of {num_users} users with {num_updates_per_user} updates/user"
                 );
 
                 let users: Vec<String> = (1..=*num_users)
@@ -299,7 +298,7 @@ async fn process_input(
                         continue;
                     }
                     match rpc_rx.await {
-                        Err(err) => code = Some(format!("{}", err)),
+                        Err(err) => code = Some(format!("{err}")),
                         Ok(Err(dir_err)) => code = Some(dir_err),
                         Ok(Ok(msg)) => info!("{}", msg),
                     }
@@ -330,8 +329,7 @@ async fn process_input(
             } => {
                 println!("======= Benchmark operation requested ======= ");
                 println!(
-                    "Beginning LOOKUP benchmark of {} users with {} lookups/user",
-                    num_users, num_lookups_per_user
+                    "Beginning LOOKUP benchmark of {num_users} users with {num_lookups_per_user} lookups/user"
                 );
 
                 let user_data: Vec<(String, String)> = (1..=*num_users)
@@ -375,7 +373,7 @@ async fn process_input(
                             continue;
                         }
                         match rpc_rx.await {
-                            Err(err) => code = Some(format!("{}", err)),
+                            Err(err) => code = Some(format!("{err}")),
                             Ok(Err(dir_err)) => code = Some(dir_err),
                             Ok(Ok(msg)) => {}
                         }
@@ -434,11 +432,10 @@ async fn process_input(
             stdin().read_line(&mut line).unwrap();
 
             match Command::parse(&mut line) {
-                Command::Unknown(other) => println!(
-                    "Input '{}' is not supported, enter 'help' for the help menu",
-                    other
-                ),
-                Command::InvalidArgs(message) => println!("Invalid arguments: {}", message),
+                Command::Unknown(other) => {
+                    println!("Input '{other}' is not supported, enter 'help' for the help menu")
+                }
+                Command::InvalidArgs(message) => println!("Invalid arguments: {message}"),
                 Command::Exit => {
                     info!("Exiting...");
                     break;
@@ -450,7 +447,7 @@ async fn process_input(
                     println!("Flushing the database...");
                     if let Some(mysql_db) = &db {
                         if let Err(error) = mysql_db.get_db().delete_data().await {
-                            println!("Error flushing database: {}", error);
+                            println!("Error flushing database: {error}");
                         } else {
                             println!(
                                 "Database flushed, exiting application. Please restart to create a new VKD"
@@ -482,7 +479,7 @@ async fn process_input(
                     if cli.debug {
                         match rpc_rx.await {
                             Ok(Ok(success)) => {
-                                println!("Response: {}", success);
+                                println!("Response: {success}");
                             }
                             Ok(Err(dir_err)) => {
                                 error!("Error in directory processing command: {}", dir_err);
@@ -494,7 +491,7 @@ async fn process_input(
                     } else {
                         match timeout(Duration::from_millis(1000), rpc_rx).await {
                             Ok(Ok(Ok(success))) => {
-                                println!("Response: {}", success);
+                                println!("Response: {success}");
                             }
                             Ok(Ok(Err(dir_err))) => {
                                 error!("Error in directory processing command: {}", dir_err);

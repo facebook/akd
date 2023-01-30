@@ -51,9 +51,9 @@ pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {
     let target = {
         if let Some(target_str) = record.target().split(':').last() {
             if let Some(line) = record.line() {
-                format!(" ({}:{})", target_str, line)
+                format!(" ({target_str}:{line})")
             } else {
-                format!(" ({})", target_str)
+                format!(" ({target_str})")
             }
         } else {
             "".to_string()
@@ -83,7 +83,7 @@ pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {
         record.args(),
         target
     );
-    let _ = writeln!(io, "{}", msg);
+    let _ = writeln!(io, "{msg}");
 }
 
 pub(crate) struct FileLogger {
@@ -154,7 +154,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                 for value in users.iter() {
                     data.push((
                         AkdLabel::from(value),
-                        AkdValue(format!("{}", i).as_bytes().to_vec()),
+                        AkdValue(format!("{i}").as_bytes().to_vec()),
                     ));
                 }
 

@@ -60,7 +60,7 @@ impl AsyncInMemoryDatabase {
                         return Ok(DbRecord::ValueState(found.clone()));
                     }
                 }
-                return Err(StorageError::NotFound(format!("ValueState {:?}", id)));
+                return Err(StorageError::NotFound(format!("ValueState {id:?}")));
             }
         }
         // fallback to regular get/set db
@@ -163,7 +163,7 @@ impl Database for AsyncInMemoryDatabase {
 
             Ok(KeyData { states: results })
         } else {
-            Err(StorageError::NotFound(format!("ValueState {:?}", username)))
+            Err(StorageError::NotFound(format!("ValueState {username:?}")))
         }
     }
 
@@ -230,7 +230,7 @@ impl Database for AsyncInMemoryDatabase {
                 }
             }
         }
-        Err(StorageError::NotFound(format!("ValueState {:?}", username)))
+        Err(StorageError::NotFound(format!("ValueState {username:?}")))
     }
 
     async fn get_user_state_versions(

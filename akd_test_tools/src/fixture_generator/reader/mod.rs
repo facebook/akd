@@ -37,8 +37,8 @@ impl std::fmt::Display for ReaderError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ReaderError::NotFound => write!(f, "Object not found"),
-            ReaderError::Format(message) => write!(f, "Unexpected format: {}", message),
-            ReaderError::Input(message) => write!(f, "Input stream error: {}", message),
+            ReaderError::Format(message) => write!(f, "Unexpected format: {message}"),
+            ReaderError::Input(message) => write!(f, "Input stream error: {message}"),
         }
     }
 }

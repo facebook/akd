@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.8.7"
+version = "0.8.8"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -34,7 +34,7 @@ preload_history = []
 slow_internal_db = []
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert"]
+default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert", "preload_history"]
 
 [dependencies]
 ## Required dependencies ##

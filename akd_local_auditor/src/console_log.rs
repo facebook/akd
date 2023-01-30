@@ -34,9 +34,9 @@ impl ConsoleLogger {
         let target = {
             if let Some(target_str) = record.target().split(':').last() {
                 if let Some(line) = record.line() {
-                    format!(" ({}:{})", target_str, line)
+                    format!(" ({target_str}:{line})")
                 } else {
-                    format!(" ({})", target_str)
+                    format!(" ({target_str})")
                 }
             } else {
                 "".to_string()
@@ -72,9 +72,9 @@ impl ConsoleLogger {
                 Level::Warn => msg.yellow().bold(),
                 Level::Error => msg.red().bold(),
             };
-            let _ = writeln!(io, "{}", msg);
+            let _ = writeln!(io, "{msg}");
         } else {
-            let _ = writeln!(io, "{}", msg);
+            let _ = writeln!(io, "{msg}");
         }
     }
 }

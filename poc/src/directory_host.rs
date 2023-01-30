@@ -76,7 +76,7 @@ where
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {
-                        let msg = format!("Failed to publish with error: {:?}", error);
+                        let msg = format!("Failed to publish with error: {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                 }
@@ -99,7 +99,7 @@ where
                         response.send(Ok(msg)).unwrap()
                     }
                     Err(error) => {
-                        let msg = format!("Failed to publish with error: {:?}", error);
+                        let msg = format!("Failed to publish with error: {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                 }
@@ -115,15 +115,15 @@ where
                             proof,
                         );
                         if verification.is_err() {
-                            let msg = format!("WARN: Lookup proof failed verification for '{}'", a);
+                            let msg = format!("WARN: Lookup proof failed verification for '{a}'");
                             response.send(Err(msg)).unwrap();
                         } else {
-                            let msg = format!("Lookup proof verified for user '{}'", a);
+                            let msg = format!("Lookup proof verified for user '{a}'");
                             response.send(Ok(msg)).unwrap();
                         }
                     }
                     Err(error) => {
-                        let msg = format!("Failed to lookup with error {:?}", error);
+                        let msg = format!("Failed to lookup with error {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                 }
@@ -134,11 +134,11 @@ where
                     .await
                 {
                     Ok(_proof) => {
-                        let msg = format!("GOT KEY HISTORY FOR '{}'", a);
+                        let msg = format!("GOT KEY HISTORY FOR '{a}'");
                         response.send(Ok(msg)).unwrap();
                     }
                     Err(error) => {
-                        let msg = format!("Failed to lookup with error {:?}", error);
+                        let msg = format!("Failed to lookup with error {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                 }
@@ -146,11 +146,11 @@ where
             (DirectoryCommand::Audit(start, end), Some(response)) => {
                 match directory.audit(start, end).await {
                     Ok(_proof) => {
-                        let msg = format!("GOT AUDIT PROOF BETWEEN ({}, {})", start, end);
+                        let msg = format!("GOT AUDIT PROOF BETWEEN ({start}, {end})");
                         response.send(Ok(msg)).unwrap();
                     }
                     Err(error) => {
-                        let msg = format!("Failed to get audit proof with error {:?}", error);
+                        let msg = format!("Failed to get audit proof with error {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                 }
@@ -163,7 +163,7 @@ where
                         response.send(Ok(msg)).unwrap();
                     }
                     Some(Err(error)) => {
-                        let msg = format!("Failed to retrieve root hash with error {:?}", error);
+                        let msg = format!("Failed to retrieve root hash with error {error:?}");
                         response.send(Err(msg)).unwrap();
                     }
                     None => {

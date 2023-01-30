@@ -70,11 +70,11 @@ pub struct AsyncMySqlDatabase {
 impl std::fmt::Display for AsyncMySqlDatabase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let db_str = match self.opts.db_name() {
-            Some(db) => format!("Database {}", db),
+            Some(db) => format!("Database {db}"),
             None => String::from(""),
         };
         let user_str = match self.opts.user() {
-            Some(user) => format!(", User {}", user),
+            Some(user) => format!(", User {user}"),
             None => String::from(""),
         };
 
@@ -623,7 +623,7 @@ impl<'a> AsyncMySqlDatabase {
             ))),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }
@@ -637,7 +637,7 @@ impl Database for AsyncMySqlDatabase {
             Ok(_) => Ok(()),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }
@@ -719,7 +719,7 @@ impl Database for AsyncMySqlDatabase {
             Ok(_) => Ok(()),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }
@@ -823,7 +823,7 @@ impl Database for AsyncMySqlDatabase {
 
                 // drop the temp table of ids
                 let t_out = conn
-                    .query_drop(format!("DROP TEMPORARY TABLE `{}`", TEMP_IDS_TABLE))
+                    .query_drop(format!("DROP TEMPORARY TABLE `{TEMP_IDS_TABLE}`"))
                     .await;
                 self.check_for_infra_error(t_out)?;
 
@@ -851,7 +851,7 @@ impl Database for AsyncMySqlDatabase {
             }
             Err(error) => {
                 error!("MySQL error {}", error);
-                return Err(StorageError::Other(format!("MySQL Error {}", error)));
+                return Err(StorageError::Other(format!("MySQL Error {error}")));
             }
         }
 
@@ -925,7 +925,7 @@ impl Database for AsyncMySqlDatabase {
             Ok(output) => Ok(output),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }
@@ -1011,10 +1011,10 @@ impl Database for AsyncMySqlDatabase {
         };
         match result.await {
             Ok(Some(result)) => Ok(result),
-            Ok(None) => Err(StorageError::NotFound(format!("ValueState {:?}", username))),
+            Ok(None) => Err(StorageError::NotFound(format!("ValueState {username:?}"))),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }
@@ -1053,9 +1053,9 @@ impl Database for AsyncMySqlDatabase {
             let mut statement = "INSERT INTO `search_users` (`username`) VALUES ".to_string();
             for i in 0..self.tunable_insert_depth {
                 if i < self.tunable_insert_depth - 1 {
-                    statement += format!("(:username{}), ", i).as_ref();
+                    statement += format!("(:username{i}), ").as_ref();
                 } else {
-                    statement += format!("(:username{})", i).as_ref();
+                    statement += format!("(:username{i})").as_ref();
                 }
             }
 
@@ -1070,7 +1070,7 @@ impl Database for AsyncMySqlDatabase {
                         .iter()
                         .enumerate()
                         .map(|(idx, username)| {
-                            (format!("username{}", idx), Value::from(username.0.clone()))
+                            (format!("username{idx}"), Value::from(username.0.clone()))
                         })
                         .collect();
                     params.push(mysql_async::Params::from(pvec));
@@ -1091,9 +1091,9 @@ impl Database for AsyncMySqlDatabase {
                     "INSERT INTO `search_users` (`username`) VALUES ".to_string();
                 for i in 0..rlen {
                     if i < rlen - 1 {
-                        remainder_stmt += format!("(:username{}), ", i).as_ref();
+                        remainder_stmt += format!("(:username{i}), ").as_ref();
                     } else {
-                        remainder_stmt += format!("(:username{})", i).as_ref();
+                        remainder_stmt += format!("(:username{i})").as_ref();
                     }
                 }
 
@@ -1102,7 +1102,7 @@ impl Database for AsyncMySqlDatabase {
                     .iter()
                     .enumerate()
                     .map(|(idx, username)| {
-                        (format!("username{}", idx), Value::from(username.0.clone()))
+                        (format!("username{idx}"), Value::from(username.0.clone()))
                     })
                     .collect();
                 let params_batch = mysql_async::Params::from(users_vec);
@@ -1142,19 +1142,18 @@ impl Database for AsyncMySqlDatabase {
             };
             let select_statement = format!(
                 r"SELECT full.`username`, full.`version`, full.`data`
-                FROM {} full
+                FROM {TABLE_USER} full
                 INNER JOIN (
-                    SELECT tmp.`username`, {} AS `epoch`
-                    FROM {} tmp
+                    SELECT tmp.`username`, {epoch_grouping} AS `epoch`
+                    FROM {TABLE_USER} tmp
                     INNER JOIN `search_users` su
                         ON su.`username` = tmp.`username`
-                    {}
+                    {filter}
                     GROUP BY tmp.`username`
                 ) epochs
                     ON epochs.`username` = full.`username`
                     AND epochs.`epoch` = full.`epoch`
-                ",
-                TABLE_USER, epoch_grouping, TABLE_USER, filter
+                "
             );
 
             let out = if params_map.is_empty() {
@@ -1204,7 +1203,7 @@ impl Database for AsyncMySqlDatabase {
             Ok(()) => Ok(results),
             Err(error) => {
                 error!("MySQL error {}", error);
-                Err(StorageError::Other(format!("MySQL Error {}", error)))
+                Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
     }

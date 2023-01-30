@@ -118,11 +118,11 @@ impl Auditor {
             let blob = storage
                 .get_proof(&epoch_summary)
                 .await
-                .map_err(|err| format!("Error downloading proof {}", err))?;
+                .map_err(|err| format!("Error downloading proof {err}"))?;
             // decode the proof
             let (epoch, p_hash, c_hash, proof) = blob
                 .decode()
-                .map_err(|err| format!("Error decodeing proof {:?}", err))?;
+                .map_err(|err| format!("Error decodeing proof {err:?}"))?;
             // audit the proof
             akd::auditor::audit_verify(
                 vec![p_hash, c_hash],
@@ -132,7 +132,7 @@ impl Auditor {
                 },
             )
             .await
-            .map_err(|err| format!("Error auditing proof {}", err))?;
+            .map_err(|err| format!("Error auditing proof {err}"))?;
 
             let qr_data = crate::auditor::format_qr_record(p_hash, c_hash, epoch);
             Ok(qr_data)
@@ -170,8 +170,7 @@ impl Auditor {
                     }
                     Err(err) => {
                         let c = super::logstream::error(format!(
-                            "Error downloading epoch information {}",
-                            err
+                            "Error downloading epoch information {err}"
                         ));
                         log::error!("Error downloading epoch infomation {}", err);
                         c
@@ -221,7 +220,7 @@ impl Auditor {
                         );
 
                         self.qr_codes
-                            .insert(epoch_summary, Err(format!("Audit failed! {}", err)));
+                            .insert(epoch_summary, Err(format!("Audit failed! {err}")));
                         command
                     }
                 }
@@ -259,8 +258,7 @@ impl Auditor {
                         row_batch
                             .iter()
                             .map(|(start, end)| {
-                                let txt =
-                                    text(format!("{}..{}", start, end)).size(DEFAULT_FONT_SIZE);
+                                let txt = text(format!("{start}..{end}")).size(DEFAULT_FONT_SIZE);
                                 button(txt)
                                     .padding(DEFAULT_SPACING)
                                     .width(Length::FillPortion(1))

@@ -63,8 +63,7 @@ pub fn test_get_bit_at_small() {
         assert_eq!(
             label.get_bit_at(index),
             Bit::Zero,
-            "Index {} should be 0 in a label of length 4 but it doesn't!",
-            index
+            "Index {index} should be 0 in a label of length 4 but it doesn't!"
         );
     }
 }
@@ -79,9 +78,8 @@ pub fn test_get_bit_at_medium_1() {
     let computed = label.get_bit_at(0);
     assert!(
         expected == computed,
-        "get_bit_at(2) wrong for the 4 digit label 10! Expected {:?} and got {:?}",
-        expected,
-        computed
+        "{}",
+        "get_bit_at(2) wrong for the 4 digit label 10! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -97,9 +95,8 @@ pub fn test_get_bit_at_medium_2() {
     let computed = label.get_bit_at(190);
     assert!(
         expected == computed,
-        "get_bit_at(2) wrong for the 4 digit label 10! Expected {:?} and got {:?}",
-        expected,
-        computed
+        "{}",
+        "get_bit_at(2) wrong for the 4 digit label 10! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -163,9 +160,8 @@ pub fn test_byte_arr_from_u64_small() {
     let computed = byte_arr_from_u64(val);
     assert!(
         expected == computed,
-        "Byte from u64 conversion wrong for small u64! Expected {:?} and got {:?}",
-        expected,
-        computed
+        "{}",
+        "Byte from u64 conversion wrong for small u64! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -184,9 +180,7 @@ pub fn test_byte_arr_from_u64_medium() {
     let computed = byte_arr_from_u64(val);
     assert!(
         expected == computed,
-        "Byte from u64 conversion wrong for medium, ~2 byte u64! Expected {:?} and got {:?}",
-        expected,
-        computed
+        "{}", "Byte from u64 conversion wrong for medium, ~2 byte u64! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -206,9 +200,7 @@ pub fn test_byte_arr_from_u64_larger() {
     let computed = byte_arr_from_u64(val);
     assert!(
         expected == computed,
-        "Byte from u64 conversion wrong for larger, ~3 byte u64! Expected {:?} and got {:?}",
-        expected,
-        computed
+        "{}", "Byte from u64 conversion wrong for larger, ~3 byte u64! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -318,8 +310,7 @@ pub fn test_node_label_lcp_self_prefix_leading_one() {
     let computed = label_1.get_longest_common_prefix(label_2);
     assert!(
         computed == expected,
-        "Longest common substring with self with leading one, not equal to itself! Expected: {:?}, Got: {:?}",
-        expected, computed
+        "{}", "Longest common substring with self with leading one, not equal to itself! Expected: {expected:?}, Got: {computed:?}"
     )
 }
 
@@ -344,8 +335,7 @@ pub fn test_node_label_lcp_other_one() {
     let computed = label_1.get_longest_common_prefix(label_2);
     assert!(
         computed == expected,
-        "Longest common substring with other with leading one, not equal to expected! Expected: {:?}, Computed: {:?}",
-        expected, computed
+        "{}", "Longest common substring with other with leading one, not equal to expected! Expected: {expected:?}, Computed: {computed:?}"
     )
 }
 
@@ -415,9 +405,8 @@ pub fn test_get_dir_large() {
         let computed = label_2.get_prefix_ordering(label_1);
         assert!(
             computed == expected,
-            "Direction not equal to expected. Node = {:?}, prefix = {:?}",
-            label_1,
-            label_2
+            "{}",
+            "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}"
         )
     }
 }
@@ -434,10 +423,7 @@ pub fn test_get_dir_example() {
     let computed = label_2.get_prefix_ordering(label_1);
     assert!(
         computed == expected,
-        "Direction not equal to expected. Node = {:?}, prefix = {:?}, computed = {:?}",
-        label_1,
-        label_2,
-        computed
+        "{}", "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
     )
 }
 
@@ -453,10 +439,7 @@ pub fn test_get_prefix_small() {
     let computed = label_1.get_prefix(prefix_len);
     assert!(
         computed == label_2,
-        "Direction not equal to expected. Node = {:?}, prefix = {:?}, computed = {:?}",
-        label_1,
-        label_2,
-        computed
+        "{}", "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
     )
 }
 

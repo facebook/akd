@@ -132,7 +132,7 @@ impl<Db: Database> StorageManager<Db> {
             let snapshot = self
                 .metrics
                 .iter()
-                .map(|metric| metric.load(Ordering::Relaxed))
+                .map(|metric| metric.swap(0, Ordering::Relaxed))
                 .collect::<Vec<_>>();
 
             let msg = format!(
@@ -168,7 +168,7 @@ impl<Db: Database> StorageManager<Db> {
             match level {
                 // Currently logs cannot be captured unless they are
                 // println!. Normally Level::Trace should use the trace! macro.
-                log::Level::Trace => println!("{}", msg),
+                log::Level::Trace => println!("{msg}"),
                 log::Level::Debug => debug!("{}", msg),
                 log::Level::Info => info!("{}", msg),
                 log::Level::Warn => warn!("{}", msg),
@@ -210,8 +210,7 @@ impl<Db: Database> StorageManager<Db> {
         let _epoch = match records.last() {
             Some(DbRecord::Azks(azks)) => Ok(azks.latest_epoch),
             other => Err(StorageError::Transaction(format!(
-                "The last record in the transaction log is NOT an Azks record {:?}",
-                other
+                "The last record in the transaction log is NOT an Azks record {other:?}"
             ))),
         }?;
 
@@ -244,6 +243,20 @@ impl<Db: Database> StorageManager<Db> {
     /// Retrieve a flag determining if there is a transaction active
     pub fn is_transaction_active(&self) -> bool {
         self.transaction.is_transaction_active()
+    }
+
+    /// Disable cache cleaning (if present)
+    pub fn disable_cache_cleaning(&self) {
+        if let Some(cache) = &self.cache {
+            cache.disable_clean();
+        }
+    }
+
+    /// Enable cache cleaning (if present)
+    pub fn enable_cache_cleaning(&self) {
+        if let Some(cache) = &self.cache {
+            cache.enable_clean();
+        }
     }
 
     /// Store a record in the database
@@ -471,7 +484,7 @@ impl<Db: Database> StorageManager<Db> {
 
             Ok(state)
         } else {
-            Err(StorageError::NotFound(format!("ValueState {:?}", username)))
+            Err(StorageError::NotFound(format!("ValueState {username:?}")))
         }
     }
 
@@ -516,8 +529,7 @@ impl<Db: Database> StorageManager<Db> {
             Ok(data)
         } else {
             Err(StorageError::NotFound(format!(
-                "ValueState records for {:?}",
-                username
+                "ValueState records for {username:?}"
             )))
         }
     }

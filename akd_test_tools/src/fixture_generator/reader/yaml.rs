@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Lines, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Lines, Seek};
 use std::iter::Peekable;
 use std::result::Result; // import without risk of name clashing
 
@@ -48,7 +48,7 @@ impl YamlFileReader {
     // Instantiates a new buffer for a given file.
     fn buffer(file: &File) -> Result<Peekable<Lines<BufReader<File>>>, ReaderError> {
         let mut file_ref_copy = file.try_clone()?;
-        file_ref_copy.seek(SeekFrom::Start(0))?;
+        file_ref_copy.rewind()?;
 
         Ok(BufReader::new(file_ref_copy).lines().peekable())
     }
@@ -85,7 +85,7 @@ impl YamlFileReader {
                 }
                 Some(Ok(line)) => {
                     // avoid the extra allocation call with a format!
-                    let _ = writeln!(doc, "{}", line);
+                    let _ = writeln!(doc, "{line}");
                     self.buffer.next();
                 }
                 None => {

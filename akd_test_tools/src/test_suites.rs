@@ -49,7 +49,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                 for value in users.iter() {
                     data.push((
                         AkdLabel::from(value),
-                        AkdValue(format!("{}", i).as_bytes().to_vec()),
+                        AkdValue(format!("{i}").as_bytes().to_vec()),
                     ));
                 }
 
