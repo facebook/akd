@@ -112,6 +112,32 @@ impl TryFrom<&str> for AuditBlobName {
     }
 }
 
+impl AuditBlobName {
+    /// Construct a new [AuditBlobName] from the arguments provided.
+    pub fn new(epoch: u64, previous_hash: Digest, current_hash: Digest) -> Self {
+        Self {
+            epoch,
+            previous_hash,
+            current_hash,
+        }
+    }
+
+    /// Consumes the [AuditBlobName] and transforms it into an [AuditBlob]
+    /// using the provided proof argument.
+    pub fn into_audit_blob(
+        self,
+        proof: &crate::SingleAppendOnlyProof,
+    ) -> Result<AuditBlob, LocalAuditorError> {
+        let Self {
+            epoch,
+            previous_hash,
+            current_hash,
+        } = self;
+
+        AuditBlob::new(previous_hash, current_hash, epoch, proof)
+    }
+}
+
 /// The constructed blobs with naming encoding the
 /// blob name = "EPOCH/PREVIOUS_ROOT_HASH/CURRENT_ROOT_HASH"
 #[derive(Clone)]
