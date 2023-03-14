@@ -27,6 +27,7 @@ use crate::{
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
+#[cfg(feature = "greedy_lookup_preload")]
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::marker::Sync;
@@ -482,6 +483,7 @@ impl Azks {
         Ok((current_node, is_new, num_inserted))
     }
 
+    #[cfg(feature = "greedy_lookup_preload")]
     async fn get_next_node_in_child_path_from_cache<S: Database + Send + Sync>(
         &self,
         storage: &StorageManager<S>,
@@ -527,6 +529,7 @@ impl Azks {
     /// leaf node. This will be grossly over-estimating the true size of the
     /// tree and the number of nodes required to be fetched, however
     /// it allows a single batch-get call in necessary scenarios
+    #[cfg(feature = "greedy_lookup_preload")]
     pub(crate) async fn build_lookup_maximal_node_set<S: Database + Send + Sync>(
         &self,
         storage: &StorageManager<S>,
@@ -562,6 +565,7 @@ impl Azks {
     /// the direct path, and the children of resolved nodes on the path. This
     /// minimizes the number of batch_get operations to the storage layer which are
     /// called
+    #[cfg(feature = "greedy_lookup_preload")]
     pub(crate) async fn greedy_preload_lookup_nodes<S: Database + Send + Sync>(
         &self,
         storage: &StorageManager<S>,
@@ -1169,6 +1173,7 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
+    #[cfg(feature = "greedy_lookup_preload")]
     async fn test_maximal_node_set_resolution() {
         let mut rng = StdRng::seed_from_u64(42);
         let database = AsyncInMemoryDatabase::new();
