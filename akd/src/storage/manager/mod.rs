@@ -319,21 +319,31 @@ impl<Db: Database> StorageManager<Db> {
         Ok(record)
     }
 
-    /// Retrieve a stored record from the database
-    pub async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
+    /// Retrieve from the cache only, not falling through to the data-layer. Check's the transaction
+    /// if active
+    pub async fn get_from_cache_only<St: Storable>(&self, id: &St::StorageKey) -> Option<DbRecord> {
         // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
         // log instead of the raw storage layer
         if self.is_transaction_active() {
             if let Some(result) = self.transaction.get::<St>(id) {
-                return Ok(result);
+                return Some(result);
             }
         }
 
         // check for a cache hit
         if let Some(cache) = &self.cache {
             if let Some(result) = cache.hit_test::<St>(id).await {
-                return Ok(result);
+                return Some(result);
             }
+        }
+
+        None
+    }
+
+    /// Retrieve a stored record from the database
+    pub async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
+        if let Some(result) = self.get_from_cache_only::<St>(id).await {
+            return Ok(result);
         }
 
         // cache miss, read direct from db

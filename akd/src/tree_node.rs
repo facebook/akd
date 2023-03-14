@@ -136,7 +136,10 @@ impl TreeNodeWithPreviousValue {
     /// Determine which of the previous + latest nodes to retrieve based on the
     /// target epoch. If it should be older than the latest node, and there is no
     /// previous node, it returns Not Found
-    fn determine_node_to_get(&self, target_epoch: u64) -> Result<TreeNode, StorageError> {
+    pub(crate) fn determine_node_to_get(
+        &self,
+        target_epoch: u64,
+    ) -> Result<TreeNode, StorageError> {
         // If a publish is currently underway, and "some" nodes have been updated to future values
         // our "target_epoch" may point to some older data. Therefore we may need to load a previous
         // version of this node.
