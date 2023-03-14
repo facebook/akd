@@ -175,6 +175,7 @@ async fn test_lookups() {
 
         let vrf = HardCodedAkdVRF {};
         let storage_manager = StorageManager::new(mysql_db, None, None, None);
+
         crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
             .await;
 

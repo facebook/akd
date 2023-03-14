@@ -1,6 +1,6 @@
 [package]
 name = "akd_client"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Client verification companion for the auditable key directory with limited dependencies."
 license = "MIT OR Apache-2.0"
@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { path = "../akd_core", version = "0.8.7", default-features = false, features = ["vrf"] }
+akd_core = { path = "../akd_core", version = "0.8.9", default-features = false, features = ["vrf"] }
 hex = "0.4"
 
 ## Optional dependencies ##

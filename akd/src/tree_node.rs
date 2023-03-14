@@ -198,8 +198,11 @@ impl TreeNodeWithPreviousValue {
         let mut nodes = Vec::<TreeNode>::new();
         for node in node_records.into_iter() {
             if let DbRecord::TreeNode(node) = node {
-                let correct_node = node.determine_node_to_get(target_epoch)?;
-                nodes.push(correct_node);
+                // Since this is a batch-get, we should ignore node's not-found and just not add them
+                // to the result-set
+                if let Ok(correct_node) = node.determine_node_to_get(target_epoch) {
+                    nodes.push(correct_node);
+                }
             } else {
                 return Err(StorageError::NotFound(
                     "Batch retrieve returned types <> TreeNodeWithPreviousValue".to_string(),

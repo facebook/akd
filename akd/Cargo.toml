@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -32,13 +32,15 @@ parallel_insert = []
 preload_history = []
 # TESTING ONLY: Artifically slow the in-memory database (for benchmarking)
 slow_internal_db = []
+# Greedy loading of lookup proof nodes
+greedy_lookup_preload = []
 
 # Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert", "preload_history"]
+default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert", "preload_history", "greedy_lookup_preload"]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { path = "../akd_core", version = "0.8.7", default-features = false, features = ["vrf"] }
+akd_core = { path = "../akd_core", version = "0.8.9", default-features = false, features = ["vrf"] }
 async-recursion = "0.3"
 async-trait = "0.1"
 curve25519-dalek = "3"

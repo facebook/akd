@@ -481,6 +481,58 @@ impl Azks {
         Ok((current_node, is_new, num_inserted))
     }
 
+    /// Builds all of the POSSIBLE paths along the route from root node to
+    /// leaf node. This will be grossly over-estimating the true size of the
+    /// tree and the number of nodes required to be fetched, however
+    /// it allows a single batch-get call in necessary scenarios
+    pub(crate) fn build_lookup_maximal_node_set(li: LookupInfo) -> Vec<NodeLabel> {
+        let mut results = std::collections::HashSet::new();
+        let labels = [li.existent_label, li.marker_label, li.non_existent_label];
+
+        for label in labels {
+            for len in 0..256 {
+                results.insert(label.get_prefix(len));
+            }
+        }
+
+        results.into_iter().collect()
+    }
+
+    pub(crate) async fn greedy_preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_info: LookupInfo,
+    ) -> Result<u64, AkdError> {
+        let mut count = 0u64;
+        let mut requested_count = 0u64;
+
+        let nodes = Self::build_lookup_maximal_node_set(lookup_info)
+            .into_iter()
+            .map(NodeKey)
+            .collect::<Vec<_>>();
+        requested_count += nodes.len() as u64;
+        let nodes = TreeNode::batch_get_from_storage(storage, &nodes, self.latest_epoch).await?;
+        count += nodes.len() as u64;
+
+        let children = nodes
+            .into_iter()
+            .flat_map(|node| match (node.left_child, node.right_child) {
+                (Some(l), Some(r)) => vec![NodeKey(l), NodeKey(r)],
+                _ => vec![],
+            })
+            .collect::<Vec<_>>();
+        requested_count += children.len() as u64;
+        let children =
+            TreeNode::batch_get_from_storage(storage, &children, self.latest_epoch).await?;
+        count += children.len() as u64;
+        log::info!(
+            "Greedy lookup proof preloading loaded {} of {} nodes",
+            count,
+            requested_count
+        );
+        Ok(count)
+    }
+
     pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
         &self,
         storage: &StorageManager<S>,
@@ -1037,6 +1089,38 @@ mod tests {
     use itertools::Itertools;
     use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
     use std::time::Duration;
+
+    #[test]
+    fn test_maximal_node_set_resolution() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let label = NodeLabel {
+            label_len: 256,
+            label_val: [
+                1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1,
+                0, 1, 0, 1,
+            ],
+        };
+
+        let lookup_info = LookupInfo {
+            existent_label: label,
+            marker_label: label,
+            marker_version: 1,
+            non_existent_label: label,
+            value_state: crate::storage::types::ValueState {
+                epoch: 1,
+                label,
+                username: crate::AkdLabel::random(&mut rng),
+                value: crate::AkdValue::random(&mut rng),
+                version: 1,
+            },
+        };
+
+        let max_set = Azks::build_lookup_maximal_node_set(lookup_info);
+
+        // since the label is there 3 times, it should all resolve to the same data
+        assert_eq!(256, max_set.len());
+        println!("{max_set:?}");
+    }
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {

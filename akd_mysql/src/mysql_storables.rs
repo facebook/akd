@@ -369,7 +369,6 @@ impl MySqlStorable for DbRecord {
                     (format!("data{idx}"), Value::from(state.value.0.clone())),
                 ]),
             })
-            .into_iter()
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .flatten()
@@ -549,7 +548,7 @@ impl MySqlStorable for DbRecord {
                 let pvec = keys
                     .iter()
                     .enumerate()
-                    .map(|(idx, key)| {
+                    .flat_map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
                         // Since these are constructed from a safe key, they should never fail
                         // so we'll leave the unwrap to simplify
@@ -560,8 +559,6 @@ impl MySqlStorable for DbRecord {
                             (format!("label_val{idx}"), Value::from(back.0.label_val)),
                         ]
                     })
-                    .into_iter()
-                    .flatten()
                     .collect::<Vec<_>>();
                 Some(mysql_async::Params::from(pvec))
             }
@@ -569,7 +566,7 @@ impl MySqlStorable for DbRecord {
                 let pvec = keys
                     .iter()
                     .enumerate()
-                    .map(|(idx, key)| {
+                    .flat_map(|(idx, key)| {
                         let bin = St::get_full_binary_key_id(key);
                         // Since these are constructed from a safe key, they should never fail
                         // so we'll leave the unwrap to simplify
@@ -580,8 +577,6 @@ impl MySqlStorable for DbRecord {
                             (format!("epoch{idx}"), Value::from(back.1)),
                         ]
                     })
-                    .into_iter()
-                    .flatten()
                     .collect::<Vec<_>>();
                 Some(mysql_async::Params::from(pvec))
             }
