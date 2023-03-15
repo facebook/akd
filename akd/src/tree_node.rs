@@ -136,7 +136,10 @@ impl TreeNodeWithPreviousValue {
     /// Determine which of the previous + latest nodes to retrieve based on the
     /// target epoch. If it should be older than the latest node, and there is no
     /// previous node, it returns Not Found
-    fn determine_node_to_get(&self, target_epoch: u64) -> Result<TreeNode, StorageError> {
+    pub(crate) fn determine_node_to_get(
+        &self,
+        target_epoch: u64,
+    ) -> Result<TreeNode, StorageError> {
         // If a publish is currently underway, and "some" nodes have been updated to future values
         // our "target_epoch" may point to some older data. Therefore we may need to load a previous
         // version of this node.
@@ -198,8 +201,11 @@ impl TreeNodeWithPreviousValue {
         let mut nodes = Vec::<TreeNode>::new();
         for node in node_records.into_iter() {
             if let DbRecord::TreeNode(node) = node {
-                let correct_node = node.determine_node_to_get(target_epoch)?;
-                nodes.push(correct_node);
+                // Since this is a batch-get, we should ignore node's not-found and just not add them
+                // to the result-set
+                if let Ok(correct_node) = node.determine_node_to_get(target_epoch) {
+                    nodes.push(correct_node);
+                }
             } else {
                 return Err(StorageError::NotFound(
                     "Batch retrieve returned types <> TreeNodeWithPreviousValue".to_string(),

@@ -26,7 +26,7 @@ impl EpochHash {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// Info needed for a lookup of a user for an epoch
 pub struct LookupInfo {
     pub(crate) value_state: ValueState,

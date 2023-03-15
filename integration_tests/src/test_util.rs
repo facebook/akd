@@ -174,7 +174,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                 labels.push(label);
             }
 
-            println!("Metrics after publish(es).");
+            log::warn!("Metrics after publish(es).");
             reset_mysql_db::<S>(mysql_db).await;
 
             let start = Instant::now();
@@ -195,13 +195,13 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                     }
                 }
             }
-            println!(
+            log::warn!(
                 "Individual {} lookups took {}ms.",
                 num_lookups,
                 start.elapsed().as_millis()
             );
 
-            println!("Metrics after individual lookups:");
+            log::warn!("Metrics after individual lookups:");
             reset_mysql_db::<S>(mysql_db).await;
 
             let start = Instant::now();
@@ -226,13 +226,13 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                     }
                 }
             }
-            println!(
+            log::warn!(
                 "Bulk {} lookups took {}ms.",
                 num_lookups,
                 start.elapsed().as_millis()
             );
 
-            println!("Metrics after lookup proofs: ");
+            log::warn!("Metrics after lookup proofs: ");
             reset_mysql_db::<S>(mysql_db).await;
         }
     }
@@ -242,6 +242,6 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
 async fn reset_mysql_db<S: Database>(mysql_db: &StorageManager<S>) {
-    mysql_db.log_metrics(Level::Trace).await;
+    mysql_db.log_metrics(Level::Warn).await;
     mysql_db.flush_cache().await;
 }

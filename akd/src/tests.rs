@@ -861,33 +861,37 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-async fn test_read_during_publish() -> Result<(), AkdError> {
+async fn test_read_during_publish() {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf, false).await.unwrap();
 
     // Publish once
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
         (AkdLabel::from("hello2"), AkdValue::from("world2")),
     ])
-    .await?;
+    .await
+    .unwrap();
     // Get the root hash after the first publish
     let root_hash_1 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+        .get_root_hash(&akd.retrieve_current_azks().await.unwrap())
+        .await
+        .unwrap();
     // Publish updates for the same labels.
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world_2")),
         (AkdLabel::from("hello2"), AkdValue::from("world2_2")),
     ])
-    .await?;
+    .await
+    .unwrap();
 
     // Get the root hash after the second publish
     let root_hash_2 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+        .get_root_hash(&akd.retrieve_current_azks().await.unwrap())
+        .await
+        .unwrap();
 
     // Make the current azks a "checkpoint" to reset to later
     let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
@@ -897,7 +901,8 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         (AkdLabel::from("hello"), AkdValue::from("world_3")),
         (AkdLabel::from("hello2"), AkdValue::from("world2_3")),
     ])
-    .await?;
+    .await
+    .unwrap();
 
     // Reset the azks record back to previous epoch, to emulate an akd reader
     // communicating with storage that is in the middle of a publish operation
@@ -905,12 +910,30 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         .await
         .expect("Error resetting directory to previous epoch");
 
+    // re-create the directory instance so it refreshes from storage
+    let storage = StorageManager::new_no_cache(db.clone());
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<_, _>::new(storage, vrf, true).await.unwrap();
+
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await.unwrap();
+
+    // Lookup proof should contain the checkpoint epoch's value and still verify
+    let (lookup_proof, root_hash) = akd.lookup(AkdLabel::from("hello")).await.unwrap();
+    assert_eq!(AkdValue::from("world_2"), lookup_proof.value);
+    lookup_verify(
+        vrf_pk.as_bytes(),
+        root_hash.hash(),
+        AkdLabel::from("hello"),
+        lookup_proof,
+    )
+    .unwrap();
+
     // History proof should not contain the third epoch's update but still verify
     let (history_proof, root_hash) = akd
         .key_history(&AkdLabel::from("hello"), HistoryParams::default())
-        .await?;
-    // Get the VRF public key
-    let vrf_pk = akd.get_public_key().await?;
+        .await
+        .unwrap();
     key_history_verify(
         vrf_pk.as_bytes(),
         root_hash.hash(),
@@ -918,26 +941,17 @@ async fn test_read_during_publish() -> Result<(), AkdError> {
         AkdLabel::from("hello"),
         history_proof,
         HistoryVerificationParams::default(),
-    )?;
-
-    // Lookup proof should contain the checkpoint epoch's value and still verify
-    let (lookup_proof, root_hash) = akd.lookup(AkdLabel::from("hello")).await?;
-    assert_eq!(AkdValue::from("world_2"), lookup_proof.value);
-    lookup_verify(
-        vrf_pk.as_bytes(),
-        root_hash.hash(),
-        AkdLabel::from("hello"),
-        lookup_proof,
-    )?;
+    )
+    .unwrap();
 
     // Audit proof should only work up until checkpoint's epoch
-    let audit_proof = akd.audit(1, 2).await?;
-    audit_verify(vec![root_hash_1, root_hash_2], audit_proof).await?;
+    let audit_proof = akd.audit(1, 2).await.unwrap();
+    audit_verify(vec![root_hash_1, root_hash_2], audit_proof)
+        .await
+        .unwrap();
 
     let invalid_audit = akd.audit(2, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
-
-    Ok(())
 }
 
 // The read-only mode of a directory is meant to simply read from memory.

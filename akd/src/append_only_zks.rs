@@ -27,6 +27,8 @@ use crate::{
 use async_recursion::async_recursion;
 use log::info;
 use std::cmp::Ordering;
+#[cfg(feature = "greedy_lookup_preload")]
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::marker::Sync;
 use std::ops::Deref;
@@ -479,6 +481,138 @@ impl Azks {
             .await?;
 
         Ok((current_node, is_new, num_inserted))
+    }
+
+    #[cfg(feature = "greedy_lookup_preload")]
+    async fn get_next_node_in_child_path_from_cache<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        node: &TreeNode,
+        target: &NodeLabel,
+    ) -> Option<TreeNode> {
+        match (node.left_child, node.right_child) {
+            (Some(l), _) if l.is_prefix_of(target) => {
+                match storage
+                    .get_from_cache_only::<crate::tree_node::TreeNodeWithPreviousValue>(&NodeKey(l))
+                    .await
+                {
+                    Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
+                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
+                            Some(node)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            }
+            (_, Some(r)) if r.is_prefix_of(target) => {
+                match storage
+                    .get_from_cache_only::<crate::tree_node::TreeNodeWithPreviousValue>(&NodeKey(r))
+                    .await
+                {
+                    Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
+                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
+                            Some(node)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Builds all of the POSSIBLE paths along the route from root node to
+    /// leaf node. This will be grossly over-estimating the true size of the
+    /// tree and the number of nodes required to be fetched, however
+    /// it allows a single batch-get call in necessary scenarios
+    #[cfg(feature = "greedy_lookup_preload")]
+    pub(crate) async fn build_lookup_maximal_node_set<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        li: LookupInfo,
+    ) -> Result<HashSet<NodeLabel>, AkdError> {
+        let mut results = HashSet::new();
+        let labels = [li.existent_label, li.marker_label, li.non_existent_label];
+
+        let root_node: TreeNode =
+            TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), self.latest_epoch)
+                .await?;
+
+        for label in labels {
+            let mut cnode = root_node.clone();
+            // walk through the cache to find the next node in the tree which isn't already loaded
+            while let Some(node) = self
+                .get_next_node_in_child_path_from_cache(storage, &cnode, &label)
+                .await
+            {
+                cnode = node;
+            }
+            // load the rest of the nodes in the path, as soon as a child node can't be resolved. In the worst-case
+            // this is loading every possible node on the path (i.e. uninitialized cache)
+            for len in cnode.label.label_len..256 {
+                results.insert(label.get_prefix(len));
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Preload for a single lookup operation by loading all of the nodes along
+    /// the direct path, and the children of resolved nodes on the path. This
+    /// minimizes the number of batch_get operations to the storage layer which are
+    /// called
+    #[cfg(feature = "greedy_lookup_preload")]
+    pub(crate) async fn greedy_preload_lookup_nodes<S: Database + Send + Sync>(
+        &self,
+        storage: &StorageManager<S>,
+        lookup_info: LookupInfo,
+    ) -> Result<u64, AkdError> {
+        let mut count = 0u64;
+        let mut requested_count = 0u64;
+
+        // First try and load ALL possible nodes on the direct paths between the root and the target labels
+        // For a lookup proof, there's 3 targets
+        //
+        // * existent_label
+        // * marker_label
+        // * non_existent_label
+        let nodes = self
+            .build_lookup_maximal_node_set(storage, lookup_info)
+            .await?
+            .into_iter()
+            .map(NodeKey)
+            .collect::<Vec<_>>();
+        requested_count += nodes.len() as u64;
+
+        let nodes = TreeNode::batch_get_from_storage(storage, &nodes, self.latest_epoch).await?;
+        count += nodes.len() as u64;
+
+        // Now load the children of the nodes resolved on the direct path, which for non-already-loaded children will be the
+        // siblings necessray to generate the required proof structs.
+        let children = nodes
+            .into_iter()
+            .flat_map(|node| match (node.left_child, node.right_child) {
+                (Some(l), Some(r)) => vec![NodeKey(l), NodeKey(r)],
+                _ => vec![],
+            })
+            .collect::<Vec<_>>();
+        requested_count += children.len() as u64;
+
+        let children =
+            TreeNode::batch_get_from_storage(storage, &children, self.latest_epoch).await?;
+        count += children.len() as u64;
+
+        log::info!(
+            "Greedy lookup proof preloading loaded {} of {} nodes",
+            count,
+            requested_count
+        );
+
+        Ok(count)
     }
 
     pub(crate) async fn preload_lookup_nodes<S: Database + Send + Sync>(
@@ -1037,6 +1171,44 @@ mod tests {
     use itertools::Itertools;
     use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
     use std::time::Duration;
+
+    #[tokio::test]
+    #[cfg(feature = "greedy_lookup_preload")]
+    async fn test_maximal_node_set_resolution() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let database = AsyncInMemoryDatabase::new();
+        let db = StorageManager::new_no_cache(database);
+        let azks1 = Azks::new::<_>(&db).await.unwrap();
+        let label = NodeLabel {
+            label_len: 256,
+            label_val: [
+                1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1,
+                0, 1, 0, 1,
+            ],
+        };
+
+        let lookup_info = LookupInfo {
+            existent_label: label,
+            marker_label: label,
+            marker_version: 1,
+            non_existent_label: label,
+            value_state: crate::storage::types::ValueState {
+                epoch: 1,
+                label,
+                username: crate::AkdLabel::random(&mut rng),
+                value: crate::AkdValue::random(&mut rng),
+                version: 1,
+            },
+        };
+
+        let max_set = azks1
+            .build_lookup_maximal_node_set(&db, lookup_info)
+            .await
+            .expect("Failed to build maximal set");
+
+        // since the label is there 3 times, it should all resolve to the same data
+        assert_eq!(256, max_set.len());
+    }
 
     #[tokio::test]
     async fn test_batch_insert_basic() -> Result<(), AkdError> {

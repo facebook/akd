@@ -241,42 +241,63 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     }
 
     /// Provides proof for correctness of latest version
+    ///
+    /// * `akd_label`: The target label to generate a lookup proof for
+    ///
+    /// Returns [Ok((LookupProof, EpochHash))] upon successful generation for the latest version
+    /// of the target label's state. [Err(_)] otherwise
     pub async fn lookup(&self, akd_label: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
         let current_azks = self.retrieve_current_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
-        let lookup_info = self
-            .get_lookup_info(akd_label.clone(), current_epoch)
-            .await?;
+        let lookup_info = self.get_lookup_info(akd_label, current_epoch).await?;
 
         let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
-
         let proof = self
-            .lookup_with_info(akd_label, &current_azks, current_epoch, lookup_info)
+            .lookup_with_info(&current_azks, lookup_info, false)
             .await?;
         Ok((proof, root_hash))
     }
 
+    /// Generate a lookup proof with the provided target information
+    ///
+    /// * `current_azks`: The current [Akzs] element
+    /// * `lookup_info`: The information to target in the lookup request. Includes all
+    /// necessary information to build the proof
+    /// * `skip_preload`: Denotes if we should not preload as part of this optimization. Enabled
+    /// from bulk lookup proof generation, as it has its own preloading operation
+    ///
+    /// Returns [Ok(LookupProof)] if the proof generation succeeded, [Err(_)] otherwise
     async fn lookup_with_info(
         &self,
-        akd_label: AkdLabel,
         current_azks: &Azks,
-        current_epoch: u64,
         lookup_info: LookupInfo,
+        skip_preload: bool,
     ) -> Result<LookupProof, AkdError> {
-        // Preload nodes needed for lookup.
-        current_azks
-            .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()])
-            .await?;
-
+        if !skip_preload {
+            // Preload nodes needed for lookup.
+            #[cfg(feature = "greedy_lookup_preload")]
+            {
+                current_azks
+                    .greedy_preload_lookup_nodes(&self.storage, lookup_info.clone())
+                    .await?;
+            }
+            #[cfg(not(feature = "greedy_lookup_preload"))]
+            {
+                current_azks
+                    .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()])
+                    .await?;
+            }
+        }
+        let label = &lookup_info.value_state.username;
         let current_version = lookup_info.value_state.version;
         let commitment_key = self.derive_commitment_key().await?;
         let plaintext_value = lookup_info.value_state.value;
         let existence_vrf = self
             .vrf
-            .get_label_proof(&akd_label, VersionFreshness::Fresh, current_version)
+            .get_label_proof(label, VersionFreshness::Fresh, current_version)
             .await?;
         let commitment_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let lookup_proof = LookupProof {
@@ -285,24 +306,28 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
             version: lookup_info.value_state.version,
             existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
             existence_proof: current_azks
-                .get_membership_proof(&self.storage, lookup_info.existent_label, current_epoch)
+                .get_membership_proof(
+                    &self.storage,
+                    lookup_info.existent_label,
+                    current_azks.latest_epoch,
+                )
                 .await?,
             marker_vrf_proof: self
                 .vrf
-                .get_label_proof(
-                    &akd_label,
-                    VersionFreshness::Fresh,
-                    lookup_info.marker_version,
-                )
+                .get_label_proof(label, VersionFreshness::Fresh, lookup_info.marker_version)
                 .await?
                 .to_bytes()
                 .to_vec(),
             marker_proof: current_azks
-                .get_membership_proof(&self.storage, lookup_info.marker_label, current_epoch)
+                .get_membership_proof(
+                    &self.storage,
+                    lookup_info.marker_label,
+                    current_azks.latest_epoch,
+                )
                 .await?,
             freshness_vrf_proof: self
                 .vrf
-                .get_label_proof(&akd_label, VersionFreshness::Stale, current_version)
+                .get_label_proof(label, VersionFreshness::Stale, current_version)
                 .await?
                 .to_bytes()
                 .to_vec(),
@@ -354,16 +379,8 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
 
         let mut lookup_proofs = Vec::new();
-        for i in 0..akd_labels.len() {
-            lookup_proofs.push(
-                self.lookup_with_info(
-                    akd_labels[i].clone(),
-                    &current_azks,
-                    current_epoch,
-                    lookup_infos[i].clone(),
-                )
-                .await?,
-            );
+        for info in lookup_infos.into_iter() {
+            lookup_proofs.push(self.lookup_with_info(&current_azks, info, true).await?);
         }
 
         Ok((lookup_proofs, root_hash))
@@ -606,8 +623,8 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         Ok(())
     }
 
-    /// Returns an AppendOnlyProof for the leaves inserted into the underlying tree between
-    /// the epochs audit_start_ep and audit_end_ep.
+    /// Returns an [AppendOnlyProof] for the leaves inserted into the underlying tree between
+    /// the epochs `audit_start_ep` and `audit_end_ep`.
     pub async fn audit(
         &self,
         audit_start_ep: u64,
@@ -637,7 +654,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         }
     }
 
-    /// Retrieves the current azks
+    /// Retrieves the current [Azks] element
     pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::<S, V>::get_azks_from_storage(&self.storage, false).await
     }
@@ -668,7 +685,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
     /// HELPERS ///
 
-    /// Use this function to retrieve the VRF public key for this AKD.
+    /// Use this function to retrieve the [VRFPublicKey] for this AKD.
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         Ok(self.vrf.get_vrf_public_key().await?)
     }

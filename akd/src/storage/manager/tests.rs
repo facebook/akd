@@ -26,7 +26,6 @@ async fn test_storage_manager_transaction() {
     );
 
     let mut records = (0..10)
-        .into_iter()
         .map(|i| {
             let label = NodeLabel {
                 label_len: i,
@@ -121,7 +120,6 @@ async fn test_storage_manager_cache_populated_by_batch_set() {
     let storage_manager = StorageManager::new(db, None, None, None);
 
     let mut records = (0..10)
-        .into_iter()
         .map(|i| {
             let label = NodeLabel {
                 label_len: i,
@@ -203,7 +201,6 @@ async fn test_storage_manager_cache_populated_by_batch_get() {
 
     let mut keys = vec![];
     let mut records = (0..10)
-        .into_iter()
         .map(|i| {
             let label = NodeLabel {
                 label_len: i,

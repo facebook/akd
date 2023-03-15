@@ -99,9 +99,7 @@ impl NodeLabel {
         if self.label_len > other.label_len {
             return false;
         }
-        (0..self.label_len)
-            .into_iter()
-            .all(|i| self.get_bit_at(i) == other.get_bit_at(i))
+        (0..self.label_len).all(|i| self.get_bit_at(i) == other.get_bit_at(i))
     }
 
     /// Takes as input a pointer to the caller and another [NodeLabel],

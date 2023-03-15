@@ -1,6 +1,6 @@
 [package]
 name = "akd_core"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Core utilities for the auditable-key-directory suite of crates (akd and akd_client)"
 license = "MIT OR Apache-2.0"
