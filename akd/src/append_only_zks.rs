@@ -1208,7 +1208,6 @@ mod tests {
 
         // since the label is there 3 times, it should all resolve to the same data
         assert_eq!(256, max_set.len());
-        println!("{max_set:?}");
     }
 
     #[tokio::test]
