@@ -1,16 +1,16 @@
-## akd ![Build Status](https://github.com/novifinancial/akd/workflows/CI/badge.svg)
+## akd ![Build Status](https://github.com/facebook/akd/workflows/CI/badge.svg)
 
-An implementation of an auditable key directory (also known as a verifiable registry).
+An implementation of an auditable key directory (also known as a verifiable registry or authenticated dictionary).
 
 Auditable key directories can be used to help provide key transparency for end-to-end encrypted
 messaging.
 
-This implementation is based off of the protocol described in
-[SEEMless: Secure End-to-End Encrypted Messaging with less trust](https://eprint.iacr.org/2018/607).
+This implementation is based off of the protocols described in
+[SEEMless](https://eprint.iacr.org/2018/607), with ideas incorporated from [Parakeet](https://eprint.iacr.org/2023/081).
 
 This library provides a stateless API for an auditable key directory, meaning that a consumer of this library must provide their own solution for the storage of the entries of the directory.
 
-⚠️ **Warning**: This implementation has not been audited and is not ready for a production application. Use at your own risk!
+⚠️ **Warning**: This implementation has not been audited (yet). Use at your own risk!
 
 Documentation
 -------------
@@ -35,12 +35,16 @@ Contributors
 ------------
 
 The original authors of this code are
-Jasleen Malvai ([@jasleen1](https://github.com/jasleen1)),
-Kevin Lewi ([@kevinlewi](https://github.com/kevinlewi)), and
-Sean Lawlor ([@slawlor](https://github.com/slawlor)).
-To learn more about contributing to this project, [see this document](https://github.com/novifinancial/akd/blob/main/CONTRIBUTING.md).
+Evan Au ([@afterdusk](https://github.com/afterdusk)),
+Alex Chernyak ([@alexme22](https://github.com/alexme22)),
+Dillon George ([@dillonrg](https://github.com/dillonrg)),
+Sean Lawlor ([@slawlor](https://github.com/slawlor)),
+Kevin Lewi ([@kevinlewi](https://github.com/kevinlewi)),
+Jasleen Malvai ([@jasleen1](https://github.com/jasleen1)), and
+Ercan Ozturk ([@eozturk1](https://github.com/eozturk1)).
+To learn more about contributing to this project, [see this document](https://github.com/facebook/akd/blob/main/CONTRIBUTING.md).
 
 License
 -------
 
-This project is licensed under either [Apache 2.0](https://github.com/novifinancial/akd/blob/main/LICENSE-APACHE) or [MIT](https://github.com/novifinancial/akd/blob/main/LICENSE-MIT), at your option.
+This project is licensed under either [Apache 2.0](https://github.com/facebook/akd/blob/main/LICENSE-APACHE) or [MIT](https://github.com/facebook/akd/blob/main/LICENSE-MIT), at your option.

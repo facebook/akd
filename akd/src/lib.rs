@@ -5,9 +5,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree.
 
-//! An implementation of an auditable key directory (AKD), also known as a verifiable registry.
+//! An implementation of an auditable key directory (AKD), also known as a verifiable registry or authenticated dictionary.
 //!
-//! ⚠️ **Warning**: This implementation has not been audited and is not ready for use in a real system. Use at your own risk!
+//! ⚠️ **Warning**: This implementation has not been audited (yet). Use at your own risk!
 //!
 //! # Overview
 //! An auditable key directory (AKD) provides an interface to a data structure that stores key-value
