@@ -430,7 +430,7 @@ mod utils;
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
 pub use client::HistoryVerificationParams;
-pub use directory::{Directory, HistoryParams};
+pub use directory::{Directory, HistoryParams, AccessMode};
 pub use helper_structs::EpochHash;
 
 // ========== Constants and type aliases ========== //
