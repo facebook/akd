@@ -26,11 +26,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+// An enum that represents whether an auditable key directory is read-only or writeable
+pub enum AccessMode{
+    ReadOnly,
+    Writeable
+}
+
 /// The representation of a auditable key directory
 pub struct Directory<S: Database, V> {
     storage: StorageManager<S>,
     vrf: V,
-    read_only: bool,
+    access_mode: AccessMode,
     /// The cache lock guarantees that the cache is not
     /// flushed mid-proof generation. We allow multiple proof generations
     /// to occur (RwLock.read() operations can have multiple) but we want
@@ -46,7 +52,7 @@ impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
         Self {
             storage: self.storage.clone(),
             vrf: self.vrf.clone(),
-            read_only: self.read_only,
+            access_mode: self.access_mode,
             cache_lock: self.cache_lock.clone(),
         }
     }
@@ -59,11 +65,11 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     pub async fn new(
         storage: StorageManager<S>,
         vrf: V,
-        read_only: bool,
+        access_mode: AccessMode,
     ) -> Result<Self, AkdError> {
         let azks = Directory::<S, V>::get_azks_from_storage(&storage, false).await;
 
-        if read_only && azks.is_err() {
+        if access_mode == AccessMode::ReadOnly && azks.is_err() {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
                 format!(
                     "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
@@ -79,7 +85,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         Ok(Directory {
             storage,
-            read_only,
+            access_mode,
             cache_lock: Arc::new(RwLock::new(())),
             vrf,
         })
@@ -87,7 +93,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
     /// Updates the directory to include the updated key-value pairs.
     pub async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
-        if self.read_only {
+        if self.access_mode == AccessMode::ReadOnly {
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
                 "Cannot publish while in read-only mode".to_string(),
             )));
