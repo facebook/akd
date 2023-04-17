@@ -11,7 +11,7 @@ extern crate criterion;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
-use akd::{AkdLabel, AkdValue, Directory};
+use akd::{AkdLabel, AkdValue, Directory, AccessMode};
 use criterion::{BatchSize, Criterion};
 use rand::distributions::Alphanumeric;
 use rand::rngs::StdRng;
@@ -49,7 +49,7 @@ fn history_generation(c: &mut Criterion) {
                 );
                 let db_clone = db.clone();
                 let directory = runtime
-                    .block_on(async move { Directory::new(db, vrf, false).await })
+                    .block_on(async move { Directory::new(db, vrf, AccessMode::Writeable).await })
                     .unwrap();
 
                 for _epoch in 1..num_updates {
