@@ -27,7 +27,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 // An enum that represents whether an auditable key directory is read-only or writeable
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy)]
 pub enum AccessMode{
     ReadOnly,
     Writeable
