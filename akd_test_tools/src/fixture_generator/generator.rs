@@ -124,7 +124,7 @@ pub(crate) async fn generate(args: Args) {
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
+    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf)
         .await
         .unwrap();
 

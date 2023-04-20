@@ -36,7 +36,7 @@ async fn test_use_fixture() {
         .unwrap();
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
+    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf)
         .await
         .unwrap();
 

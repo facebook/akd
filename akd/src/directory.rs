@@ -30,7 +30,6 @@ use tokio::sync::RwLock;
 pub struct Directory<S: Database, V> {
     storage: StorageManager<S>,
     vrf: V,
-    read_only: bool,
     /// The cache lock guarantees that the cache is not
     /// flushed mid-proof generation. We allow multiple proof generations
     /// to occur (RwLock.read() operations can have multiple) but we want
@@ -46,31 +45,23 @@ impl<S: Database, V: VRFKeyStorage> Clone for Directory<S, V> {
         Self {
             storage: self.storage.clone(),
             vrf: self.vrf.clone(),
-            read_only: self.read_only,
             cache_lock: self.cache_lock.clone(),
         }
     }
 }
 
-impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
+impl<S, V> Directory<S, V>
+where
+    S: Database + 'static,
+    V: VRFKeyStorage,
+{
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
-    pub async fn new(
-        storage: StorageManager<S>,
-        vrf: V,
-        read_only: bool,
-    ) -> Result<Self, AkdError> {
+    pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
         let azks = Directory::<S, V>::get_azks_from_storage(&storage, false).await;
 
-        if read_only && azks.is_err() {
-            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                format!(
-                    "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
-                    azks.err().take()
-                ),
-            )));
-        } else if azks.is_err() {
+        if azks.is_err() {
             // generate a new azks if one is not found
             let azks = Azks::new::<_>(&storage).await?;
             // store it
@@ -79,7 +70,6 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         Ok(Directory {
             storage,
-            read_only,
             cache_lock: Arc::new(RwLock::new(())),
             vrf,
         })
@@ -87,12 +77,6 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
     /// Updates the directory to include the updated key-value pairs.
     pub async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
-        if self.read_only {
-            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                "Cannot publish while in read-only mode".to_string(),
-            )));
-        }
-
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 
@@ -779,6 +763,105 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
     }
 }
 
+/// A thin newtype which offers read-only interactivity with a [Directory](Directory).
+#[derive(Clone)]
+pub struct ReadOnlyDirectory<S, V>(Directory<S, V>)
+where
+    S: Database + Sync + Send,
+    V: VRFKeyStorage;
+
+impl<S, V> ReadOnlyDirectory<S, V>
+where
+    S: Database + 'static,
+    V: VRFKeyStorage,
+{
+    /// Constructs a new instance of [ReadOnlyDirectory]. In the event that an [Azks](crate::append_only_zks::Azks)
+    /// does not exist in the storage, or we're unable to retrieve it from storage, then
+    /// a [DirectoryError](crate::errors::DirectoryError) will be returned.
+    pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
+        let azks = Directory::<S, V>::get_azks_from_storage(&storage, false).await;
+
+        if azks.is_err() {
+            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
+                format!(
+                    "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
+                    azks.err().take()
+                ),
+            )));
+        }
+
+        Ok(Self(Directory {
+            storage,
+            cache_lock: Arc::new(RwLock::new(())),
+            vrf,
+        }))
+    }
+
+    /// Read-only access to [Directory::lookup](Directory::lookup).
+    pub async fn lookup(&self, uname: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
+        self.0.lookup(uname).await
+    }
+
+    /// Read-only access to [Directory::batch_lookup](Directory::batch_lookup).
+    pub async fn batch_lookup(
+        &self,
+        unames: &[AkdLabel],
+    ) -> Result<(Vec<LookupProof>, EpochHash), AkdError> {
+        self.0.batch_lookup(unames).await
+    }
+
+    /// Read-only access to [Directory::key_history](Directory::key_history).
+    pub async fn key_history(
+        &self,
+        uname: &AkdLabel,
+        params: HistoryParams,
+    ) -> Result<(HistoryProof, EpochHash), AkdError> {
+        self.0.key_history(uname, params).await
+    }
+
+    /// Read-only access to [Directory::poll_for_azks_changes](Directory::poll_for_azks_changes).
+    pub async fn poll_for_azks_changes(
+        &self,
+        period: tokio::time::Duration,
+        change_detected: Option<tokio::sync::mpsc::Sender<()>>,
+    ) -> Result<(), AkdError> {
+        self.0.poll_for_azks_changes(period, change_detected).await
+    }
+
+    /// Read-only access to [Directory::audit](Directory::audit).
+    pub async fn audit(
+        &self,
+        audit_start_ep: u64,
+        audit_end_ep: u64,
+    ) -> Result<AppendOnlyProof, AkdError> {
+        self.0.audit(audit_start_ep, audit_end_ep).await
+    }
+
+    /// Read-only access to [Directory::retrieve_current_azks](Directory::retrieve_current_azks).
+    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
+        self.0.retrieve_current_azks().await
+    }
+
+    /// Read-only access to [Directory::get_public_key](Directory::get_public_key).
+    pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
+        self.0.get_public_key().await
+    }
+
+    /// Read-only access to [Directory::get_root_hash_safe](Directory::get_root_hash_safe).
+    pub async fn get_root_hash_safe(
+        &self,
+        current_azks: &Azks,
+        epoch: u64,
+    ) -> Result<Digest, AkdError> {
+        self.0.get_root_hash_safe(current_azks, epoch).await
+    }
+
+    /// Read-only access to [Directory::get_root_hash](Directory::get_root_hash).
+    pub async fn get_root_hash(&self, current_azks: &Azks) -> Result<Digest, AkdError> {
+        self.0.get_root_hash(current_azks).await
+    }
+}
+
 /// The parameters that dictate how much of the history proof to return to the consumer
 /// (either a complete history, or some limited form).
 #[derive(Copy, Clone)]
@@ -833,12 +916,6 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
         updates: Vec<(AkdLabel, AkdValue)>,
         corruption: PublishCorruption,
     ) -> Result<EpochHash, AkdError> {
-        if self.read_only {
-            return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
-                "Cannot publish while in read-only mode".to_string(),
-            )));
-        }
-
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
 

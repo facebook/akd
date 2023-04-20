@@ -155,7 +155,7 @@ pub mod tests {
         let db = AsyncInMemoryDatabase::new();
         let storage = StorageManager::new_no_cache(db);
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new(storage, vrf, false)
+        let akd = Directory::<_, _>::new(storage, vrf)
             .await
             .expect("Failed to construct directory");
 
