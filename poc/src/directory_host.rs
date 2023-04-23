@@ -33,18 +33,6 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-async fn get_root_hash<S, V>(directory: &mut Directory<S, V>) -> Option<Result<Digest, AkdError>>
-where
-    S: Database + 'static,
-    V: VRFKeyStorage,
-{
-    if let Ok(azks) = directory.retrieve_current_azks().await {
-        Some(directory.get_root_hash(&azks).await)
-    } else {
-        None
-    }
-}
-
 pub(crate) async fn init_host<S, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
 where
     S: Database + 'static,
@@ -156,18 +144,14 @@ where
                 }
             }
             (DirectoryCommand::RootHash, Some(response)) => {
-                let hash = get_root_hash::<_, V>(directory).await;
+                let hash = directory.get_epoch_hash().await;
                 match hash {
-                    Some(Ok(hash)) => {
+                    Ok(EpochHash(_, hash)) => {
                         let msg = format!("Retrieved root hash {}", hex::encode(hash));
                         response.send(Ok(msg)).unwrap();
                     }
-                    Some(Err(error)) => {
+                    Err(error) => {
                         let msg = format!("Failed to retrieve root hash with error {error:?}");
-                        response.send(Err(msg)).unwrap();
-                    }
-                    None => {
-                        let msg = "Failed to retrieve current AZKS structure".to_string();
                         response.send(Err(msg)).unwrap();
                     }
                 }

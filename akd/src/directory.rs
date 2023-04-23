@@ -83,7 +83,7 @@ where
         let mut update_set = Vec::<AzksElement>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
 
-        let mut current_azks = self.retrieve_current_azks().await?;
+        let mut current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
         let next_epoch = current_epoch + 1;
 
@@ -234,11 +234,14 @@ where
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let current_azks = self.retrieve_current_azks().await?;
+        let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
         let lookup_info = self.get_lookup_info(akd_label, current_epoch).await?;
 
-        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+        let root_hash = EpochHash(
+            current_epoch,
+            current_azks.get_root_hash(&self.storage).await?,
+        );
         let proof = self
             .lookup_with_info(&current_azks, lookup_info, false)
             .await?;
@@ -339,7 +342,7 @@ where
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let current_azks = self.retrieve_current_azks().await?;
+        let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
         // Take a union of the labels we will need proofs of for each lookup.
@@ -360,7 +363,10 @@ where
         // Ensure we have got all lookup infos needed.
         assert_eq!(akd_labels.len(), lookup_infos.len());
 
-        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+        let root_hash = EpochHash(
+            current_epoch,
+            current_azks.get_root_hash(&self.storage).await?,
+        );
 
         let mut lookup_proofs = Vec::new();
         for info in lookup_infos.into_iter() {
@@ -435,7 +441,7 @@ where
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let current_azks = self.retrieve_current_azks().await?;
+        let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
         let mut user_data = self.storage.get_user_data(akd_label).await?.states;
 
@@ -541,7 +547,10 @@ where
             );
         }
 
-        let root_hash = EpochHash(current_epoch, self.get_root_hash(&current_azks).await?);
+        let root_hash = EpochHash(
+            current_epoch,
+            current_azks.get_root_hash(&self.storage).await?,
+        );
 
         Ok((
             HistoryProof {
@@ -561,10 +570,6 @@ where
     /// that new objects are retrieved from the storage layer against
     /// the "latest" epoch. There is a "special" flow in the storage layer
     /// to do a storage-layer retrieval which ignores the cache
-    ///
-    /// NOTE: Due to the use of std::thread::sleep(.) this will BLOCK
-    /// the polling thread, and should be allocated it's own thread since it won't
-    /// yield
     pub async fn poll_for_azks_changes(
         &self,
         period: tokio::time::Duration,
@@ -617,7 +622,7 @@ where
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
 
-        let current_azks = self.retrieve_current_azks().await?;
+        let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
 
         if audit_start_ep >= audit_end_ep {
@@ -638,8 +643,8 @@ where
         }
     }
 
-    /// Retrieves the current [Azks] element
-    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
+    /// Retrieves the [Azks]
+    pub(crate) async fn retrieve_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::<S, V>::get_azks_from_storage(&self.storage, false).await
     }
 
@@ -688,7 +693,7 @@ where
             .get_node_label(akd_label, VersionFreshness::Fresh, version)
             .await?;
 
-        let current_azks = self.retrieve_current_azks().await?;
+        let current_azks = self.retrieve_azks().await?;
         let existence_vrf = self
             .vrf
             .get_label_proof(akd_label, VersionFreshness::Fresh, version)
@@ -735,24 +740,12 @@ where
         })
     }
 
-    /// Gets the root hash of the tree at the latest epoch if the passed epoch
-    /// is equal to the latest epoch. Will return an error otherwise.
-    pub async fn get_root_hash_safe(
-        &self,
-        current_azks: &Azks,
-        epoch: u64,
-    ) -> Result<Digest, AkdError> {
-        // The guard will be dropped at the end of the proof generation
-        let _guard = self.cache_lock.read().await;
-
-        current_azks
-            .get_root_hash_safe::<_>(&self.storage, epoch)
-            .await
-    }
-
-    /// Gets the azks root hash at the current epoch.
-    pub async fn get_root_hash(&self, current_azks: &Azks) -> Result<Digest, AkdError> {
-        current_azks.get_root_hash::<_>(&self.storage).await
+    /// Gets the root hash at the current epoch.
+    pub async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
+        let current_azks = self.retrieve_azks().await?;
+        let latest_epoch = current_azks.get_latest_epoch();
+        let root_hash = current_azks.get_root_hash(&self.storage).await?;
+        Ok(EpochHash(latest_epoch, root_hash))
     }
 
     // We simply hash the VRF private key to derive the commitment key
@@ -837,28 +830,14 @@ where
         self.0.audit(audit_start_ep, audit_end_ep).await
     }
 
-    /// Read-only access to [Directory::retrieve_current_azks](Directory::retrieve_current_azks).
-    pub async fn retrieve_current_azks(&self) -> Result<Azks, crate::errors::AkdError> {
-        self.0.retrieve_current_azks().await
+    /// Read-only access to [Directory::get_epoch_hash].
+    pub async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
+        self.0.get_epoch_hash().await
     }
 
     /// Read-only access to [Directory::get_public_key](Directory::get_public_key).
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         self.0.get_public_key().await
-    }
-
-    /// Read-only access to [Directory::get_root_hash_safe](Directory::get_root_hash_safe).
-    pub async fn get_root_hash_safe(
-        &self,
-        current_azks: &Azks,
-        epoch: u64,
-    ) -> Result<Digest, AkdError> {
-        self.0.get_root_hash_safe(current_azks, epoch).await
-    }
-
-    /// Read-only access to [Directory::get_root_hash](Directory::get_root_hash).
-    pub async fn get_root_hash(&self, current_azks: &Azks) -> Result<Digest, AkdError> {
-        self.0.get_root_hash(current_azks).await
     }
 }
 
@@ -885,16 +864,6 @@ impl Default for HistoryParams {
 
 pub(crate) fn get_marker_version(version: u64) -> u64 {
     (64 - version.leading_zeros() - 1).into()
-}
-
-/// Gets the azks root hash at the current epoch.
-pub async fn get_directory_root_hash_and_ep<S: Database + 'static, V: VRFKeyStorage>(
-    akd_dir: &Directory<S, V>,
-) -> Result<(Digest, u64), AkdError> {
-    let current_azks = akd_dir.retrieve_current_azks().await?;
-    let latest_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd_dir.get_root_hash(&current_azks).await?;
-    Ok((root_hash, latest_epoch))
 }
 
 /// Helpers for testing
@@ -937,7 +906,7 @@ impl<S: Database + 'static, V: VRFKeyStorage> Directory<S, V> {
 
         let mut user_data_update_set = Vec::<ValueState>::new();
 
-        let mut current_azks = self.retrieve_current_azks().await?;
+        let mut current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
         let next_epoch = current_epoch + 1;
 

@@ -39,15 +39,15 @@ pub fn verify_membership(
         let (left_val, left_label, right_val, right_label) = match sibling_proof.direction {
             Direction::Left => (
                 curr_val,
-                curr_label.hash(),
+                curr_label.value(),
                 sibling.value,
-                sibling.label.hash(),
+                sibling.label.value(),
             ),
             Direction::Right => (
                 sibling.value,
-                sibling.label.hash(),
+                sibling.label.value(),
                 curr_val,
-                curr_label.hash(),
+                curr_label.value(),
             ),
         };
         curr_val =
@@ -103,9 +103,9 @@ pub fn verify_nonmembership(
 
     let lcp_hash = compute_parent_hash_from_children(
         &proof.longest_prefix_children[0].value,
-        &proof.longest_prefix_children[0].label.hash(),
+        &proof.longest_prefix_children[0].label.value(),
         &proof.longest_prefix_children[1].value,
-        &proof.longest_prefix_children[1].label.hash(),
+        &proof.longest_prefix_children[1].label.value(),
     );
     if lcp_children != proof.longest_prefix_membership_proof.label
         || lcp_hash != proof.longest_prefix_membership_proof.hash_val

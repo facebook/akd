@@ -49,20 +49,17 @@ pub async fn verify_consecutive_append_only(
     end_hash: Digest,
     end_epoch: u64,
 ) -> Result<(), AkdError> {
-    // FIXME: Need to get rid of the clone here. Will need modifications to the functions called here.
-    let unchanged_nodes = proof.unchanged_nodes.clone();
-    let inserted = proof.inserted.clone();
-
     let db = AsyncInMemoryDatabase::new();
     let manager = StorageManager::new_no_cache(db);
 
     let mut azks = Azks::new::<_>(&manager).await?;
-    azks.batch_insert_nodes::<_>(&manager, unchanged_nodes, InsertMode::Auditor)
+    azks.batch_insert_nodes::<_>(&manager, proof.unchanged_nodes.clone(), InsertMode::Auditor)
         .await?;
     let computed_start_root_hash: Digest = azks.get_root_hash::<_>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
     azks.latest_epoch = end_epoch - 1;
-    let updated_inserted = inserted
+    let updated_inserted = proof
+        .inserted
         .iter()
         .map(|x| {
             let mut y = *x;

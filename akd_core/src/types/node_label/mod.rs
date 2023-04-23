@@ -83,9 +83,9 @@ pub(crate) enum Bit {
 }
 
 impl NodeLabel {
-    /// Hash a [NodeLabel] into a digest, length-prefixing the label's value
-    pub fn hash(&self) -> Vec<u8> {
-        // FIXME(#344): We souldn't need to actually hash the label, it is redundant. Change this to:
+    /// Returns the value of the [NodeLabel]
+    pub fn value(&self) -> Vec<u8> {
+        // FIXME(#344): We shouldn't need to actually hash the label, it is redundant. Change this to:
         // self.to_bytes()
         crate::hash::hash(&self.to_bytes()).to_vec()
     }

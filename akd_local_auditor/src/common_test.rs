@@ -65,9 +65,8 @@ pub async fn generate_audit_proofs(
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage_manager, vrf).await?;
     let mut proofs = vec![];
-    // gather the hash + azks for epoch "0" (init)
-    let mut azks = akd.retrieve_current_azks().await?;
-    let mut phash = akd.get_root_hash(&azks).await?;
+    // gather the hash for epoch "0" (init)
+    let mut phash = akd.get_epoch_hash().await?.1;
 
     for _epoch in 1..=n {
         if expensive {
@@ -88,9 +87,8 @@ pub async fn generate_audit_proofs(
         }
         // generate the append-only proof
         let proof = akd.audit((_epoch - 1) as u64, _epoch as u64).await?;
-        // update the azks + retrieve the updated hash
-        azks = akd.retrieve_current_azks().await?;
-        let chash = akd.get_root_hash(&azks).await?;
+        // retrieve the updated hash
+        let chash = akd.get_epoch_hash().await?.1;
 
         // we have everything we need, pass it along
         let info = AuditInformation {

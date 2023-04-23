@@ -745,7 +745,6 @@ impl Azks {
         })
     }
 
-    // FIXME add an error if the epochs don't exist or end is less than start ep.
     /// An append-only proof for going from `start_epoch` to `end_epoch` consists of roots of subtrees
     /// the azks tree that remain unchanged from `start_epoch` to `end_epoch` and the leaves inserted into the
     /// tree after `start_epoch` and  up until `end_epoch`.
@@ -761,18 +760,22 @@ impl Azks {
         start_epoch: u64,
         end_epoch: u64,
     ) -> Result<AppendOnlyProof, AkdError> {
+        let latest_epoch = self.get_latest_epoch();
+        if latest_epoch < end_epoch || end_epoch <= start_epoch {
+            return Err(AkdError::Directory(DirectoryError::InvalidEpoch(format!(
+                "Start epoch must be less than end epoch, and end epoch must be at most the latest epoch. \
+                Start epoch: {start_epoch}, end epoch: {end_epoch}, latest_epoch: {latest_epoch}."
+            ))));
+        }
+
         let mut proofs = Vec::<SingleAppendOnlyProof>::new();
         let mut epochs = Vec::<u64>::new();
         // Suppose the epochs start_epoch and end_epoch exist in the set.
         // This function should return the proof that nothing was removed/changed from the tree
         // between these epochs.
 
-        let node = TreeNode::get_from_storage(
-            storage,
-            &NodeKey(NodeLabel::root()),
-            self.get_latest_epoch(),
-        )
-        .await?;
+        let node =
+            TreeNode::get_from_storage(storage, &NodeKey(NodeLabel::root()), latest_epoch).await?;
 
         for ep in start_epoch..end_epoch {
             let (fallable_load_count, time_s) = tic_toc(self.gather_audit_proof_nodes::<_>(
@@ -797,7 +800,7 @@ impl Azks {
             storage.log_metrics(log::Level::Info).await;
 
             let (unchanged, leaves) = Self::get_append_only_proof_helper::<_>(
-                self.get_latest_epoch(),
+                latest_epoch,
                 storage,
                 node.clone(),
                 ep,
@@ -1017,7 +1020,6 @@ impl Azks {
         Ok((unchanged, leaves))
     }
 
-    // FIXME: these functions below should be moved into higher-level API
     /// Gets the root hash for this azks
     pub async fn get_root_hash<S: Database>(
         &self,
@@ -1029,7 +1031,7 @@ impl Azks {
 
     /// Gets the root hash of the tree at the latest epoch if the passed epoch
     /// is equal to the latest epoch. Will return an error otherwise.
-    pub async fn get_root_hash_safe<S: Database>(
+    pub(crate) async fn get_root_hash_safe<S: Database>(
         &self,
         storage: &StorageManager<S>,
         epoch: u64,
@@ -1280,7 +1282,7 @@ mod tests {
                     AzksValue(crate::hash::hash(&leaf_u64.to_be_bytes())),
                     7 - i + 1,
                 ),
-                new_leaf.label.hash(),
+                new_leaf.label.value(),
             ));
             leaves.push(new_leaf);
         }
@@ -1296,7 +1298,7 @@ mod tests {
                     &AzksValue(right_child_hash.0 .0),
                     &right_child_hash.1,
                 ),
-                NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).hash(),
+                NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).value(),
             ));
         }
 
@@ -1311,7 +1313,7 @@ mod tests {
                     &AzksValue(right_child_hash.0 .0),
                     &right_child_hash.1,
                 ),
-                NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).hash(),
+                NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).value(),
             ));
         }
 

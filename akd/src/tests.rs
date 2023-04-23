@@ -25,7 +25,7 @@ use crate::{
         Database, DbSetState, Storable,
     },
     tree_node::TreeNodeWithPreviousValue,
-    AkdLabel, AkdValue, Azks, HistoryParams, HistoryVerificationParams, VerifyResult,
+    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams, VerifyResult,
 };
 
 #[derive(Clone)]
@@ -136,9 +136,8 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
     let vrf = HardCodedAkdVRF {};
     let akd = Directory::<_, _>::new(storage, vrf).await?;
 
-    let current_azks = akd.retrieve_current_azks().await?;
     #[allow(unused)]
-    let hash = akd.get_root_hash(&current_azks).await?;
+    let hash = akd.get_epoch_hash().await?.1;
     // Ensuring that the root hash of an empty tree is equal to the following constant
     #[cfg(feature = "blake3")]
     assert_eq!(
@@ -362,9 +361,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
         )));
     }
     // Get the latest root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let current_epoch = current_azks.get_latest_epoch();
-    let root_hash = akd.get_root_hash(&current_azks).await?;
+    let EpochHash(current_epoch, root_hash) = akd.get_epoch_hash().await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
     key_history_verify(
@@ -597,7 +594,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     let vrf_pk = akd.get_public_key().await?;
 
     // Get the current epoch and the current root hash for this akd.
-    let current_azks = akd.retrieve_current_azks().await?;
+    let current_azks = akd.retrieve_azks().await?;
     let current_epoch = current_azks.get_latest_epoch();
 
     // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
@@ -744,9 +741,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the first server publish
-    let root_hash_1 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_1 = akd.get_epoch_hash().await?.1;
 
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world_2")),
@@ -755,9 +750,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the second server publish
-    let root_hash_2 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_2 = akd.get_epoch_hash().await?.1;
 
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world3")),
@@ -766,9 +759,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the third server publish
-    let root_hash_3 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_3 = akd.get_epoch_hash().await?.1;
 
     akd.publish(vec![
         (AkdLabel::from("hello3"), AkdValue::from("world")),
@@ -777,9 +768,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the fourth server publish
-    let root_hash_4 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_4 = akd.get_epoch_hash().await?.1;
 
     akd.publish(vec![(
         AkdLabel::from("hello"),
@@ -788,9 +777,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the fifth server publish
-    let root_hash_5 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_5 = akd.get_epoch_hash().await?.1;
 
     akd.publish(vec![
         (AkdLabel::from("hello3"), AkdValue::from("world6")),
@@ -799,9 +786,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     .await?;
 
     // Get the root hash after the 6th server publish
-    let root_hash_6 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await?)
-        .await?;
+    let root_hash_6 = akd.get_epoch_hash().await?.1;
 
     // This is to ensure that an audit of two consecutive, although relatively old epochs is calculated correctly.
     let audit_proof_1 = akd.audit(1, 2).await?;
@@ -861,11 +846,11 @@ async fn test_simple_audit() -> Result<(), AkdError> {
 }
 
 #[tokio::test]
-async fn test_read_during_publish() {
+async fn test_read_during_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf).await.unwrap();
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
 
     // Publish once
     akd.publish(vec![
@@ -875,10 +860,7 @@ async fn test_read_during_publish() {
     .await
     .unwrap();
     // Get the root hash after the first publish
-    let root_hash_1 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await.unwrap())
-        .await
-        .unwrap();
+    let root_hash_1 = akd.get_epoch_hash().await?.1;
     // Publish updates for the same labels.
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world_2")),
@@ -888,13 +870,10 @@ async fn test_read_during_publish() {
     .unwrap();
 
     // Get the root hash after the second publish
-    let root_hash_2 = akd
-        .get_root_hash(&akd.retrieve_current_azks().await.unwrap())
-        .await
-        .unwrap();
+    let root_hash_2 = akd.get_epoch_hash().await?.1;
 
     // Make the current azks a "checkpoint" to reset to later
-    let checkpoint_azks = akd.retrieve_current_azks().await.unwrap();
+    let checkpoint_azks = akd.retrieve_azks().await.unwrap();
 
     // Publish for the third time
     akd.publish(vec![
@@ -952,6 +931,8 @@ async fn test_read_during_publish() {
 
     let invalid_audit = akd.audit(2, 3).await;
     assert!(matches!(invalid_audit, Err(_)));
+
+    Ok(())
 }
 
 // The read-only mode of a directory is meant to simply read from memory.
