@@ -12,7 +12,7 @@ use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::{Database, StorageManager};
 use akd::Directory;
 use akd_mysql::mysql::AsyncMySqlDatabase;
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use commands::Command;
 use log::{debug, error, info, warn};
 use rand::distributions::Alphanumeric;
@@ -32,7 +32,7 @@ mod logs;
 
 use logs::ConsoleLogger;
 
-#[derive(ArgEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug)]
 enum PublicLogLevels {
     Error,
     Warn,
@@ -85,7 +85,7 @@ struct Cli {
     debug: bool,
 
     #[clap(
-        arg_enum,
+        value_enum,
         long = "log_level",
         short = 'l',
         name = "Adjust the console log-level (default = INFO)",
