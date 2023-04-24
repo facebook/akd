@@ -44,10 +44,10 @@ pub mod ui;
 pub(crate) mod common_test;
 
 use anyhow::Result;
-use clap::{ArgEnum, Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use log::debug;
 
-#[derive(ArgEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug)]
 enum PublicLogLevel {
     Error,
     Warn,
@@ -86,7 +86,7 @@ pub enum Mode {
 #[clap(author, version, about, long_about = None)]
 pub struct Arguments {
     /// The logging level to use for console output
-    #[clap(long, short, arg_enum, ignore_case = true, default_value = "Info")]
+    #[clap(long, short, value_enum, ignore_case = true, default_value = "Info")]
     log_level: PublicLogLevel,
 
     /// Show the verification QR code in the terminal
