@@ -87,7 +87,7 @@ pub enum AuditCommand {
     Ui,
 }
 
-/// Audit opertions supported by the client
+/// Audit operations supported by the client
 #[derive(Parser, Clone, Debug)]
 pub struct AuditArgs {
     #[clap(subcommand)]

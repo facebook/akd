@@ -49,7 +49,7 @@ fn history_generation(c: &mut Criterion) {
                 );
                 let db_clone = db.clone();
                 let directory = runtime
-                    .block_on(async move { Directory::new(db, vrf, false).await })
+                    .block_on(async move { Directory::new(db, vrf).await })
                     .unwrap();
 
                 for _epoch in 1..num_updates {

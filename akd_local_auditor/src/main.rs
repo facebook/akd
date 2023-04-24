@@ -18,7 +18,7 @@
 //! 1. AWS DynamoDB index backed by S3 storage
 //! 2. AWS S3 only, without an index
 //!
-//! The applicate is started with all necessary flags to connect to the storage medium
+//! The application is started with all necessary flags to connect to the storage medium
 //! of choice, and then the REPL will start allowing the user to interact as an auditor.
 //!
 //! # Examples

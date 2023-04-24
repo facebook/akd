@@ -80,7 +80,7 @@ struct Cli {
     #[clap(long = "memory", name = "Use in-memory database")]
     memory_db: bool,
 
-    /// Activate debuging mode
+    /// Activate debugging mode
     #[clap(long = "debug", short = 'd', name = "Enable debugging mode")]
     debug: bool,
 
@@ -140,9 +140,7 @@ async fn main() {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let storage_manager = StorageManager::new_no_cache(db);
-        let mut directory = Directory::<_, _>::new(storage_manager, vrf, false)
-            .await
-            .unwrap();
+        let mut directory = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
@@ -171,7 +169,7 @@ async fn main() {
             None,
             Some(Duration::from_secs(15)),
         );
-        let mut directory = Directory::<_, _>::new(storage_manager.clone(), vrf, false)
+        let mut directory = Directory::<_, _>::new(storage_manager.clone(), vrf)
             .await
             .unwrap();
         tokio::spawn(async move {

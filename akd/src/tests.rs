@@ -15,7 +15,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
-    directory::{Directory, PublishCorruption},
+    directory::{Directory, PublishCorruption, ReadOnlyDirectory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::{AkdError, StorageError},
     storage::{
@@ -134,7 +134,7 @@ async fn test_empty_tree_root_hash() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
 
     let current_azks = akd.retrieve_current_azks().await?;
     #[allow(unused)]
@@ -191,7 +191,7 @@ async fn test_simple_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
     // Make sure you can publish and that something so simple
     // won't throw errors.
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -205,7 +205,7 @@ async fn test_complex_publish() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
 
     let num_entries = 10000;
     let mut entries = vec![];
@@ -227,7 +227,7 @@ async fn test_simple_lookup() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
     // Add two labels and corresponding values to the akd
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -259,7 +259,7 @@ async fn test_small_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -312,7 +312,7 @@ async fn test_simple_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
     // Epoch 1: Add labels "hello" and "hello2"
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -460,7 +460,7 @@ async fn test_complex_verification_many_versions() -> Result<(), AkdError> {
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new(storage_manager, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage_manager, vrf).await?;
     let vrf_pk = akd.get_public_key().await?;
 
     let num_labels = 4;
@@ -543,7 +543,7 @@ async fn test_limited_key_history() -> Result<(), AkdError> {
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new(storage_manager, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage_manager, vrf).await?;
 
     // epoch 1
     akd.publish(vec![
@@ -669,7 +669,7 @@ async fn test_malicious_key_history() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -735,7 +735,7 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
 
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -865,7 +865,7 @@ async fn test_read_during_publish() {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false).await.unwrap();
+    let akd = Directory::<_, _>::new(storage, vrf).await.unwrap();
 
     // Publish once
     akd.publish(vec![
@@ -913,7 +913,7 @@ async fn test_read_during_publish() {
     // re-create the directory instance so it refreshes from storage
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, true).await.unwrap();
+    let akd = ReadOnlyDirectory::<_, _>::new(storage, vrf).await.unwrap();
 
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await.unwrap();
@@ -964,16 +964,8 @@ async fn test_directory_read_only_mode() -> Result<(), AkdError> {
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
-    let akd = Directory::<_, _>::new(storage.clone(), vrf.clone(), true).await;
+    let akd = ReadOnlyDirectory::<_, _>::new(storage, vrf).await;
     assert!(matches!(akd, Err(_)));
-
-    // now create the AZKS
-    let akd = Directory::<_, _>::new(storage.clone(), vrf.clone(), false).await;
-    assert!(matches!(akd, Ok(_)));
-
-    // create another read-only dir now that the AZKS exists in the storage layer, and try to publish which should fail
-    let akd = Directory::<_, _>::new(storage, vrf, true).await?;
-    assert!(matches!(akd.publish(vec![]).await, Err(_)));
 
     Ok(())
 }
@@ -987,7 +979,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
     let storage = StorageManager::new(db, None, None, None);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
-    let writer = Directory::<_, _>::new(storage.clone(), vrf.clone(), false).await?;
+    let writer = Directory::<_, _>::new(storage.clone(), vrf.clone()).await?;
 
     writer
         .publish(vec![
@@ -997,7 +989,7 @@ async fn test_directory_polling_azks_change() -> Result<(), AkdError> {
         .await?;
 
     // reader will not write the AZKS but will be "polling" for AZKS changes
-    let reader = Directory::<_, _>::new(storage, vrf, true).await?;
+    let reader = ReadOnlyDirectory::<_, _>::new(storage, vrf).await?;
 
     // start the poller
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -1037,7 +1029,7 @@ async fn test_tombstoned_key_history() -> Result<(), AkdError> {
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new(storage.clone(), vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage.clone(), vrf).await?;
 
     // epoch 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -1118,7 +1110,7 @@ async fn test_publish_op_makes_no_get_requests() {
 
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false)
+    let akd = Directory::<_, _>::new(storage, vrf)
         .await
         .expect("Failed to create directory");
 
@@ -1148,7 +1140,7 @@ async fn test_publish_op_makes_no_get_requests() {
 
     let storage = StorageManager::new_no_cache(db2);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage, vrf, false)
+    let akd = Directory::<_, _>::new(storage, vrf)
         .await
         .expect("Failed to create directory");
 
@@ -1181,7 +1173,7 @@ async fn test_simple_lookup_for_small_tree_blake() -> Result<(), AkdError> {
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new(storage, vrf.clone(), false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf.clone()).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -1234,7 +1226,7 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<_, _>::new(storage, vrf, false).await?;
+    let akd = Directory::<_, _>::new(storage, vrf).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -1288,7 +1280,7 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
 */
 
 async fn async_poll_helper_proof<T: Database + 'static, V: VRFKeyStorage>(
-    reader: &Directory<T, V>,
+    reader: &ReadOnlyDirectory<T, V>,
     value: AkdValue,
 ) -> Result<(), AkdError> {
     // reader should read "hello" and this will populate the "cache" a log

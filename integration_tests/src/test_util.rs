@@ -142,7 +142,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new(mysql_db.clone(), vrf.clone(), false).await;
+    let maybe_dir = Directory::<_, _>::new(mysql_db.clone(), vrf.clone()).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {

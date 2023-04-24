@@ -44,9 +44,7 @@
 //! A [`Directory`] represents an AKD. To set up a [`Directory`], we first need to pick on
 //! a database, a hash function, and a VRF. For this example, we use Blake3 as the hash function,
 //! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
-//! The [`Directory::new`] function also takes as input a third parameter indicating whether or not it is "read-only".
-//! Note that a read-only directory cannot be updated, and so we most likely will want to keep this variable set
-//! as `false`.
+//! The [`directory::ReadOnlyDirectory`] creates a read-only directory which cannot be updated.
 //! ```
 //! use akd::storage::StorageManager;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
@@ -58,7 +56,7 @@
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<_, _>::new(storage_manager, vrf, false)
+//! let mut akd = Directory::<_, _>::new(storage_manager, vrf)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -90,7 +88,7 @@
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash));
@@ -124,7 +122,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let (lookup_proof, _) = akd.lookup(
@@ -157,7 +155,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let (lookup_proof, epoch_hash) = akd.lookup(
@@ -211,7 +209,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! use akd::HistoryParams;
@@ -252,7 +250,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let _ = akd.publish(
@@ -315,7 +313,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -354,7 +352,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf, false).await.unwrap();
+//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
