@@ -56,8 +56,8 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                 if let Err(error) = dir.publish(data).await {
                     panic!("Error publishing batch {:?}", error);
                 }
-                let azks = dir.retrieve_current_azks().await.unwrap();
-                root_hashes.push(dir.get_root_hash(&azks).await);
+                let root_hash = dir.get_epoch_hash().await.unwrap().1;
+                root_hashes.push(root_hash);
             }
 
             // Perform 10 random lookup proofs on the published users
@@ -110,23 +110,11 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                 Ok(proof) => {
                     mysql_db.log_metrics(log::Level::Info).await;
                     log::warn!("Done with audit proof generation");
-                    let start_root_hash = root_hashes[0].as_ref();
-                    let end_root_hash = root_hashes[1].as_ref();
-                    match (start_root_hash, end_root_hash) {
-                        (Ok(start), Ok(end)) => {
-                            if let Err(error) =
-                                akd::auditor::audit_verify(vec![*start, *end], proof).await
-                            {
-                                panic!("Error validating audit proof {:?}", error);
-                            }
-                        }
-                        (Err(err), _) => {
-                            panic!("Error retrieving root hash at epoch {:?}", err);
-                        }
-                        (_, Err(err)) => {
-                            panic!("Error retrieving root hash at epoch {:?}", err);
-                        }
-                    }
+                    let start_root_hash = root_hashes[0];
+                    let end_root_hash = root_hashes[1];
+                    akd::auditor::audit_verify(vec![start_root_hash, end_root_hash], proof)
+                        .await
+                        .unwrap();
                 }
             }
         }

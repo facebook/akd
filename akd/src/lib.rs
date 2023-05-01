@@ -125,7 +125,7 @@
 //! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
-//! let (lookup_proof, _) = akd.lookup(
+//! let (lookup_proof, epoch_hash) = akd.lookup(
 //!     AkdLabel::from("first entry")
 //! ).await.expect("Could not generate proof");
 //! # });
@@ -387,10 +387,10 @@
 //! used only in unit testing scenarios by altering your Cargo.toml as such:
 //! ```toml
 //! [dependencies]
-//! akd = { version = "0.7" }
+//! akd = { version = "0.9.0-pre.1" }
 //!
 //! [dev-dependencies]
-//! akd = { version = "0.7", features = ["public-tests"] }
+//! akd = { version = "0.9.0-pre.1", features = ["public-tests"] }
 //! ```
 //!
 

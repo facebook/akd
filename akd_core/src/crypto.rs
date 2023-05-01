@@ -29,7 +29,7 @@ pub fn empty_node_hash() -> AzksValue {
     // FIXME(#344) Change this to:
     // [0u8; 32]
     AzksValue(hash(
-        &[hash(&EMPTY_VALUE).to_vec(), EMPTY_LABEL.hash()].concat(),
+        &[hash(&EMPTY_VALUE).to_vec(), EMPTY_LABEL.value()].concat(),
     ))
 }
 
@@ -143,7 +143,7 @@ pub fn compute_parent_hash_from_children(
 pub fn compute_root_hash_from_val(root_val: &AzksValue) -> Digest {
     // FIXME(#344) Change this to:
     // root_val
-    hash(&[&root_val.0[..], &NodeLabel::root().hash()].concat())
+    hash(&[&root_val.0[..], &NodeLabel::root().value()].concat())
 }
 
 /// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue

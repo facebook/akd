@@ -216,16 +216,12 @@ impl TreeNodeWithPreviousValue {
     }
 }
 
-/// FIXME(@klewi): update this documentation
-/// A TreeNode represents a generic node of a Merkle Patricia Trie with ordering.
-/// The main idea here is that the tree is changing at every epoch and that we do not need
-/// to touch the state of a node, unless it changes.
-/// The leaves of the tree represented by these nodes is supposed to allow for a user
-/// to monitor the state of a key-value pair in the past.
-/// We achieve this by including the epoch a leaf was added as part of the hash stored in it.
-/// At a later time, we may need to access older sub-trees of the tree built with these nodes.
-/// To facilitate this, we require this struct to include the last time a node was updated
-/// as well as the oldest descendant it holds.
+/// A TreeNode represents a generic node of a sparse merkle tree.
+///
+/// Each node consists of a [NodeLabel] and an [AzksValue]. The label determines the node's
+/// location in the tree, and the value corresponding to the node affects its parent's value.
+/// If the node is a leaf node (of type [TreeNodeType::Leaf]), then it represents an entry
+/// of the directory, where the label and value are computed based on this entry.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(
     feature = "serde_serialization",
@@ -256,7 +252,7 @@ pub struct TreeNode {
         feature = "serde_serialization",
         serde(deserialize_with = "azks_value_hex_deserialize")
     )]
-    pub hash: AzksValue, // FIXME: we should rename this field to "value"
+    pub hash: AzksValue, // FIXME: we should rename this field to "value" (but it will affect fixture generation)
 }
 
 impl akd_core::SizeOf for TreeNode {
@@ -361,8 +357,6 @@ pub struct NodeKey(pub NodeLabel);
 unsafe impl Sync for TreeNode {}
 
 impl TreeNode {
-    // FIXME: Figure out how to better group arguments.
-    #[allow(clippy::too_many_arguments)]
     /// Creates a new TreeNode and writes it to the storage.
     fn new(
         label: NodeLabel,
@@ -407,9 +401,9 @@ impl TreeNode {
                     .await?;
                 self.hash = compute_parent_hash_from_children(
                     &node_to_azks_value(&left_child, hash_mode),
-                    &node_to_label(&left_child).hash(),
+                    &node_to_label(&left_child).value(),
                     &node_to_azks_value(&right_child, hash_mode),
-                    &node_to_label(&right_child).hash(),
+                    &node_to_label(&right_child).value(),
                 );
             }
         }
@@ -572,7 +566,7 @@ mod tests {
     use crate::storage::manager::StorageManager;
 
     fn hash_label(label: NodeLabel) -> Vec<u8> {
-        label.hash()
+        label.value()
     }
 
     #[tokio::test]
