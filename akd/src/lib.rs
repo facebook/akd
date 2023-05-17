@@ -18,8 +18,14 @@
 //! Keys can also be updated to be associated with different values. Each batch of updates to these key-value
 //! mappings are associated with an epoch along with a commitment to the database of entries at that point in time.
 //! The server that controls the database can use this library to generate proofs of inclusion to clients that wish
-//! to query entries in the database. These proofs can be _verified_ by a client against the corresponding
-//! commitment to the database. We can think of this data structure intuitively as a _verifiable dictionary_.
+//! to query for keys in the database to retrieve their associated values. These proofs can be _verified_ by a client
+//! against the corresponding commitment to the database. We can think of this data structure intuitively as a
+//! _verifiable dictionary_.
+//!
+//! This library can be used as part of a key transparency system to generate commitments and serve proofs for a database
+//! of public keys. However, note that a full key transparency solution still needs to provide a way for clients to ensure
+//! that they are receiving the same commitment for each database epoch. This is outside of the scope of this library and
+//! must be handled separately.
 //!
 //! ### Operations
 //!
