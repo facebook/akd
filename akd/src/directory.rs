@@ -293,11 +293,7 @@ where
             version: lookup_info.value_state.version,
             existence_vrf_proof: existence_vrf.to_bytes().to_vec(),
             existence_proof: current_azks
-                .get_membership_proof(
-                    &self.storage,
-                    lookup_info.existent_label,
-                    current_azks.latest_epoch,
-                )
+                .get_membership_proof(&self.storage, lookup_info.existent_label)
                 .await?,
             marker_vrf_proof: self
                 .vrf
@@ -306,11 +302,7 @@ where
                 .to_bytes()
                 .to_vec(),
             marker_proof: current_azks
-                .get_membership_proof(
-                    &self.storage,
-                    lookup_info.marker_label,
-                    current_azks.latest_epoch,
-                )
+                .get_membership_proof(&self.storage, lookup_info.marker_label)
                 .await?,
             freshness_vrf_proof: self
                 .vrf
@@ -701,7 +693,7 @@ where
         let existence_vrf_proof = existence_vrf.to_bytes().to_vec();
         let existence_label = self.vrf.get_node_label_from_vrf_proof(existence_vrf).await;
         let existence_proof = current_azks
-            .get_membership_proof(&self.storage, label_at_ep, epoch)
+            .get_membership_proof(&self.storage, label_at_ep)
             .await?;
         let mut previous_version_proof = Option::None;
         let mut previous_version_vrf_proof = Option::None;
@@ -712,7 +704,7 @@ where
                 .await?;
             previous_version_proof = Option::Some(
                 current_azks
-                    .get_membership_proof(&self.storage, prev_label_at_ep, epoch)
+                    .get_membership_proof(&self.storage, prev_label_at_ep)
                     .await?,
             );
             previous_version_vrf_proof = Option::Some(
