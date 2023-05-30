@@ -681,7 +681,6 @@ impl Azks {
         &self,
         storage: &StorageManager<S>,
         label: NodeLabel,
-        _epoch: u64,
     ) -> Result<MembershipProof, AkdError> {
         let (_, proof) = self
             .get_lcp_node_label_with_membership_proof(storage, label)
@@ -1706,7 +1705,7 @@ mod tests {
             .await?;
 
         let proof = azks
-            .get_membership_proof(&db, azks_element_set[0].label, 1)
+            .get_membership_proof(&db, azks_element_set[0].label)
             .await?;
 
         verify_membership(azks.get_root_hash::<_>(&db).await?, &proof)?;
@@ -1737,7 +1736,7 @@ mod tests {
                 .await?;
 
             let proof = azks
-                .get_membership_proof(&db, azks_element_set[0].label, 1)
+                .get_membership_proof(&db, azks_element_set[0].label)
                 .await?;
 
             verify_membership(azks.get_root_hash::<_>(&db).await?, &proof)?;
@@ -1761,7 +1760,7 @@ mod tests {
             .await?;
 
         let mut proof = azks
-            .get_membership_proof(&db, azks_element_set[0].label, 1)
+            .get_membership_proof(&db, azks_element_set[0].label)
             .await?;
         let hash_val = EMPTY_DIGEST;
         proof = MembershipProof {
