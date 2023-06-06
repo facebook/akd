@@ -9,15 +9,12 @@
 
 use super::VerificationError;
 
-use crate::crypto::{
-    compute_parent_hash_from_children, compute_root_hash_from_val, get_hash_from_label_input,
-    hash_leaf_with_commitment, hash_leaf_with_value,
-};
+use crate::configuration::Configuration;
 use crate::ecvrf::{Proof, VrfError};
 use crate::hash::Digest;
 use crate::{
     AkdLabel, AkdValue, AzksValue, Direction, MembershipProof, NodeLabel, NonMembershipProof,
-    VersionFreshness, EMPTY_LABEL,
+    VersionFreshness,
 };
 
 #[cfg(feature = "nostd")]
@@ -27,7 +24,7 @@ use alloc::string::ToString;
 use core::convert::TryFrom;
 
 /// Verify the membership proof
-pub fn verify_membership(
+pub fn verify_membership<TC: Configuration>(
     root_hash: Digest,
     proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
@@ -39,23 +36,23 @@ pub fn verify_membership(
         let (left_val, left_label, right_val, right_label) = match sibling_proof.direction {
             Direction::Left => (
                 curr_val,
-                curr_label.value(),
+                curr_label.value::<TC>(),
                 sibling.value,
-                sibling.label.value(),
+                sibling.label.value::<TC>(),
             ),
             Direction::Right => (
                 sibling.value,
-                sibling.label.value(),
+                sibling.label.value::<TC>(),
                 curr_val,
-                curr_label.value(),
+                curr_label.value::<TC>(),
             ),
         };
         curr_val =
-            compute_parent_hash_from_children(&left_val, &left_label, &right_val, &right_label);
+            TC::compute_parent_hash_from_children(&left_val, &left_label, &right_val, &right_label);
         curr_label = sibling_proof.label;
     }
 
-    if compute_root_hash_from_val(&curr_val) == root_hash {
+    if TC::compute_root_hash_from_val(&curr_val) == root_hash {
         Ok(())
     } else {
         Err(VerificationError::MembershipProof(format!(
@@ -66,7 +63,7 @@ pub fn verify_membership(
 }
 
 /// Verifies the non-membership proof with respect to the root hash
-pub fn verify_nonmembership(
+pub fn verify_nonmembership<TC: Configuration>(
     root_hash: Digest,
     proof: &NonMembershipProof,
 ) -> Result<(), VerificationError> {
@@ -89,8 +86,8 @@ pub fn verify_nonmembership(
     // Verify that proof.longest_prefix is the longest common prefix of the children
     let mut lcp_children = proof.longest_prefix_children[0]
         .label
-        .get_longest_common_prefix(proof.longest_prefix_children[1].label);
-    if lcp_children == EMPTY_LABEL {
+        .get_longest_common_prefix::<TC>(proof.longest_prefix_children[1].label);
+    if lcp_children == TC::empty_label() {
         // This is a special case that only occurs when the lcp is the root node and
         // it is missing one of its children
         lcp_children = NodeLabel::root();
@@ -101,11 +98,11 @@ pub fn verify_nonmembership(
         ));
     }
 
-    let lcp_hash = compute_parent_hash_from_children(
+    let lcp_hash = TC::compute_parent_hash_from_children(
         &proof.longest_prefix_children[0].value,
-        &proof.longest_prefix_children[0].label.value(),
+        &proof.longest_prefix_children[0].label.value::<TC>(),
         &proof.longest_prefix_children[1].value,
-        &proof.longest_prefix_children[1].label.value(),
+        &proof.longest_prefix_children[1].label.value::<TC>(),
     );
     if lcp_children != proof.longest_prefix_membership_proof.label
         || lcp_hash != proof.longest_prefix_membership_proof.hash_val
@@ -114,7 +111,7 @@ pub fn verify_nonmembership(
             "lcp_hash != longest_prefix_hash".to_string(),
         ));
     }
-    verify_membership(root_hash, &proof.longest_prefix_membership_proof)?;
+    verify_membership::<TC>(root_hash, &proof.longest_prefix_membership_proof)?;
 
     Ok(())
 }
@@ -122,7 +119,7 @@ pub fn verify_nonmembership(
 /// This function is called to verify that a given [NodeLabel] is indeed
 /// the VRF for a given version (fresh or stale) for a [AkdLabel].
 /// Hence, it also takes as input the server's public key.
-fn verify_label(
+fn verify_label<TC: Configuration>(
     vrf_public_key: &[u8],
     akd_label: &AkdLabel,
     freshness: VersionFreshness,
@@ -131,7 +128,7 @@ fn verify_label(
     node_label: NodeLabel,
 ) -> Result<(), VerificationError> {
     let vrf_pk = crate::ecvrf::VRFPublicKey::try_from(vrf_public_key)?;
-    let hashed_label = get_hash_from_label_input(akd_label, freshness, version);
+    let hashed_label = TC::get_hash_from_label_input(akd_label, freshness, version);
 
     // VRF proof verification (returns VRF hash output)
     let proof = Proof::try_from(vrf_proof)?;
@@ -147,7 +144,7 @@ fn verify_label(
     Ok(())
 }
 
-pub(crate) fn verify_existence(
+pub(crate) fn verify_existence<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: &AkdLabel,
@@ -156,7 +153,7 @@ pub(crate) fn verify_existence(
     vrf_proof: &[u8],
     membership_proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    verify_label(
+    verify_label::<TC>(
         vrf_public_key,
         akd_label,
         freshness,
@@ -164,12 +161,12 @@ pub(crate) fn verify_existence(
         vrf_proof,
         membership_proof.label,
     )?;
-    verify_membership(root_hash, membership_proof)?;
+    verify_membership::<TC>(root_hash, membership_proof)?;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn verify_existence_with_val(
+pub(crate) fn verify_existence_with_val<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: &AkdLabel,
@@ -181,12 +178,13 @@ pub(crate) fn verify_existence_with_val(
     vrf_proof: &[u8],
     membership_proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    if hash_leaf_with_value(akd_value, epoch, commitment_nonce).0 != membership_proof.hash_val.0 {
+    if TC::hash_leaf_with_value(akd_value, epoch, commitment_nonce).0 != membership_proof.hash_val.0
+    {
         return Err(VerificationError::MembershipProof(
             "Hash of plaintext value did not match existence proof hash".to_string(),
         ));
     }
-    verify_existence(
+    verify_existence::<TC>(
         vrf_public_key,
         root_hash,
         akd_label,
@@ -200,7 +198,7 @@ pub(crate) fn verify_existence_with_val(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn verify_existence_with_commitment(
+pub(crate) fn verify_existence_with_commitment<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: &AkdLabel,
@@ -211,12 +209,12 @@ pub(crate) fn verify_existence_with_commitment(
     vrf_proof: &[u8],
     membership_proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
-    if hash_leaf_with_commitment(commitment, epoch).0 != membership_proof.hash_val.0 {
+    if TC::hash_leaf_with_commitment(commitment, epoch).0 != membership_proof.hash_val.0 {
         return Err(VerificationError::MembershipProof(
             "Hash of plaintext value did not match existence proof hash".to_string(),
         ));
     }
-    verify_existence(
+    verify_existence::<TC>(
         vrf_public_key,
         root_hash,
         akd_label,
@@ -229,7 +227,7 @@ pub(crate) fn verify_existence_with_commitment(
     Ok(())
 }
 
-pub(crate) fn verify_nonexistence(
+pub(crate) fn verify_nonexistence<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: &AkdLabel,
@@ -238,7 +236,7 @@ pub(crate) fn verify_nonexistence(
     vrf_proof: &[u8],
     nonmembership_proof: &NonMembershipProof,
 ) -> Result<(), VerificationError> {
-    verify_label(
+    verify_label::<TC>(
         vrf_public_key,
         akd_label,
         freshness,
@@ -246,6 +244,6 @@ pub(crate) fn verify_nonexistence(
         vrf_proof,
         nonmembership_proof.label,
     )?;
-    verify_nonmembership(root_hash, nonmembership_proof)?;
+    verify_nonmembership::<TC>(root_hash, nonmembership_proof)?;
     Ok(())
 }

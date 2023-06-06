@@ -16,7 +16,7 @@ use std::io::Write;
 use akd::directory::Directory;
 use akd::storage::types::DbRecord;
 use akd::storage::{StorageManager, StorageUtil};
-use akd::{AkdLabel, AkdValue};
+use akd::{AkdLabel, AkdValue, NamedConfiguration};
 use clap::Parser;
 use rand::rngs::StdRng;
 use rand::Rng;
@@ -48,6 +48,7 @@ pub struct Delta {
 pub struct Metadata {
     pub args: Args,
     pub version: String,
+    pub configuration: String,
 }
 
 // "@" has to be separated from "generated" or linters might ignore this file
@@ -63,10 +64,13 @@ const DELTA_COMMENT: &str = "Delta - Epoch";
 
 pub async fn run() {
     let args = Args::parse();
-    generate(args).await;
+
+    // NOTE(new_config): Add new configurations here
+    generate::<akd::WhatsAppV1Configuration>(&args).await;
+    generate::<akd::ExperimentalConfiguration>(&args).await;
 }
 
-pub(crate) async fn generate(args: Args) {
+pub(crate) async fn generate<TC: NamedConfiguration>(args: &Args) {
     let mut rng = StdRng::seed_from_u64(42);
 
     // args assertions
@@ -91,8 +95,8 @@ pub(crate) async fn generate(args: Args) {
     }
 
     // initialize writer
-    let buffer: Box<dyn Write> = if let Some(ref file_name) = args.out {
-        Box::new(File::create(file_name).unwrap())
+    let buffer: Box<dyn Write> = if let Some(ref file_path) = args.out {
+        Box::new(File::create(format!("{}/{}.yaml", file_path, TC::name())).unwrap())
     } else {
         Box::new(std::io::stdout())
     };
@@ -115,6 +119,7 @@ pub(crate) async fn generate(args: Args) {
     let metadata = Metadata {
         args: args.clone(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        configuration: TC::name().to_string(),
     };
     writer.write_line();
     writer.write_comment(&comment);
@@ -124,7 +129,7 @@ pub(crate) async fn generate(args: Args) {
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf)
+    let akd = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
         .await
         .unwrap();
 

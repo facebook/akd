@@ -6,11 +6,14 @@ description = "A MySQL storage layer implementation for an auditable key directo
 license = "MIT OR Apache-2.0"
 edition = "2018"
 keywords = ["key-transparency", "akd", "mysql", "akd-mysql"]
-repository = "https://github.com/novifinancial/akd"
+repository = "https://github.com/facebook/akd"
 
 [features]
 # Collect runtime metrics on db access calls + timing
 runtime_metrics = ["akd/runtime_metrics"]
+whatsapp_v1 = ["akd/whatsapp_v1"]
+experimental = ["akd/experimental"]
+default = ["experimental"]
 
 [dependencies]
 bincode = "1"
@@ -30,4 +33,4 @@ akd = { path = "../akd", features = ["serde_serialization"], default-features = 
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
-akd = { path = "../akd", features = ["blake3", "public_tests"], default-features = false }
+akd = { path = "../akd", features = ["experimental", "public_tests"], default-features = false }

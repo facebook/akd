@@ -3,7 +3,7 @@ name = "akd_app"
 default-run = "akd_app"
 version = "0.0.0"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]

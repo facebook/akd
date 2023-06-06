@@ -89,3 +89,25 @@ pub mod serde_helpers {
         ))
     }
 }
+
+#[cfg(feature = "public_tests")]
+/// Macro used for running tests with different configurations
+/// NOTE(new_config): When adding new configurations, add them here as well
+#[macro_export]
+macro_rules! test_config_sync {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[cfg(feature = "whatsapp_v1")]
+            #[test]
+            fn [<$x _ whatsapp_v1_config>]() {
+                $x::<$crate::WhatsAppV1Configuration>()
+            }
+
+            #[cfg(feature = "experimental")]
+            #[test]
+            fn [<$x _ experimental_config>]() {
+                $x::<$crate::ExperimentalConfiguration>()
+            }
+        }
+    };
+}

@@ -9,7 +9,7 @@
 
 use super::storage::{EpochSummary, ProofIndexCacheOption};
 
-use akd::Digest;
+use akd::{Configuration, Digest, WhatsAppV1Configuration};
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
 use log::{error, info, warn};
@@ -28,12 +28,15 @@ pub(crate) fn format_qr_record(p_hash: Digest, c_hash: Digest, epoch: u64) -> Ve
     qr_msg.as_bytes().to_vec()
 }
 
-pub async fn audit_epoch(blob: akd::local_auditing::AuditBlob, qr: bool) -> Result<()> {
+pub async fn audit_epoch<TC: Configuration>(
+    blob: akd::local_auditing::AuditBlob,
+    qr: bool,
+) -> Result<()> {
     // decode the proof
     let (epoch, p_hash, c_hash, proof) = blob.decode().map_err(|err| anyhow!("{:?}", err))?;
 
     // verify it
-    if let Err(akd_error) = akd::auditor::audit_verify(
+    if let Err(akd_error) = akd::auditor::audit_verify::<TC>(
         vec![p_hash, c_hash],
         akd::AppendOnlyProof {
             proofs: vec![proof],
@@ -149,7 +152,7 @@ impl ReplCommandProcessor<AuditArgs> for AuditProcessor {
                 let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == *epoch);
                 if let Some(epoch_summary) = maybe_proof {
                     let proof = self.storage.get_proof(epoch_summary).await?;
-                    audit_epoch(proof, *qr).await?;
+                    audit_epoch::<WhatsAppV1Configuration>(proof, *qr).await?;
                 }
             }
             AuditCommand::ShowEpochs { force_refresh } => {

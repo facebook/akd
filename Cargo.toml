@@ -11,3 +11,11 @@ members = [
     "integration_tests",
     "xtask",
 ]
+
+[profile.release.package.akd_client]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[profile.release.package.akd_core]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

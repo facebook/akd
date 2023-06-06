@@ -48,7 +48,8 @@
 //!
 //! ## Setup
 //! A [`Directory`] represents an AKD. To set up a [`Directory`], we first need to pick on
-//! a database, a hash function, and a VRF. For this example, we use Blake3 as the hash function,
+//! a database, a tree configuration, and a VRF. For this example, we use `WhatsAppV1Configuration`
+//! as the configuration,
 //! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
 //! The [`directory::ReadOnlyDirectory`] creates a read-only directory which cannot be updated.
 //! ```
@@ -57,12 +58,14 @@
 //! use akd::ecvrf::HardCodedAkdVRF;
 //! use akd::directory::Directory;
 //!
+//! type Config = akd::WhatsAppV1Configuration;
+//!
 //! let db = AsyncInMemoryDatabase::new();
 //! let storage_manager = StorageManager::new_no_cache(db);
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<_, _>::new(storage_manager, vrf)
+//! let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf)
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -77,6 +80,8 @@
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
+//! #
+//! # type Config = akd::WhatsAppV1Configuration;
 //! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
@@ -94,7 +99,7 @@
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash));
@@ -112,6 +117,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -128,7 +135,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let (lookup_proof, epoch_hash) = akd.lookup(
@@ -145,6 +152,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -161,7 +170,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let (lookup_proof, epoch_hash) = akd.lookup(
@@ -169,7 +178,7 @@
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
 //!
-//! let lookup_result = akd::client::lookup_verify(
+//! let lookup_result = akd::client::lookup_verify::<Config>(
 //!     public_key.as_bytes(),
 //!     epoch_hash.hash(),
 //!     AkdLabel::from("first entry"),
@@ -199,6 +208,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -215,7 +226,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! use akd::HistoryParams;
@@ -239,6 +250,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -256,7 +269,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let _ = akd.publish(
@@ -267,7 +280,7 @@
 //! #         HistoryParams::default(),
 //! #     ).await.expect("Could not generate proof");
 //! let public_key = akd.get_public_key().await.expect("Could not fetch public key");
-//! let key_history_result = akd::client::key_history_verify(
+//! let key_history_result = akd::client::key_history_verify::<Config>(
 //!     public_key.as_bytes(),
 //!     epoch_hash.hash(),
 //!     epoch_hash.epoch(),
@@ -303,6 +316,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -319,7 +334,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -342,6 +357,8 @@
 //! # use akd::ecvrf::HardCodedAkdVRF;
 //! # use akd::directory::Directory;
 //! #
+//! # type Config = akd::WhatsAppV1Configuration;
+//! #
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
@@ -358,7 +375,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
@@ -372,7 +389,7 @@
 //! #     // Generate audit proof for the evolution from epoch 1 to epoch 2.
 //! #     let audit_proof = akd.audit(epoch, epoch2)
 //! #         .await.expect("Error with generating proof");
-//! let audit_result = akd::auditor::audit_verify(
+//! let audit_result = akd::auditor::audit_verify::<Config>(
 //!     vec![root_hash, root_hash2],
 //!     audit_proof,
 //! ).await;
@@ -421,14 +438,15 @@ pub mod helper_structs;
 pub mod storage;
 pub mod tree_node;
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "public_auditing")]
 pub mod local_auditing;
 
+pub use akd_core::configuration::*;
 pub use akd_core::hash::Digest;
-pub use akd_core::hash::DIGEST_BYTES;
 pub use akd_core::verify;
 pub use akd_core::*;
 
+#[macro_use]
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //

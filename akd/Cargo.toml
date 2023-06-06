@@ -4,24 +4,20 @@ version = "0.9.0-pre.1"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 keywords = ["key-transparency", "akd"]
-repository = "https://github.com/novifinancial/akd"
+repository = "https://github.com/facebook/akd"
 readme = "../README.md"
 
 [features]
-# Supported hash functions
-sha512 = ["akd_core/sha512"]
-sha256 = ["akd_core/sha256"]
-sha512_256 = ["akd_core/sha512_256"]
-sha3_256 = ["akd_core/sha3_256"]
-sha3_512 = ["akd_core/sha3_512"]
-blake3 = ["akd_core/blake3"]
+# Supported configurations
+whatsapp_v1 = ["akd_core/whatsapp_v1"]
+experimental = ["akd_core/experimental"]
 
-bench = ["blake3", "public_tests","tokio/rt-multi-thread"]
-public_tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization", "akd_core/rand"]
-public_auditing = ["protobuf", "akd_core/protobuf"]
-serde_serialization = ["serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
+bench = ["experimental", "public_tests", "tokio/rt-multi-thread", "dep:paste"]
+public_tests = ["dep:rand", "dep:bincode", "dep:colored", "dep:once_cell", "serde_serialization", "akd_core/public_tests", "akd_core/rand", "dep:paste"]
+public_auditing = ["dep:protobuf", "akd_core/protobuf"]
+serde_serialization = ["dep:serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
 runtime_metrics = []
 # Parallelize VRF calculations during publish
@@ -35,8 +31,8 @@ slow_internal_db = []
 # Greedy loading of lookup proof nodes
 greedy_lookup_preload = []
 
-# Default features mix (blake3 + audit-proof protobuf mgmt support)
-default = ["blake3", "public_auditing", "parallel_vrf", "parallel_insert", "preload_history", "greedy_lookup_preload"]
+# Default features mix (experimental + audit-proof protobuf mgmt support)
+default = ["public_auditing", "parallel_vrf", "parallel_insert", "preload_history", "greedy_lookup_preload", "experimental"]
 
 [dependencies]
 ## Required dependencies ##
@@ -57,6 +53,7 @@ rand = { version = "0.7", optional = true }
 colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
 protobuf = { version = "3.2", optional = true }
+paste = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -71,9 +68,10 @@ tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
 mockall = "0.11"
 futures = "0.3"
 itertools = "0.10"
+paste = "1"
 
-# To enable the public-test feature in tests
-akd = { path = ".", features = ["public_tests"], default-features = false }
+# To enable the public_tests feature in tests
+akd = { path = ".", features = ["public_tests", "whatsapp_v1", "experimental"], default-features = false }
 
 [[bench]]
 name = "azks"

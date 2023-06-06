@@ -30,6 +30,7 @@ use core::convert::TryInto;
 use protobuf::Message;
 use wasm_bindgen::prelude::*;
 
+use akd_core::configuration::Configuration;
 use akd_core::proto::specs::types::LookupProof;
 use akd_core::verify::VerificationError;
 
@@ -94,7 +95,8 @@ impl LookupResult {
     }
 }
 
-fn fallable_lookup_verify(
+#[allow(unused)]
+fn fallible_lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
     akd_key: crate::AkdLabel,
@@ -105,7 +107,7 @@ fn fallable_lookup_verify(
         crate::hash::try_parse_digest(root_hash_ref).map_err(VerificationError::LookupProof)?;
 
     let proto_proof = LookupProof::parse_from_bytes(lookup_proof)?;
-    crate::verify::lookup_verify(
+    crate::verify::lookup_verify::<TC>(
         vrf_public_key,
         root_hash,
         akd_key,
@@ -113,16 +115,16 @@ fn fallable_lookup_verify(
     )
 }
 
-#[wasm_bindgen]
 /// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
-pub fn lookup_verify(
+#[allow(unused)]
+fn lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
     label: &[u8],
     // protobuf encoded proof
     lookup_proof: &[u8],
 ) -> Result<LookupResult, String> {
-    match fallable_lookup_verify(
+    match fallible_lookup_verify::<TC>(
         vrf_public_key,
         root_hash_ref,
         crate::AkdLabel(label.to_vec()),
@@ -137,10 +139,51 @@ pub fn lookup_verify(
     }
 }
 
+/// NOTE(new_config): Add a new configuration here
+
+/// Verify a lookup proof in WebAssembly for WhatsAppV1Configuration,
+/// utilizing serde serialized structure for the proof
+#[cfg(feature = "whatsapp_v1")]
+#[wasm_bindgen]
+pub fn lookup_verify_whatsapp_v1(
+    vrf_public_key: &[u8],
+    root_hash_ref: &[u8],
+    label: &[u8],
+    // protobuf encoded proof
+    lookup_proof: &[u8],
+) -> Result<LookupResult, String> {
+    lookup_verify::<akd_core::configuration::WhatsAppV1Configuration>(
+        vrf_public_key,
+        root_hash_ref,
+        label,
+        lookup_proof,
+    )
+}
+
+/// Verify a lookup proof in WebAssembly for ExperimentalConfiguration,
+/// utilizing serde serialized structure for the proof
+#[cfg(feature = "experimental")]
+#[wasm_bindgen]
+pub fn lookup_verify_experimental(
+    vrf_public_key: &[u8],
+    root_hash_ref: &[u8],
+    label: &[u8],
+    // protobuf encoded proof
+    lookup_proof: &[u8],
+) -> Result<LookupResult, String> {
+    lookup_verify::<akd_core::configuration::ExperimentalConfiguration>(
+        vrf_public_key,
+        root_hash_ref,
+        label,
+        lookup_proof,
+    )
+}
+
 #[cfg(test)]
 pub mod tests {
     extern crate wasm_bindgen_test;
 
+    use akd::errors::AkdError;
     use akd::storage::memory::AsyncInMemoryDatabase;
     use akd::storage::StorageManager;
     use akd::{AkdLabel, AkdValue, Directory};
@@ -150,12 +193,31 @@ pub mod tests {
     use super::*;
     use crate::ecvrf::HardCodedAkdVRF;
 
-    #[wasm_bindgen_test]
-    async fn test_simple_wasm_lookup() {
+    /// NOTE(new_config): Add a new configuration here
+    macro_rules! test_config {
+        ( $x:ident ) => {
+            paste::paste! {
+                #[cfg(feature = "whatsapp_v1")]
+                #[wasm_bindgen_test]
+                async fn [<$x _ whatsapp_v1_config>]() -> Result<(), AkdError> {
+                    $x::<akd_core::configuration::WhatsAppV1Configuration>().await
+                }
+
+                #[cfg(feature = "experimental")]
+                #[wasm_bindgen_test]
+                async fn [<$x _ experimental_config>]() -> Result<(), AkdError> {
+                    $x::<akd_core::configuration::ExperimentalConfiguration>().await
+                }
+            }
+        };
+    }
+
+    test_config!(test_simple_wasm_lookup);
+    async fn test_simple_wasm_lookup<TC: Configuration>() -> Result<(), AkdError> {
         let db = AsyncInMemoryDatabase::new();
         let storage = StorageManager::new_no_cache(db);
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<_, _>::new(storage, vrf)
+        let akd = Directory::<TC, _, _>::new(storage, vrf)
             .await
             .expect("Failed to construct directory");
 
@@ -184,12 +246,13 @@ pub mod tests {
             .expect("Failed to encode lookup proof");
 
         // Verify the lookup proof
-        let result = lookup_verify(
+        let result = lookup_verify::<TC>(
             vrf_pk.as_bytes(),
             &root_hash.hash(),
             &target_label,
             &encoded_proof_bytes,
         );
         assert!(result.is_ok());
+        Ok(())
     }
 }

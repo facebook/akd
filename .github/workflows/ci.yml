@@ -16,34 +16,18 @@ jobs:
         include:
           - name: Test the core crate (akd_core)
             package: akd_core
-            flags: --features blake3
+            flags: 
 
           - name: Test the core crate (akd_core) with no standard library
             package: akd_core
-            flags: --features nostd,blake3,vrf --no-default-features
+            flags: --features nostd
 
           - name: Test the core crate (akd_core) with protobuf and serde enabled
             package: akd_core
-            flags: --features protobuf,serde_serialization,blake3
-
-          - name: Test the core crate (akd_core) with truncated SHA512 (sha512_256) in no-std environment
-            package: akd_core
-            flags: --features nostd,sha512_256,vrf --no-default-features
-
-          - name: Test the core crate (akd_core) with no standard library and Sha3 512 hashing
-            package: akd_core
-            flags: --features nostd,sha3_512,vrf --no-default-features
+            flags: --features protobuf,serde_serialization
 
           - name: Test the base library, with default features
             package: akd
-
-          - name: Test the base library, without parallelism
-            package: akd
-            flags: --features blake3,public_auditing --no-default-features
-
-          - name: Test the base library, with truncated SHA512 hashing (sha512_256)
-            package: akd
-            flags: --features sha512_256,public_auditing,parallel_insert,parallel_vrf --no-default-features
 
           - name: Test the base library, enabling runtime metrics processing
             package: akd
@@ -55,17 +39,9 @@ jobs:
           - name: Test the base client library, with default features
             package: akd_client
 
-          - name: Test the client for wasm and SHA3-256 hashing
+          - name: Test the client for wasm
             package: akd_client
-            flags: --no-default-features --features wasm,sha3_256
-
-          - name: Test AKD with protobuf serialization of the audit proofs
-            package: akd
-            flags: --features public_auditing
-
-          - name: Test the client for wasm and BLAKE3 hashing
-            package: akd_client
-            flags: --no-default-features --features wasm,blake3
+            flags: --features wasm
 
           - name: Test the client with protobuf serialization
             package: akd_client
@@ -122,7 +98,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --package akd_core -F blake3
+          args: --package akd_core
 
       - name: Run rustfmt
         uses: actions-rs/cargo@v1
@@ -192,11 +168,8 @@ jobs:
           - name: Build WASM compatible binary
             command: wasm-pack build --features wasm
 
-          - name: Test wasm-pack with default profile (blake3)
+          - name: Test wasm-pack with default profile
             command: wasm-pack test --node --features wasm
-
-          - name: Test wasm-pack with SHA3_256 and no default features
-            command: wasm-pack test --node --no-default-features --features wasm,sha3_256
 
     steps:
       - uses: actions/checkout@main

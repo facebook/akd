@@ -4,13 +4,26 @@ version = "0.9.0-pre.1"
 authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Client verification companion for the auditable key directory with limited dependencies."
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 keywords = ["key-transparency", "akd"]
-repository = "https://github.com/novifinancial/akd"
+repository = "https://github.com/facebook/akd"
 readme = "../README.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[features]
+# Disable all STD for the crate
+nostd = ["akd_core/nostd"]
+# Supported configurations
+whatsapp_v1 = ["akd_core/whatsapp_v1"]
+experimental = ["akd_core/experimental"]
+# Enable web assembly compilation of the AKD client crate
+wasm = ["wasm-bindgen", "dep:protobuf", "akd_core/protobuf"]
+protobuf_serialization = ["dep:protobuf", "akd_core/protobuf"]
+
+# Default feature mix (experimental)
+default = ["experimental"]
 
 [dependencies]
 ## Required dependencies ##
@@ -27,28 +40,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "0.4.5", optional = true }
 
-[features]
-# Disable all STD for the crate
-nostd = ["akd_core/nostd"]
-# Supported hash functions
-sha512 = ["akd_core/sha512"]
-sha256 = ["akd_core/sha256"]
-sha512_256 = ["akd_core/sha512_256"]
-sha3_256 = ["akd_core/sha3_256"]
-sha3_512 = ["akd_core/sha3_512"]
-blake3 = ["akd_core/blake3"]
-# Enable web assembly compilation of the AKD client crate
-wasm = ["wasm-bindgen", "protobuf", "akd_core/protobuf"]
-protobuf_serialization = ["protobuf", "akd_core/protobuf"]
-
-# Default feature mix (blake3)
-default = ["blake3"]
-
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 akd = { path = "../akd", default-features = false }
-
-[profile.release]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
-lto = true
+paste = "1"

@@ -8,6 +8,7 @@
 //! Tests for node labels
 
 use super::*;
+use crate::test_config_sync;
 #[cfg(feature = "nostd")]
 use alloc::vec;
 use rand::{thread_rng, Rng};
@@ -42,11 +43,11 @@ fn byte_arr_from_u64_le(input_int: u64) -> [u8; 32] {
     output_arr
 }
 
-/// This test tests get_bit_at on a small label of len 4.
-/// The label is logically equal to the binary string "1010"
-/// and should return the corresponding bits.
+// This test tests get_bit_at on a small label of len 4.
+// The label is logically equal to the binary string "1010"
+// and should return the corresponding bits.
 #[test]
-pub fn test_get_bit_at_small() {
+fn test_get_bit_at_small() {
     let val = 0b1010u64 << 60;
     let expected = vec![Bit::One, Bit::Zero, Bit::One, Bit::Zero];
     let label = NodeLabel::new(byte_arr_from_u64(val), 4);
@@ -68,10 +69,10 @@ pub fn test_get_bit_at_small() {
     }
 }
 
-/// In this test, we have a label of length 256, logically equal to
-/// 1 followed by 255 0s. We want to make sure its 0th bit is read out as 1.
+// In this test, we have a label of length 256, logically equal to
+// 1 followed by 255 0s. We want to make sure its 0th bit is read out as 1.
 #[test]
-pub fn test_get_bit_at_medium_1() {
+fn test_get_bit_at_medium_1() {
     let val = 0b1u64 << 63;
     let expected = Bit::One;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
@@ -88,7 +89,7 @@ pub fn test_get_bit_at_medium_1() {
 // We have this because the string itself has only one non-zero bit and we still want
 // to check beyond the 0th index.
 #[test]
-pub fn test_get_bit_at_medium_2() {
+fn test_get_bit_at_medium_2() {
     let val = 0b1u64 << 63;
     let expected = Bit::Zero;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
@@ -100,11 +101,11 @@ pub fn test_get_bit_at_medium_2() {
     )
 }
 
-/// This test creates a label of length 256 logically equal to
-/// "0000 0000 0000 0000 1010 0000" followed by all 0s. We know that the
-/// first non-zero bit is at position 16, and we want to check that.
+// This test creates a label of length 256 logically equal to
+// "0000 0000 0000 0000 1010 0000" followed by all 0s. We know that the
+// first non-zero bit is at position 16, and we want to check that.
 #[test]
-pub fn test_get_bit_at_large() {
+fn test_get_bit_at_large() {
     let mut val = [0u8; 32];
     // 128u8 = 0b1000 0000u8 and 32u8 = 0b10 0000u8, hence their
     // sum is "1010 0000"
@@ -145,12 +146,12 @@ pub fn test_get_bit_at_large() {
     }
 }
 
-/// This test is testing our helper function byte_arr_from_u64, which
-/// we mainly use for testing. Still we want it to be correct!
-/// We call it "small" since it only tests what would
-/// result in 1 non-zero byte.
+// This test is testing our helper function byte_arr_from_u64, which
+// we mainly use for testing. Still we want it to be correct!
+// We call it "small" since it only tests what would
+// result in 1 non-zero byte.
 #[test]
-pub fn test_byte_arr_from_u64_small() {
+fn test_byte_arr_from_u64_small() {
     // This val is 2 copies of "10" followed by all 0s.
     // This should be converted into the byte array of all 0s
     // but with the first two byte 0b10100000u8.
@@ -165,11 +166,11 @@ pub fn test_byte_arr_from_u64_small() {
     )
 }
 
-/// This test is testing our helper function byte_arr_from_u64, which
-/// we mainly use for testing. Still we want it to be correct!
-/// It is only testing for 2 non-zero bytes.
+// This test is testing our helper function byte_arr_from_u64, which
+// we mainly use for testing. Still we want it to be correct!
+// It is only testing for 2 non-zero bytes.
 #[test]
-pub fn test_byte_arr_from_u64_medium() {
+fn test_byte_arr_from_u64_medium() {
     // This val is 6 copies of "10" followed by all 0s.
     // This should be converted into the byte array of all 0s
     // but with the first two bytes 0b10101010u8 and 0b10100000u8.
@@ -184,11 +185,11 @@ pub fn test_byte_arr_from_u64_medium() {
     )
 }
 
-/// This test is testing our helper function byte_arr_from_u64, which
-/// we mainly use for testing. Still we want it to be correct!
-/// It is only testing for 3 non-zero bytes.
+// This test is testing our helper function byte_arr_from_u64, which
+// we mainly use for testing. Still we want it to be correct!
+// It is only testing for 3 non-zero bytes.
 #[test]
-pub fn test_byte_arr_from_u64_larger() {
+fn test_byte_arr_from_u64_larger() {
     // This string was hand-generated for testing so that
     // all three non-zero bytes were distinct.
     let val = 0b01011010101101010101010u64 << 41;
@@ -204,9 +205,9 @@ pub fn test_byte_arr_from_u64_larger() {
     )
 }
 
-/// Test two NodeLabels for equality, when their leading bit is 1.
+// Test two NodeLabels for equality, when their leading bit is 1.
 #[test]
-pub fn test_node_label_equal_leading_one() {
+fn test_node_label_equal_leading_one() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     assert!(
@@ -215,9 +216,9 @@ pub fn test_node_label_equal_leading_one() {
     )
 }
 
-/// Test two NodeLabels for equality, when their leading bit is 0.
+// Test two NodeLabels for equality, when their leading bit is 0.
 #[test]
-pub fn test_node_label_equal_leading_zero() {
+fn test_node_label_equal_leading_zero() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(100000000u64 << 55), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 9u32);
     assert!(
@@ -226,17 +227,17 @@ pub fn test_node_label_equal_leading_zero() {
     )
 }
 
-/// Test two NodeLabels for inequality, when their leading bit is 1.
+// Test two NodeLabels for inequality, when their leading bit is 1.
 #[test]
-pub fn test_node_label_unequal_values() {
+fn test_node_label_unequal_values() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(110000000u64), 9u32);
     assert!(label_1 != label_2, "Unequal labels found equal!")
 }
 
-/// Test two NodeLabels for inequality due to differing length, when their leading bit is 1.
+// Test two NodeLabels for inequality due to differing length, when their leading bit is 1.
 #[test]
-pub fn test_node_label_equal_values_unequal_len() {
+fn test_node_label_equal_values_unequal_len() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 9u32);
     assert!(
@@ -245,152 +246,152 @@ pub fn test_node_label_equal_values_unequal_len() {
     )
 }
 
-/// Test for get_longest_common_prefix between a label and itself being itself. Leading 1.
-#[test]
-pub fn test_node_label_lcp_with_self_leading_one() {
+// Test for get_longest_common_prefix between a label and itself being itself. Leading 1.
+test_config_sync!(test_node_label_lcp_with_self_leading_one);
+fn test_node_label_lcp_with_self_leading_one<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(10000000u64 << 56), 8u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with self with leading one, not equal to itself!"
     )
 }
 
-/// Test for get_longest_common_prefix between a label and a zero-length node label.
-#[test]
-pub fn test_node_label_lcp_with_zero_length_label() {
+// Test for get_longest_common_prefix between a label and a zero-length node label.
+test_config_sync!(test_node_label_lcp_with_zero_length_label);
+fn test_node_label_lcp_with_zero_length_label<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0u64), 0u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0u64), 2u32);
     let expected = label_1;
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with zero-length label, not equal to zero-length label!"
     );
     assert!(
-        label_2.get_longest_common_prefix(label_1) == expected,
+        label_2.get_longest_common_prefix::<TC>(label_1) == expected,
         "Longest common substring with zero-length label, not equal to zero-length label!"
     );
 }
 
-/// Test for get_longest_common_prefix between a label and its prefix.
-#[test]
-pub fn test_node_label_lcp_with_prefix_label() {
+// Test for get_longest_common_prefix between a label and its prefix.
+test_config_sync!(test_node_label_lcp_with_prefix_label);
+fn test_node_label_lcp_with_prefix_label<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(01u64 << 62), 2u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(01u64 << 62), 3u32);
     let expected = label_1;
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with prefix label, not equal to prefix label!"
     );
     assert!(
-        label_2.get_longest_common_prefix(label_1) == expected,
+        label_2.get_longest_common_prefix::<TC>(label_1) == expected,
         "Longest common substring with prefix label, not equal to prefix label!"
     );
 }
 
-/// Test for get_longest_common_prefix between a label and itself being itself. Leading 0.
-#[test]
-pub fn test_node_label_lcp_with_self_leading_zero() {
+// Test for get_longest_common_prefix between a label and itself being itself. Leading 0.
+test_config_sync!(test_node_label_lcp_with_self_leading_zero);
+fn test_node_label_lcp_with_self_leading_zero<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b1000000u64 << 56), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b1000000u64 << 56), 9u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1000000u64 << 56), 9u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with self with leading zero, not equal to itself!"
     )
 }
 
-/// Test for get_longest_common_prefix between a label and a prefix of this label. Leading 1.
-#[test]
-pub fn test_node_label_lcp_self_prefix_leading_one() {
+// Test for get_longest_common_prefix between a label and a prefix of this label. Leading 1.
+test_config_sync!(test_node_label_lcp_self_prefix_leading_one);
+fn test_node_label_lcp_self_prefix_leading_one<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b1000u64 << 60), 4u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1000u64 << 60), 4u32);
-    let computed = label_1.get_longest_common_prefix(label_2);
+    let computed = label_1.get_longest_common_prefix::<TC>(label_2);
     assert!(
         computed == expected,
         "{}", "Longest common substring with self with leading one, not equal to itself! Expected: {expected:?}, Got: {computed:?}"
     )
 }
 
-/// Test for get_longest_common_prefix between a label and a prefix of this label. Leading 0.
-#[test]
-pub fn test_node_label_lcp_self_prefix_leading_zero() {
+// Test for get_longest_common_prefix between a label and a prefix of this label. Leading 0.
+test_config_sync!(test_node_label_lcp_self_prefix_leading_zero);
+fn test_node_label_lcp_self_prefix_leading_zero<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 55), 7u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 55), 9u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 55), 7u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with self with leading zero, not equal to itself!"
     )
 }
 
-/// Test for get_longest_common_prefix between two labels starting at the bit 1.
-#[test]
-pub fn test_node_label_lcp_other_one() {
-    let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 56), 8u32);
+// Test for get_longest_common_prefix between two labels starting at the bit 1.
+test_config_sync!(test_node_label_lcp_other_one);
+fn test_node_label_lcp_other_one<TC: Configuration>() {
+    let label_1: NodeLabel = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32);
-    let computed = label_1.get_longest_common_prefix(label_2);
+    let computed = label_1.get_longest_common_prefix::<TC>(label_2);
     assert!(
         computed == expected,
         "{}", "Longest common substring with other with leading one, not equal to expected! Expected: {expected:?}, Computed: {computed:?}"
     )
 }
 
-/// Test for get_longest_common_prefix between two labels starting at the bits 01.
-#[test]
-pub fn test_node_label_lcp_other_zero() {
+// Test for get_longest_common_prefix between two labels starting at the bits 01.
+test_config_sync!(test_node_label_lcp_other_zero);
+fn test_node_label_lcp_other_zero<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 55), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64 << 55), 9u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1u64 << 62), 2u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with other with leading zero, not equal to expected!"
     )
 }
 
-/// Test for get_longest_common_prefix between two labels which have no common prefix.
-#[test]
-pub fn test_node_label_lcp_empty() {
+// Test for get_longest_common_prefix between two labels which have no common prefix.
+test_config_sync!(test_node_label_lcp_empty);
+fn test_node_label_lcp_empty<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b10000000u64 << 55), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b11000000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b0u64), 0u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring should be empty!"
     )
 }
 
-/// Test for get_longest_common_prefix between two labels starting at the bits 1101.
-#[test]
-pub fn test_node_label_lcp_some_leading_one() {
+// Test for get_longest_common_prefix between two labels starting at the bits 1101.
+test_config_sync!(test_node_label_lcp_some_leading_one);
+fn test_node_label_lcp_some_leading_one<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64 << 56), 8u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64 << 56), 8u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1101u64 << 60), 4u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with other with leading one, not equal to expected!"
     )
 }
 
-/// Test for get_longest_common_prefix between two labels starting at the bits 01101.
-#[test]
-pub fn test_node_label_lcp_some_leading_zero() {
+// Test for get_longest_common_prefix between two labels starting at the bits 01101.
+test_config_sync!(test_node_label_lcp_some_leading_zero);
+fn test_node_label_lcp_some_leading_zero<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b11010000u64 << 55), 9u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b11011000u64 << 55), 9u32);
     let expected = NodeLabel::new(byte_arr_from_u64(0b1101u64 << 59), 5u32);
     assert!(
-        label_1.get_longest_common_prefix(label_2) == expected,
+        label_1.get_longest_common_prefix::<TC>(label_2) == expected,
         "Longest common substring with other with leading zero, not equal to expected!"
     )
 }
 
-/// This test tests get_dir by manually computing the prefix and the bit
-/// immediately following the prefix of that length.
-#[test]
-pub fn test_get_dir_large() {
+// This test tests get_dir by manually computing the prefix and the bit
+// immediately following the prefix of that length.
+test_config_sync!(test_get_dir_large);
+fn test_get_dir_large<TC: Configuration>() {
     for i in 0..257 {
         let label_1 = random_label();
         let pos = i;
@@ -411,10 +412,10 @@ pub fn test_get_dir_large() {
     }
 }
 
-/// This test just serves as another example of get_dir and this time we want to use little endian encoding
-/// since we are using more complex u64 values.
+// This test just serves as another example of get_dir and this time we want to use little endian encoding
+// since we are using more complex u64 values.
 #[test]
-pub fn test_get_dir_example() {
+fn test_get_dir_example() {
     // 23 in little endian is 10111 and 10049430782486799941u64 begins with
     // the prefix 00110100, hence, label_1 is not a prefix of label_2.
     let label_1 = NodeLabel::new(byte_arr_from_u64_le(10049430782486799941u64), 64u32);
@@ -427,9 +428,9 @@ pub fn test_get_dir_example() {
     )
 }
 
-/// This test gets a prefix for a hard-coded random string and makes sure it is equal to a hand-computed value.
+// This test gets a prefix for a hard-coded random string and makes sure it is equal to a hand-computed value.
 #[test]
-pub fn test_get_prefix_small() {
+fn test_get_prefix_small() {
     let label_1 = NodeLabel::new(
         byte_arr_from_u64(0b1000101101110110110000000000110101110001000000000110011001000101u64),
         64u32,
@@ -443,16 +444,16 @@ pub fn test_get_prefix_small() {
     )
 }
 
-#[test]
-pub fn test_is_prefix_of() {
+test_config_sync!(test_is_prefix_of);
+fn test_is_prefix_of<TC: Configuration>() {
     let label_1 = NodeLabel::new(byte_arr_from_u64(0b01u64 << 62), 4u32);
     let label_2 = NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 5u32);
     let label_3 = NodeLabel::new(byte_arr_from_u64(0b0u64), 4u32);
 
     // empty label is prefix of all labels
-    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_1), true);
-    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_2), true);
-    assert_eq!(EMPTY_LABEL.is_prefix_of(&label_3), true);
+    assert_eq!(TC::empty_label().is_prefix_of(&label_1), true);
+    assert_eq!(TC::empty_label().is_prefix_of(&label_2), true);
+    assert_eq!(TC::empty_label().is_prefix_of(&label_3), true);
 
     // every label is a prefix of itself
     assert_eq!(label_1.is_prefix_of(&label_1), true);

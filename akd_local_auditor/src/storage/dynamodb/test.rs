@@ -17,6 +17,7 @@ use super::*;
 use crate::common_test::AuditInformation;
 use crate::storage::s3;
 use crate::storage::AuditProofStorage;
+use akd::configuration::WhatsAppV1Configuration;
 use anyhow::Result;
 use aws_sdk_dynamodb::types::Blob;
 use aws_smithy_http::byte_stream::ByteStream;
@@ -153,10 +154,12 @@ async fn integration_test_dynamo_audit_verification() {
             epoch.name.epoch,
             epoch.name.epoch + 1
         );
-        crate::auditor::audit_epoch(proof_blob.clone(), false)
+        crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob.clone(), false)
             .await
             .unwrap();
-        crate::auditor::audit_epoch(proof_blob, true).await.unwrap();
+        crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob, true)
+            .await
+            .unwrap();
     }
 
     // if the test is successful, try a cleanup of the storage now

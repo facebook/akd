@@ -10,17 +10,18 @@
 use super::base::{verify_existence, verify_existence_with_val, verify_nonexistence};
 use super::VerificationError;
 
+use crate::configuration::Configuration;
 use crate::hash::Digest;
 use crate::{AkdLabel, LookupProof, VerifyResult, VersionFreshness};
 
 /// Verifies a lookup with respect to the root_hash
-pub fn lookup_verify(
+pub fn lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     akd_label: AkdLabel,
     proof: LookupProof,
 ) -> Result<VerifyResult, VerificationError> {
-    verify_existence_with_val(
+    verify_existence_with_val::<TC>(
         vrf_public_key,
         root_hash,
         &akd_label,
@@ -34,7 +35,7 @@ pub fn lookup_verify(
     )?;
 
     let marker_version = 1 << crate::utils::get_marker_version_log2(proof.version);
-    verify_existence(
+    verify_existence::<TC>(
         vrf_public_key,
         root_hash,
         &akd_label,
@@ -44,7 +45,7 @@ pub fn lookup_verify(
         &proof.marker_proof,
     )?;
 
-    verify_nonexistence(
+    verify_nonexistence::<TC>(
         vrf_public_key,
         root_hash,
         &akd_label,

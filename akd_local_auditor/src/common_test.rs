@@ -43,6 +43,7 @@ macro_rules! alphanumeric_function_name {
     }};
 }
 
+use akd::configuration::WhatsAppV1Configuration;
 // Re-export the macro for cross-module use
 pub(crate) use alphanumeric_function_name;
 
@@ -63,7 +64,7 @@ pub async fn generate_audit_proofs(
     let db = AsyncInMemoryDatabase::new();
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<_, _>::new(storage_manager, vrf).await?;
+    let akd = Directory::<WhatsAppV1Configuration, _, _>::new(storage_manager, vrf).await?;
     let mut proofs = vec![];
     // gather the hash for epoch "0" (init)
     let mut phash = akd.get_epoch_hash().await?.1;

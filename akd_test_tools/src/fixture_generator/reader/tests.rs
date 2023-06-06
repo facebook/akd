@@ -10,6 +10,7 @@
 use std::env;
 use std::fs::File;
 
+use akd::NamedConfiguration;
 use assert_fs::fixture::{FileWriteStr, NamedTempFile, TempDir};
 use clap::Parser;
 
@@ -17,11 +18,14 @@ use crate::fixture_generator::generator;
 use crate::fixture_generator::parser::Args;
 use crate::fixture_generator::reader::yaml::YamlFileReader;
 use crate::fixture_generator::reader::{Reader, ReaderError};
+use crate::test_config;
 
-#[tokio::test]
-async fn test_read() {
+test_config!(test_read);
+async fn test_read<TC: NamedConfiguration>() {
     // generate a temp fixture file
-    let file = TempDir::new().unwrap().with_file_name("test.yaml");
+    let file = TempDir::new()
+        .unwrap()
+        .with_file_name(format!("{}.yaml", TC::name()));
     let args = Args::parse_from(vec![
         env!("CARGO_CRATE_NAME"),
         "--epochs",
@@ -32,9 +36,9 @@ async fn test_read() {
         "9",
         "10",
         "--out",
-        &format!("{}", file.display()),
+        &format!("{}", file.parent().unwrap().display()),
     ]);
-    generator::generate(args).await;
+    generator::generate::<TC>(&args).await;
 
     // initialize reader
     let mut reader = YamlFileReader::new(File::open(file).unwrap()).unwrap();

@@ -87,7 +87,7 @@ pub struct Args {
     #[clap(long = "capture_deltas", short = 'd', multiple_values = true)]
     pub capture_deltas: Option<Vec<u32>>,
 
-    /// Name of output file.
+    /// Name of output path.
     /// If omitted, output will be printed to stdout.
     #[clap(long = "out", short = 'o')]
     pub out: Option<String>,

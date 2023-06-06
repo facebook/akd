@@ -13,18 +13,21 @@ use akd::{
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     storage::{memory::AsyncInMemoryDatabase, Database, StorageManager, StorageUtil},
+    NamedConfiguration,
 };
 
-use crate::fixture_generator::reader::yaml::YamlFileReader;
 use crate::fixture_generator::reader::Reader;
+use crate::{fixture_generator::reader::yaml::YamlFileReader, test_config};
 
 // Contains two consecutive states and the delta between them
-const TEST_FILE: &str = "src/fixture_generator/examples/test.yaml";
+const FILE_PATH: &str = "src/fixture_generator/examples";
 
-#[tokio::test]
-async fn test_use_fixture() {
+test_config!(test_use_fixture);
+async fn test_use_fixture<TC: NamedConfiguration>() {
     // load fixture
-    let mut reader = YamlFileReader::new(File::open(TEST_FILE).unwrap()).unwrap();
+    let mut reader =
+        YamlFileReader::new(File::open(format!("{}/{}.yaml", FILE_PATH, TC::name())).unwrap())
+            .unwrap();
     let metadata = reader.read_metadata().unwrap();
     let epochs = metadata.args.capture_states.unwrap();
 
@@ -36,7 +39,7 @@ async fn test_use_fixture() {
         .unwrap();
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<_, _>::new(storage_manager.clone(), vrf)
+    let akd = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
         .await
         .unwrap();
 

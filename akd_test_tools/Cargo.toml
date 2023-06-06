@@ -4,10 +4,14 @@ version = "0.9.0-pre.1"
 authors = ["Evan Au <evanau@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
 description = "Test utilities and tooling"
 license = "MIT OR Apache-2.0"
-edition = "2018"
+edition = "2021"
 keywords = ["key-transparency", "akd"]
-repository = "https://github.com/novifinancial/akd"
+repository = "https://github.com/facebook/akd"
 readme = "../README.md"
+
+[features]
+whatsapp_v1 = ["akd/whatsapp_v1"]
+default = ["whatsapp_v1"]
 
 [dependencies]
 winter-crypto = "0.2"
@@ -25,6 +29,7 @@ thread-id = "3"
 akd = { path = "../akd", features = ["serde_serialization"] }
 
 [dev-dependencies]
-assert_fs="1"
+assert_fs = "1"
+paste = "1"
 
-akd = { path = "../akd", features = ["public_tests", "rand", "serde_serialization"] }
+akd = { path = "../akd", features = ["public_tests", "serde_serialization"] }

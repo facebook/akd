@@ -13,7 +13,7 @@ use super::base::{
 };
 use super::VerificationError;
 
-use crate::crypto::stale_azks_value;
+use crate::configuration::Configuration;
 use crate::hash::Digest;
 use crate::{AkdLabel, HistoryProof, UpdateProof, VerifyResult, VersionFreshness};
 #[cfg(feature = "nostd")]
@@ -44,7 +44,7 @@ impl Default for HistoryVerificationParams {
 /// Returns a vector of whether the validity of a hash could be verified.
 /// When false, the value <=> hash validity at the position could not be
 /// verified because the value has been removed ("tombstoned") from the storage layer.
-pub fn key_history_verify(
+pub fn key_history_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     current_epoch: u64,
@@ -98,8 +98,13 @@ pub fn key_history_verify(
             }
         }
         maybe_previous_update_epoch = Some(update_proof.epoch);
-        let result =
-            verify_single_update_proof(root_hash, vrf_public_key, update_proof, &akd_key, params)?;
+        let result = verify_single_update_proof::<TC>(
+            root_hash,
+            vrf_public_key,
+            update_proof,
+            &akd_key,
+            params,
+        )?;
         results.push(result);
     }
 
@@ -110,7 +115,7 @@ pub fn key_history_verify(
     // ***** Future checks below ***************************
     // Verify the non-existence of future entries, up to the next marker
     for (i, version) in (last_version + 1..(1 << next_marker)).enumerate() {
-        verify_nonexistence(
+        verify_nonexistence::<TC>(
             vrf_public_key,
             root_hash,
             &akd_key,
@@ -126,7 +131,7 @@ pub fn key_history_verify(
     // Verify the VRFs and non-membership proofs for future markers
     for (i, pow) in (next_marker..final_marker + 1).enumerate() {
         let version = 1 << pow;
-        verify_nonexistence(
+        verify_nonexistence::<TC>(
             vrf_public_key,
             root_hash,
             &akd_key,
@@ -142,7 +147,7 @@ pub fn key_history_verify(
 }
 
 /// Verifies a single update proof
-fn verify_single_update_proof(
+fn verify_single_update_proof<TC: Configuration>(
     root_hash: Digest,
     vrf_public_key: &[u8],
     proof: UpdateProof,
@@ -155,7 +160,7 @@ fn verify_single_update_proof(
             // A tombstone was encountered, we need to just take the
             // hash of the value at "face value" since we don't have
             // the real value available
-            verify_existence(
+            verify_existence::<TC>(
                 vrf_public_key,
                 root_hash,
                 akd_label,
@@ -167,7 +172,7 @@ fn verify_single_update_proof(
         }
         (_, akd_value) => {
             // No tombstone so hash the value found, and compare to the existence proof's value
-            verify_existence_with_val(
+            verify_existence_with_val::<TC>(
                 vrf_public_key,
                 root_hash,
                 akd_label,
@@ -204,11 +209,11 @@ fn verify_single_update_proof(
             VerificationError::HistoryProof("Missing VRF proof for previous version".to_string())
         })?;
 
-    verify_existence_with_commitment(
+    verify_existence_with_commitment::<TC>(
         vrf_public_key,
         root_hash,
         akd_label,
-        stale_azks_value(),
+        TC::stale_azks_value(),
         proof.epoch,
         VersionFreshness::Stale,
         proof.version - 1,
