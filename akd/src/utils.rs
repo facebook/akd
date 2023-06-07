@@ -5,13 +5,29 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-// 1. Create a hashmap of all prefixes of all elements of the node set
-// 2. For each node in current_nodes set, check if each child is in prefix hashmap
-// 3. If so, add child label to batch set
+use std::collections::HashMap;
+use rand::Rng;
 
-// Creates a byte array of 32 bytes from a u64
-// Note that this representation is big-endian, and
-// places the bits to the front of the output byte_array.
+/// Create a hashmap of all prefixes of all elements of the node set.
+/// For each node in current_nodes set, check if each child is in the prefix hashmap.
+/// If so, add child label to batch set.
+fn create_batch_set(current_nodes: &[Node], prefix_map: &HashMap<NodeLabel, usize>) -> Vec<ChildLabel> {
+    let mut batch_set = Vec::new();
+    
+    for node in current_nodes {
+        for child in &node.children {
+            if let Some(index) = prefix_map.get(&child.label) {
+                batch_set.push(child.label.clone());
+            }
+        }
+    }
+    
+    batch_set
+}
+
+/// Creates a byte array of 32 bytes from a u64.
+/// Note that this representation is big-endian, and
+/// places the bits to the front of the output byte_array.
 #[cfg(any(test, feature = "public-tests"))]
 pub(crate) fn byte_arr_from_u64(input_int: u64) -> [u8; 32] {
     let mut output_arr = [0u8; 32];
