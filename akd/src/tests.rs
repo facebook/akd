@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use rand::{rngs::StdRng, SeedableRng};
 
 use crate::{
-    auditor::audit_verify,
+    auditor::{audit_verify, verify_consecutive_append_only},
     client::{key_history_verify, lookup_verify},
     directory::{Directory, PublishCorruption, ReadOnlyDirectory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
@@ -24,7 +24,8 @@ use crate::{
         Database, DbSetState, Storable,
     },
     tree_node::TreeNodeWithPreviousValue,
-    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams, VerifyResult,
+    AkdLabel, AkdValue, AppendOnlyProof, Azks, EpochHash, HistoryParams, HistoryVerificationParams,
+    VerifyResult,
 };
 
 #[derive(Clone)]
@@ -828,6 +829,61 @@ async fn test_simple_audit() -> Result<(), AkdError> {
     // Test correct audit of 3 consecutive epochs ending at epoch 6 -- the last epoch
     let audit_proof_7 = akd.audit(4, 6).await?;
     audit_verify(vec![root_hash_4, root_hash_5, root_hash_6], audit_proof_7).await?;
+
+    // The audit_verify function should throw an AuditorError when the proof has a different
+    // number of epochs than needed for hashes
+    let audit_proof_8 = akd.audit(4, 6).await?;
+    let invalid_audit_verification = audit_verify(
+        vec![
+            root_hash_1,
+            root_hash_2,
+            root_hash_3,
+            root_hash_4,
+            root_hash_5,
+        ],
+        audit_proof_8,
+    )
+    .await;
+    assert!(matches!(
+        invalid_audit_verification,
+        Err(AkdError::AuditErr(_))
+    ));
+
+    // The audit_verify function should throw an AuditorError when the proof does not have the same
+    // number of epochs as proofs
+    let audit_proof_9 = akd.audit(1, 5).await?;
+    let audit_proof_10 = akd.audit(4, 6).await?;
+    let invalid_audit_proof = AppendOnlyProof {
+        proofs: audit_proof_10.proofs,
+        epochs: audit_proof_9.epochs,
+    };
+    let invalid_audit_verification = audit_verify(
+        vec![
+            root_hash_1,
+            root_hash_2,
+            root_hash_3,
+            root_hash_4,
+            root_hash_5,
+        ],
+        invalid_audit_proof,
+    )
+    .await;
+    assert!(matches!(
+        invalid_audit_verification,
+        Err(AkdError::AuditErr(_))
+    ));
+
+    // The verify_consecutive_append_only function should throw an AzksErr error when the computed
+    // end root hash is not equal to the end hash
+    let audit_proof_11 = akd.audit(1, 2).await?;
+    let verification = verify_consecutive_append_only(
+        &audit_proof_11.proofs[0],
+        root_hash_1,
+        root_hash_3, // incorrect end hash - should be root_hash_2
+        audit_proof_11.epochs[0] + 1,
+    )
+    .await;
+    assert!(matches!(verification, Err(AkdError::AzksErr(_))));
 
     // The audit should be of more than 1 epoch
     let invalid_audit = akd.audit(3, 3).await;
