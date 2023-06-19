@@ -255,7 +255,7 @@ impl From<akd_core::verify::VerificationError> for DirectoryError {
 }
 
 /// Represents a storage-layer error
-#[cfg_attr(any(test, feature = "public-tests"), derive(PartialEq, Eq))]
+#[cfg_attr(any(test, feature = "public_tests"), derive(PartialEq, Eq))]
 #[derive(Debug)]
 pub enum StorageError {
     /// Data wasn't found in the storage layer

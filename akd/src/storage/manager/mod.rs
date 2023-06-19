@@ -109,7 +109,7 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Retrieve a reference to the database implementation
-    #[cfg(any(test, feature = "public-tests"))]
+    #[cfg(any(test, feature = "public_tests"))]
     pub fn get_db(&self) -> Arc<Db> {
         self.db.clone()
     }

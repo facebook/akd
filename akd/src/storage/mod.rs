@@ -30,7 +30,7 @@ pub mod memory;
 
 pub use manager::StorageManager;
 
-#[cfg(any(test, feature = "public-tests"))]
+#[cfg(any(test, feature = "public_tests"))]
 pub mod tests;
 
 /// Denotes the "state" when a batch_set is being called in the data layer
