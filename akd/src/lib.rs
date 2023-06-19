@@ -388,7 +388,7 @@
 //! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
 //! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
 //!
-//! 2. `public-tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
+//! 2. `public_tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
 //! unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
 //! used only in unit testing scenarios by altering your Cargo.toml as such:
 //! ```toml
@@ -396,7 +396,7 @@
 //! akd = { version = "0.9.0-pre.1" }
 //!
 //! [dev-dependencies]
-//! akd = { version = "0.9.0-pre.1", features = ["public-tests"] }
+//! akd = { version = "0.9.0-pre.1", features = ["public_tests"] }
 //! ```
 //!
 
@@ -438,7 +438,7 @@ pub use directory::{Directory, HistoryParams};
 pub use helper_structs::EpochHash;
 
 // ========== Constants and type aliases ========== //
-#[cfg(any(test, feature = "public-tests"))]
+#[cfg(any(test, feature = "public_tests"))]
 pub mod test_utils;
 #[cfg(test)]
 mod tests;

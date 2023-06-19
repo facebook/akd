@@ -30,4 +30,4 @@ akd = { path = "../akd", features = ["serde_serialization"], default-features = 
 [dev-dependencies]
 criterion = "0.3"
 serial_test = "0.5"
-akd = { path = "../akd", features = ["blake3", "public-tests"], default-features = false }
+akd = { path = "../akd", features = ["blake3", "public_tests"], default-features = false }

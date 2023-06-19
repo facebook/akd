@@ -42,10 +42,10 @@ If you write a new storage layer for the AKD crate, you can run our standard sui
 
 ```toml
 [dev-dependencies]
-akd = { path = "../akd", version = "^0.5.0", features = ["public-tests", "serde"] }
+akd = { path = "../akd", version = "^0.5.0", features = ["public_tests", "serde"] }
 ```
 
-which will expose a common-testing pattern with the `public-tests` feature. The [`akd_mysql`](akd_mysql/src/mysql_db_tests.rs) crate does exactly this. You can simply run ths same test-suite for your new storage implementation that we run against all of them (and you'll benefit from downstream storage testing changes as well). Once you've setup your storage layer in your test case you simply invoke the suite
+which will expose a common-testing pattern with the `public_tests` feature. The [`akd_mysql`](akd_mysql/src/mysql_db_tests.rs) crate does exactly this. You can simply run ths same test-suite for your new storage implementation that we run against all of them (and you'll benefit from downstream storage testing changes as well). Once you've setup your storage layer in your test case you simply invoke the suite
 
 ```rust
 #[tokio::test]
@@ -136,7 +136,7 @@ cargo test
 is equivalent. Otherwise the full Rust suite of testing options with [Cargo Test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) are available as well in this repo. Feel free to run the suite as you see fit. Another common adjustment done in this repository worth nothing is the used of specific features. For example, to test the `akd` crate with no verifiable random function (VRF) implementation, you can use the arguments
 
 ```bash
-cargo test --package akd --no-default-features --features public-tests
+cargo test --package akd --no-default-features --features public_tests
 ```
 
 which will disable the feature `vrf`, effectively running code paths tagged with

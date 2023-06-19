@@ -18,8 +18,8 @@ sha3_256 = ["akd_core/sha3_256"]
 sha3_512 = ["akd_core/sha3_512"]
 blake3 = ["akd_core/blake3"]
 
-bench = ["blake3", "public-tests","tokio/rt-multi-thread"]
-public-tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization", "akd_core/rand"]
+bench = ["blake3", "public_tests","tokio/rt-multi-thread"]
+public_tests = ["rand", "bincode", "colored", "once_cell", "serde_serialization", "akd_core/rand"]
 public_auditing = ["protobuf", "akd_core/protobuf"]
 serde_serialization = ["serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
@@ -73,7 +73,7 @@ futures = "0.3"
 itertools = "0.10"
 
 # To enable the public-test feature in tests
-akd = { path = ".", features = ["public-tests"], default-features = false }
+akd = { path = ".", features = ["public_tests"], default-features = false }
 
 [[bench]]
 name = "azks"

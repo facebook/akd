@@ -163,7 +163,7 @@ impl TreeNodeWithPreviousValue {
     /// Construct a TreeNode with "previous" value where the
     /// previous value is None. This is useful for the first
     /// time a node appears in the directory data layer.
-    #[cfg(feature = "public-tests")]
+    #[cfg(feature = "public_tests")]
     pub(crate) fn from_tree_node(node: TreeNode) -> Self {
         Self {
             label: node.label,
