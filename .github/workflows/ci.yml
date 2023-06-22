@@ -33,9 +33,6 @@ jobs:
             package: akd
             flags: --features runtime_metrics
 
-          - name: Test the local auditor, with default features
-            package: akd_local_auditor
-
           - name: Test the base client library, with default features
             package: akd_client
 
@@ -186,3 +183,19 @@ jobs:
       - name: Run test
         working-directory: ./akd_client
         run: ${{matrix.command}}
+
+  auditor-tests:
+    name: Test latest epoch verification for the whatsapp-kt-auditor example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Run latest epoch audit proof verification
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -p examples --release -- whatsapp-kt-auditor -l

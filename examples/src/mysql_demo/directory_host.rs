@@ -7,14 +7,11 @@
 
 use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
-use akd::errors::AkdError;
-use akd::storage::types::*;
-use akd::storage::{Database, StorageManager};
+use akd::storage::Database;
 use akd::HistoryParams;
-use akd::{AkdLabel, AkdValue, Digest};
+use akd::{AkdLabel, AkdValue};
 use akd::{Directory, EpochHash};
-use log::{debug, error, info};
-use std::marker::{Send, Sync};
+use log::{error, info};
 use tokio::sync::mpsc::*;
 use tokio::time::Instant;
 
