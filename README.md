@@ -31,6 +31,17 @@ akd = "0.9.0-pre.1"
 
 Rust **1.51** or higher.
 
+Top-Level Directory Organization
+--------------------------------
+
+| Subfolder           | On crates.io? | Description |
+| :---                |  :---:        | :---        |
+| `akd`               |    ✓          | Main implementation of AKD which a service provider that manages the underlying directory would need to run. A good starting point for diving into this implementation. |
+| `akd_core`          |    ✓          | Minimal library consisting of core operations in AKD. |
+| `examples`          |               | Contains various examples for using AKD, along with utilities such as locally verifying audit proofs that are produced by WhatsApp's key transparency deployment. More details are contained [here](examples/README.md). |
+| `xtask`             |               | Used for running the code coverage pipeline. |
+
+
 Contributors
 ------------
 
