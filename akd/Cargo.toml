@@ -37,7 +37,7 @@ default = ["public_auditing", "parallel_vrf", "parallel_insert", "preload_histor
 [dependencies]
 ## Required dependencies ##
 akd_core = { path = "../akd_core", default-features = false, features = ["vrf"] }
-async-recursion = "0.3"
+async-recursion = "1"
 async-trait = "0.1"
 curve25519-dalek = "3"
 dashmap = { version = "5" }
@@ -56,19 +56,18 @@ protobuf = { version = "3.2", optional = true }
 paste = { version = "1", optional = true }
 
 [dev-dependencies]
-criterion = "0.3"
-serial_test = "0.5"
+criterion = "0.5"
+serial_test = "2"
 proptest = "1.0"
 proptest-derive = "0.3"
 colored = { version = "2" }
 once_cell = { version = "1" }
-ctor = "0.1"
+ctor = "0.2"
 tokio-test = "0.4"
 tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
 mockall = "0.11"
 futures = "0.3"
-itertools = "0.10"
-paste = "1"
+itertools = "0.11"
 
 # To enable the public_tests feature in tests
 akd = { path = ".", features = ["public_tests", "whatsapp_v1", "experimental"], default-features = false }

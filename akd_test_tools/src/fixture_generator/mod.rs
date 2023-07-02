@@ -26,3 +26,5 @@ pub mod reader;
 
 /// Re-export generator run function.
 pub use generator::run;
+
+const YAML_SEPARATOR: &str = "---";

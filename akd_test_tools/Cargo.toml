@@ -14,17 +14,15 @@ whatsapp_v1 = ["akd/whatsapp_v1"]
 default = ["whatsapp_v1"]
 
 [dependencies]
-winter-crypto = "0.2"
-winter-math = "0.2"
-clap = { version="3", features = ["derive"]}
+clap = { version = "4", features = ["derive"] }
 log = { version = "0.4.8", features = ["kv_unstable"] }
 tokio = { version = "1.21", features = ["full"] }
 regex = "1.5"
 rand = "0.7"
-serde_yaml = "0.8"
+serde_yaml = "0.9"
 serde = "1.0"
 async-trait = "0.1"
-thread-id = "3"
+thread-id = "4"
 
 akd = { path = "../akd", features = ["serde_serialization"] }
 

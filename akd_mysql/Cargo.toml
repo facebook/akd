@@ -17,20 +17,17 @@ default = ["experimental"]
 
 [dependencies]
 bincode = "1"
-winter-crypto = "0.2"
-winter-utils = "0.2"
-winter-math = "0.2"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 async-trait = "0.1"
 tokio = { version = "1.21", features = ["full"] }
-async-recursion = "0.3"
-mysql_async = "0.31"
-mysql_common = "0.29.1"
+async-recursion = "1"
+mysql_async = "0.32"
+mysql_common = "0.30"
 log = { version = "0.4.8", features = ["kv_unstable"] }
 akd = { path = "../akd", features = ["serde_serialization"], default-features = false }
 
 [dev-dependencies]
-criterion = "0.3"
-serial_test = "0.5"
+criterion = "0.5"
+serial_test = "2"
 akd = { path = "../akd", features = ["experimental", "public_tests"], default-features = false }

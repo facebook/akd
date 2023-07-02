@@ -56,7 +56,7 @@ proptest = "1.0"
 proptest-derive = "0.3"
 rand = "0.7"
 serde = { version = "1", features = ["derive"] }
-criterion = "0.4"
+criterion = "0.5"
 
 # To enable the public-tests feature in tests
 akd_core = { path = ".", features = ["public_tests"] }
