@@ -28,3 +28,26 @@ pub(crate) fn random_label(rng: &mut impl rand::Rng) -> crate::NodeLabel {
         label_len: 256,
     }
 }
+
+/// NOTE(new_config): Add a new configuration here
+
+/// Macro used for running tests with different configurations
+#[cfg(any(test, feature = "public_tests"))]
+#[macro_export]
+macro_rules! test_config {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[cfg(feature = "whatsapp_v1")]
+            #[tokio::test]
+            async fn [<$x _ whatsapp_v1_config>]() -> Result<(), AkdError> {
+                $x::<$crate::WhatsAppV1Configuration>().await
+            }
+
+            #[cfg(feature = "experimental")]
+            #[tokio::test]
+            async fn [<$x _ experimental_config>]() -> Result<(), AkdError> {
+                $x::<$crate::ExperimentalConfiguration>().await
+            }
+        }
+    };
+}

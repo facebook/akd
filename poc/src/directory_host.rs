@@ -5,6 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
+use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
 use akd::errors::AkdError;
 use akd::storage::types::*;
@@ -33,8 +34,9 @@ pub enum DirectoryCommand {
     Terminate,
 }
 
-pub(crate) async fn init_host<S, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<S, V>)
+pub(crate) async fn init_host<TC, S, V>(rx: &mut Receiver<Rpc>, directory: &mut Directory<TC, S, V>)
 where
+    TC: Configuration,
     S: Database + 'static,
     V: VRFKeyStorage,
 {
@@ -96,7 +98,7 @@ where
                 match directory.lookup(AkdLabel::from(&a)).await {
                     Ok((proof, root_hash)) => {
                         let vrf_pk = directory.get_public_key().await.unwrap();
-                        let verification = akd::client::lookup_verify(
+                        let verification = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
                             AkdLabel::from(&a),

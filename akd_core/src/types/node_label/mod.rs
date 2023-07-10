@@ -8,7 +8,7 @@
 //! This module contains the specifics for NodeLabel only, other types don't have the
 //! same level of detail and aren't broken into sub-modules
 
-use crate::{PrefixOrdering, SizeOf};
+use crate::{configuration::Configuration, PrefixOrdering, SizeOf};
 
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
@@ -17,12 +17,6 @@ use alloc::vec::Vec;
 
 #[cfg(test)]
 mod tests;
-
-/// The label used for an empty node
-pub const EMPTY_LABEL: NodeLabel = NodeLabel {
-    label_val: [1u8; 32], // FIXME(#344): Let's use a more concise value here, like [1u8, 0u8, ..., 0u8]
-    label_len: 0,
-};
 
 /// Represents the label of a AKD node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,10 +78,8 @@ pub(crate) enum Bit {
 
 impl NodeLabel {
     /// Returns the value of the [NodeLabel]
-    pub fn value(&self) -> Vec<u8> {
-        // FIXME(#344): We shouldn't need to actually hash the label, it is redundant. Change this to:
-        // self.to_bytes()
-        crate::hash::hash(&self.to_bytes()).to_vec()
+    pub fn value<TC: Configuration>(&self) -> Vec<u8> {
+        TC::compute_node_label_value(&self.to_bytes())
     }
 
     pub(crate) fn to_bytes(self) -> Vec<u8> {
@@ -104,7 +96,7 @@ impl NodeLabel {
 
     /// Takes as input a pointer to the caller and another [NodeLabel],
     /// returns a NodeLabel that is the longest common prefix of the two.
-    pub fn get_longest_common_prefix(&self, other: NodeLabel) -> Self {
+    pub fn get_longest_common_prefix<TC: Configuration>(&self, other: NodeLabel) -> Self {
         let shorter_len = if self.label_len < other.label_len {
             self.label_len
         } else {
@@ -117,8 +109,10 @@ impl NodeLabel {
         {
             prefix_len += 1;
         }
-        if *self == EMPTY_LABEL || other == EMPTY_LABEL {
-            return EMPTY_LABEL;
+
+        let empty_label = TC::empty_label();
+        if *self == empty_label || other == empty_label {
+            return empty_label;
         }
         self.get_prefix(prefix_len)
     }

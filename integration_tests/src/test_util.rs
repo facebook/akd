@@ -9,6 +9,7 @@ extern crate thread_id;
 
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::{Database, StorageManager};
+use akd::Configuration;
 use akd::Directory;
 use akd::{AkdLabel, AkdValue};
 use log::{info, Level, Metadata, Record};
@@ -26,6 +27,25 @@ use tokio::time::{Duration, Instant};
 static EPOCH: OnceCell<Instant> = OnceCell::new();
 
 static LOG: OnceCell<u64> = OnceCell::new();
+
+#[macro_export]
+macro_rules! test_config_serial {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[serial_test::serial]
+            #[tokio::test]
+            async fn [<$x _ whatsapp_v1_config>]() {
+                $x::<akd::WhatsAppV1Configuration>().await
+            }
+
+            #[serial_test::serial]
+            #[tokio::test]
+            async fn [<$x _ experimental_config>]() {
+                $x::<akd::ExperimentalConfiguration>().await
+            }
+        }
+    };
+}
 
 // ================== Logging ================== //
 
@@ -120,7 +140,7 @@ impl log::Log for FileLogger {
 
 // ================== Test Helpers ================== //
 
-pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
+pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VRFKeyStorage>(
     mysql_db: &StorageManager<S>,
     vrf: &V,
     num_users: u64,
@@ -142,7 +162,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new(mysql_db.clone(), vrf.clone()).await;
+    let maybe_dir = Directory::<TC, _, _>::new(mysql_db.clone(), vrf.clone()).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -184,7 +204,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) = akd::client::lookup_verify(
+                        if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
                             label,
@@ -215,7 +235,7 @@ pub(crate) async fn test_lookups<S: Database + 'static, V: VRFKeyStorage>(
                     for i in 0..proofs.len() {
                         let label = labels[i].clone();
                         let proof = proofs[i].clone();
-                        if let Err(error) = akd::client::lookup_verify(
+                        if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
                             label,

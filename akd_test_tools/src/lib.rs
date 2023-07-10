@@ -8,3 +8,22 @@
 pub mod fixture_generator;
 
 pub mod test_suites;
+
+#[cfg(test)]
+#[macro_export]
+// NOTE(new_config): Add new configurations here
+macro_rules! test_config {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[tokio::test]
+            async fn [<$x _ whatsapp_v1_config>]() {
+                $x::<akd::WhatsAppV1Configuration>().await
+            }
+
+            #[tokio::test]
+            async fn [<$x _ experimental_config>]() {
+                $x::<akd::ExperimentalConfiguration>().await
+            }
+        }
+    };
+}

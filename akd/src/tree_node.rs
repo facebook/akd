@@ -7,9 +7,6 @@
 
 //! The implementation of a node for a history patricia tree
 
-use crate::crypto::{
-    compute_parent_hash_from_children, empty_node_hash, empty_root_value, hash_leaf_with_commitment,
-};
 use crate::errors::{AkdError, StorageError, TreeNodeError};
 use crate::hash::EMPTY_DIGEST;
 use crate::storage::manager::StorageManager;
@@ -17,7 +14,8 @@ use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
 use crate::AzksValue;
 use crate::PrefixOrdering;
-use crate::{node_label::*, Direction, EMPTY_LABEL};
+use crate::{node_label::*, Direction};
+use akd_core::configuration::Configuration;
 #[cfg(feature = "serde_serialization")]
 use akd_core::utils::serde_helpers::{azks_value_hex_deserialize, azks_value_hex_serialize};
 use std::cmp::{max, min};
@@ -379,7 +377,7 @@ impl TreeNode {
     }
 
     /// Recomputes the node's hash based on its children
-    pub(crate) async fn update_hash<S: Database>(
+    pub(crate) async fn update_hash<TC: Configuration, S: Database>(
         &mut self,
         storage: &StorageManager<S>,
         hash_mode: NodeHashingMode,
@@ -399,11 +397,11 @@ impl TreeNode {
                 let right_child = self
                     .get_child_node(storage, Direction::Right, self.last_epoch)
                     .await?;
-                self.hash = compute_parent_hash_from_children(
-                    &node_to_azks_value(&left_child, hash_mode),
-                    &node_to_label(&left_child).value(),
-                    &node_to_azks_value(&right_child, hash_mode),
-                    &node_to_label(&right_child).value(),
+                self.hash = TC::compute_parent_hash_from_children(
+                    &node_to_azks_value::<TC>(&left_child, hash_mode),
+                    &node_to_label::<TC>(&left_child).value::<TC>(),
+                    &node_to_azks_value::<TC>(&right_child, hash_mode),
+                    &node_to_label::<TC>(&right_child).value::<TC>(),
                 );
             }
         }
@@ -491,14 +489,14 @@ pub(crate) enum NodeHashingMode {
     NoLeafEpoch,
 }
 
-pub(crate) fn node_to_label(input: &Option<TreeNode>) -> NodeLabel {
+pub(crate) fn node_to_label<TC: Configuration>(input: &Option<TreeNode>) -> NodeLabel {
     match input {
         Some(child_state) => child_state.label,
-        None => EMPTY_LABEL,
+        None => TC::empty_label(),
     }
 }
 
-pub(crate) fn node_to_azks_value(
+pub(crate) fn node_to_azks_value<TC: Configuration>(
     input: &Option<TreeNode>,
     hash_mode: NodeHashingMode,
 ) -> AzksValue {
@@ -508,18 +506,18 @@ pub(crate) fn node_to_azks_value(
             if let (TreeNodeType::Leaf, NodeHashingMode::WithLeafEpoch) =
                 (child_state.node_type, hash_mode)
             {
-                value = AzksValue(hash_leaf_with_commitment(value, child_state.last_epoch).0);
+                value = AzksValue(TC::hash_leaf_with_commitment(value, child_state.last_epoch).0);
             }
             value
         }
-        None => empty_node_hash(),
+        None => TC::empty_node_hash(),
     }
 }
 
 /// Create an empty root node.
-pub(crate) fn new_root_node() -> TreeNode {
+pub(crate) fn new_root_node<TC: Configuration>() -> TreeNode {
     // Empty root hash is the same as empty node hash with no label
-    let empty_root_hash = empty_root_value();
+    let empty_root_hash = TC::empty_root_value();
     TreeNode::new(
         NodeLabel::root(),
         NodeLabel::root(),
@@ -531,10 +529,10 @@ pub(crate) fn new_root_node() -> TreeNode {
 }
 
 /// Create an interior node with an empty hash.
-pub(crate) fn new_interior_node(label: NodeLabel, birth_epoch: u64) -> TreeNode {
+pub(crate) fn new_interior_node<TC: Configuration>(label: NodeLabel, birth_epoch: u64) -> TreeNode {
     TreeNode::new(
         label,
-        EMPTY_LABEL, // A placeholder that will get updated once the node is inserted
+        TC::empty_label(), // A placeholder that will get updated once the node is inserted
         TreeNodeType::Interior,
         birth_epoch,
         birth_epoch,
@@ -543,10 +541,14 @@ pub(crate) fn new_interior_node(label: NodeLabel, birth_epoch: u64) -> TreeNode 
 }
 
 /// Create a specific leaf node.
-pub(crate) fn new_leaf_node(label: NodeLabel, value: &AzksValue, birth_epoch: u64) -> TreeNode {
+pub(crate) fn new_leaf_node<TC: Configuration>(
+    label: NodeLabel,
+    value: &AzksValue,
+    birth_epoch: u64,
+) -> TreeNode {
     TreeNode::new(
         label,
-        EMPTY_LABEL, // A placeholder that will get updated once the node is inserted
+        TC::empty_label(), // A placeholder that will get updated once the node is inserted
         TreeNodeType::Leaf,
         birth_epoch,
         birth_epoch,
@@ -556,7 +558,6 @@ pub(crate) fn new_leaf_node(label: NodeLabel, value: &AzksValue, birth_epoch: u6
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::compute_root_hash_from_val;
     use akd_core::hash::DIGEST_BYTES;
 
     use super::*;
@@ -564,33 +565,30 @@ mod tests {
     use crate::NodeLabel;
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::manager::StorageManager;
+    use crate::test_config;
 
-    fn hash_label(label: NodeLabel) -> Vec<u8> {
-        label.value()
-    }
-
-    #[tokio::test]
-    async fn test_smallest_descendant_ep() -> Result<(), AkdError> {
+    test_config!(test_smallest_descendant_ep);
+    async fn test_smallest_descendant_ep<TC: Configuration>() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = new_root_node();
+        let mut root = new_root_node::<TC>();
 
         let mut right_child =
-            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
+            new_interior_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
 
-        let mut new_leaf = new_leaf_node(
+        let mut new_leaf = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32),
             &AzksValue([0u8; DIGEST_BYTES]),
             1,
         );
 
-        let mut leaf_1 = new_leaf_node(
+        let mut leaf_1 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &AzksValue([1u8; DIGEST_BYTES]),
             2,
         );
 
-        let mut leaf_2 = new_leaf_node(
+        let mut leaf_2 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &AzksValue([2u8; DIGEST_BYTES]),
             3,
@@ -599,7 +597,7 @@ mod tests {
         right_child.set_child(&mut leaf_2)?;
         right_child.set_child(&mut leaf_1)?;
         right_child
-            .update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            .update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         leaf_2.write_to_storage(&db, false).await?;
         leaf_1.write_to_storage(&db, false).await?;
@@ -607,7 +605,7 @@ mod tests {
 
         root.set_child(&mut new_leaf)?;
         root.set_child(&mut right_child)?;
-        root.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+        root.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         new_leaf.write_to_storage(&db, false).await?;
         right_child.write_to_storage(&db, false).await?;
@@ -662,21 +660,22 @@ mod tests {
     }
 
     // insert_single_leaf tests
-    #[tokio::test]
-    async fn test_insert_single_leaf_root() -> Result<(), AkdError> {
+    test_config!(test_insert_single_leaf_root);
+    async fn test_insert_single_leaf_root<TC: Configuration>() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
 
-        let mut root = new_root_node();
+        let mut root = new_root_node::<TC>();
 
         let val_0 = AzksValue([0u8; DIGEST_BYTES]);
         let val_1 = AzksValue([1u8; DIGEST_BYTES]);
 
         // Prepare the leaf to be inserted with label 0.
-        let mut leaf_0 = new_leaf_node(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), &val_0, 0);
+        let mut leaf_0 =
+            new_leaf_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), &val_0, 0);
 
         // Prepare another leaf to insert with label 1.
-        let mut leaf_1 = new_leaf_node(
+        let mut leaf_1 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32),
             &val_1,
             0,
@@ -688,25 +687,26 @@ mod tests {
         leaf_0.write_to_storage(&db, false).await?;
         leaf_1.write_to_storage(&db, false).await?;
 
-        root.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+        root.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db, false).await?;
 
         // Merge leaves hash along with the root label.
-        let leaves_hash = compute_parent_hash_from_children(
-            &AzksValue(hash_leaf_with_commitment(val_0, 0).0),
-            &hash_label(leaf_0.label),
-            &AzksValue(hash_leaf_with_commitment(val_1, 0).0),
-            &hash_label(leaf_1.label),
+        let leaves_hash = TC::compute_parent_hash_from_children(
+            &AzksValue(TC::hash_leaf_with_commitment(val_0, 0).0),
+            &leaf_0.label.value::<TC>(),
+            &AzksValue(TC::hash_leaf_with_commitment(val_1, 0).0),
+            &leaf_1.label.value::<TC>(),
         );
-        let expected = compute_root_hash_from_val(&leaves_hash);
+
+        let expected = TC::compute_root_hash_from_val(&leaves_hash);
 
         // Get root hash
         let stored_root = db
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => compute_root_hash_from_val(&node.latest_node.hash),
+            DbRecord::TreeNode(node) => TC::compute_root_hash_from_val(&node.latest_node.hash),
             _ => panic!("Root not found in storage."),
         };
 
@@ -715,28 +715,29 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_insert_single_leaf_below_root() -> Result<(), AkdError> {
+    test_config!(test_insert_single_leaf_below_root);
+    async fn test_insert_single_leaf_below_root<TC: Configuration>() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = new_root_node();
+        let mut root = new_root_node::<TC>();
 
         let val_0 = AzksValue([0u8; DIGEST_BYTES]);
         let val_1 = AzksValue([1u8; DIGEST_BYTES]);
         let val_2 = AzksValue([2u8; DIGEST_BYTES]);
 
         let mut right_child =
-            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
+            new_interior_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
 
-        let mut leaf_0 = new_leaf_node(NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32), &val_0, 1);
+        let mut leaf_0 =
+            new_leaf_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b00u64), 2u32), &val_0, 1);
 
-        let mut leaf_1 = new_leaf_node(
+        let mut leaf_1 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b11u64 << 62), 2u32),
             &val_1,
             2,
         );
 
-        let mut leaf_2 = new_leaf_node(
+        let mut leaf_2 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b10u64 << 62), 2u32),
             &val_2,
             3,
@@ -748,7 +749,7 @@ mod tests {
         leaf_1.write_to_storage(&db, false).await?;
 
         right_child
-            .update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            .update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         right_child.write_to_storage(&db, false).await?;
 
@@ -757,44 +758,44 @@ mod tests {
         leaf_0.write_to_storage(&db, false).await?;
         right_child.write_to_storage(&db, false).await?;
 
-        root.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+        root.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db, false).await?;
 
         let leaf_0_hash = (
-            hash_leaf_with_commitment(val_0, 1),
-            hash_label(leaf_0.label),
+            TC::hash_leaf_with_commitment(val_0, 1),
+            leaf_0.label.value::<TC>(),
         );
 
         let leaf_1_hash = (
-            hash_leaf_with_commitment(val_1, 2),
-            hash_label(leaf_1.label),
+            TC::hash_leaf_with_commitment(val_1, 2),
+            leaf_1.label.value::<TC>(),
         );
 
         let leaf_2_hash = (
-            hash_leaf_with_commitment(val_2, 3),
-            hash_label(leaf_2.label),
+            TC::hash_leaf_with_commitment(val_2, 3),
+            leaf_2.label.value::<TC>(),
         );
 
         let right_child_expected_hash = (
-            compute_parent_hash_from_children(
+            TC::compute_parent_hash_from_children(
                 &AzksValue(leaf_2_hash.0 .0),
                 &leaf_2_hash.1,
                 &AzksValue(leaf_1_hash.0 .0),
                 &leaf_1_hash.1,
             ),
-            hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
+            NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32).value::<TC>(),
         );
 
         let stored_root = db
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => compute_root_hash_from_val(&node.latest_node.hash),
+            DbRecord::TreeNode(node) => TC::compute_root_hash_from_val(&node.latest_node.hash),
             _ => panic!("Root not found in storage."),
         };
 
-        let expected = compute_root_hash_from_val(&compute_parent_hash_from_children(
+        let expected = TC::compute_root_hash_from_val(&TC::compute_parent_hash_from_children(
             &AzksValue(leaf_0_hash.0 .0),
             &leaf_0_hash.1,
             &AzksValue(right_child_expected_hash.0 .0),
@@ -804,16 +805,18 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_insert_single_leaf_below_root_both_sides() -> Result<(), AkdError> {
+    test_config!(test_insert_single_leaf_below_root_both_sides);
+    async fn test_insert_single_leaf_below_root_both_sides<TC: Configuration>(
+    ) -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = new_root_node();
+        let mut root = new_root_node::<TC>();
 
-        let mut left_child = new_interior_node(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), 4);
+        let mut left_child =
+            new_interior_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32), 4);
 
         let mut right_child =
-            new_interior_node(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
+            new_interior_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32), 3);
 
         let val_0 = AzksValue([0u8; DIGEST_BYTES]);
         let val_1 = AzksValue([1u8; DIGEST_BYTES]);
@@ -821,21 +824,21 @@ mod tests {
         let val_3 = AzksValue([3u8; DIGEST_BYTES]);
 
         let mut leaf_0 =
-            new_leaf_node(NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32), &val_0, 1);
+            new_leaf_node::<TC>(NodeLabel::new(byte_arr_from_u64(0b000u64), 3u32), &val_0, 1);
 
-        let mut leaf_1 = new_leaf_node(
+        let mut leaf_1 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b111u64 << 61), 3u32),
             &val_1,
             2,
         );
 
-        let mut leaf_2 = new_leaf_node(
+        let mut leaf_2 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b100u64 << 61), 3u32),
             &val_2,
             3,
         );
 
-        let mut leaf_3 = new_leaf_node(
+        let mut leaf_3 = new_leaf_node::<TC>(
             NodeLabel::new(byte_arr_from_u64(0b010u64 << 61), 3u32),
             &val_3,
             4,
@@ -848,7 +851,7 @@ mod tests {
         leaf_3.write_to_storage(&db, false).await?;
 
         left_child
-            .update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            .update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         left_child.write_to_storage(&db, false).await?;
 
@@ -858,7 +861,7 @@ mod tests {
         leaf_1.write_to_storage(&db, false).await?;
 
         right_child
-            .update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            .update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         right_child.write_to_storage(&db, false).await?;
 
@@ -867,60 +870,60 @@ mod tests {
         left_child.write_to_storage(&db, false).await?;
         right_child.write_to_storage(&db, false).await?;
 
-        root.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+        root.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db, false).await?;
 
         let leaf_0_hash = (
-            hash_leaf_with_commitment(val_0, 1),
-            hash_label(leaf_0.label),
+            TC::hash_leaf_with_commitment(val_0, 1),
+            leaf_0.label.value::<TC>(),
         );
 
         let leaf_1_hash = (
-            hash_leaf_with_commitment(val_1, 2),
-            hash_label(leaf_1.label),
+            TC::hash_leaf_with_commitment(val_1, 2),
+            leaf_1.label.value::<TC>(),
         );
         let leaf_2_hash = (
-            hash_leaf_with_commitment(val_2, 3),
-            hash_label(leaf_2.label),
+            TC::hash_leaf_with_commitment(val_2, 3),
+            leaf_2.label.value::<TC>(),
         );
 
         let leaf_3_hash = (
-            hash_leaf_with_commitment(val_3, 4),
-            hash_label(leaf_3.label),
+            TC::hash_leaf_with_commitment(val_3, 4),
+            leaf_3.label.value::<TC>(),
         );
 
         // Children: left: leaf2, right: leaf1, label: 1
         let right_child_expected_hash = (
-            compute_parent_hash_from_children(
+            TC::compute_parent_hash_from_children(
                 &AzksValue(leaf_2_hash.0 .0),
                 &leaf_2_hash.1,
                 &AzksValue(leaf_1_hash.0 .0),
                 &leaf_1_hash.1,
             ),
-            hash_label(NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32)),
+            NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32).value::<TC>(),
         );
 
         // Children: left: new_leaf, right: leaf3, label: 0
         let left_child_expected_hash = (
-            compute_parent_hash_from_children(
+            TC::compute_parent_hash_from_children(
                 &AzksValue(leaf_0_hash.0 .0),
                 &leaf_0_hash.1,
                 &AzksValue(leaf_3_hash.0 .0),
                 &leaf_3_hash.1,
             ),
-            hash_label(NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32)),
+            NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32).value::<TC>(),
         );
 
         let stored_root = db
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => compute_root_hash_from_val(&node.latest_node.hash),
+            DbRecord::TreeNode(node) => TC::compute_root_hash_from_val(&node.latest_node.hash),
             _ => panic!("Root not found in storage."),
         };
 
-        let expected = compute_root_hash_from_val(&compute_parent_hash_from_children(
+        let expected = TC::compute_root_hash_from_val(&TC::compute_parent_hash_from_children(
             &left_child_expected_hash.0,
             &left_child_expected_hash.1,
             &right_child_expected_hash.0,
@@ -931,27 +934,24 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_insert_single_leaf_full_tree() -> Result<(), AkdError> {
+    test_config!(test_insert_single_leaf_full_tree);
+    async fn test_insert_single_leaf_full_tree<TC: Configuration>() -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
-        let mut root = new_root_node();
+        let mut root = new_root_node::<TC>();
 
         let mut leaves = Vec::<TreeNode>::new();
         let mut leaf_hashes = Vec::new();
         for i in 0u64..8u64 {
             let leaf_u64 = i << 61;
-            let new_leaf = new_leaf_node(
+            let new_leaf = new_leaf_node::<TC>(
                 NodeLabel::new(byte_arr_from_u64(leaf_u64), 3u32),
-                &AzksValue(crate::hash::hash(&leaf_u64.to_be_bytes())),
+                &AzksValue(TC::hash(&leaf_u64.to_be_bytes())),
                 7 - i,
             );
             leaf_hashes.push((
-                hash_leaf_with_commitment(
-                    AzksValue(crate::hash::hash(&leaf_u64.to_be_bytes())),
-                    7 - i,
-                ),
-                hash_label(new_leaf.label),
+                TC::hash_leaf_with_commitment(AzksValue(TC::hash(&leaf_u64.to_be_bytes())), 7 - i),
+                new_leaf.label.value::<TC>(),
             ));
             leaves.push(new_leaf);
         }
@@ -960,7 +960,7 @@ mod tests {
         let mut layer_1_hashes = Vec::new();
         for (i, j) in (0u64..4).enumerate() {
             let interior_u64 = j << 62;
-            layer_1_interior.push(new_interior_node(
+            layer_1_interior.push(new_interior_node::<TC>(
                 NodeLabel::new(byte_arr_from_u64(interior_u64), 2u32),
                 7 - (2 * j),
             ));
@@ -968,13 +968,13 @@ mod tests {
             let left_child_hash = leaf_hashes[2 * i].clone();
             let right_child_hash = leaf_hashes[2 * i + 1].clone();
             layer_1_hashes.push((
-                compute_parent_hash_from_children(
+                TC::compute_parent_hash_from_children(
                     &AzksValue(left_child_hash.0 .0),
                     &left_child_hash.1,
                     &AzksValue(right_child_hash.0 .0),
                     &right_child_hash.1,
                 ),
-                hash_label(NodeLabel::new(byte_arr_from_u64(j << 62), 2u32)),
+                NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).value::<TC>(),
             ));
         }
 
@@ -982,7 +982,7 @@ mod tests {
         let mut layer_2_hashes = Vec::new();
         for (i, j) in (0u64..2).enumerate() {
             let interior_u64 = j << 63;
-            layer_2_interior.push(new_interior_node(
+            layer_2_interior.push(new_interior_node::<TC>(
                 NodeLabel::new(byte_arr_from_u64(interior_u64), 1u32),
                 7 - (4 * j),
             ));
@@ -990,17 +990,17 @@ mod tests {
             let left_child_hash = layer_1_hashes[2 * i].clone();
             let right_child_hash = layer_1_hashes[2 * i + 1].clone();
             layer_2_hashes.push((
-                compute_parent_hash_from_children(
+                TC::compute_parent_hash_from_children(
                     &left_child_hash.0,
                     &left_child_hash.1,
                     &right_child_hash.0,
                     &right_child_hash.1,
                 ),
-                hash_label(NodeLabel::new(byte_arr_from_u64(j << 63), 1u32)),
+                NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).value::<TC>(),
             ));
         }
 
-        let expected = compute_root_hash_from_val(&compute_parent_hash_from_children(
+        let expected = TC::compute_root_hash_from_val(&TC::compute_parent_hash_from_children(
             &layer_2_hashes[0].0,
             &layer_2_hashes[0].1,
             &layer_2_hashes[1].0,
@@ -1016,7 +1016,7 @@ mod tests {
             left_child.write_to_storage(&db, false).await?;
             right_child.write_to_storage(&db, false).await?;
 
-            node.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            node.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
                 .await?;
             node.write_to_storage(&db, false).await?;
         }
@@ -1030,7 +1030,7 @@ mod tests {
             left_child.write_to_storage(&db, false).await?;
             right_child.write_to_storage(&db, false).await?;
 
-            node.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+            node.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
                 .await?;
             node.write_to_storage(&db, false).await?;
         }
@@ -1043,7 +1043,7 @@ mod tests {
         left_child.write_to_storage(&db, false).await?;
         right_child.write_to_storage(&db, false).await?;
 
-        root.update_hash(&db, NodeHashingMode::WithLeafEpoch)
+        root.update_hash::<TC, _>(&db, NodeHashingMode::WithLeafEpoch)
             .await?;
         root.write_to_storage(&db, false).await?;
 
@@ -1051,7 +1051,7 @@ mod tests {
             .get::<TreeNodeWithPreviousValue>(&NodeKey(NodeLabel::root()))
             .await?;
         let root_digest = match stored_root {
-            DbRecord::TreeNode(node) => compute_root_hash_from_val(&node.latest_node.hash),
+            DbRecord::TreeNode(node) => TC::compute_root_hash_from_val(&node.latest_node.hash),
             _ => panic!("Root not found in storage."),
         };
 

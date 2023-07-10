@@ -62,8 +62,8 @@
 //! The server then computes a VRF on the [NodeLabel] to derive a value for the leaf node. This is computed as:
 //! `node_label = VRF(vsk, vrf_input)`.
 //!
-//! Once the node label for this entry is derived (as `node_label`), the functions [crypto::compute_fresh_azks_value()]
-//! and [crypto::stale_azks_value()]
+//! Once the node label for this entry is derived (as `node_label`), the functions `compute_fresh_azks_value()`
+//! and `stale_azks_value()`
 //! are used to commit the [AkdValue] to the tree. The actual value
 //! that is stored in the node is an [AzksValue], generated using the server's commitment key as follows:
 //! - `commitment_nonce = Hash(commitment_key, node_label, version, I2OSP(len(value) as u64), value)`
@@ -90,7 +90,7 @@
 //! The server then traverses up the tree, updating the hashes of all the interior nodes it encounters, until it reaches the root.
 //!
 //! In the case of the root node, which may have only one child (or zero children in the event of an empty database), for the
-//! purposes of deriving the root node's hash, the missing child's hash is set to `Hash(`[EMPTY_VALUE]`)`, and the label is set to [EMPTY_LABEL].
+//! purposes of deriving the root node's hash, the missing child's hash is set to `Hash(`[EMPTY_VALUE]`)`, and the label is set to [Configuration::empty_label()].
 //! The final root hash output by the tree is then computed as: `Hash(root_node.hash, `[NodeLabel::root()]`)`.
 //!
 //! Conceptually, to insert multiple entries into the tree, the above process is repeated iteratively for each entry. In the implementation
@@ -182,11 +182,20 @@ extern crate alloc;
 #[cfg(all(feature = "protobuf", not(feature = "nostd")))]
 pub mod proto;
 
-pub mod crypto;
 pub mod ecvrf;
 pub mod hash;
 pub mod utils;
 pub mod verify;
+
+pub mod configuration;
+pub use configuration::Configuration;
+
+// Note(new_config): Update this when adding a new configuration
+
+#[cfg(feature = "experimental")]
+pub use configuration::experimental::ExperimentalConfiguration;
+#[cfg(feature = "whatsapp_v1")]
+pub use configuration::whatsapp_v1::WhatsAppV1Configuration;
 
 pub mod types;
 pub use types::*;

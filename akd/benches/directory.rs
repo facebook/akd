@@ -8,16 +8,20 @@
 #[macro_use]
 extern crate criterion;
 
+mod common;
+
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
+use akd::NamedConfiguration;
 use akd::{AkdLabel, AkdValue, Directory};
 use criterion::{BatchSize, Criterion};
 use rand::distributions::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-fn history_generation(c: &mut Criterion) {
+bench_config!(history_generation);
+fn history_generation<TC: NamedConfiguration>(c: &mut Criterion) {
     let num_users = 1000;
     let num_updates = 10;
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -33,7 +37,10 @@ fn history_generation(c: &mut Criterion) {
         })
         .collect::<Vec<_>>();
 
-    let id = "Benchmark key history proof generation on a small tree".to_string();
+    let id = format!(
+        "Benchmark key history proof generation on a small tree ({})",
+        TC::name()
+    );
 
     c.bench_function(&id, move |b| {
         b.iter_batched(
@@ -49,7 +56,7 @@ fn history_generation(c: &mut Criterion) {
                 );
                 let db_clone = db.clone();
                 let directory = runtime
-                    .block_on(async move { Directory::new(db, vrf).await })
+                    .block_on(async move { Directory::<TC, _, _>::new(db, vrf).await })
                     .unwrap();
 
                 for _epoch in 1..num_updates {
@@ -82,5 +89,15 @@ fn history_generation(c: &mut Criterion) {
     });
 }
 
-criterion_group!(directory_benches, history_generation);
-criterion_main!(directory_benches);
+group_config!(directory_benches, history_generation);
+
+fn main() {
+    // NOTE(new_config): Add a new configuration here
+
+    #[cfg(feature = "whatsapp_v1")]
+    directory_benches_whatsapp_v1_config();
+    #[cfg(feature = "experimental")]
+    directory_benches_experimental_config();
+
+    Criterion::default().configure_from_args().final_summary();
+}

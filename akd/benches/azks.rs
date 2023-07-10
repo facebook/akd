@@ -8,16 +8,20 @@
 #[macro_use]
 extern crate criterion;
 
+mod common;
+
 use akd::append_only_zks::InsertMode;
 use akd::auditor;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
+use akd::NamedConfiguration;
 use akd::{Azks, AzksElement, AzksValue, NodeLabel};
 use criterion::{BatchSize, Criterion};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-fn batch_insertion(c: &mut Criterion) {
+bench_config!(batch_insertion);
+fn batch_insertion<TC: NamedConfiguration>(c: &mut Criterion) {
     let num_initial_leaves = 1000;
     let num_inserted_leaves = 1000;
 
@@ -32,22 +36,24 @@ fn batch_insertion(c: &mut Criterion) {
 
     // benchmark batch insertion
     let id = format!(
-        "Batch insertion ({} initial leaves, {} inserted leaves)",
-        num_initial_leaves, num_inserted_leaves
+        "Batch insertion ({} initial leaves, {} inserted leaves) ({})",
+        num_initial_leaves,
+        num_inserted_leaves,
+        TC::name(),
     );
     c.bench_function(&id, move |b| {
         b.iter_batched(
             || {
                 let database = AsyncInMemoryDatabase::new();
                 let db = StorageManager::new(database, None, None, None);
-                let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+                let mut azks = runtime.block_on(Azks::new::<TC, _>(&db)).unwrap();
 
                 // create transaction object
                 db.begin_transaction();
 
                 // insert initial leaves as part of setup
                 runtime
-                    .block_on(azks.batch_insert_nodes(
+                    .block_on(azks.batch_insert_nodes::<TC, _>(
                         &db,
                         initial_node_set.clone(),
                         InsertMode::Directory,
@@ -57,7 +63,11 @@ fn batch_insertion(c: &mut Criterion) {
             },
             |(mut azks, db, node_set)| {
                 runtime
-                    .block_on(azks.batch_insert_nodes(&db, node_set, InsertMode::Directory))
+                    .block_on(azks.batch_insert_nodes::<TC, _>(
+                        &db,
+                        node_set,
+                        InsertMode::Directory,
+                    ))
                     .unwrap();
             },
             BatchSize::PerIteration,
@@ -65,7 +75,8 @@ fn batch_insertion(c: &mut Criterion) {
     });
 }
 
-fn audit_verify(c: &mut Criterion) {
+bench_config!(audit_verify);
+fn audit_verify<TC: NamedConfiguration>(c: &mut Criterion) {
     let num_initial_leaves = 10000;
     let num_inserted_leaves = 10000;
 
@@ -78,42 +89,51 @@ fn audit_verify(c: &mut Criterion) {
 
     // benchmark audit verify
     let id = format!(
-        "Audit verify (epoch 1: {} leaves, epoch 2: {} leaves)",
-        num_initial_leaves, num_inserted_leaves
+        "Audit verify (epoch 1: {} leaves, epoch 2: {} leaves) ({})",
+        num_initial_leaves,
+        num_inserted_leaves,
+        TC::name(),
     );
     c.bench_function(&id, move |b| {
         b.iter_batched(
             || {
                 let database = AsyncInMemoryDatabase::new();
                 let db = StorageManager::new(database, None, None, None);
-                let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+                let mut azks = runtime.block_on(Azks::new::<TC, _>(&db)).unwrap();
 
                 // epoch 1
                 runtime
-                    .block_on(azks.batch_insert_nodes(
+                    .block_on(azks.batch_insert_nodes::<TC, _>(
                         &db,
                         initial_node_set.clone(),
                         InsertMode::Directory,
                     ))
                     .unwrap();
 
-                let start_hash = runtime.block_on(azks.get_root_hash(&db)).unwrap();
+                let start_hash = runtime.block_on(azks.get_root_hash::<TC, _>(&db)).unwrap();
 
                 // epoch 2
                 runtime
-                    .block_on(azks.batch_insert_nodes(&db, node_set.clone(), InsertMode::Directory))
+                    .block_on(azks.batch_insert_nodes::<TC, _>(
+                        &db,
+                        node_set.clone(),
+                        InsertMode::Directory,
+                    ))
                     .unwrap();
 
-                let end_hash = runtime.block_on(azks.get_root_hash(&db)).unwrap();
+                let end_hash = runtime.block_on(azks.get_root_hash::<TC, _>(&db)).unwrap();
                 let proof = runtime
-                    .block_on(azks.get_append_only_proof(&db, 1, 2))
+                    .block_on(azks.get_append_only_proof::<TC, _>(&db, 1, 2))
                     .unwrap();
 
                 (start_hash, end_hash, proof)
             },
             |(start_hash, end_hash, proof)| {
                 runtime
-                    .block_on(auditor::audit_verify(vec![start_hash, end_hash], proof))
+                    .block_on(auditor::audit_verify::<TC>(
+                        vec![start_hash, end_hash],
+                        proof,
+                    ))
                     .unwrap();
             },
             BatchSize::PerIteration,
@@ -121,7 +141,8 @@ fn audit_verify(c: &mut Criterion) {
     });
 }
 
-fn audit_generate(c: &mut Criterion) {
+bench_config!(audit_generate);
+fn audit_generate<TC: NamedConfiguration>(c: &mut Criterion) {
     let num_leaves = 10000;
     let num_epochs = 100;
 
@@ -130,25 +151,28 @@ fn audit_generate(c: &mut Criterion) {
 
     let database = AsyncInMemoryDatabase::new();
     let db = StorageManager::new(database, None, None, None);
-    let mut azks = runtime.block_on(Azks::new(&db)).unwrap();
+    let mut azks = runtime.block_on(Azks::new::<TC, _>(&db)).unwrap();
 
     // publish 10 epochs
     for _epoch in 0..num_epochs {
         let node_set = gen_nodes(&mut rng, num_leaves);
         runtime
-            .block_on(azks.batch_insert_nodes(&db, node_set, InsertMode::Directory))
+            .block_on(azks.batch_insert_nodes::<TC, _>(&db, node_set, InsertMode::Directory))
             .unwrap();
     }
     let epoch = azks.get_latest_epoch();
 
     // benchmark audit verify
-    let id = format!("Audit proof generation. {num_leaves} leaves over {num_epochs} epochs");
+    let id = format!(
+        "Audit proof generation. {num_leaves} leaves over {num_epochs} epochs ({})",
+        TC::name()
+    );
     c.bench_function(&id, move |b| {
         b.iter_batched(
             || {},
             |_| {
                 let _proof = runtime
-                    .block_on(azks.get_append_only_proof(&db, epoch - 1, epoch))
+                    .block_on(azks.get_append_only_proof::<TC, _>(&db, epoch - 1, epoch))
                     .unwrap();
             },
             BatchSize::PerIteration,
@@ -169,5 +193,15 @@ fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
         .collect()
 }
 
-criterion_group!(azks_benches, batch_insertion, audit_verify, audit_generate);
-criterion_main!(azks_benches);
+group_config!(azks_benches, batch_insertion, audit_verify, audit_generate);
+
+fn main() {
+    // NOTE(new_config): Add a new configuration here
+
+    #[cfg(feature = "whatsapp_v1")]
+    azks_benches_whatsapp_v1_config();
+    #[cfg(feature = "experimental")]
+    azks_benches_experimental_config();
+
+    Criterion::default().configure_from_args().final_summary();
+}

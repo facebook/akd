@@ -107,6 +107,9 @@ struct Cli {
     mysql_insert_depth: usize,
 }
 
+// NOTE(new_config): This can be adjusted in order to change the config run by poc/
+type TC = akd::configuration::ExperimentalConfiguration;
+
 // MAIN //
 #[tokio::main]
 async fn main() {
@@ -141,12 +144,14 @@ async fn main() {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let storage_manager = StorageManager::new_no_cache(db);
-        let mut directory = Directory::<_, _>::new(storage_manager, vrf).await.unwrap();
+        let mut directory = Directory::<TC, _, _>::new(storage_manager, vrf)
+            .await
+            .unwrap();
         if let Some(()) = pre_process_input(&cli, &tx, None).await {
             return;
         }
         tokio::spawn(async move {
-            directory_host::init_host::<_, HardCodedAkdVRF>(&mut rx, &mut directory).await
+            directory_host::init_host::<TC, _, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, None).await;
     } else {
@@ -170,11 +175,11 @@ async fn main() {
             None,
             Some(Duration::from_secs(15)),
         );
-        let mut directory = Directory::<_, _>::new(storage_manager.clone(), vrf)
+        let mut directory = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
             .await
             .unwrap();
         tokio::spawn(async move {
-            directory_host::init_host::<_, HardCodedAkdVRF>(&mut rx, &mut directory).await
+            directory_host::init_host::<TC, _, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });
         process_input(&cli, &tx, Some(storage_manager)).await;
     }

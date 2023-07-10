@@ -13,6 +13,7 @@ use super::{empty_message, Message, Storage, DEFAULT_FONT_SIZE, DEFAULT_SPACING}
 use crate::storage;
 use crate::storage::EpochSummary;
 
+use akd::configuration::WhatsAppV1Configuration;
 use iced::alignment;
 use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, qr_code, row, scrollable, text,
@@ -124,7 +125,7 @@ impl Auditor {
                 .decode()
                 .map_err(|err| format!("Error decodeing proof {err:?}"))?;
             // audit the proof
-            akd::auditor::audit_verify(
+            akd::auditor::audit_verify::<WhatsAppV1Configuration>(
                 vec![p_hash, c_hash],
                 akd::AppendOnlyProof {
                     proofs: vec![proof],

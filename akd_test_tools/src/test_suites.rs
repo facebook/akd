@@ -7,6 +7,7 @@
 
 extern crate thread_id;
 
+use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::Database;
 use akd::Directory;
@@ -19,7 +20,7 @@ use rand::{thread_rng, Rng};
 /// The suite of tests to run against a fully-instantated and storage-backed directory.
 /// This will publish 3 epochs of ```num_users``` records and
 /// perform 10 random lookup proofs + 2 random history proofs + and audit proof from epochs 1u64 -> 2u64
-pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
+pub async fn directory_test_suite<TC: Configuration, S: Database + 'static, V: VRFKeyStorage>(
     mysql_db: &akd::storage::StorageManager<S>,
     num_users: usize,
     vrf: &V,
@@ -39,7 +40,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
     }
     let mut root_hashes = vec![];
     // create & test the directory
-    let maybe_dir = Directory::<_, _>::new(mysql_db.clone(), vrf.clone()).await;
+    let maybe_dir = Directory::<TC, _, _>::new(mysql_db.clone(), vrf.clone()).await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -67,7 +68,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                     Err(error) => panic!("Error looking up user information {:?}", error),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) = akd::client::lookup_verify(
+                        if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
                             key,
@@ -86,7 +87,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                     Err(error) => panic!("Error performing key history retrieval {:?}", error),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
-                        if let Err(error) = akd::client::key_history_verify(
+                        if let Err(error) = akd::client::key_history_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
                             root_hash.epoch(),
@@ -112,7 +113,7 @@ pub async fn directory_test_suite<S: Database + 'static, V: VRFKeyStorage>(
                     log::warn!("Done with audit proof generation");
                     let start_root_hash = root_hashes[0];
                     let end_root_hash = root_hashes[1];
-                    akd::auditor::audit_verify(vec![start_root_hash, end_root_hash], proof)
+                    akd::auditor::audit_verify::<TC>(vec![start_root_hash, end_root_hash], proof)
                         .await
                         .unwrap();
                 }

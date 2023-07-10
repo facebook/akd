@@ -47,7 +47,11 @@ pub use akd_core::*;
 #[cfg(feature = "protobuf")]
 pub use akd_core::proto::*;
 
+/// NOTE(new_config): Add a new configuration here
+
 #[cfg(feature = "wasm")]
 pub mod wasm;
-#[cfg(feature = "wasm")]
-pub use wasm::lookup_verify;
+#[cfg(all(feature = "wasm", feature = "experimental"))]
+pub use wasm::lookup_verify_experimental;
+#[cfg(all(feature = "wasm", feature = "whatsapp_v1"))]
+pub use wasm::lookup_verify_whatsapp_v1;

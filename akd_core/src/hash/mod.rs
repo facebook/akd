@@ -17,36 +17,8 @@ use alloc::string::String;
 pub type Digest = [u8; DIGEST_BYTES];
 /// Represents an empty digest, with no data contained
 pub const EMPTY_DIGEST: [u8; DIGEST_BYTES] = [0u8; DIGEST_BYTES];
-
-// =========================================
-// ========== Blake3 settings ==============
-// =========================================
-#[cfg(feature = "blake3")]
-pub mod blake3;
-#[cfg(feature = "blake3")]
-pub use crate::hash::blake3::hash;
-#[cfg(feature = "blake3")]
-pub use crate::hash::blake3::DIGEST_BYTES;
-
-// =========================================
-// ========== Sha2 settings ===============
-// =========================================
-#[cfg(feature = "sha2")]
-pub mod sha2;
-#[cfg(feature = "sha2")]
-pub use crate::hash::sha2::hash;
-#[cfg(feature = "sha2")]
-pub use crate::hash::sha2::DIGEST_BYTES;
-
-// =========================================
-// ========== Sha3 settings ===============
-// =========================================
-#[cfg(feature = "sha3")]
-pub mod sha3;
-#[cfg(feature = "sha3")]
-pub use crate::hash::sha3::hash;
-#[cfg(feature = "sha3")]
-pub use crate::hash::sha3::DIGEST_BYTES;
+/// The number of bytes in a digest
+pub const DIGEST_BYTES: usize = 32;
 
 #[cfg(test)]
 mod tests;

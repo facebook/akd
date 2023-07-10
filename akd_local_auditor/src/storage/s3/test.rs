@@ -19,6 +19,7 @@ use crate::{
 };
 
 use super::*;
+use akd::configuration::WhatsAppV1Configuration;
 use anyhow::Result;
 use aws_config::SdkConfig;
 use aws_sdk_s3::{
@@ -277,10 +278,12 @@ async fn integration_test_s3_audit_verification() {
             epoch.name.epoch,
             epoch.name.epoch + 1
         );
-        crate::auditor::audit_epoch(proof_blob.clone(), false)
+        crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob.clone(), false)
             .await
             .unwrap();
-        crate::auditor::audit_epoch(proof_blob, true).await.unwrap();
+        crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob, true)
+            .await
+            .unwrap();
     }
 
     // if the test is successful, try a cleanup of the storage now
@@ -333,10 +336,12 @@ async fn expensive_audit_verification() {
         epoch.name.epoch,
         epoch.name.epoch + 1
     );
-    crate::auditor::audit_epoch(proof_blob.clone(), false)
+    crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob.clone(), false)
         .await
         .unwrap();
-    crate::auditor::audit_epoch(proof_blob, true).await.unwrap();
+    crate::auditor::audit_epoch::<WhatsAppV1Configuration>(proof_blob, true)
+        .await
+        .unwrap();
 
     // it prints '2'
     log::error!(

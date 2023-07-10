@@ -3,8 +3,13 @@ name = "akd_local_auditor"
 default-run = "akd_local_auditor"
 version = "0.0.0"
 authors = ["Sean Lawlor <seanlawlor@fb.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
+
+[features]
+# Supported configurations
+whatsapp_v1 = ["akd/whatsapp_v1"]
+default = ["whatsapp_v1"]
 
 [dependencies]
 anyhow = "1"
@@ -34,7 +39,7 @@ thread-id = "3"
 tokio = { version = "1.21", features = ["full"] }
 tokio-stream = "0.1"
 
-akd = { path = "../akd", features = ["public_tests", "public_auditing"] }
+akd = { path = "../akd", features = ["public_tests", "public_auditing", "whatsapp_v1"] }
 
 [dev-dependencies]
 ctor = "0.1"

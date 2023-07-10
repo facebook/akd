@@ -5,14 +5,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-use akd::ecvrf::HardCodedAkdVRF;
+use crate::test_config_serial;
 use akd::storage::StorageManager;
+use akd::{ecvrf::HardCodedAkdVRF, Configuration};
 use akd_mysql::mysql::*;
 use log::{error, info, warn};
 
-#[tokio::test]
-#[serial_test::serial]
-async fn test_directory_operations() {
+test_config_serial!(test_directory_operations);
+async fn test_directory_operations<TC: Configuration>() {
     crate::test_util::log_init(log::Level::Info);
 
     info!("\n\n******** Starting MySQL Directory Operations Integration Test ********\n\n");
@@ -49,7 +49,7 @@ async fn test_directory_operations() {
 
         let vrf = HardCodedAkdVRF {};
         let storage_manager = StorageManager::new_no_cache(mysql_db.clone());
-        akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
+        akd_test_tools::test_suites::directory_test_suite::<TC, _, HardCodedAkdVRF>(
             &storage_manager,
             50,
             &vrf,
@@ -73,9 +73,8 @@ async fn test_directory_operations() {
     info!("\n\n******** Completed MySQL Directory Operations Integration Test ********\n\n");
 }
 
-#[tokio::test]
-#[serial_test::serial]
-async fn test_directory_operations_with_caching() {
+test_config_serial!(test_directory_operations_with_caching);
+async fn test_directory_operations_with_caching<TC: Configuration>() {
     crate::test_util::log_init(log::Level::Info);
 
     info!("\n\n******** Starting MySQL Directory Operations (w/caching) Integration Test ********\n\n");
@@ -112,7 +111,7 @@ async fn test_directory_operations_with_caching() {
 
         let vrf = HardCodedAkdVRF {};
         let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
-        akd_test_tools::test_suites::directory_test_suite::<_, HardCodedAkdVRF>(
+        akd_test_tools::test_suites::directory_test_suite::<TC, _, HardCodedAkdVRF>(
             &storage_manager,
             50,
             &vrf,
@@ -136,9 +135,8 @@ async fn test_directory_operations_with_caching() {
     info!("\n\n******** Completed MySQL Directory Operations (w/caching) Integration Test ********\n\n");
 }
 
-#[tokio::test]
-#[serial_test::serial]
-async fn test_lookups() {
+test_config_serial!(test_lookups);
+async fn test_lookups<TC: Configuration>() {
     crate::test_util::log_init(log::Level::Info);
 
     info!("\n\n******** Starting MySQL Lookup Tests ********\n\n");
@@ -176,8 +174,14 @@ async fn test_lookups() {
         let vrf = HardCodedAkdVRF {};
         let storage_manager = StorageManager::new(mysql_db, None, None, None);
 
-        crate::test_util::test_lookups::<_, HardCodedAkdVRF>(&storage_manager, &vrf, 50, 5, 100)
-            .await;
+        crate::test_util::test_lookups::<TC, _, HardCodedAkdVRF>(
+            &storage_manager,
+            &vrf,
+            50,
+            5,
+            100,
+        )
+        .await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
