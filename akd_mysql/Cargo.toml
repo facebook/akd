@@ -16,7 +16,6 @@ experimental = ["akd/experimental"]
 default = ["experimental"]
 
 [dependencies]
-bincode = "1"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 async-trait = "0.1"

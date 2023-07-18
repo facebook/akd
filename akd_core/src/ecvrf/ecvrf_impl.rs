@@ -13,6 +13,7 @@ use alloc::format;
 #[cfg(feature = "nostd")]
 use alloc::string::ToString;
 use core::convert::TryFrom;
+use curve25519_dalek::digest::Update;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT,
     edwards::{CompressedEdwardsY, EdwardsPoint},
@@ -31,10 +32,12 @@ const NODE_LABEL_LEN: usize = 32;
  *
  * If you still see the error, you can simply ignore. It's harmless.
 */
-use ed25519_dalek::Digest;
-use ed25519_dalek::PublicKey as ed25519_PublicKey;
 use ed25519_dalek::SecretKey as ed25519_PrivateKey;
 use ed25519_dalek::Sha512;
+use ed25519_dalek::SigningKey as ed25519_SigningKey;
+use ed25519_dalek::VerifyingKey as ed25519_PublicKey;
+use ed25519_dalek::SECRET_KEY_LENGTH;
+use ed25519_dalek::{Digest, PUBLIC_KEY_LENGTH};
 
 const SUITE: u8 = 0x03;
 const ZERO: u8 = 0x00;
@@ -48,7 +51,7 @@ pub const OUTPUT_LENGTH: usize = 64;
 pub const PROOF_LENGTH: usize = 80;
 
 /// An ECVRF private key
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "serde_serialization",
     derive(serde::Deserialize, serde::Serialize)
@@ -90,12 +93,12 @@ pub struct VRFExpandedPrivateKey {
 impl VRFPrivateKey {
     /// Produces a proof for an input (using the private key)
     pub fn prove(&self, alpha: &[u8]) -> Proof {
-        VRFExpandedPrivateKey::from(self).prove(&VRFPublicKey((&self.0).into()), alpha)
+        VRFExpandedPrivateKey::from(self).prove(&VRFPublicKey::from(self), alpha)
     }
 
     /// Directly evaluate the VRF for an input, without producing a proof (using the private key)
     pub fn evaluate(&self, alpha: &[u8]) -> Output {
-        VRFExpandedPrivateKey::from(self).evaluate(&VRFPublicKey((&self.0).into()), alpha)
+        VRFExpandedPrivateKey::from(self).evaluate(&VRFPublicKey::from(self), alpha)
     }
 }
 
@@ -114,7 +117,7 @@ impl VRFExpandedPrivateKey {
             &h_point_bytes,
             &[
                 gamma,
-                &curve25519_dalek::constants::ED25519_BASEPOINT_TABLE * &k_scalar,
+                curve25519_dalek::constants::ED25519_BASEPOINT_TABLE * &k_scalar,
                 h_point * k_scalar,
             ],
         );
@@ -138,10 +141,15 @@ impl TryFrom<&[u8]> for VRFPrivateKey {
     type Error = VrfError;
 
     fn try_from(bytes: &[u8]) -> Result<VRFPrivateKey, VrfError> {
-        match ed25519_PrivateKey::from_bytes(bytes) {
-            Ok(result) => Ok(VRFPrivateKey(result)),
-            Err(sig_err) => Err(VrfError::SigningKey(format!("Signature error {sig_err}"))),
+        if bytes.len() != SECRET_KEY_LENGTH {
+            return Err(VrfError::SigningKey(
+                "Wrong length, expected 32 byte private key".to_string(),
+            ));
         }
+
+        let mut key = [0u8; SECRET_KEY_LENGTH];
+        key.copy_from_slice(bytes);
+        Ok(VRFPrivateKey(key))
     }
 }
 
@@ -149,12 +157,12 @@ impl TryFrom<&[u8]> for VRFPublicKey {
     type Error = VrfError;
 
     fn try_from(bytes: &[u8]) -> Result<VRFPublicKey, Self::Error> {
-        if bytes.len() != ed25519_dalek::PUBLIC_KEY_LENGTH {
+        if bytes.len() != PUBLIC_KEY_LENGTH {
             return Err(VrfError::PublicKey("Wrong length".to_string()));
         }
 
-        let mut bits: [u8; 32] = [0u8; 32];
-        bits.copy_from_slice(&bytes[..32]);
+        let mut bits: [u8; PUBLIC_KEY_LENGTH] = [0u8; PUBLIC_KEY_LENGTH];
+        bits.copy_from_slice(&bytes[..PUBLIC_KEY_LENGTH]);
 
         let compressed = curve25519_dalek::edwards::CompressedEdwardsY(bits);
         let point = compressed
@@ -167,7 +175,7 @@ impl TryFrom<&[u8]> for VRFPublicKey {
             return Err(VrfError::PublicKey("Small subgroup".to_string()));
         }
 
-        match ed25519_PublicKey::from_bytes(bytes) {
+        match ed25519_PublicKey::from_bytes(&bits) {
             Ok(result) => Ok(VRFPublicKey(result)),
             Err(sig_err) => Err(VrfError::PublicKey(format!("Signature error {sig_err}"))),
         }
@@ -179,7 +187,14 @@ impl VRFPublicKey {
     /// and public key
     pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VrfError> {
         let h_point = self.hash_to_curve(alpha);
-        let pk_point = match CompressedEdwardsY::from_slice(self.as_bytes()).decompress() {
+        let pk_point = match CompressedEdwardsY::from_slice(self.as_bytes())
+            .map_err(|_| {
+                VrfError::Verification(
+                    "Failed to parse public key, incorrect byte string length".to_string(),
+                )
+            })?
+            .decompress()
+        {
             Some(pt) => pt,
             None => {
                 return Err(VrfError::Verification(
@@ -217,7 +232,9 @@ impl VRFPublicKey {
                 .chain([counter, ZERO])
                 .finalize();
             result.copy_from_slice(&hash[..32]);
-            let wrapped_point = CompressedEdwardsY::from_slice(&result).decompress();
+            let wrapped_point = CompressedEdwardsY::from_slice(&result)
+                .expect("Result hash should have a length of 32, but it does not")
+                .decompress();
             counter += 1;
             if let Some(wp) = wrapped_point {
                 return wp.mul_by_cofactor();
@@ -228,9 +245,8 @@ impl VRFPublicKey {
 
 impl<'a> From<&'a VRFPrivateKey> for VRFPublicKey {
     fn from(private_key: &'a VRFPrivateKey) -> Self {
-        let secret: &ed25519_PrivateKey = &private_key.0;
-        let public: ed25519_PublicKey = secret.into();
-        VRFPublicKey(public)
+        let signing_key = ed25519_SigningKey::from_bytes(private_key);
+        VRFPublicKey(ed25519_PublicKey::from(&signing_key))
     }
 }
 
@@ -241,7 +257,7 @@ impl<'a> From<&'a VRFPrivateKey> for VRFExpandedPrivateKey {
         let mut lower: [u8; 32] = [0u8; 32];
         let mut upper: [u8; 32] = [0u8; 32];
 
-        h.update(private_key.0.to_bytes());
+        Update::update(&mut h, &private_key.0);
         hash.copy_from_slice(h.finalize().as_slice());
 
         lower.copy_from_slice(&hash[00..32]);
@@ -252,6 +268,7 @@ impl<'a> From<&'a VRFPrivateKey> for VRFExpandedPrivateKey {
         lower[31] |= 64;
 
         VRFExpandedPrivateKey {
+            #[allow(deprecated)]  // Using the legacy from_bits() function to avoid reducing the scalar
             key: ed25519_Scalar::from_bits(lower),
             nonce: upper,
         }
@@ -291,7 +308,10 @@ impl TryFrom<&[u8]> for Proof {
         let mut s_buf = [0u8; 32];
         s_buf.copy_from_slice(&bytes[48..]);
 
-        let pk_point = match CompressedEdwardsY::from_slice(&bytes[..32]).decompress() {
+        let pk_point = match CompressedEdwardsY::from_slice(&bytes[..32])
+            .expect("Byte string should be of length 32, but it is not")
+            .decompress()
+        {
             Some(pt) => pt,
             None => {
                 return Err(VrfError::PublicKey(
@@ -302,8 +322,8 @@ impl TryFrom<&[u8]> for Proof {
 
         Ok(Proof {
             gamma: pk_point,
-            c: ed25519_Scalar::from_bits(c_buf),
-            s: ed25519_Scalar::from_bits(s_buf),
+            c: ed25519_Scalar::from_bytes_mod_order(c_buf),
+            s: ed25519_Scalar::from_bytes_mod_order(s_buf),
         })
     }
 }
@@ -370,5 +390,5 @@ pub(super) fn hash_points(
         hash = hash.chain(point.compress().to_bytes());
     }
     result[..16].copy_from_slice(&hash.chain([ZERO]).finalize()[..16]);
-    ed25519_Scalar::from_bits(result)
+    ed25519_Scalar::from_bytes_mod_order(result)
 }

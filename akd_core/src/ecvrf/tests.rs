@@ -18,7 +18,7 @@ use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY,
     scalar::Scalar as ed25519_Scalar,
 };
-use ed25519_dalek::{self, PublicKey as ed25519_PublicKey, SecretKey as ed25519_PrivateKey};
+use ed25519_dalek::{self, VerifyingKey as ed25519_PublicKey};
 #[cfg(feature = "serde_serialization")]
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
@@ -26,17 +26,6 @@ use proptest_derive::Arbitrary;
 use rand::rngs::StdRng;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-
-impl Clone for VRFPrivateKey {
-    fn clone(&self) -> Self {
-        // In theory, creating a key from bytes could be a DecodingError, except
-        // we just copied these bytes out of the source key, so ...
-        Self(
-            ed25519_PrivateKey::from_bytes(self.0.as_bytes())
-                .expect("Copied bytes from source key should be valid"),
-        )
-    }
-}
 
 /// A type family for schemes which know how to generate key material from
 /// a cryptographically-secure [`CryptoRng`][::rand::CryptoRng].
@@ -60,7 +49,9 @@ impl Uniform for VRFPrivateKey {
     where
         R: CryptoRng + RngCore,
     {
-        VRFPrivateKey(ed25519_PrivateKey::generate(rng))
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        VRFPrivateKey(bytes)
     }
 }
 
@@ -121,6 +112,7 @@ macro_rules! to_string {
 macro_rules! from_string {
     (CompressedEdwardsY, $e:expr) => {
         CompressedEdwardsY::from_slice(&::hex::decode($e).unwrap())
+            .expect("Slice should be of length 32, but it is not")
             .decompress()
             .unwrap()
     };
@@ -234,11 +226,12 @@ fn test_hash_points() {
         assert_eq!(tv.U, to_string!(u.compress()));
         assert_eq!(tv.V, to_string!(v.compress()));
 
-        let pk = ed25519_PublicKey::from_bytes(&hex::decode(tv.PK).unwrap()).unwrap();
+        let mut pk_bytes: [u8; 32] = [0u8; 32];
+        pk_bytes.copy_from_slice(&hex::decode(tv.PK).unwrap());
+        let pk = ed25519_PublicKey::from_bytes(&pk_bytes).unwrap();
         let c_scalar = hash_points(pk, &h_point.compress().to_bytes(), &[gamma, u, v]);
 
         let s_scalar = k_scalar + c_scalar * sk.key;
-        s_scalar.reduce();
 
         let mut c_bytes = [0u8; 16];
         c_bytes.copy_from_slice(&c_scalar.to_bytes()[..16]);
@@ -305,7 +298,7 @@ fn test_privatekey_clone() {
         let orig = from_string!(VRFPrivateKey, tv.SK);
         let clone = orig.clone();
         // the same bytes comprise both keys
-        assert_eq!(orig.as_bytes(), clone.as_bytes());
+        assert_eq!(orig.0, clone.0);
     }
 }
 
