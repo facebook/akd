@@ -17,8 +17,7 @@ use serde::de::DeserializeOwned;
 
 use crate::fixture_generator::generator::{Delta, Metadata, State};
 use crate::fixture_generator::reader::{Reader, ReaderError};
-
-const YAML_SEPARATOR: &str = "---";
+use crate::fixture_generator::YAML_SEPARATOR;
 
 impl From<std::io::Error> for ReaderError {
     fn from(error: std::io::Error) -> Self {

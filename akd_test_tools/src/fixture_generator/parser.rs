@@ -8,7 +8,7 @@
 //! This module contains the CLI argument definitions and parser.
 
 use akd::{AkdLabel, AkdValue};
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,6 @@ pub struct User {
 /// contents, capturing the directory state and epoch-to-epoch delta in
 /// an output file for use in debugging and as test fixtures.
 #[derive(Parser, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[clap(setting = AppSettings::DeriveDisplayOrder)]
 pub struct Args {
     /// Users and their associated key update events.
     /// A username is expected, followed by a colon and a list of epochs OR
@@ -48,35 +47,35 @@ pub struct Args {
     ///   --user "username: 1, 3, (5, 'xyz')"
     ///   --user="username: [(1,'abc'), 2]"
     ///   -u "some username: 1"
-    #[clap(
+    #[arg(
         long = "user",
         short = 'u',
-        multiple_occurrences = true,
-        parse(try_from_str = parse_user_events),
+        num_args = 0..,
+        value_parser = parse_user_events,
     )]
     pub users: Vec<User>,
 
     /// Number of epochs to advance the tree by
     /// e.g. a value of 3 will perform 3 publishes on an empty directory.
-    #[clap(long = "epochs", short = 'e')]
+    #[arg(long = "epochs", short = 'e')]
     pub epochs: u32,
 
     /// Maximum number of key updates **per epoch** the tool should perform.
     /// Note that all user events explicitly passed for an epoch will be
     /// included even if the number exceeds this value.
-    #[clap(long = "max_updates", default_value = "10")]
+    #[arg(long = "max_updates", default_value = "10")]
     pub max_updates: u32,
 
     /// Minimum number of key updates **per epoch** the tool should perform.
     /// The tool will generate random labels and values to include in an epoch
     /// if the user events explicitly passed for an epoch are not sufficients.
-    #[clap(long = "min_updates", default_value = "0")]
+    #[arg(long = "min_updates", default_value = "0")]
     pub min_updates: u32,
 
     /// Epochs where the state of the directory should be captured in the output
     /// e.g. the value 3 will output all db records after epoch 3 is performed.
     /// Multiple values are accepted e.g. --capture_states 9 10
-    #[clap(long = "capture_states", short = 's', multiple_values = true)]
+    #[arg(long = "capture_states", short = 's', num_args = 0..)]
     pub capture_states: Option<Vec<u32>>,
 
     /// Epochs where the key updates required to bring the directory to the
@@ -84,19 +83,19 @@ pub struct Args {
     /// e.g. the value 3 will output all key updates that were performed to
     /// advance the directory from epoch 2 to 3.
     /// Multiple values are accepted e.g. --capture_deltas 9 10
-    #[clap(long = "capture_deltas", short = 'd', multiple_values = true)]
+    #[arg(long = "capture_deltas", short = 'd', num_args = 0..)]
     pub capture_deltas: Option<Vec<u32>>,
 
     /// Name of output path.
     /// If omitted, output will be printed to stdout.
-    #[clap(long = "out", short = 'o')]
+    #[arg(long = "out", short = 'o')]
     pub out: Option<String>,
 
     /// Stops tool from generating random key updates in publishes.
     /// Use this if you want the tool to only use explicitly passed key updates.
     /// Explicilty passed key updates without values would still use randomly
     /// generated values.
-    #[clap(long = "no_generated_updates", short = 'n')]
+    #[arg(long = "no_generated_updates", short = 'n')]
     pub no_generated_updates: bool,
 }
 

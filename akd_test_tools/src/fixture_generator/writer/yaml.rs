@@ -11,7 +11,7 @@ use std::io::Write;
 
 use serde::Serialize;
 
-use crate::fixture_generator::writer::Writer;
+use crate::fixture_generator::{writer::Writer, YAML_SEPARATOR};
 
 /// YAML format writer.
 pub(crate) struct YamlWriter<T: Write> {
@@ -26,6 +26,7 @@ impl<T: Write> YamlWriter<T> {
 
 impl<T: Write> Writer for YamlWriter<T> {
     fn write_object(&mut self, object: impl Serialize) {
+        writeln!(self.out, "{}", YAML_SEPARATOR).unwrap();
         serde_yaml::to_writer(&mut self.out, &object).unwrap();
     }
 

@@ -60,7 +60,7 @@ fn history_generation<TC: NamedConfiguration>(c: &mut Criterion) {
                     .unwrap();
 
                 for _epoch in 1..num_updates {
-                    let value: String = (0..rng.gen_range(10, 20))
+                    let value: String = (0..rng.gen_range(10..20))
                         .map(|_| rng.sample(&Alphanumeric))
                         .map(char::from)
                         .collect();

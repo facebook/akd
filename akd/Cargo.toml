@@ -14,10 +14,10 @@ readme = "../README.md"
 whatsapp_v1 = ["akd_core/whatsapp_v1"]
 experimental = ["akd_core/experimental"]
 
-bench = ["experimental", "public_tests", "tokio/rt-multi-thread", "dep:paste"]
-public_tests = ["dep:rand", "dep:bincode", "dep:colored", "dep:once_cell", "serde_serialization", "akd_core/public_tests", "akd_core/rand", "dep:paste"]
+bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
+public_tests = ["dep:rand", "dep:colored", "dep:once_cell", "serde_serialization", "akd_core/public_tests", "akd_core/rand", "dep:paste"]
 public_auditing = ["dep:protobuf", "akd_core/protobuf"]
-serde_serialization = ["dep:serde", "ed25519-dalek/serde", "akd_core/serde_serialization"]
+serde_serialization = ["dep:serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
 runtime_metrics = []
 # Parallelize VRF calculations during publish
@@ -37,38 +37,34 @@ default = ["public_auditing", "parallel_vrf", "parallel_insert", "preload_histor
 [dependencies]
 ## Required dependencies ##
 akd_core = { path = "../akd_core", default-features = false, features = ["vrf"] }
-async-recursion = "0.3"
+async-recursion = "1"
 async-trait = "0.1"
-curve25519-dalek = "3"
 dashmap = { version = "5" }
-ed25519-dalek = "1"
 hex = "0.4"
 log = { version = "0.4.8", features = ["kv_unstable"] }
 tokio = { version = "1.21", features = ["sync", "time", "rt"] }
 
 ## Optional dependencies ##
-bincode = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
-rand = { version = "0.7", optional = true }
+rand = { version = "0.8", optional = true }
 colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
 protobuf = { version = "3.2", optional = true }
 paste = { version = "1", optional = true }
 
 [dev-dependencies]
-criterion = "0.3"
-serial_test = "0.5"
+criterion = "0.5"
+serial_test = "2"
 proptest = "1.0"
 proptest-derive = "0.3"
 colored = { version = "2" }
 once_cell = { version = "1" }
-ctor = "0.1"
+ctor = "0.2"
 tokio-test = "0.4"
 tokio = { version = "1.21", features = ["rt", "sync", "time", "macros"] }
 mockall = "0.11"
 futures = "0.3"
-itertools = "0.10"
-paste = "1"
+itertools = "0.11"
 
 # To enable the public_tests feature in tests
 akd = { path = ".", features = ["public_tests", "whatsapp_v1", "experimental"], default-features = false }
