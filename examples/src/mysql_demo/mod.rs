@@ -5,12 +5,8 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-
 use akd::ecvrf::HardCodedAkdVRF;
-use akd::storage::{Database, StorageManager};
+use akd::storage::StorageManager;
 use akd::Directory;
 use akd_mysql::mysql::AsyncMySqlDatabase;
 use clap::{Parser, ValueEnum};
@@ -21,8 +17,6 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;
 use std::io::*;
-use std::marker::PhantomData;
-use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::*;
 use tokio::time::timeout;
@@ -54,8 +48,8 @@ impl PublicLogLevels {
     }
 }
 
-/// applicationModes
-#[derive(Parser)]
+/// Application modes
+#[derive(Parser, Debug, Clone)]
 enum OtherMode {
     #[clap(about = "Benchmark publish API")]
     BenchPublish {
@@ -75,8 +69,8 @@ enum OtherMode {
     Drop,
 }
 
-#[derive(Parser)]
-struct Cli {
+#[derive(Parser, Debug, Clone)]
+pub(crate) struct CliArgs {
     /// The database implementation to utilize
     #[clap(long = "memory", name = "Use in-memory database")]
     memory_db: bool,
@@ -111,11 +105,10 @@ struct Cli {
 type TC = akd::configuration::ExperimentalConfiguration;
 
 // MAIN //
-#[tokio::main]
-async fn main() {
+pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
     ConsoleLogger::touch();
 
-    let cli = Cli::parse();
+    let cli = args;
 
     // Initialize logging facades
     let mut loggers: Vec<Box<dyn log::Log>> = vec![Box::new(ConsoleLogger {
@@ -147,8 +140,8 @@ async fn main() {
         let mut directory = Directory::<TC, _, _>::new(storage_manager, vrf)
             .await
             .unwrap();
-        if let Some(()) = pre_process_input(&cli, &tx, None).await {
-            return;
+        if let Some(()) = pre_process_input(&cli, None).await {
+            return Ok(());
         }
         tokio::spawn(async move {
             directory_host::init_host::<TC, _, HardCodedAkdVRF>(&mut rx, &mut directory).await
@@ -166,8 +159,8 @@ async fn main() {
         )
         .await
         .expect("Failed to create async mysql db");
-        if let Some(()) = pre_process_input(&cli, &tx, Some(&mysql_db)).await {
-            return;
+        if let Some(()) = pre_process_input(&cli, Some(&mysql_db)).await {
+            return Ok(());
         }
         let storage_manager = StorageManager::new(
             mysql_db,
@@ -183,16 +176,14 @@ async fn main() {
         });
         process_input(&cli, &tx, Some(storage_manager)).await;
     }
+
+    Ok(())
 }
 
 // Helpers //
 // If () is returned, it means the command execution is complete and CLI should
 // return
-async fn pre_process_input(
-    cli: &Cli,
-    tx: &Sender<directory_host::Rpc>,
-    db: Option<&AsyncMySqlDatabase>,
-) -> Option<()> {
+async fn pre_process_input(cli: &CliArgs, db: Option<&AsyncMySqlDatabase>) -> Option<()> {
     if let Some(OtherMode::Drop) = &cli.other_mode {
         println!("======= Dropping database ======= ");
         if let Some(mysql_db) = db {
@@ -208,7 +199,7 @@ async fn pre_process_input(
 }
 
 async fn process_input(
-    cli: &Cli,
+    cli: &CliArgs,
     tx: &Sender<directory_host::Rpc>,
     db: Option<StorageManager<AsyncMySqlDatabase>>,
 ) {
@@ -316,7 +307,6 @@ async fn process_input(
                 } else {
                     let toc = tic.elapsed();
 
-                    let millis = toc.as_millis();
                     println!(
                         "Benchmark output: Inserted {} users with {} updates/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
                         num_users,
@@ -354,12 +344,12 @@ async fn process_input(
                     .collect();
 
                 info!("Inserting {} users", num_users);
-                let (rpc_tx, rpc_rx) = tokio::sync::oneshot::channel();
+                let (rpc_tx, _) = tokio::sync::oneshot::channel();
                 let rpc = directory_host::Rpc(
                     directory_host::DirectoryCommand::PublishBatch(user_data.clone()),
                     Some(rpc_tx),
                 );
-                let sent = tx.clone().send(rpc).await;
+                let _ = tx.clone().send(rpc).await;
 
                 let tic = Instant::now();
 
@@ -379,7 +369,7 @@ async fn process_input(
                         match rpc_rx.await {
                             Err(err) => code = Some(format!("{err}")),
                             Ok(Err(dir_err)) => code = Some(dir_err),
-                            Ok(Ok(msg)) => {}
+                            Ok(Ok(_)) => {}
                         }
                         if code.is_some() {
                             break;
@@ -393,7 +383,6 @@ async fn process_input(
                 } else {
                     let toc = tic.elapsed();
 
-                    let millis = toc.as_millis();
                     println!(
                         "Benchmark output: Looked up and verified {} users with {} lookups/user\nExecution time: {} ms\nTime-per-user (avg): {} \u{00B5}s\nTime-per-op (avg): {} \u{00B5}s",
                         num_users,

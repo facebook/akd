@@ -8,8 +8,7 @@
 extern crate thread_id;
 
 use colored::*;
-use log::{Level, LevelFilter, Metadata, Record};
-use once_cell::sync::Lazy;
+use log::{Level, Metadata, Record};
 use once_cell::sync::OnceCell;
 use tokio::time::{Duration, Instant};
 
@@ -112,7 +111,7 @@ impl FileLogger {
 }
 
 impl log::Log for FileLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
         // use the global log-level
         true
     }
