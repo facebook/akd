@@ -50,20 +50,14 @@ jobs:
       - name: Check container akd-test-db logs
         run: docker logs akd-test-db
 
-      - name: Run MySQL tests
+      - name: Run MySQL tests and integration tests in examples package
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --manifest-path Cargo.toml -p akd_mysql
-
-      - name: Run integration tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path Cargo.toml -p akd_integration_tests
+          args: --manifest-path Cargo.toml -p examples
 
       - name: Cleanup docker container
         run: docker-compose -f docker-compose.yml down -v
 
       - name: Copy integration test logs for review
-        run: cat integration_tests/integration_test.log
+        run: cat examples/integration_test.log

@@ -33,6 +33,7 @@ pub struct YamlFileReader {
 }
 
 impl YamlFileReader {
+    #[cfg(test)]
     pub fn new(file: File) -> Result<Self, ReaderError> {
         let index = 0;
         let buffer = Self::buffer(&file)?;

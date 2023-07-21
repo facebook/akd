@@ -7,7 +7,7 @@
 
 //! This module implements operations for a simple asynchronized mysql database
 
-use crate::mysql_storables::MySqlStorable;
+use crate::mysql_demo::mysql_storables::MySqlStorable;
 use akd::errors::StorageError;
 use akd::hash::DIGEST_BYTES;
 use akd::storage::types::{DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
@@ -29,10 +29,10 @@ use tokio::time::Instant;
 
 type MySqlError = mysql_async::Error;
 
-const TABLE_AZKS: &str = crate::mysql_storables::TABLE_AZKS;
-const TABLE_HISTORY_TREE_NODES: &str = crate::mysql_storables::TABLE_HISTORY_TREE_NODES;
-const TABLE_USER: &str = crate::mysql_storables::TABLE_USER;
-const TEMP_IDS_TABLE: &str = crate::mysql_storables::TEMP_IDS_TABLE;
+const TABLE_AZKS: &str = crate::mysql_demo::mysql_storables::TABLE_AZKS;
+const TABLE_HISTORY_TREE_NODES: &str = crate::mysql_demo::mysql_storables::TABLE_HISTORY_TREE_NODES;
+const TABLE_USER: &str = crate::mysql_demo::mysql_storables::TABLE_USER;
+const TEMP_IDS_TABLE: &str = crate::mysql_demo::mysql_storables::TEMP_IDS_TABLE;
 
 const MAXIMUM_SQL_TIER_CONNECTION_TIMEOUT_SECS: u64 = 300;
 const SQL_RECONNECTION_DELAY_SECS: u64 = 5;

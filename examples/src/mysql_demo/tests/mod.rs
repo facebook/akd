@@ -5,9 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-use akd_test_tools::fixture_generator;
-
-#[tokio::main]
-async fn main() {
-    fixture_generator::run().await;
-}
+mod memory_tests;
+mod mysql_db_tests;
+mod mysql_tests;
+mod test_util;

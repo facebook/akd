@@ -218,6 +218,7 @@ impl Transaction {
     /// Retrieve the user state given the specified value state retrieval mode
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log
+    #[allow(clippy::let_and_return)]
     pub fn get_user_state(
         &self,
         username: &crate::AkdLabel,

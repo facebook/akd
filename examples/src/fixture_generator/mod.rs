@@ -6,9 +6,9 @@
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
 //! A CLI tool for generating directory fixtures for debug and testing purposes.
-//! Run cargo run -- --help for options. Example command:
+//! Run cargo run -p examples -- fixture-generator --help for options. Example command:
 //!
-//!   cargo run -- \
+//!   cargo run -- fixture-generator \
 //!     --user "User1: 1, (9, 'abc'), (10, 'def')" \
 //!     --user "User2: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10" \
 //!     --epochs 10 \
@@ -20,11 +20,12 @@
 mod examples;
 mod generator;
 mod parser;
+mod reader;
 mod writer;
 
-pub mod reader;
+pub(crate) use parser::Args;
 
 /// Re-export generator run function.
-pub use generator::run;
+pub(crate) use generator::run;
 
 const YAML_SEPARATOR: &str = "---";

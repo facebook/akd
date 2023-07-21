@@ -5,13 +5,14 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-use crate::mysql::*;
+use super::test_util::log_init;
+use crate::mysql_demo::mysql::AsyncMySqlDatabase;
 
 // *** Tests *** //
 
 #[tokio::test]
 async fn test_mysql_db() {
-    akd::test_utils::init_logger(log::Level::Info);
+    log_init(log::Level::Info);
     if AsyncMySqlDatabase::test_guard() {
         if let Err(error) = AsyncMySqlDatabase::create_test_db(
             "localhost",

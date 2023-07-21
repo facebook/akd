@@ -140,7 +140,6 @@ jobs:
           - package: akd
           - package: akd_core
           - package: akd_client
-          - package: akd_mysql
     steps:
       - uses: actions/checkout@main
       - name: Install rust
