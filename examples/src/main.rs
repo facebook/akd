@@ -63,7 +63,7 @@ macro_rules! test_config {
 
             #[tokio::test]
             async fn [<$x _ experimental_config>]() {
-                $x::<akd::ExperimentalConfiguration>().await
+                $x::<akd::ExperimentalConfiguration<akd::ExampleLabel>>().await
             }
         }
     };
@@ -84,7 +84,7 @@ macro_rules! test_config_serial {
             #[serial_test::serial]
             #[tokio::test]
             async fn [<$x _ experimental_config>]() {
-                $x::<akd::ExperimentalConfiguration>().await
+                $x::<akd::ExperimentalConfiguration<akd::ExampleLabel>>().await
             }
         }
     };

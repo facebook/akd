@@ -20,6 +20,8 @@ use crate::fixture_generator::reader::yaml::YamlFileReader;
 use crate::fixture_generator::reader::{Reader, ReaderError};
 use crate::test_config;
 
+type L = akd::ExampleLabel;
+
 test_config!(test_read);
 async fn test_read<TC: NamedConfiguration>() {
     // generate a temp fixture file
@@ -38,7 +40,7 @@ async fn test_read<TC: NamedConfiguration>() {
         "--out",
         &format!("{}", file.parent().unwrap().display()),
     ]);
-    generator::generate::<TC>(&args).await;
+    generator::generate::<TC, L>(&args).await;
 
     // initialize reader
     let mut reader = YamlFileReader::new(File::open(file).unwrap()).unwrap();

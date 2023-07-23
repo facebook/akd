@@ -71,6 +71,8 @@
 //! # });
 //! ```
 //!
+//! For more information on setting configurations, see the [Configurations](#configurations) section.
+//!
 //! ## Publishing
 //! To add label-value pairs (of type [`AkdLabel`] and [`AkdValue`]) to the directory, we can call [`Directory::publish`]
 //! with a list of the pairs. In the following example, we derive the labels and values from strings. After publishing,
@@ -397,24 +399,57 @@
 //! # });
 //! ```
 //!
-//! # Compilation Features
+//! # Advanced Usage
 //!
-//! The `akd` crate supports multiple compilation features:
+//! ## Configurations
 //!
-//! 1. `serde`: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
+//! This library supports the notion of a [Configuration], which can be used to customize the directory's cryptographic operations. We provide
+//! two default configurations: [WhatsAppV1Configuration] and [ExperimentalConfiguration].
+//!
+//! - [WhatsAppV1Configuration] matches the configuration used for Whatsapp's key transparency deployment
+//! - [ExperimentalConfiguration] is the configuration which matches the main branch deployment for AKD
+//!
+//! An [ExperimentalConfiguration] implements domain separation for its hashing operations by the specifying of a struct that
+//! implements [DomainLabel]. For example, to set the domain label as `"ExampleLabel"`, we define the struct [ExampleLabel] as:
+//! ```
+//! #[derive(Clone)]
+//! struct ExampleLabel;
+//!
+//! impl akd::DomainLabel for ExampleLabel {
+//!     fn domain_label() -> &'static [u8] {
+//!         "ExampleLabel".as_bytes()
+//!     }
+//! }
+//! ```
+//! An application can set their own specific domain label to a custom string achieve domain separation from other applications.
+//!
+//! ## Compilation Features
+//!
+//! This crate supports multiple compilation features:
+//!
+//! Configurations:
+//! - `whatsapp_v1`: Enables usage of [WhatsAppV1Configuration]
+//! - `experimental`: Enables usage of [ExperimentalConfiguration]
+//!
+//! Performance optimizations:
+//! - `parallel_vrf`: Enables the VRF computations to be run in parallel
+//! - `parallel_insert`: Enables nodes to be inserted via multiple threads during a publish operation
+//! - `preload_history`: Enable pre-loading of the nodes when generating history proofs
+//! - `greedy_lookup_preload`: Greedy loading of lookup proof nodes
+//!
+//! Benchmarking:
+//! - `bench`: Feature used when running benchmarks
+//! - `slow_internal_db`: Artifically slow the in-memory database (for benchmarking)
+//!
+//! Utilities:
+//! - `public_auditing`: Enables the publishing of audit proofs
+//! - `serde_serialization`: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
 //! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
 //! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
-//!
-//! 2. `public_tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
+//! - `runtime_metrics`: Collects metrics on the accesses to the storage layer
+//! - `public_tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
 //! unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
 //! used only in unit testing scenarios by altering your Cargo.toml as such:
-//! ```toml
-//! [dependencies]
-//! akd = { version = "0.9.0-pre.1" }
-//!
-//! [dev-dependencies]
-//! akd = { version = "0.9.0-pre.1", features = ["public_tests"] }
-//! ```
 //!
 
 #![warn(missing_docs)]

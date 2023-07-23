@@ -16,7 +16,7 @@ use std::io::Write;
 use akd::directory::Directory;
 use akd::storage::types::DbRecord;
 use akd::storage::{StorageManager, StorageUtil};
-use akd::{AkdLabel, AkdValue, NamedConfiguration};
+use akd::{AkdLabel, AkdValue, DomainLabel, NamedConfiguration};
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
@@ -48,6 +48,7 @@ pub struct Metadata {
     pub args: Args,
     pub version: String,
     pub configuration: String,
+    pub domain_label: String,
 }
 
 // "@" has to be separated from "generated" or linters might ignore this file
@@ -63,11 +64,12 @@ const DELTA_COMMENT: &str = "Delta - Epoch";
 
 pub async fn run(args: Args) {
     // NOTE(new_config): Add new configurations here
-    generate::<akd::WhatsAppV1Configuration>(&args).await;
-    generate::<akd::ExperimentalConfiguration>(&args).await;
+    type L = akd::ExampleLabel;
+    generate::<akd::WhatsAppV1Configuration, L>(&args).await;
+    generate::<akd::ExperimentalConfiguration<L>, L>(&args).await;
 }
 
-pub(crate) async fn generate<TC: NamedConfiguration>(args: &Args) {
+pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args) {
     let mut rng = StdRng::seed_from_u64(42);
 
     // args assertions
@@ -117,6 +119,7 @@ pub(crate) async fn generate<TC: NamedConfiguration>(args: &Args) {
         args: args.clone(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         configuration: TC::name().to_string(),
+        domain_label: String::from_utf8(L::domain_label().to_vec()).unwrap(),
     };
     writer.write_line();
     writer.write_comment(&comment);

@@ -165,7 +165,7 @@ pub fn lookup_verify_experimental(
     // protobuf encoded proof
     lookup_proof: &[u8],
 ) -> Result<LookupResult, String> {
-    lookup_verify::<akd_core::configuration::ExperimentalConfiguration>(
+    lookup_verify::<akd_core::configuration::ExperimentalConfiguration<akd_core::ExampleLabel>>(
         vrf_public_key,
         root_hash_ref,
         label,
@@ -197,7 +197,7 @@ pub mod tests {
 
                 #[tokio::test]
                 async fn [<$x _ experimental_config>]() -> Result<(), AkdError> {
-                    $x::<akd_core::configuration::ExperimentalConfiguration>().await
+                    $x::<akd_core::configuration::ExperimentalConfiguration<akd_core::ExampleLabel>>().await
                 }
             }
         };

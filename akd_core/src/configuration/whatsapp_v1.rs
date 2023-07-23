@@ -40,14 +40,10 @@ impl Configuration for WhatsAppV1Configuration {
     }
 
     fn empty_root_value() -> AzksValue {
-        // FIXME(#344) Change this to:
-        // [0u8; 32]
         AzksValue(Self::hash(&crate::EMPTY_VALUE))
     }
 
     fn empty_node_hash() -> AzksValue {
-        // FIXME(#344) Change this to:
-        // [0u8; 32]
         AzksValue(Self::hash(
             &[
                 Self::hash(&EMPTY_VALUE).to_vec(),
@@ -81,14 +77,6 @@ impl Configuration for WhatsAppV1Configuration {
         version: u64,
         value: &AkdValue,
     ) -> Digest {
-        // FIXME(#344) Change this to:
-        // hash(
-        //    &[
-        //        commitment_key,
-        //        &label.to_bytes(),
-        //    ]
-        //    .concat(),
-        //)
         Self::hash(
             &[
                 commitment_key,
@@ -155,15 +143,6 @@ impl Configuration for WhatsAppV1Configuration {
         right_val: &AzksValue,
         right_label: &[u8],
     ) -> AzksValue {
-        // FIXME(#344) Change this to:
-        // hash(
-        //    &[
-        //        left_val,
-        //        left_label,
-        //        right_val,
-        //        right_label,
-        //    ].concat()
-        // )
         AzksValue(Self::hash(
             &[
                 Self::hash(&[left_val.0.to_vec(), left_label.to_vec()].concat()),
@@ -176,27 +155,21 @@ impl Configuration for WhatsAppV1Configuration {
     /// Given the top-level hash, compute the "actual" root hash that is published
     /// by the directory maintainer
     fn compute_root_hash_from_val(root_val: &AzksValue) -> Digest {
-        // FIXME(#344) Change this to:
-        // root_val
         Self::hash(&[&root_val.0[..], &NodeLabel::root().value::<Self>()].concat())
     }
 
     /// Similar to commit_fresh_value, but used for stale values.
     fn stale_azks_value() -> AzksValue {
-        // FIXME(#344) Change this to:
-        // crate::hash::EMPTY_DIGEST
         AzksValue(Self::hash(&EMPTY_VALUE))
     }
 
     fn compute_node_label_value(bytes: &[u8]) -> Vec<u8> {
-        // FIXME(#344): We shouldn't need to actually hash the label, it is redundant. Change this to:
-        // self.to_bytes()
         Self::hash(bytes).to_vec()
     }
 
     fn empty_label() -> NodeLabel {
         NodeLabel {
-            label_val: [1u8; 32], // FIXME(#344): Let's use a more concise value here, like [1u8, 0u8, ..., 0u8]
+            label_val: [1u8; 32],
             label_len: 0,
         }
     }

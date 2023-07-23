@@ -46,7 +46,7 @@ macro_rules! test_config {
             #[cfg(feature = "experimental")]
             #[tokio::test]
             async fn [<$x _ experimental_config>]() -> Result<(), AkdError> {
-                $x::<$crate::ExperimentalConfiguration>().await
+                $x::<$crate::ExperimentalConfiguration<$crate::ExampleLabel>>().await
             }
         }
     };

@@ -8,7 +8,7 @@
 //! Defines the configuration trait and implementations for various configurations
 
 mod traits;
-pub use traits::Configuration;
+pub use traits::{Configuration, DomainLabel, ExampleLabel};
 
 #[cfg(feature = "public_tests")]
 pub use traits::NamedConfiguration;

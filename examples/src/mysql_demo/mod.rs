@@ -109,7 +109,7 @@ pub(crate) struct CliArgs {
 }
 
 // NOTE(new_config): This can be adjusted in order to change the config run by poc/
-type TC = akd::configuration::ExperimentalConfiguration;
+type TC = akd::ExperimentalConfiguration<akd::ExampleLabel>;
 
 // MAIN //
 pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
