@@ -49,14 +49,3 @@ jobs:
       run: cargo publish --manifest-path Cargo.toml -p akd
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
-
-    - name: Wait for necessary AKD version to be available
-      run: bash ./.github/workflows/wait-for-crate-dependency.sh akd_mysql akd
-
-    - name: Dry run publish AKD_MYSQL
-      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_mysql
-
-    - name: Publish crate AKD_MYSQL
-      run: cargo publish --manifest-path Cargo.toml -p akd_mysql
-      env:
-        CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}

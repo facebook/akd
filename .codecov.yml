@@ -2,9 +2,5 @@ codecov:
   require_ci_to_pass: false
 
 ignore:
-  - "akd_local_auditor"
-  - "akd_mysql"
-  - "akd_test_tools"
-  - "integration_tests"
-  - "poc"
+  - "examples"
   - "xtask"

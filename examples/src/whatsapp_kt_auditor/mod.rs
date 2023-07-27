@@ -5,10 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-//! This module holds the generic storage interaction layer trait along with the underlying implemented
-//! storage interactions. We need to implement the trait for a [Box] of the same trait in order to support
-//! passing the boxed implementations around. This is required for the async nature of the command and Rust's
-//! type inference engine
+//! A tool for verifying audit proofs published from WhatsApp's key transparency implementation
 
 mod auditor;
 

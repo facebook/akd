@@ -5,36 +5,9 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-//! A tool to verify audit proofs from a public (ideally immutable) storage
-//! medium. This tool is a read-evaluate-print-loop (REPL) interface, where
-//! a user can retrieve the information necessary about all operations by typing
-//! `help` into the REPL prompt.
-//!
-//! # Summary
-//!
-//! To startup the client, you can choose 1 of the supported storage mediums.
-//! Presently the supported storage mediums are
-//!
-//! 1. AWS DynamoDB index backed by S3 storage
-//! 2. AWS S3 only, without an index
-//!
-//! The application is started with all necessary flags to connect to the storage medium
-//! of choice, and then the REPL will start allowing the user to interact as an auditor.
-//!
-//! # Examples
-//!
-//! Assuming the audit proofs are stored in an S3 bucket in the AWS region `us-east-2` named
-//! "myproofs". To start the application, you can run
-//!
-//! ```bash
-//! cargo run -p akd_local_auditor -- s3 --bucket myproofs --region us-east-2
-//! ```
-//!
-//! ## Connection customization
-//!
-//! If you need to customize the connection to AWS, both data-layers support providing custom
-//! endpoints as well as a access key and secret key for authentication.
+//! A set of example applications and utilities for AKD
 
+mod fixture_generator;
 mod mysql_demo;
 mod whatsapp_kt_auditor;
 
@@ -56,6 +29,8 @@ enum ExampleType {
     WhatsappKtAuditor(whatsapp_kt_auditor::CliArgs),
     /// MySQL Demo
     MysqlDemo(mysql_demo::CliArgs),
+    /// Fixture Generator
+    FixtureGenerator(fixture_generator::Args),
 }
 
 // MAIN //
@@ -66,7 +41,50 @@ async fn main() -> Result<()> {
     match args.example {
         ExampleType::WhatsappKtAuditor(args) => whatsapp_kt_auditor::render_cli(args).await?,
         ExampleType::MysqlDemo(args) => mysql_demo::render_cli(args).await?,
+        ExampleType::FixtureGenerator(args) => fixture_generator::run(args).await,
     }
 
     Ok(())
+}
+
+// Test macros
+
+#[cfg(test)]
+#[macro_export]
+// NOTE(new_config): Add new configurations here
+macro_rules! test_config {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[tokio::test]
+            async fn [<$x _ whatsapp_v1_config>]() {
+                $x::<akd::WhatsAppV1Configuration>().await
+            }
+
+            #[tokio::test]
+            async fn [<$x _ experimental_config>]() {
+                $x::<akd::ExperimentalConfiguration>().await
+            }
+        }
+    };
+}
+
+#[cfg(test)]
+#[macro_export]
+// NOTE(new_config): Add new configurations here
+macro_rules! test_config_serial {
+    ( $x:ident ) => {
+        paste::paste! {
+            #[serial_test::serial]
+            #[tokio::test]
+            async fn [<$x _ whatsapp_v1_config>]() {
+                $x::<akd::WhatsAppV1Configuration>().await
+            }
+
+            #[serial_test::serial]
+            #[tokio::test]
+            async fn [<$x _ experimental_config>]() {
+                $x::<akd::ExperimentalConfiguration>().await
+            }
+        }
+    };
 }

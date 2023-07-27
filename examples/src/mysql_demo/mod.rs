@@ -5,13 +5,15 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
+//! An example tool for running AKD backed by MySQL storage
+
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::StorageManager;
 use akd::Directory;
-use akd_mysql::mysql::AsyncMySqlDatabase;
 use clap::{Parser, ValueEnum};
 use commands::Command;
 use log::{debug, error, info, warn};
+use mysql::AsyncMySqlDatabase;
 use rand::distributions::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -24,6 +26,11 @@ use tokio::time::timeout;
 mod commands;
 mod directory_host;
 mod logs;
+mod mysql;
+mod mysql_storables;
+
+#[cfg(test)]
+mod tests;
 
 use logs::ConsoleLogger;
 
