@@ -9,6 +9,7 @@
 
 mod fixture_generator;
 mod mysql_demo;
+mod wasm_client;
 mod whatsapp_kt_auditor;
 
 use anyhow::Result;
