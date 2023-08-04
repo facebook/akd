@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-//! Core utilities for the auditable key directory `akd` and `akd_client` crates.
+//! Core utilities for the auditable key directory `akd` crate.
 //! Mainly contains (1) hashing utilities for the core cryptographic operations
 //! involved in building an AKD and issuing proofs, (2) type definitions, and (3)
 //! protobuf specifications for all external types

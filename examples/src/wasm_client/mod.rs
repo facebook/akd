@@ -5,34 +5,28 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-//! Exposes the wasm specific verification operations that a client can perform
+//! Exposes the verification operations that a client can perform
 //!
 //! You can compile and pack the WASM output with
 //! ```bash
-//! cd akd_client # optional
 //! wasm-pack build --features wasm
 //! ```
-//! which currently has a resultant WASM file size of ~191KB with VRF verification enabled
 //!
 //! #### WASM Compilation and Deployment
 //!
-//! For WASM deployment of the AKD client, you'll want to read the [wasm_bindgen](https://rustwasm.github.io/wasm-bindgen/reference/deployment.html)
+//! For WASM deployment, you'll want to read the
+//! [wasm_bindgen](https://rustwasm.github.io/wasm-bindgen/reference/deployment.html)
 //! documentation which has reference material dependent on your environment.
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-use core::convert::TryInto;
-
-use protobuf::Message;
-use wasm_bindgen::prelude::*;
+//!
+//! Note that this file is intended for demonstration purposes only and not meant to be executable
+//! as-is.
 
 use akd_core::configuration::Configuration;
 use akd_core::proto::specs::types::LookupProof;
 use akd_core::verify::VerificationError;
+use core::convert::TryInto;
+use protobuf::Message;
+use wasm_bindgen::prelude::*;
 
 /// The result of a lookup proof validation. The value is hexadecimal encoded
 /// binary
@@ -99,15 +93,15 @@ impl LookupResult {
 fn fallible_lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
-    akd_key: crate::AkdLabel,
+    akd_key: akd::AkdLabel,
     // protobuf encoded proof
     lookup_proof: &[u8],
 ) -> Result<akd_core::VerifyResult, VerificationError> {
     let root_hash =
-        crate::hash::try_parse_digest(root_hash_ref).map_err(VerificationError::LookupProof)?;
+        akd_core::hash::try_parse_digest(root_hash_ref).map_err(VerificationError::LookupProof)?;
 
     let proto_proof = LookupProof::parse_from_bytes(lookup_proof)?;
-    crate::verify::lookup_verify::<TC>(
+    akd_core::verify::lookup_verify::<TC>(
         vrf_public_key,
         root_hash,
         akd_key,
@@ -115,8 +109,8 @@ fn fallible_lookup_verify<TC: Configuration>(
     )
 }
 
-/// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
 #[allow(unused)]
+/// Verify a lookup proof in WebAssembly, utilizing serde serialized structure for the proof
 fn lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
@@ -127,7 +121,7 @@ fn lookup_verify<TC: Configuration>(
     match fallible_lookup_verify::<TC>(
         vrf_public_key,
         root_hash_ref,
-        crate::AkdLabel(label.to_vec()),
+        akd::AkdLabel(label.to_vec()),
         lookup_proof,
     ) {
         Ok(verification) => Ok(LookupResult::new(
@@ -143,7 +137,7 @@ fn lookup_verify<TC: Configuration>(
 
 /// Verify a lookup proof in WebAssembly for WhatsAppV1Configuration,
 /// utilizing serde serialized structure for the proof
-#[cfg(feature = "whatsapp_v1")]
+#[allow(unused)]
 #[wasm_bindgen]
 pub fn lookup_verify_whatsapp_v1(
     vrf_public_key: &[u8],
@@ -162,7 +156,7 @@ pub fn lookup_verify_whatsapp_v1(
 
 /// Verify a lookup proof in WebAssembly for ExperimentalConfiguration,
 /// utilizing serde serialized structure for the proof
-#[cfg(feature = "experimental")]
+#[allow(unused)]
 #[wasm_bindgen]
 pub fn lookup_verify_experimental(
     vrf_public_key: &[u8],
@@ -188,23 +182,20 @@ pub mod tests {
     use akd::storage::StorageManager;
     use akd::{AkdLabel, AkdValue, Directory};
     use protobuf::Message;
-    use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::ecvrf::HardCodedAkdVRF;
+    use akd_core::ecvrf::HardCodedAkdVRF;
 
     /// NOTE(new_config): Add a new configuration here
     macro_rules! test_config {
         ( $x:ident ) => {
             paste::paste! {
-                #[cfg(feature = "whatsapp_v1")]
-                #[wasm_bindgen_test]
+                #[tokio::test]
                 async fn [<$x _ whatsapp_v1_config>]() -> Result<(), AkdError> {
                     $x::<akd_core::configuration::WhatsAppV1Configuration>().await
                 }
 
-                #[cfg(feature = "experimental")]
-                #[wasm_bindgen_test]
+                #[tokio::test]
                 async fn [<$x _ experimental_config>]() -> Result<(), AkdError> {
                     $x::<akd_core::configuration::ExperimentalConfiguration>().await
                 }
@@ -241,7 +232,7 @@ pub mod tests {
             .await
             .expect("Failed to get VRF public key");
 
-        let encoded_proof_bytes = crate::proto::specs::types::LookupProof::from(&lookup_proof)
+        let encoded_proof_bytes = akd::proto::specs::types::LookupProof::from(&lookup_proof)
             .write_to_bytes()
             .expect("Failed to encode lookup proof");
 

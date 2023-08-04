@@ -1,17 +1,8 @@
 [workspace]
 
 members = [
-    "akd_core",
     "akd",
-    "akd_client",
+    "akd_core",
     "examples",
     "xtask",
 ]
-
-[profile.release.package.akd_client]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
-
-[profile.release.package.akd_core]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"

@@ -34,14 +34,6 @@ jobs:
     - name: Wait for necessary AKD_CORE version to be available
       run: bash ./.github/workflows/wait-for-crate-dependency.sh akd akd_core
 
-    - name: Dry run publish AKD_CLIENT
-      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_client
-
-    - name: Publish crate AKD_CLIENT
-      run: cargo publish --manifest-path Cargo.toml -p akd_client
-      env:
-        CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
-
     - name: Dry run publish AKD
       run: cargo publish --dry-run --manifest-path Cargo.toml -p akd
 

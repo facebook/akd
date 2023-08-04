@@ -5,7 +5,7 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
-//! This is the pre-compilation build script for the crate `akd_client`. Mainly it's used to compile
+//! This is the pre-compilation build script for the crate `akd_core`. Mainly it's used to compile
 //! protobuf files into rust code prior to compilation.
 
 // NOTE: build.rs documentation = https://doc.rust-lang.org/cargo/reference/build-scripts.html
