@@ -188,7 +188,7 @@ pub mod utils;
 pub mod verify;
 
 pub mod configuration;
-pub use configuration::Configuration;
+pub use configuration::{Configuration, DomainLabel, ExampleLabel};
 
 // Note(new_config): Update this when adding a new configuration
 

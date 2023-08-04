@@ -106,7 +106,7 @@ macro_rules! test_config_sync {
             #[cfg(feature = "experimental")]
             #[test]
             fn [<$x _ experimental_config>]() {
-                $x::<$crate::ExperimentalConfiguration>()
+                $x::<$crate::ExperimentalConfiguration<$crate::ExampleLabel>>()
             }
         }
     };

@@ -13,6 +13,23 @@ use crate::{AkdLabel, AkdValue, AzksValue, AzksValueWithEpoch, NodeLabel, Versio
 #[cfg(feature = "nostd")]
 use alloc::vec::Vec;
 
+/// Trait for specifying a domain separation label that should be specific to the
+/// application
+pub trait DomainLabel: Clone + 'static {
+    /// Returns a label, which is used as a domain separator when computing hashes
+    fn domain_label() -> &'static [u8];
+}
+
+/// An example domain separation label (this should not be used in a production setting!)
+#[derive(Clone)]
+pub struct ExampleLabel;
+
+impl DomainLabel for ExampleLabel {
+    fn domain_label() -> &'static [u8] {
+        "ExampleLabel".as_bytes()
+    }
+}
+
 /// Trait for customizing the directory's cryptographic operations
 pub trait Configuration: Clone + Send + Sync + 'static {
     /// Hash a single byte array

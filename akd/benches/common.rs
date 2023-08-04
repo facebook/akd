@@ -18,7 +18,7 @@ macro_rules! bench_config {
 
             #[cfg(feature = "experimental")]
             fn [<$x _ experimental_config>](c: &mut Criterion) {
-                $x::<akd_core::ExperimentalConfiguration>(c)
+                $x::<akd_core::ExperimentalConfiguration<akd_core::ExampleLabel>>(c)
             }
         }
     };

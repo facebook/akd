@@ -7,6 +7,9 @@
 
 //! Defines the current (experimental) configuration
 
+use core::marker::PhantomData;
+
+use super::traits::DomainLabel;
 use crate::configuration::Configuration;
 use crate::hash::{Digest, DIGEST_BYTES};
 use crate::utils::i2osp_array;
@@ -17,24 +20,28 @@ use alloc::vec::Vec;
 
 /// An experimental configuration
 #[derive(Clone)]
-pub struct ExperimentalConfiguration;
+pub struct ExperimentalConfiguration<L>(PhantomData<L>);
 
-unsafe impl Send for ExperimentalConfiguration {}
-unsafe impl Sync for ExperimentalConfiguration {}
+unsafe impl<L> Send for ExperimentalConfiguration<L> {}
+unsafe impl<L> Sync for ExperimentalConfiguration<L> {}
 
-impl ExperimentalConfiguration {
+impl<L: DomainLabel> ExperimentalConfiguration<L> {
     /// Used by the client to supply a commitment nonce and value to reconstruct the commitment, via:
     /// commitment = H(i2osp_array(value), i2osp_array(nonce))
     fn generate_commitment_from_nonce_client(value: &crate::AkdValue, nonce: &[u8]) -> AzksValue {
-        AzksValue(Self::hash(
+        AzksValue(<Self as Configuration>::hash(
             &[i2osp_array(value), i2osp_array(nonce)].concat(),
         ))
     }
 }
 
-impl Configuration for ExperimentalConfiguration {
+impl<L: DomainLabel> Configuration for ExperimentalConfiguration<L> {
     fn hash(item: &[u8]) -> crate::hash::Digest {
-        ::blake3::hash(item).into()
+        // Hash(domain label || item)
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(L::domain_label());
+        hasher.update(item);
+        hasher.finalize().into()
     }
 
     fn empty_root_value() -> AzksValue {
@@ -159,7 +166,7 @@ impl Configuration for ExperimentalConfiguration {
 }
 
 #[cfg(feature = "public_tests")]
-impl super::traits::NamedConfiguration for ExperimentalConfiguration {
+impl<L: DomainLabel> super::traits::NamedConfiguration for ExperimentalConfiguration<L> {
     fn name() -> &'static str {
         "experimental"
     }

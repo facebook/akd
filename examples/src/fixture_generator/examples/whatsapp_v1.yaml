@@ -22,8 +22,9 @@ args:
   - 10
   out: examples/src/fixture_generator/examples/
   no_generated_updates: false
-version: 0.0.0
+version: 0.9.0-pre.1
 configuration: whatsapp_v1
+domain_label: ExampleLabel
 
 # State - Epoch 9
 ---
