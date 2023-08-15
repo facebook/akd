@@ -189,6 +189,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                         if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
+                            root_hash.epoch(),
                             label,
                             proof,
                         ) {
@@ -220,6 +221,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                         if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
+                            root_hash.epoch(),
                             label,
                             proof,
                         ) {
@@ -308,6 +310,7 @@ pub(crate) async fn directory_test_suite<
                         if let Err(error) = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
+                            root_hash.epoch(),
                             key,
                             proof,
                         ) {

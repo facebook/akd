@@ -207,6 +207,7 @@ async fn test_simple_lookup<TC: Configuration>() -> Result<(), AkdError> {
     lookup_verify::<TC>(
         vrf_pk.as_bytes(),
         root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from("hello"),
         lookup_proof,
     )?;
@@ -466,6 +467,7 @@ async fn test_complex_verification_many_versions<TC: Configuration>() -> Result<
             let lookup_verify_result = lookup_verify::<TC>(
                 vrf_pk.as_bytes(),
                 epoch_hash.hash(),
+                epoch_hash.epoch(),
                 label.clone(),
                 lookup_proof,
             )?;
@@ -926,6 +928,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
     lookup_verify::<TC>(
         vrf_pk.as_bytes(),
         root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from("hello"),
         lookup_proof,
     )
@@ -1173,8 +1176,8 @@ async fn test_publish_op_makes_no_get_requests<TC: Configuration>() -> Result<()
 // The below two tests are identical except for the hash function being used.
 
 // Test lookup in a smaller tree with 2 leaves, using the Blake3 hash function.
-test_config!(test_simple_lookup_for_small_tree_blake);
-async fn test_simple_lookup_for_small_tree_blake<TC: Configuration>() -> Result<(), AkdError> {
+test_config!(test_simple_lookup_for_small_tree);
+async fn test_simple_lookup_for_small_tree<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
@@ -1207,6 +1210,7 @@ async fn test_simple_lookup_for_small_tree_blake<TC: Configuration>() -> Result<
     let akd_result = crate::client::lookup_verify::<TC>(
         vrf_pk.as_bytes(),
         root_hash.hash(),
+        root_hash.epoch(),
         target_label.clone(),
         lookup_proof,
     )?;
@@ -1224,15 +1228,14 @@ async fn test_simple_lookup_for_small_tree_blake<TC: Configuration>() -> Result<
     Ok(())
 }
 
-// Test lookup in a smaller tree with 2 leaves, using the Sha3 hash function.
-#[cfg(feature = "sha3_256")]
-#[tokio::test]
-async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
+// Test lookup_verify where version number exceeds epoch (and it should throw an error)
+test_config!(test_lookup_verify_invalid_version_number);
+async fn test_lookup_verify_invalid_version_number<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -1240,43 +1243,37 @@ async fn test_simple_lookup_for_small_tree_sha256() -> Result<(), AkdError> {
     let mut updates = vec![];
     for i in 0..1 {
         updates.push((
-            AkdLabel(format!("hello{}", i).as_bytes().to_vec()),
-            AkdValue(format!("hello{}", i).as_bytes().to_vec()),
+            AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
+            AkdValue(format!("hello1{i}").as_bytes().to_vec()),
         ));
     }
-
-    // Publish the updates. Now the akd's epoch will be 1.
-    akd.publish(updates).await?;
+    // Repeatedly publish the updates. Afterwards, the akd's epoch will be 10.
+    for _ in 0..10 {
+        akd.publish(updates.clone()).await?;
+    }
 
     // The label we will lookup is "hello10"
-    let target_label = AkdLabel(format!("hello{}", 0).as_bytes().to_vec());
+    let target_label = AkdLabel(format!("hello1{}", 0).as_bytes().to_vec());
 
     // retrieve the lookup proof
-    let lookup_proof = akd.lookup(target_label.clone()).await?;
-    // retrieve the root hash
-    let current_azks = akd.retrieve_current_azks().await?;
-    let root_hash = akd.get_root_hash(&current_azks).await?;
+    let (lookup_proof, root_hash) = akd.lookup(target_label.clone()).await?;
 
     // Get the VRF public key
     let vrf_pk = vrf.get_vrf_public_key().await?;
 
-    // perform the "traditional" AKD verification
     let akd_result = crate::client::lookup_verify::<TC>(
         vrf_pk.as_bytes(),
-        root_hash,
+        root_hash.hash(),
+        root_hash.epoch() - 1, // To fake a lower epoch and trigger the error condition
         target_label.clone(),
         lookup_proof,
-    )?;
-
-    // check the two results to make sure they both verify
-    assert_eq!(
-        akd_result,
-        VerifyResult {
-            epoch: 1,
-            version: 1,
-            value: AkdValue::from_utf8_str("hello0"),
-        },
     );
+
+    // Check that the result is a verification error
+    match akd_result {
+        Err(akd_core::verify::VerificationError::LookupProof(_)) => (),
+        _ => panic!("Expected an invalid epoch error"),
+    }
 
     Ok(())
 }
@@ -1296,6 +1293,7 @@ async fn async_poll_helper_proof<TC: Configuration, T: Database + 'static, V: VR
     lookup_verify::<TC>(
         pk.as_bytes(),
         root_hash.hash(),
+        root_hash.epoch(),
         AkdLabel::from("hello"),
         lookup_proof,
     )?;

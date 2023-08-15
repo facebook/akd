@@ -18,9 +18,18 @@ use crate::{AkdLabel, LookupProof, VerifyResult, VersionFreshness};
 pub fn lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
+    current_epoch: u64,
     akd_label: AkdLabel,
     proof: LookupProof,
 ) -> Result<VerifyResult, VerificationError> {
+    if proof.version > current_epoch {
+        return Err(VerificationError::LookupProof(alloc::format!(
+            "Proof version {} is greater than current epoch {}",
+            proof.version,
+            current_epoch
+        )));
+    }
+
     verify_existence_with_val::<TC>(
         vrf_public_key,
         root_hash,
