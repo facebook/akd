@@ -93,6 +93,7 @@ impl LookupResult {
 fn fallible_lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
+    current_epoch: u64,
     akd_key: akd::AkdLabel,
     // protobuf encoded proof
     lookup_proof: &[u8],
@@ -104,6 +105,7 @@ fn fallible_lookup_verify<TC: Configuration>(
     akd_core::verify::lookup_verify::<TC>(
         vrf_public_key,
         root_hash,
+        current_epoch,
         akd_key,
         (&proto_proof).try_into()?,
     )
@@ -114,6 +116,7 @@ fn fallible_lookup_verify<TC: Configuration>(
 fn lookup_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
+    current_epoch: u64,
     label: &[u8],
     // protobuf encoded proof
     lookup_proof: &[u8],
@@ -121,6 +124,7 @@ fn lookup_verify<TC: Configuration>(
     match fallible_lookup_verify::<TC>(
         vrf_public_key,
         root_hash_ref,
+        current_epoch,
         akd::AkdLabel(label.to_vec()),
         lookup_proof,
     ) {
@@ -142,6 +146,7 @@ fn lookup_verify<TC: Configuration>(
 pub fn lookup_verify_whatsapp_v1(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
+    current_epoch: u64,
     label: &[u8],
     // protobuf encoded proof
     lookup_proof: &[u8],
@@ -149,6 +154,7 @@ pub fn lookup_verify_whatsapp_v1(
     lookup_verify::<akd_core::configuration::WhatsAppV1Configuration>(
         vrf_public_key,
         root_hash_ref,
+        current_epoch,
         label,
         lookup_proof,
     )
@@ -161,6 +167,7 @@ pub fn lookup_verify_whatsapp_v1(
 pub fn lookup_verify_experimental(
     vrf_public_key: &[u8],
     root_hash_ref: &[u8],
+    current_epoch: u64,
     label: &[u8],
     // protobuf encoded proof
     lookup_proof: &[u8],
@@ -168,6 +175,7 @@ pub fn lookup_verify_experimental(
     lookup_verify::<akd_core::configuration::ExperimentalConfiguration<akd_core::ExampleLabel>>(
         vrf_public_key,
         root_hash_ref,
+        current_epoch,
         label,
         lookup_proof,
     )
@@ -240,6 +248,7 @@ pub mod tests {
         let result = lookup_verify::<TC>(
             vrf_pk.as_bytes(),
             &root_hash.hash(),
+            root_hash.epoch(),
             &target_label,
             &encoded_proof_bytes,
         );

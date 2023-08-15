@@ -48,7 +48,7 @@ pub fn key_history_verify<TC: Configuration>(
     vrf_public_key: &[u8],
     root_hash: Digest,
     current_epoch: u64,
-    akd_key: AkdLabel,
+    akd_label: AkdLabel,
     proof: HistoryProof,
     params: HistoryVerificationParams,
 ) -> Result<Vec<VerifyResult>, VerificationError> {
@@ -60,7 +60,7 @@ pub fn key_history_verify<TC: Configuration>(
     // Make sure the update proofs are non-empty
     if num_proofs == 0 {
         return Err(VerificationError::HistoryProof(format!(
-            "No update proofs included in the proof of user {akd_key:?} at epoch {current_epoch:?}!"
+            "No update proofs included in the proof of user {akd_label:?} at epoch {current_epoch:?}!"
         )));
     }
 
@@ -102,7 +102,7 @@ pub fn key_history_verify<TC: Configuration>(
             root_hash,
             vrf_public_key,
             update_proof,
-            &akd_key,
+            &akd_label,
             params,
         )?;
         results.push(result);
@@ -118,14 +118,14 @@ pub fn key_history_verify<TC: Configuration>(
         verify_nonexistence::<TC>(
             vrf_public_key,
             root_hash,
-            &akd_key,
+            &akd_label,
             VersionFreshness::Fresh,
             version,
             &proof.until_marker_vrf_proofs[i],
             &proof.non_existence_until_marker_proofs[i],
         ).map_err(|_|
             VerificationError::HistoryProof(format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    &akd_key, version, current_epoch)))?;
+                    &akd_label, version, current_epoch)))?;
     }
 
     // Verify the VRFs and non-membership proofs for future markers
@@ -134,13 +134,13 @@ pub fn key_history_verify<TC: Configuration>(
         verify_nonexistence::<TC>(
             vrf_public_key,
             root_hash,
-            &akd_key,
+            &akd_label,
             VersionFreshness::Fresh,
             version,
             &proof.future_marker_vrf_proofs[i],
             &proof.non_existence_of_future_marker_proofs[i],
         ).map_err(|_|
-            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {akd_key:?}'s version {version:?} at epoch {current_epoch:?} does not verify")))?;
+            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {akd_label:?}'s version {version:?} at epoch {current_epoch:?} does not verify")))?;
     }
 
     Ok(results)

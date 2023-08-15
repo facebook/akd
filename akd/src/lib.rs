@@ -183,6 +183,7 @@
 //! let lookup_result = akd::client::lookup_verify::<Config>(
 //!     public_key.as_bytes(),
 //!     epoch_hash.hash(),
+//!     epoch_hash.epoch(),
 //!     AkdLabel::from("first entry"),
 //!     lookup_proof,
 //! ).expect("Could not verify lookup proof");

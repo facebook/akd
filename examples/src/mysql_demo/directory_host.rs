@@ -98,6 +98,7 @@ where
                         let verification = akd::client::lookup_verify::<TC>(
                             vrf_pk.as_bytes(),
                             root_hash.hash(),
+                            root_hash.epoch(),
                             AkdLabel::from(&a),
                             proof,
                         );
