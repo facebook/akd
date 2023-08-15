@@ -2,6 +2,7 @@
 name = "examples"
 version = "0.9.0-pre.1"
 authors = ["akd contributors"]
+license = "MIT OR Apache-2.0"
 edition = "2021"
 publish = false
 

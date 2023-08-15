@@ -1,8 +1,9 @@
 [package]
 name = "xtask"
 version = "0.1.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [dependencies]
-xtaskops = "0.4.2"
+xtaskops = "0.4"
 anyhow = "1"
