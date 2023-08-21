@@ -1,7 +1,7 @@
 [package]
 name = "akd"
-version = "0.9.0-pre.1"
-authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+version = "0.9.0"
+authors = ["akd contributors"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -15,7 +15,15 @@ whatsapp_v1 = ["akd_core/whatsapp_v1"]
 experimental = ["akd_core/experimental"]
 
 bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
-public_tests = ["dep:rand", "dep:colored", "dep:once_cell", "serde_serialization", "akd_core/public_tests", "akd_core/rand", "dep:paste"]
+public_tests = [
+    "dep:rand",
+    "dep:colored",
+    "dep:once_cell",
+    "serde_serialization",
+    "akd_core/public_tests",
+    "akd_core/rand",
+    "dep:paste",
+]
 public_auditing = ["dep:protobuf", "akd_core/protobuf"]
 serde_serialization = ["dep:serde", "akd_core/serde_serialization"]
 # Collect runtime metrics on db access calls + timing
@@ -32,11 +40,20 @@ slow_internal_db = []
 greedy_lookup_preload = []
 
 # Default features mix (experimental + audit-proof protobuf mgmt support)
-default = ["public_auditing", "parallel_vrf", "parallel_insert", "preload_history", "greedy_lookup_preload", "experimental"]
+default = [
+    "public_auditing",
+    "parallel_vrf",
+    "parallel_insert",
+    "preload_history",
+    "greedy_lookup_preload",
+    "experimental",
+]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { path = "../akd_core", default-features = false, features = ["vrf"] }
+akd_core = { version = "0.9.0", path = "../akd_core", default-features = false, features = [
+    "vrf",
+] }
 async-recursion = "1"
 async-trait = "0.1"
 dashmap = "5"
@@ -67,7 +84,11 @@ futures = "0.3"
 itertools = "0.11"
 
 # To enable the public_tests feature in tests
-akd = { path = ".", features = ["public_tests", "whatsapp_v1", "experimental"], default-features = false }
+akd = { path = ".", features = [
+    "public_tests",
+    "whatsapp_v1",
+    "experimental",
+], default-features = false }
 
 [[bench]]
 name = "azks"

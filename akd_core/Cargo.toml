@@ -1,7 +1,7 @@
 [package]
 name = "akd_core"
-version = "0.9.0-pre.1"
-authors = ["Harjasleen Malvai <hmalvai@fb.com>", "Kevin Lewi <klewi@fb.com>", "Sean Lawlor <seanlawlor@fb.com>"]
+version = "0.9.0"
+authors = ["akd contributors"]
 description = "Core utilities for the auditable-key-directory suite of crates (akd and akd_client)"
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -38,7 +38,10 @@ default = ["vrf", "experimental"]
 ## Required dependencies ##
 async-trait = "0.1"
 curve25519-dalek = { version = "4", optional = true }
-ed25519-dalek = { version = "2", features = ["digest", "legacy_compatibility"], optional = true }
+ed25519-dalek = { version = "2", features = [
+    "digest",
+    "legacy_compatibility",
+], optional = true }
 hex = "0.4"
 
 ## Optional dependencies ##
