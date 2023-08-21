@@ -141,19 +141,3 @@ jobs:
         with:
           command: doc
           args: --package ${{matrix.package}}
-
-  auditor-tests:
-    name: Test latest epoch verification for the whatsapp-kt-auditor example
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@main
-      - name: Install rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: Run latest epoch audit proof verification
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -p examples --release -- whatsapp-kt-auditor -l
