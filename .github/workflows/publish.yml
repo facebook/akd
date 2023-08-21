@@ -23,15 +23,15 @@ jobs:
       env:
         CRATES_IO_TOKEN: ${{ secrets.crates_io_token }}
 
-    - name: Dry run publish AKD_CORE
-      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_core -F blake3
+    - name: Dry run publish akd_core
+      run: cargo publish --dry-run --manifest-path Cargo.toml -p akd_core
 
-    - name: Publish crate AKD_CORE
-      run: cargo publish --manifest-path Cargo.toml -p akd_core -F blake3
+    - name: Publish crate akd_core
+      run: cargo publish --manifest-path Cargo.toml -p akd_core
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
 
-    - name: Wait for necessary AKD_CORE version to be available
+    - name: Wait for necessary akd_core version to be available
       run: bash ./.github/workflows/wait-for-crate-dependency.sh akd akd_core
 
     - name: Dry run publish AKD
