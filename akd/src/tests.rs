@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use crate::test_config;
+use crate::{errors::DirectoryError, test_config};
 use akd_core::{configuration::Configuration, hash::DIGEST_BYTES};
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -1274,6 +1274,34 @@ async fn test_lookup_verify_invalid_version_number<TC: Configuration>() -> Resul
         Err(akd_core::verify::VerificationError::LookupProof(_)) => (),
         _ => panic!("Expected an invalid epoch error"),
     }
+
+    Ok(())
+}
+
+// Test for attempting to publish duplicate entries as updates to the directory
+test_config!(test_publish_duplicate_entries);
+async fn test_publish_duplicate_entries<TC: Configuration>() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+
+    // Create a set of updates
+    let mut updates = vec![];
+    for i in 0..10 {
+        updates.push((
+            AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
+            AkdValue(format!("hello1{i}").as_bytes().to_vec()),
+        ));
+    }
+
+    // Now add a duplicate entry
+    updates.push(updates[0].clone());
+
+    // Attempt to publish -- this should throw an error because of the duplicate entry
+    let Err(AkdError::Directory(DirectoryError::Publish(_))) = akd.publish(updates).await else {
+        panic!("Expected a directory publish error");
+    };
 
     Ok(())
 }
