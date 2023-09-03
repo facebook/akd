@@ -69,9 +69,13 @@ pub fn key_history_verify<TC: Configuration>(
         if count > 0 {
             // Make sure this proof is for a version 1 more than the previous one.
             if proof.update_proofs[count].version + 1 != proof.update_proofs[count - 1].version {
-                return Err(VerificationError::HistoryProof(format!("Why did you give me consecutive update proofs without version numbers decrementing by 1? Version {} = {}; version {} = {}",
-                count, proof.update_proofs[count].version,
-                count-1, proof.update_proofs[count-1].version
+                return Err(VerificationError::HistoryProof(format!(
+                    "Update proofs should be ordered consecutively and in decreasing order. 
+                    Error detected with version {} = {}, followed by version {} = {}",
+                    count,
+                    proof.update_proofs[count].version,
+                    count - 1,
+                    proof.update_proofs[count - 1].version
                 )));
             }
         }
@@ -91,8 +95,8 @@ pub fn key_history_verify<TC: Configuration>(
             // Make sure this this epoch is more than the previous epoch you checked
             if update_proof.epoch > previous_update_epoch {
                 return Err(VerificationError::HistoryProof(format!(
-                    "Why are your versions decreasing in updates and epochs not?!,
-                    epoch = {}, previous epoch = {}",
+                    "Version numbers for updates are decreasing, but their corresponding
+                    epochs are not decreasing: epoch = {}, previous epoch = {}",
                     update_proof.epoch, previous_update_epoch
                 )));
             }
@@ -123,9 +127,14 @@ pub fn key_history_verify<TC: Configuration>(
             version,
             &proof.until_marker_vrf_proofs[i],
             &proof.non_existence_until_marker_proofs[i],
-        ).map_err(|_|
-            VerificationError::HistoryProof(format!("Non-existence of next few proof of user {:?}'s version {:?} at epoch {:?} does not verify",
-                    &akd_label, version, current_epoch)))?;
+        )
+        .map_err(|_| {
+            VerificationError::HistoryProof(format!(
+                "Non-existence of next few proof of label {:?} with version
+                {:?} at epoch {:?} does not verify",
+                &akd_label, version, current_epoch
+            ))
+        })?;
     }
 
     // Verify the VRFs and non-membership proofs for future markers
@@ -139,8 +148,13 @@ pub fn key_history_verify<TC: Configuration>(
             version,
             &proof.future_marker_vrf_proofs[i],
             &proof.non_existence_of_future_marker_proofs[i],
-        ).map_err(|_|
-            VerificationError::HistoryProof(format!("Non-existence of future marker proof of user {akd_label:?}'s version {version:?} at epoch {current_epoch:?} does not verify")))?;
+        )
+        .map_err(|_| {
+            VerificationError::HistoryProof(format!(
+                "Non-existence of future marker proof of label {akd_label:?} with
+                version {version:?} at epoch {current_epoch:?} does not verify"
+            ))
+        })?;
     }
 
     Ok(results)
