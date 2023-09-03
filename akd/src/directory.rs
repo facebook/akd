@@ -255,7 +255,7 @@ where
 
     /// Generate a lookup proof with the provided target information
     ///
-    /// * `current_azks`: The current [Akzs] element
+    /// * `current_azks`: The current [Azks] element
     /// * `lookup_info`: The information to target in the lookup request. Includes all
     /// necessary information to build the proof
     /// * `skip_preload`: Denotes if we should not preload as part of this optimization. Enabled

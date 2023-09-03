@@ -477,10 +477,9 @@ pub mod tree_node;
 #[cfg(feature = "public_auditing")]
 pub mod local_auditing;
 
-pub use akd_core::configuration::*;
-pub use akd_core::hash::Digest;
-pub use akd_core::verify;
-pub use akd_core::*;
+pub use akd_core::{
+    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify, ARITY,
+};
 
 #[macro_use]
 mod utils;
