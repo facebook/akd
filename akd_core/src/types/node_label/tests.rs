@@ -53,7 +53,7 @@ fn test_get_bit_at_small() {
     let label = NodeLabel::new(byte_arr_from_u64(val), 4);
     for (index, item) in expected.iter().enumerate().take(4) {
         assert!(
-            *item == label.get_bit_at(index as u32),
+            *item == label.get_bit_at(index as u32).unwrap(),
             "get_bit_at({}) wrong for the 4 digit label 0b1010! Expected {:?} and got {:?}",
             index,
             *item,
@@ -61,10 +61,9 @@ fn test_get_bit_at_small() {
         )
     }
     for index in 4u32..256u32 {
-        assert_eq!(
-            label.get_bit_at(index),
-            Bit::Zero,
-            "Index {index} should be 0 in a label of length 4 but it doesn't!"
+        assert!(
+            label.get_bit_at(index).is_err(),
+            "Index {index} should be out of range"
         );
     }
 }
@@ -76,7 +75,7 @@ fn test_get_bit_at_medium_1() {
     let val = 0b1u64 << 63;
     let expected = Bit::One;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
-    let computed = label.get_bit_at(0);
+    let computed = label.get_bit_at(0).unwrap();
     assert!(
         expected == computed,
         "{}",
@@ -93,7 +92,7 @@ fn test_get_bit_at_medium_2() {
     let val = 0b1u64 << 63;
     let expected = Bit::Zero;
     let label = NodeLabel::new(byte_arr_from_u64(val), 256);
-    let computed = label.get_bit_at(190);
+    let computed = label.get_bit_at(190).unwrap();
     assert!(
         expected == computed,
         "{}",
@@ -126,7 +125,7 @@ fn test_get_bit_at_large() {
     for (index, item) in expected.iter().enumerate().take(24) {
         let index_32 = index as u32;
         assert!(
-            *item == label.get_bit_at(index_32),
+            *item == label.get_bit_at(index_32).unwrap(),
             "get_bit_at({}) wrong for the 256 digit label 0000 0000 0000 0000 1010 0000! Expected {:?} and got {:?}",
             index,
             *item,
@@ -137,7 +136,7 @@ fn test_get_bit_at_large() {
     for index in 24..256 {
         let index_32 = index as u32;
         assert!(
-            Bit::Zero == label.get_bit_at(index_32),
+            Bit::Zero == label.get_bit_at(index_32).unwrap(),
             "get_bit_at({}) wrong for the 256 digit label 0000 0000 0000 0000 1010 0000! Expected {:?} and got {:?}",
             index,
             Bit::Zero,
@@ -392,17 +391,14 @@ fn test_node_label_lcp_some_leading_zero<TC: Configuration>() {
 // immediately following the prefix of that length.
 test_config_sync!(test_get_dir_large);
 fn test_get_dir_large<TC: Configuration>() {
-    for i in 0..257 {
+    for i in 0..256 {
         let label_1 = random_label();
         let pos = i;
         // if prefix is of len 256, this will get the entire random string
         let label_2 = label_1.get_prefix(pos);
         // if the prefix is of length pos, then we want to get the prefix in that position, since the
         // label's value is indexed on 0, so the bit following the prefix of len "pos" is at position pos.
-        let mut expected = PrefixOrdering::from(label_1.get_bit_at(pos));
-        if pos == 256 {
-            expected = PrefixOrdering::Invalid;
-        }
+        let expected = PrefixOrdering::from(label_1.get_bit_at(pos).unwrap());
         let computed = label_2.get_prefix_ordering(label_1);
         assert!(
             computed == expected,
@@ -469,4 +465,27 @@ fn test_is_prefix_of<TC: Configuration>() {
     assert_eq!(label_2.is_prefix_of(&label_3), false);
     assert_eq!(label_3.is_prefix_of(&label_1), false);
     assert_eq!(label_3.is_prefix_of(&label_2), false);
+}
+
+// This test gets a prefix for a hard-coded random string and makes sure it is equal to a hand-computed value.
+#[test]
+fn test_get_prefix_ordering_with_invalid_bits() {
+    let invalid_label = NodeLabel::new(
+        byte_arr_from_u64(0b0000101101110110110000000000110101110001000000000110011001000101u64),
+        1u32,
+    );
+
+    // Simple test case
+    let some_label = NodeLabel::new(byte_arr_from_u64(0u64), 64u32);
+    assert_eq!(
+        invalid_label.get_prefix_ordering(some_label),
+        PrefixOrdering::WithZero
+    );
+
+    // Zero-length label should not return PrefixOrdering::Invalid
+    let zero_length_invalid_bits_label = NodeLabel::new(byte_arr_from_u64(1), 0);
+    assert_eq!(
+        zero_length_invalid_bits_label.get_prefix_ordering(some_label),
+        PrefixOrdering::WithZero
+    );
 }

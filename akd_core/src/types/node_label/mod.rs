@@ -13,6 +13,10 @@ use crate::{configuration::Configuration, PrefixOrdering, SizeOf};
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};
 #[cfg(feature = "nostd")]
+use alloc::format;
+#[cfg(feature = "nostd")]
+use alloc::string::String;
+#[cfg(feature = "nostd")]
 use alloc::vec::Vec;
 
 #[cfg(test)]
@@ -117,7 +121,9 @@ impl NodeLabel {
         self.get_prefix(prefix_len)
     }
 
-    /// Returns the bit at a specified index, and a 0 on an out of range index
+    /// Returns the bit at a specified index (either a 0 or a 1). Will
+    /// throw an error if the index is out of range
+    /// (exceeds or is equal to the length of the label in bits)
     ///
     /// Note that this is calculated from the right, for example:
     /// let mut label = [0u8; 32];
@@ -131,24 +137,20 @@ impl NodeLabel {
     /// * label.get_bit_at(5) = 0
     /// * label.get_bit_at(6) = 0
     /// * label.get_bit_at(7) = 0
-    fn get_bit_at(&self, index: u32) -> Bit {
+    fn get_bit_at(&self, index: u32) -> Result<Bit, String> {
         if index >= self.label_len {
-            return Bit::Zero;
+            return Err(format!(
+                "Index out of range: index = {index}, label_len = {label_len}",
+                index = index,
+                label_len = self.label_len
+            ));
         }
-
-        let usize_index: usize = index as usize;
-        let index_full_blocks = usize_index / 8;
-        let index_remainder = usize_index % 8;
-        if (self.label_val[index_full_blocks] >> (7 - index_remainder)) & 1 == 0 {
-            Bit::Zero
-        } else {
-            Bit::One
-        }
+        get_bit_from_slice(&self.label_val, index)
     }
 
-    /// Returns the prefix of a specified length, and the entire value on an out of range length
+    /// Returns the prefix of a specified length, and the entire value if the length is >= 256
     pub fn get_prefix(&self, len: u32) -> Self {
-        if len >= self.label_len {
+        if len >= 256 {
             return *self;
         }
         if len == 0 {
@@ -201,9 +203,37 @@ impl NodeLabel {
         if self.get_len() >= other.get_len() {
             return PrefixOrdering::Invalid;
         }
-        if other.get_prefix(self.get_len()) != *self {
+        if other.get_prefix(self.get_len()) != self.get_prefix(self.get_len()) {
+            // Note: we check self.get_prefix(self.get_len()) here instead of just *self
+            // because equality checks for a [NodeLabel] do not ignore the bits of label_val set
+            // beyond label_len.
             return PrefixOrdering::Invalid;
         }
-        PrefixOrdering::from(other.get_bit_at(self.get_len()))
+        if let Ok(bit) = other.get_bit_at(self.get_len()) {
+            return PrefixOrdering::from(bit);
+        }
+
+        PrefixOrdering::Invalid
+    }
+}
+
+/// Returns the bit at a specified index (either a 0 or a 1) of a slice of bytes
+///
+/// If the index is out of range (exceeds or is equal to the length of the input in bytes * 8),
+/// returns an error
+fn get_bit_from_slice(input: &[u8], index: u32) -> Result<Bit, String> {
+    if (input.len() as u32) * 8 <= index {
+        return Err(format!(
+            "Input is too short: index = {index}, input.len() = {}",
+            input.len()
+        ));
+    }
+    let usize_index: usize = index as usize;
+    let index_full_blocks = usize_index / 8;
+    let index_remainder = usize_index % 8;
+    if (input[index_full_blocks] >> (7 - index_remainder)) & 1 == 0 {
+        Ok(Bit::Zero)
+    } else {
+        Ok(Bit::One)
     }
 }
