@@ -184,7 +184,11 @@ impl TryFrom<&[u8]> for VRFPublicKey {
 
 impl VRFPublicKey {
     /// Given a [`Proof`] and an input, returns whether or not the proof is valid for the input
-    /// and public key
+    /// and public key.
+    ///
+    /// Note that public key validation occurs in the [TryFrom] implementation for [VRFPublicKey],
+    /// as well as the [From] implementation for [VRFPrivateKey] (implicitly in the ed25519_dalek library).
+    /// Therefore, we do not perform public key validation in the verification function itself.
     pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VrfError> {
         let h_point = self.hash_to_curve(alpha);
         let pk_point = match CompressedEdwardsY::from_slice(self.as_bytes())
