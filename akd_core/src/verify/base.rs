@@ -23,8 +23,19 @@ use alloc::format;
 use alloc::string::ToString;
 use core::convert::TryFrom;
 
-/// Verify the membership proof
-pub fn verify_membership<TC: Configuration>(
+/// Verifies a membership proof with respect to a root hash
+///
+/// Note: this function is only exposed for testing purposes and not meant to be used
+/// in a production setting on its own
+#[cfg(feature = "public_tests")]
+pub fn verify_membership_for_tests_only<TC: Configuration>(
+    root_hash: Digest,
+    proof: &MembershipProof,
+) -> Result<(), VerificationError> {
+    verify_membership::<TC>(root_hash, proof)
+}
+
+pub(crate) fn verify_membership<TC: Configuration>(
     root_hash: Digest,
     proof: &MembershipProof,
 ) -> Result<(), VerificationError> {
@@ -62,8 +73,19 @@ pub fn verify_membership<TC: Configuration>(
     }
 }
 
-/// Verifies the non-membership proof with respect to the root hash
-pub fn verify_nonmembership<TC: Configuration>(
+/// Verifies a non-membership proof with respect to a root hash
+///
+/// Note: this function is only exposed for testing purposes and not meant to be used
+/// in a production setting on its own
+#[cfg(feature = "public_tests")]
+pub fn verify_nonmembership_for_tests_only<TC: Configuration>(
+    root_hash: Digest,
+    proof: &NonMembershipProof,
+) -> Result<(), VerificationError> {
+    verify_nonmembership::<TC>(root_hash, proof)
+}
+
+pub(crate) fn verify_nonmembership<TC: Configuration>(
     root_hash: Digest,
     proof: &NonMembershipProof,
 ) -> Result<(), VerificationError> {
