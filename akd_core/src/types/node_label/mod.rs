@@ -95,8 +95,13 @@ impl NodeLabel {
     }
 
     /// Takes as input a pointer to the caller and another [NodeLabel],
-    /// returns a NodeLabel that is the longest common prefix of the two.
+    /// returns a [NodeLabel] that is the longest common prefix of the two.
     pub fn get_longest_common_prefix<TC: Configuration>(&self, other: NodeLabel) -> Self {
+        let empty_label = TC::empty_label();
+        if *self == empty_label || other == empty_label {
+            return empty_label;
+        }
+
         let shorter_len = if self.label_len < other.label_len {
             self.label_len
         } else {
@@ -110,10 +115,6 @@ impl NodeLabel {
             prefix_len += 1;
         }
 
-        let empty_label = TC::empty_label();
-        if *self == empty_label || other == empty_label {
-            return empty_label;
-        }
         self.get_prefix(prefix_len)
     }
 
