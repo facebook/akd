@@ -78,6 +78,9 @@ impl From<protobuf::Error> for VerificationError {
 }
 
 // Re-export the necessary verification functions
-pub use base::{verify_membership, verify_nonmembership};
+
+#[cfg(feature = "public_tests")]
+pub use base::{verify_membership_for_tests_only, verify_nonmembership_for_tests_only};
+
 pub use history::{key_history_verify, HistoryVerificationParams};
 pub use lookup::lookup_verify;

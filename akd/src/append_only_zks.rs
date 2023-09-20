@@ -1173,7 +1173,7 @@ mod tests {
     use crate::utils::byte_arr_from_u64;
     use crate::{
         auditor::audit_verify,
-        client::{verify_membership, verify_nonmembership},
+        client::{verify_membership_for_tests_only, verify_nonmembership_for_tests_only},
         storage::memory::AsyncInMemoryDatabase,
     };
     use itertools::Itertools;
@@ -1729,7 +1729,7 @@ mod tests {
             .get_membership_proof::<TC, _>(&db, azks_element_set[0].label)
             .await?;
 
-        verify_membership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
+        verify_membership_for_tests_only::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
 
         Ok(())
     }
@@ -1760,7 +1760,10 @@ mod tests {
                 .get_membership_proof::<TC, _>(&db, azks_element_set[0].label)
                 .await?;
 
-            verify_membership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
+            verify_membership_for_tests_only::<TC>(
+                azks.get_root_hash::<TC, _>(&db).await?,
+                &proof,
+            )?;
         }
         Ok(())
     }
@@ -1790,7 +1793,8 @@ mod tests {
             sibling_proofs: proof.sibling_proofs,
         };
         assert!(
-            verify_membership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof).is_err(),
+            verify_membership_for_tests_only::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)
+                .is_err(),
             "Membership proof does verify, despite being wrong"
         );
 
@@ -1833,7 +1837,11 @@ mod tests {
             .get_non_membership_proof::<TC, _>(&db, search_label)
             .await?;
         assert!(
-            verify_nonmembership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof).is_ok(),
+            verify_nonmembership_for_tests_only::<TC>(
+                azks.get_root_hash::<TC, _>(&db).await?,
+                &proof
+            )
+            .is_ok(),
             "Nonmembership proof does not verify"
         );
         Ok(())
@@ -1872,7 +1880,7 @@ mod tests {
             .get_non_membership_proof::<TC, _>(&db, search_label)
             .await?;
 
-        verify_nonmembership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
+        verify_nonmembership_for_tests_only::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
 
         Ok(())
     }
@@ -1899,7 +1907,7 @@ mod tests {
             .get_non_membership_proof::<TC, _>(&db, search_label)
             .await?;
 
-        verify_nonmembership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
+        verify_nonmembership_for_tests_only::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
 
         Ok(())
     }
@@ -1924,7 +1932,7 @@ mod tests {
             .get_non_membership_proof::<TC, _>(&db, search_label)
             .await?;
 
-        verify_nonmembership::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
+        verify_nonmembership_for_tests_only::<TC>(azks.get_root_hash::<TC, _>(&db).await?, &proof)?;
 
         Ok(())
     }
