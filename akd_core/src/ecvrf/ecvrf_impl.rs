@@ -19,6 +19,7 @@ use curve25519_dalek::{
     edwards::{CompressedEdwardsY, EdwardsPoint},
     scalar::Scalar as ed25519_Scalar,
 };
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// The length of a node-label's value field in bytes.
 /// This is used for truncation of the hash to this many bytes
@@ -89,6 +90,15 @@ pub struct VRFExpandedPrivateKey {
     pub(super) key: ed25519_Scalar,
     pub(super) nonce: [u8; 32],
 }
+
+impl Drop for VRFExpandedPrivateKey {
+    fn drop(&mut self) {
+        self.key.zeroize();
+        self.nonce.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for VRFExpandedPrivateKey {}
 
 impl VRFPrivateKey {
     /// Produces a proof for an input (using the private key)
