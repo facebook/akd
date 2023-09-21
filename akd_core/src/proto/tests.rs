@@ -26,10 +26,11 @@ fn random_azks_element() -> crate::AzksElement {
 }
 
 fn random_label() -> crate::NodeLabel {
-    crate::NodeLabel {
+    let label = crate::NodeLabel {
         label_val: random_hash(),
-        label_len: thread_rng().gen::<u32>(),
-    }
+        label_len: thread_rng().gen::<u32>() % 257, // Can be up to 256
+    };
+    label.get_prefix(label.label_len)
 }
 
 // ================= Test cases ================= //
@@ -311,4 +312,32 @@ fn test_minimum_encoding_label_bytes() {
     assert_eq!(full_label, decode_minimized_label(&min_full_label));
     assert_eq!(half_label, decode_minimized_label(&min_half_label));
     assert_eq!(zero_label, decode_minimized_label(&min_zero_label));
+}
+
+#[test]
+fn test_label_val_too_long() {
+    let too_long_label: [u8; 33] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1,
+    ];
+
+    let mut proto_label = specs::types::NodeLabel::new();
+    proto_label.set_label_val(too_long_label.to_vec());
+    proto_label.set_label_len(256);
+
+    assert!(crate::NodeLabel::try_from(&proto_label).is_err());
+}
+
+#[test]
+fn test_label_len_too_large() {
+    let full_label: [u8; 32] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1,
+    ];
+
+    let mut proto_label = specs::types::NodeLabel::new();
+    proto_label.set_label_val(full_label.to_vec());
+    proto_label.set_label_len(257);
+
+    assert!(crate::NodeLabel::try_from(&proto_label).is_err());
 }

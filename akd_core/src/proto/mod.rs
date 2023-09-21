@@ -106,7 +106,9 @@ fn encode_minimum_label(v: &[u8; 32]) -> Vec<u8> {
     }
 }
 
+// Assumes that the caller has checked that the input slice's length is at most 32
 fn decode_minimized_label(v: &[u8]) -> [u8; 32] {
+    assert!(v.len() <= 32, "Label value is too long");
     let mut out = [0u8; 32];
     out[..v.len()].copy_from_slice(v);
     out
@@ -128,10 +130,30 @@ impl TryFrom<&specs::types::NodeLabel> for crate::NodeLabel {
     fn try_from(input: &specs::types::NodeLabel) -> Result<Self, Self::Error> {
         require!(input, has_label_len);
         require!(input, has_label_val);
-        let label_val = decode_minimized_label(input.label_val());
 
+        let input_val = input.label_val();
+        let label_len = input.label_len();
+        if input_val.len() > 32 {
+            return Err(ConversionError::Deserialization(format!(
+                "Label value is too long: {len}",
+                len = input_val.len()
+            )));
+        }
+
+        if label_len > 256 {
+            return Err(ConversionError::Deserialization(format!(
+                "Label length is too long, should be at most 256: {len}",
+                len = label_len
+            )));
+        }
+
+        // Note that we do not check that the bits beyond label_len are all 0, because
+        // some labels do actually set bits beyond label_len, for example the "empty
+        // label", which is not user-supplied but instead used as a placeholder
+
+        let label_val = decode_minimized_label(input_val);
         Ok(Self {
-            label_len: input.label_len(),
+            label_len,
             label_val,
         })
     }
