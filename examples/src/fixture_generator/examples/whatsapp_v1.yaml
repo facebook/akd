@@ -22,7 +22,7 @@ args:
   - 10
   out: examples/src/fixture_generator/examples/
   no_generated_updates: false
-version: 0.9.0
+version: 0.10.0
 configuration: whatsapp_v1
 domain_label: ExampleLabel
 

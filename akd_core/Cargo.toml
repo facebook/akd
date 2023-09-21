@@ -1,8 +1,8 @@
 [package]
 name = "akd_core"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["akd contributors"]
-description = "Core utilities for the auditable-key-directory suite of crates (akd and akd_client)"
+description = "Core utilities for the akd crate"
 license = "MIT OR Apache-2.0"
 edition = "2021"
 keywords = ["key-transparency", "akd"]

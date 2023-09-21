@@ -7,8 +7,6 @@
 
 //! An implementation of an auditable key directory (AKD), also known as a verifiable registry or authenticated dictionary.
 //!
-//! ⚠️ **Warning**: This implementation has not been audited (yet). Use at your own risk!
-//!
 //! # Overview
 //! An auditable key directory (AKD) provides an interface to a data structure that stores key-value
 //! mappings in a database in a verifiable manner. The data structure is similar to that of a
