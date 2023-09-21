@@ -228,6 +228,8 @@ pub enum DirectoryError {
     InvalidEpoch(String),
     /// AZKS not found in read-only directory mode
     ReadOnlyDirectory(String),
+    /// Publish
+    Publish(String),
 }
 
 impl std::error::Error for DirectoryError {}
@@ -243,6 +245,9 @@ impl fmt::Display for DirectoryError {
             }
             Self::ReadOnlyDirectory(inner_message) => {
                 write!(f, "Directory in read-only mode: {inner_message}")
+            }
+            Self::Publish(inner_message) => {
+                write!(f, "Directory publish error: {inner_message}")
             }
         }
     }

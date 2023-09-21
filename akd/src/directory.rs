@@ -22,7 +22,7 @@ use crate::{
 use crate::VersionFreshness;
 use akd_core::configuration::Configuration;
 use log::{error, info};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -80,10 +80,22 @@ where
         })
     }
 
-    /// Updates the directory to include the updated key-value pairs.
+    /// Updates the directory to include the input label-value pairs.
+    ///
+    /// Note that the vector of label-value pairs should not contain any entries with duplicate labels. This
+    /// condition is explicitly checked, and an error will be returned if this is the case.
     pub async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
         // The guard will be dropped at the end of the publish
         let _guard = self.cache_lock.read().await;
+
+        // Check for duplicate labels and return an error if any are encountered
+        let distinct_set: HashSet<AkdLabel> =
+            updates.iter().map(|(label, _)| label.clone()).collect();
+        if distinct_set.len() != updates.len() {
+            return Err(AkdError::Directory(DirectoryError::Publish(
+                "Cannot publish with a set of entries that contain duplicate labels".to_string(),
+            )));
+        }
 
         let mut update_set = Vec::<AzksElement>::new();
         let mut user_data_update_set = Vec::<ValueState>::new();
@@ -96,6 +108,7 @@ where
             .iter()
             .map(|(akd_label, _val)| akd_label.clone())
             .collect();
+
         // sort the keys, as inserting in primary-key order is more efficient for MySQL
         keys.sort();
 
