@@ -81,7 +81,7 @@ impl<L: DomainLabel> Configuration for ExperimentalConfiguration<L> {
 
     /// Used by the server to produce a commitment for an AkdLabel, version, and AkdValue
     ///
-    /// nonce = H(commitment_key, label, version, i2osp_array(value))
+    /// nonce = H(commitment key || label)
     /// commmitment = H(i2osp_array(value), i2osp_array(nonce))
     ///
     /// The nonce value is used to create a hiding and binding commitment using a

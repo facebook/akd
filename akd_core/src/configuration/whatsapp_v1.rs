@@ -70,7 +70,7 @@ impl Configuration for WhatsAppV1Configuration {
     }
 
     /// Used by the server to produce a commitment nonce for an AkdLabel, version, and AkdValue.
-    /// Computes nonce = H(commitment key || label)
+    /// Computes nonce = H(commitment key || label || version || value)
     fn get_commitment_nonce(
         commitment_key: &[u8],
         label: &NodeLabel,
