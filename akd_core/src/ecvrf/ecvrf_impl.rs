@@ -14,6 +14,7 @@ use alloc::format;
 use alloc::string::ToString;
 use core::convert::TryFrom;
 use curve25519_dalek::digest::Update;
+use curve25519_dalek::traits::IsIdentity;
 use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT,
     edwards::{CompressedEdwardsY, EdwardsPoint},
@@ -115,7 +116,7 @@ impl VRFPrivateKey {
 impl VRFExpandedPrivateKey {
     /// Produces a proof for an input (using the expanded private key)
     pub fn prove(&self, pk: &VRFPublicKey, alpha: &[u8]) -> Proof {
-        let h_point = pk.hash_to_curve(alpha);
+        let h_point = pk.encode_to_curve(alpha);
         let h_point_bytes = h_point.compress().to_bytes();
         let k_scalar = ed25519_Scalar::from_bytes_mod_order_wide(&nonce_generation_bytes(
             self.nonce,
@@ -141,7 +142,7 @@ impl VRFExpandedPrivateKey {
 
     /// Directly evaluate the VRF for an input, without producing a proof (using the expanded private key)
     pub fn evaluate(&self, pk: &VRFPublicKey, alpha: &[u8]) -> Output {
-        let h_point = pk.hash_to_curve(alpha);
+        let h_point = pk.encode_to_curve(alpha);
         let gamma = h_point * self.key;
         gamma_to_output(&gamma)
     }
@@ -200,7 +201,7 @@ impl VRFPublicKey {
     /// as well as the [From] implementation for [VRFPrivateKey] (implicitly in the ed25519_dalek library).
     /// Therefore, we do not perform public key validation in the verification function itself.
     pub fn verify(&self, proof: &Proof, alpha: &[u8]) -> Result<(), VrfError> {
-        let h_point = self.hash_to_curve(alpha);
+        let h_point = self.encode_to_curve(alpha);
         let pk_point = match CompressedEdwardsY::from_slice(self.as_bytes())
             .map_err(|_| {
                 VrfError::Verification(
@@ -235,8 +236,9 @@ impl VRFPublicKey {
         }
     }
 
-    pub(super) fn hash_to_curve(&self, alpha: &[u8]) -> EdwardsPoint {
-        let mut result = [0u8; 32];
+    /// Implements the [ECVRF_encode_to_curve_try_and_increment](https://www.ietf.org/rfc/rfc9381.html#section-5.4.1.1) algorithm
+    pub(super) fn encode_to_curve(&self, alpha: &[u8]) -> EdwardsPoint {
+        let mut hash_result = [0u8; 32];
         let mut counter = 0;
         loop {
             let hash = Sha512::new()
@@ -245,16 +247,37 @@ impl VRFPublicKey {
                 .chain(alpha)
                 .chain([counter, ZERO])
                 .finalize();
-            result.copy_from_slice(&hash[..32]);
-            let wrapped_point = CompressedEdwardsY::from_slice(&result)
-                .expect("Result hash should have a length of 32, but it does not")
-                .decompress();
+            hash_result.copy_from_slice(&hash[..32]);
+            let wrapped_point = interpret_hash_value_as_a_point(hash_result);
             counter += 1;
             if let Some(wp) = wrapped_point {
-                return wp.mul_by_cofactor();
+                let result = wp.mul_by_cofactor();
+
+                // Ensure that what we are returning is not the identity point
+                if !result.is_identity() {
+                    return result;
+                }
             }
         }
     }
+}
+
+/// As defined in [Section 5.1.3 of RFC8032](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.3)
+///
+/// Will return Some(point) if the hash value can be interpreted as a point, and None otherwise.
+fn interpret_hash_value_as_a_point(hash: [u8; 32]) -> Option<EdwardsPoint> {
+    // If the input bytes are such that bytes 1 to 30 have value 255, byte 31 has value 255 or 127,
+    // and byte 0 has value 256 - i for value i in the (1, 3, 4, 5, 9, 10, 13, 14, 15, 16) list, then
+    // the encoding is invalid.
+    let is_invalid = hash[1..=30].iter().all(|b| *b == 255)
+        && (hash[31] == 255 || hash[31] == 127)
+        && [1u8, 3, 4, 5, 9, 10, 13, 14, 15, 16].contains(&((256u16 - hash[0] as u16) as u8));
+    if is_invalid {
+        return None;
+    }
+    CompressedEdwardsY::from_slice(&hash)
+        .expect("Result hash should have a length of 32, but it does not")
+        .decompress()
 }
 
 impl<'a> From<&'a VRFPrivateKey> for VRFPublicKey {
