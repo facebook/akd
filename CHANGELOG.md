@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0 (September 21, 2023)
+* Updated VRF checks and public key validation
+* Added duplicate entries check in publish
+* Added zeroize on drop for VRFExpandedPrivateKey
+* Reduced visibility of membership verification functions
+* Added error checks for NodeLabel::try_from and get_bit_at functions
+
 ## 0.9.0 (August 21, 2023)
 * Clarified dual-licensing wording
 * Updated documentation and dependencies
