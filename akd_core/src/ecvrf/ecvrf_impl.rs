@@ -340,6 +340,11 @@ impl TryFrom<&[u8]> for Proof {
     type Error = VrfError;
 
     fn try_from(bytes: &[u8]) -> Result<Proof, VrfError> {
+        if bytes.len() != PROOF_LENGTH {
+            return Err(VrfError::Verification(format!(
+                "Invalid proof length, expected {PROOF_LENGTH} bytes"
+            )));
+        }
         let mut c_buf = [0u8; 32];
         c_buf[..16].copy_from_slice(&bytes[32..48]);
         let mut s_buf = [0u8; 32];

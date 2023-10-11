@@ -767,7 +767,7 @@ where
     }
 }
 
-/// A thin newtype which offers read-only interactivity with a [Directory](Directory).
+/// A thin newtype which offers read-only interactivity with a [Directory].
 #[derive(Clone)]
 pub struct ReadOnlyDirectory<TC, S, V>(Directory<TC, S, V>)
 where
@@ -781,9 +781,9 @@ where
     S: Database + 'static,
     V: VRFKeyStorage,
 {
-    /// Constructs a new instance of [ReadOnlyDirectory]. In the event that an [Azks](crate::append_only_zks::Azks)
+    /// Constructs a new instance of [ReadOnlyDirectory]. In the event that an [Azks]
     /// does not exist in the storage, or we're unable to retrieve it from storage, then
-    /// a [DirectoryError](crate::errors::DirectoryError) will be returned.
+    /// a [DirectoryError] will be returned.
     pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
         let azks = Directory::<TC, S, V>::get_azks_from_storage(&storage, false).await;
 
