@@ -18,7 +18,9 @@ use curve25519_dalek::{
     constants::ED25519_BASEPOINT_POINT, edwards::CompressedEdwardsY,
     scalar::Scalar as ed25519_Scalar,
 };
-use ed25519_dalek::{self, VerifyingKey as ed25519_PublicKey};
+use ed25519_dalek::{
+    self, VerifyingKey as ed25519_PublicKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH,
+};
 #[cfg(feature = "serde_serialization")]
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
@@ -339,4 +341,22 @@ where
             KeyPair::<Priv, Pub>::generate_for_testing(&mut rng)
         })
         .no_shrink()
+}
+
+#[test]
+fn test_tryfrom_vrf_private_key() {
+    let bytes = [0u8; SECRET_KEY_LENGTH - 1];
+    assert!(VRFPrivateKey::try_from(&bytes[..]).is_err());
+}
+
+#[test]
+fn test_tryfrom_vrf_public_key() {
+    let bytes = [0u8; PUBLIC_KEY_LENGTH - 1];
+    assert!(VRFPublicKey::try_from(&bytes[..]).is_err());
+}
+
+#[test]
+fn test_tryfrom_vrf_proof() {
+    let bytes = [0u8; PROOF_LENGTH - 1];
+    assert!(Proof::try_from(&bytes[..]).is_err());
 }
