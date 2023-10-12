@@ -116,7 +116,23 @@ pub fn key_history_verify<TC: Configuration>(
     let next_marker = crate::utils::get_marker_version_log2(last_version) + 1;
     let final_marker = crate::utils::get_marker_version_log2(current_epoch);
 
-    // ***** Future checks below ***************************
+    // Perform checks for expected number of until-marker proofs
+    let expected_num_until_marker_proofs = (1 << next_marker) - last_version - 1;
+    if expected_num_until_marker_proofs != proof.until_marker_vrf_proofs.len() as u64 {
+        return Err(VerificationError::HistoryProof(format!(
+            "Expected {} until-marker proofs, but got {}",
+            expected_num_until_marker_proofs,
+            proof.until_marker_vrf_proofs.len()
+        )));
+    }
+    if proof.until_marker_vrf_proofs.len() != proof.non_existence_until_marker_proofs.len() {
+        return Err(VerificationError::HistoryProof(format!(
+            "Expected equal number of until-marker proofs, but got ({}, {})",
+            proof.until_marker_vrf_proofs.len(),
+            proof.non_existence_until_marker_proofs.len()
+        )));
+    }
+
     // Verify the non-existence of future entries, up to the next marker
     for (i, version) in (last_version + 1..(1 << next_marker)).enumerate() {
         verify_nonexistence::<TC>(
@@ -135,6 +151,23 @@ pub fn key_history_verify<TC: Configuration>(
                 &akd_label, version, current_epoch
             ))
         })?;
+    }
+
+    // Perform checks for expected number of future-marker proofs
+    let expected_num_future_marker_proofs = final_marker + 1 - next_marker;
+    if expected_num_future_marker_proofs != proof.future_marker_vrf_proofs.len() as u64 {
+        return Err(VerificationError::HistoryProof(format!(
+            "Expected {} future-marker proofs, but got {}",
+            expected_num_future_marker_proofs,
+            proof.future_marker_vrf_proofs.len()
+        )));
+    }
+    if proof.future_marker_vrf_proofs.len() != proof.non_existence_of_future_marker_proofs.len() {
+        return Err(VerificationError::HistoryProof(format!(
+            "Expected equal number of future-marker proofs, but got ({}, {})",
+            proof.future_marker_vrf_proofs.len(),
+            proof.non_existence_of_future_marker_proofs.len()
+        )));
     }
 
     // Verify the VRFs and non-membership proofs for future markers
