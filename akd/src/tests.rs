@@ -1125,7 +1125,7 @@ async fn test_publish_op_makes_no_get_requests<TC: Configuration>() -> Result<()
     // ("hello10", "hello10")
     // ("hello11", "hello11")
     let mut updates = vec![];
-    for i in 0..1 {
+    for i in 0..2 {
         updates.push((
             AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
             AkdValue(format!("hello1{i}").as_bytes().to_vec()),
@@ -1153,7 +1153,7 @@ async fn test_publish_op_makes_no_get_requests<TC: Configuration>() -> Result<()
 
     // create more updates
     let mut updates = vec![];
-    for i in 0..1 {
+    for i in 0..2 {
         updates.push((
             AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
             AkdValue(format!("hello1{}", i + 1).as_bytes().to_vec()),
@@ -1188,7 +1188,7 @@ async fn test_simple_lookup_for_small_tree<TC: Configuration>() -> Result<(), Ak
     // ("hello10", "hello10")
     // ("hello11", "hello11")
     let mut updates = vec![];
-    for i in 0..1 {
+    for i in 0..2 {
         updates.push((
             AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
             AkdValue(format!("hello1{i}").as_bytes().to_vec()),
@@ -1241,7 +1241,7 @@ async fn test_lookup_verify_invalid_version_number<TC: Configuration>() -> Resul
     // ("hello10", "hello10")
     // ("hello11", "hello11")
     let mut updates = vec![];
-    for i in 0..1 {
+    for i in 0..2 {
         updates.push((
             AkdLabel(format!("hello1{i}").as_bytes().to_vec()),
             AkdValue(format!("hello1{i}").as_bytes().to_vec()),
@@ -1302,6 +1302,95 @@ async fn test_publish_duplicate_entries<TC: Configuration>() -> Result<(), AkdEr
     let Err(AkdError::Directory(DirectoryError::Publish(_))) = akd.publish(updates).await else {
         panic!("Expected a directory publish error");
     };
+
+    Ok(())
+}
+
+// Test key history verification for error handling of malformed key history proofs
+test_config!(test_key_history_verify_malformed);
+async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), AkdError> {
+    let db = AsyncInMemoryDatabase::new();
+    let storage = StorageManager::new_no_cache(db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+
+    let mut rng = rand::rngs::OsRng;
+    for _ in 0..100 {
+        let mut updates = vec![];
+        updates.push((
+            AkdLabel(format!("label").as_bytes().to_vec()),
+            AkdValue::random(&mut rng),
+        ));
+        akd.publish(updates.clone()).await?;
+    }
+
+    for _ in 0..100 {
+        let mut updates = vec![];
+        updates.push((
+            AkdLabel(format!("another label").as_bytes().to_vec()),
+            AkdValue::random(&mut rng),
+        ));
+        akd.publish(updates.clone()).await?;
+    }
+
+    // Get the latest root hash
+    let EpochHash(current_epoch, root_hash) = akd.get_epoch_hash().await?;
+    // Get the VRF public key
+    let vrf_pk = akd.get_public_key().await?;
+    let target_label = AkdLabel(format!("label").as_bytes().to_vec());
+
+    let (key_history_proof, _) = akd
+        .key_history(&target_label, HistoryParams::default())
+        .await?;
+
+    // Normal verification should succeed
+    key_history_verify::<TC>(
+        vrf_pk.as_bytes(),
+        root_hash,
+        current_epoch,
+        target_label.clone(),
+        key_history_proof.clone(),
+        HistoryVerificationParams::default(),
+    )?;
+
+    let mut malformed_proof_1 = key_history_proof.clone();
+    malformed_proof_1.until_marker_vrf_proofs = key_history_proof.until_marker_vrf_proofs
+        [..key_history_proof.until_marker_vrf_proofs.len() - 1]
+        .to_vec();
+    let mut malformed_proof_2 = key_history_proof.clone();
+    malformed_proof_2.non_existence_until_marker_proofs = key_history_proof
+        .non_existence_until_marker_proofs
+        [..key_history_proof.non_existence_until_marker_proofs.len() - 1]
+        .to_vec();
+    let mut malformed_proof_3 = key_history_proof.clone();
+    malformed_proof_3.future_marker_vrf_proofs = key_history_proof.future_marker_vrf_proofs
+        [..key_history_proof.future_marker_vrf_proofs.len() - 1]
+        .to_vec();
+    let mut malformed_proof_4 = key_history_proof.clone();
+    malformed_proof_4.non_existence_of_future_marker_proofs = key_history_proof
+        .non_existence_of_future_marker_proofs[..key_history_proof
+        .non_existence_of_future_marker_proofs
+        .len()
+        - 1]
+        .to_vec();
+
+    // Malformed proof verification should fail
+    for malformed_proof in [
+        malformed_proof_1,
+        malformed_proof_2,
+        malformed_proof_3,
+        malformed_proof_4,
+    ] {
+        assert!(key_history_verify::<TC>(
+            vrf_pk.as_bytes(),
+            root_hash,
+            current_epoch,
+            target_label.clone(),
+            malformed_proof,
+            HistoryVerificationParams::default(),
+        )
+        .is_err());
+    }
 
     Ok(())
 }
