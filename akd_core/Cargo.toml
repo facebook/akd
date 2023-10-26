@@ -1,6 +1,6 @@
 [package]
 name = "akd_core"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["akd contributors"]
 description = "Core utilities for the akd crate"
 license = "MIT OR Apache-2.0"
@@ -57,7 +57,7 @@ paste = { version = "1", optional = true }
 [dev-dependencies]
 bincode = "1"
 proptest = "1"
-proptest-derive = "0.3"
+proptest-derive = "0.4"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 criterion = "0.5"
