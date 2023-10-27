@@ -1,6 +1,6 @@
 [package]
 name = "examples"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["akd contributors"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -19,13 +19,13 @@ anyhow = "1"
 async-trait = "0.1"
 colored = "2"
 clap = { version = "4", features = ["derive"] }
-dialoguer = "0.10"
+dialoguer = "0.11"
 hex = "0.4"
 indicatif = "0.17"
 log = { version = "0.4", features = ["kv_unstable"] }
 multi_log = "0.1"
 mysql_async = "0.32"
-mysql_common = "0.30"
+mysql_common = "0.31"
 once_cell = "1"
 protobuf = "3"
 rand = "0.8"

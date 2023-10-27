@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0 (October 26, 2023)
+* Added error-handling for various edge-cases when performing akd_core verification
+* Updated dependencies
+
 ## 0.10.0 (September 21, 2023)
 * Updated VRF checks and public key validation
 * Added duplicate entries check in publish
