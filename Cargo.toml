@@ -1,8 +1,4 @@
 [workspace]
 
-members = [
-    "akd",
-    "akd_core",
-    "examples",
-    "xtask",
-]
+members = ["akd", "akd_core", "examples", "xtask"]
+resolver = "2"

@@ -403,12 +403,12 @@
 //! ## Configurations
 //!
 //! This library supports the notion of a [Configuration], which can be used to customize the directory's cryptographic operations. We provide
-//! two default configurations: [WhatsAppV1Configuration] and [ExperimentalConfiguration].
+//! two default configurations: `WhatsAppV1Configuration` and `ExperimentalConfiguration`.
 //!
-//! - [WhatsAppV1Configuration] matches the configuration used for Whatsapp's key transparency deployment
-//! - [ExperimentalConfiguration] is the configuration which matches the main branch deployment for AKD
+//! - `WhatsAppV1Configuration` matches the configuration used for Whatsapp's key transparency deployment
+//! - `ExperimentalConfiguration` is the configuration which matches the main branch deployment for AKD
 //!
-//! An [ExperimentalConfiguration] implements domain separation for its hashing operations by the specifying of a struct that
+//! An `ExperimentalConfiguration` implements domain separation for its hashing operations by the specifying of a struct that
 //! implements [DomainLabel]. For example, to set the domain label as `"ExampleLabel"`, we define the struct [ExampleLabel] as:
 //! ```
 //! #[derive(Clone)]
@@ -427,8 +427,8 @@
 //! This crate supports multiple compilation features:
 //!
 //! Configurations:
-//! - `whatsapp_v1`: Enables usage of [WhatsAppV1Configuration]
-//! - `experimental`: Enables usage of [ExperimentalConfiguration]
+//! - `whatsapp_v1`: Enables usage of `WhatsAppV1Configuration`
+//! - `experimental`: Enables usage of `ExperimentalConfiguration`
 //!
 //! Performance optimizations:
 //! - `parallel_vrf`: Enables the VRF computations to be run in parallel
@@ -442,7 +442,7 @@
 //!
 //! Utilities:
 //! - `public_auditing`: Enables the publishing of audit proofs
-//! - `serde_serialization`: Will enable [`serde`] serialization support on all public structs used in storage & transmission operations. This is helpful
+//! - `serde_serialization`: Will enable `serde` serialization support on all public structs used in storage & transmission operations. This is helpful
 //! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
 //! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
 //! - `runtime_metrics`: Collects metrics on the accesses to the storage layer
