@@ -98,10 +98,10 @@ pub(crate) fn verify_nonmembership<TC: Configuration>(
         ));
     }
 
-    // Verify that the proof's label is a prefix of proof.longest_prefix
+    // Verify that proof.longest_prefix is a prefix of the proof's label
     if !proof.longest_prefix.is_prefix_of(&proof.label) {
         return Err(VerificationError::NonMembershipProof(
-            "Proof's label is not a prefix of longest_prefix".to_string(),
+            "Proof's longest prefix is not a prefix of the proof's label".to_string(),
         ));
     }
 
