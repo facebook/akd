@@ -40,6 +40,13 @@ Top-Level Directory Organization
 | `xtask`             |               | Used for running the code coverage pipeline. |
 
 
+Audit
+-----
+
+This library was audited by NCC Group in August of 2023. The audit was sponsored by Meta for its use in [WhatsApp's key transparency deployment](https://engineering.fb.com/2023/04/13/security/whatsapp-key-transparency/).
+
+The audit found issues in release `v0.9.0`, and the fixes were subsequently incorporated into release `v0.11.0`. See the [full audit report here](https://research.nccgroup.com/2023/11/14/public-report-whatsapp-auditable-key-directory-akd-implementation-review/).
+
 Contributors
 ------------
 
