@@ -198,6 +198,7 @@
 //! ```
 //!
 //! ## History Proofs
+//!
 //! As mentioned above, the security is defined by consistent views of the value for a key at any epoch.
 //! To this end, a server running an AKD needs to provide a way to check the history of a key. Note that in this case,
 //! the server is trusted for validating that a particular client is authorized to run a history check on a particular key.
@@ -245,6 +246,18 @@
 //! with respect to the latest root hash and public key, as follows. This function
 //! returns a list of values that have been associated with the specified entry, in
 //! reverse chronological order.
+//!
+//! Note that the same argument for [`HistoryParams`] that was used to generate
+//! the key history proof must also be used to verify the proof. Otherwise, verification
+//! may fail.
+//!
+//! We also use [`HistoryVerificationParams`] as an argument to the verification function,
+//! allowing the consumer to specify whether or not a "tombstoned" value should be
+//! accepted in place of a valid value for the corresponding entry. This is useful
+//! in scenarios where the consumer wishes to verify that a particular entry exists,
+//! but does not care about the value associated with it. The default behavior is to
+//! not accept tombstoned values, but [`HistoryVerificationParams::AllowMissingValues`] can
+//! be specified to enable this behavior.
 //! ```
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
@@ -257,7 +270,7 @@
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
 //! # use akd::EpochHash;
-//! # use akd::HistoryParams;
+//! # use akd::{HistoryParams, HistoryVerificationParams};
 //! # use akd::{AkdLabel, AkdValue};
 //! # use akd::Digest;
 //! #
@@ -287,7 +300,8 @@
 //!     epoch_hash.epoch(),
 //!     AkdLabel::from("first entry"),
 //!     history_proof,
-//!     akd::HistoryVerificationParams::default(),
+//!     HistoryParams::default(),
+//!     HistoryVerificationParams::default(),
 //! ).expect("Could not verify history");
 //!
 //! assert_eq!(
@@ -476,7 +490,8 @@ pub mod tree_node;
 pub mod local_auditing;
 
 pub use akd_core::{
-    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify, ARITY,
+    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify,
+    verify::history::HistoryParams, ARITY,
 };
 
 #[macro_use]
@@ -485,7 +500,7 @@ mod utils;
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
 pub use client::HistoryVerificationParams;
-pub use directory::{Directory, HistoryParams};
+pub use directory::Directory;
 pub use helper_structs::EpochHash;
 
 // ========== Constants and type aliases ========== //

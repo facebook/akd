@@ -215,7 +215,7 @@ impl TryFrom<&specs::types::SiblingProof> for crate::SiblingProof {
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
 
         // get the raw data & it's length, but at most crate::hash::DIGEST_BYTES bytes
-        let siblings = input.siblings.get(0);
+        let siblings = input.siblings.first();
         if siblings.is_none() {
             return Err(ConversionError::Deserialization(
                 "Required field siblings missing".to_string(),
@@ -459,9 +459,9 @@ impl From<&crate::HistoryProof> for specs::types::HistoryProof {
                 .iter()
                 .map(|proof| proof.into())
                 .collect::<Vec<_>>(),
-            until_marker_vrf_proofs: input.until_marker_vrf_proofs.to_vec(),
-            non_existence_until_marker_proofs: input
-                .non_existence_until_marker_proofs
+            past_marker_vrf_proofs: input.past_marker_vrf_proofs.to_vec(),
+            existence_of_past_marker_proofs: input
+                .existence_of_past_marker_proofs
                 .iter()
                 .map(|proof| proof.into())
                 .collect::<Vec<_>>(),
@@ -482,14 +482,14 @@ impl TryFrom<&specs::types::HistoryProof> for crate::HistoryProof {
     fn try_from(input: &specs::types::HistoryProof) -> Result<Self, Self::Error> {
         let update_proofs = convert_from_vector!(input.update_proofs, crate::UpdateProof);
 
-        let until_marker_vrf_proofs = input
-            .until_marker_vrf_proofs
+        let past_marker_vrf_proofs = input
+            .past_marker_vrf_proofs
             .iter()
             .map(|item| item.to_vec())
             .collect::<Vec<_>>();
-        let non_existence_until_marker_proofs = convert_from_vector!(
-            input.non_existence_until_marker_proofs,
-            crate::NonMembershipProof
+        let existence_of_past_marker_proofs = convert_from_vector!(
+            input.existence_of_past_marker_proofs,
+            crate::MembershipProof
         );
 
         let future_marker_vrf_proofs = input
@@ -504,8 +504,8 @@ impl TryFrom<&specs::types::HistoryProof> for crate::HistoryProof {
 
         Ok(Self {
             update_proofs,
-            until_marker_vrf_proofs,
-            non_existence_until_marker_proofs,
+            past_marker_vrf_proofs,
+            existence_of_past_marker_proofs,
             future_marker_vrf_proofs,
             non_existence_of_future_marker_proofs,
         })
