@@ -215,7 +215,7 @@ impl TryFrom<&specs::types::SiblingProof> for crate::SiblingProof {
         let label: crate::NodeLabel = input.label.as_ref().unwrap().try_into()?;
 
         // get the raw data & it's length, but at most crate::hash::DIGEST_BYTES bytes
-        let siblings = input.siblings.get(0);
+        let siblings = input.siblings.first();
         if siblings.is_none() {
             return Err(ConversionError::Deserialization(
                 "Required field siblings missing".to_string(),

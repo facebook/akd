@@ -68,7 +68,7 @@ pub(crate) async fn audit_epoch(blob: akd::local_auditing::AuditBlob) -> Result<
     }
 }
 
-pub(crate) fn display_audit_proofs_info(info: &mut Vec<EpochSummary>) -> Result<String> {
+pub(crate) fn display_audit_proofs_info(info: &mut [EpochSummary]) -> Result<String> {
     info.sort_by(|a, b| a.name.epoch.cmp(&b.name.epoch));
     if info.is_empty() {
         bail!("There are no epochs present in the storage repository");
