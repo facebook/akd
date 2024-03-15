@@ -26,7 +26,11 @@ cargo run -p examples --release -- whatsapp-kt-auditor -l
 
 This example requires setting up [Docker](https://docs.docker.com/get-docker/) (which will host the MySQL instance). Once Docker
 is up and running, you can simply run:
+```bash
+docker compose up [-d]
 ```
+in the root of repository to spin up the MySQL instance and then run:
+```bash
 cargo run -p examples --release -- mysql-demo
 ```
 to run the demo. You can also pass the `--help` argument to view various options for running benchmarks and auto-populating the instance.

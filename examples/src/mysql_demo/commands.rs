@@ -83,10 +83,9 @@ impl Command {
             "end".blue()
         );
         println!(
-            "  {}|{} {}:\t\tretrieve the root hash at given epoch (default = latest epoch)",
+            "  {}|{}\t\tretrieve the root hash at the latest epoch",
             "root".green(),
             "root_hash".green(),
-            "epoch".magenta()
         );
     }
 
