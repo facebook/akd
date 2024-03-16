@@ -79,23 +79,8 @@ impl AsyncInMemoryDatabase {
 #[async_trait]
 impl Database for AsyncInMemoryDatabase {
     async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
-        if let DbRecord::ValueState(value_state) = record {
-            let username = value_state.username.to_vec();
-            match self.user_info.get_mut(&username) {
-                Some(mut states) => {
-                    states.insert(value_state.epoch, value_state);
-                }
-                None => {
-                    let mut new_map = HashMap::new();
-                    new_map.insert(value_state.epoch, value_state);
-                    self.user_info.insert(username, new_map);
-                }
-            }
-        } else {
-            self.db.insert(record.get_full_binary_id(), record);
-        }
-
-        Ok(())
+        self.batch_set(vec![record], crate::storage::DbSetState::General)
+            .await
     }
 
     async fn batch_set(
@@ -103,11 +88,6 @@ impl Database for AsyncInMemoryDatabase {
         records: Vec<DbRecord>,
         _state: crate::storage::DbSetState,
     ) -> Result<(), StorageError> {
-        if records.is_empty() {
-            // nothing to do, save the cycles
-            return Ok(());
-        }
-
         for record in records.into_iter() {
             if let DbRecord::ValueState(value_state) = record {
                 let username = value_state.username.to_vec();
