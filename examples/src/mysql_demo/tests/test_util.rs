@@ -333,6 +333,7 @@ pub(crate) async fn directory_test_suite<
                             root_hash.epoch(),
                             key,
                             proof,
+                            HistoryParams::default(),
                             akd::HistoryVerificationParams::default(),
                         ) {
                             panic!("History proof failed to verify {:?}", error);

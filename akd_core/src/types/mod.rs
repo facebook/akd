@@ -471,10 +471,10 @@ pub struct UpdateProof {
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,
-    /// VRF Proofs for the labels of the values until the next marker version
-    pub until_marker_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that the values until the next marker version did not exist at this time
-    pub non_existence_until_marker_proofs: Vec<NonMembershipProof>,
+    /// VRF Proofs for the labels of the values for past markers
+    pub past_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the values for the past markers exist
+    pub existence_of_past_marker_proofs: Vec<MembershipProof>,
     /// VRF proofs for the labels of future marker entries
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist

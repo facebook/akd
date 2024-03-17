@@ -12,8 +12,51 @@ use alloc::vec::Vec;
 
 /// Retrieve log_2 of the marker version, referring to the exponent
 /// of the largest power of two that is at most the input version
+///
+/// Note: This will panic if called on version = 0
 pub fn get_marker_version_log2(version: u64) -> u64 {
     64 - (version.leading_zeros() as u64) - 1
+}
+
+/// Return two (possibly empty) lists of marker versions, given
+/// a start_version and end_version for the range of update proofs, along with
+/// a final epoch.
+///
+/// The first list contains versions which should be checked for membership,
+/// and the second list contains versions which should be checked for non-membership.
+///
+/// Roughly, the intervals should be organized as follows:
+/// 1 --- { previous marker versions } --- [start_version, end_version] --- { future marker versions } --- epoch
+///
+/// In this implementation, the set of previous marker versions consists of the largest power of 2
+/// that is at most start_version (or is empty if start_version is already a power of 2). The set of
+/// future marker versions is as described in SEEMless: the consecutively increasing set of versions
+/// from end_version until the next power of 2, and then all consecutive powers of 2 up until the
+/// epoch.
+///
+/// This will panic if start_version = 0
+pub fn get_marker_versions(
+    start_version: u64,
+    end_version: u64,
+    epoch: u64,
+) -> (Vec<u64>, Vec<u64>) {
+    // Compute past marker versions
+    let mut past_marker_versions: Vec<u64> = Vec::new();
+    let start_marker = 1 << get_marker_version_log2(start_version);
+    if start_marker < start_version {
+        past_marker_versions.push(start_marker);
+    }
+
+    // Compute future marker versions
+    let next_marker_log2 = get_marker_version_log2(end_version) + 1;
+    let final_marker_log2 = get_marker_version_log2(epoch);
+    let mut future_marker_versions: Vec<u64> =
+        ((end_version + 1)..(1 << next_marker_log2)).collect();
+    for i in next_marker_log2..(final_marker_log2 + 1) {
+        future_marker_versions.push(1 << i);
+    }
+
+    (past_marker_versions, future_marker_versions)
 }
 
 /// Corresponds to the I2OSP() function from RFC8017, prepending the length of
@@ -110,4 +153,38 @@ macro_rules! test_config_sync {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn test_get_marker_versions() {
+        assert_eq!(
+            (vec![], vec![6, 7, 8, 16, 32]),
+            get_marker_versions(1, 5, 33)
+        );
+
+        assert_eq!(
+            (vec![], vec![6, 7, 8, 16, 32]),
+            get_marker_versions(2, 5, 33)
+        );
+
+        assert_eq!(
+            (vec![2], vec![6, 7, 8, 16, 32]),
+            get_marker_versions(3, 5, 33)
+        );
+
+        assert_eq!(
+            (vec![4], vec![13, 14, 15, 16, 32, 64, 128]),
+            get_marker_versions(6, 12, 128)
+        );
+
+        assert_eq!(
+            (vec![4], vec![13, 14, 15, 16, 32, 64]),
+            get_marker_versions(6, 12, 127)
+        );
+    }
 }

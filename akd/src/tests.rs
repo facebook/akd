@@ -248,6 +248,7 @@ async fn test_small_key_history<TC: Configuration>() -> Result<(), AkdError> {
         root_hash.epoch(),
         AkdLabel::from("hello"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )?;
 
@@ -337,6 +338,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )?;
 
@@ -357,6 +359,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello2"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )?;
 
@@ -377,6 +380,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello3"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )?;
 
@@ -397,6 +401,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello4"),
         key_history_proof.clone(),
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )?;
 
@@ -409,9 +414,10 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello4"),
         borked_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     );
-    assert!(matches!(result, Err(_)), "{}", "{result:?}");
+    assert!(result.is_err(), "{}", "{result:?}");
 
     Ok(())
 }
@@ -484,6 +490,7 @@ async fn test_complex_verification_many_versions<TC: Configuration>() -> Result<
                 epoch_hash.epoch(),
                 label,
                 history_proof,
+                HistoryParams::default(),
                 HistoryVerificationParams::default(),
             )?;
             for (j, res) in history_results.iter().enumerate() {
@@ -566,8 +573,9 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
     let current_epoch = current_azks.get_latest_epoch();
 
     // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
+    let history_params_1 = HistoryParams::MostRecent(1);
     let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::MostRecent(1))
+        .key_history(&AkdLabel::from("hello"), history_params_1)
         .await?;
     assert_eq!(1, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -579,12 +587,14 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello"),
         history_proof,
+        history_params_1,
         HistoryVerificationParams::default(),
     )?;
 
     // Take the top 3 results, and check that we're getting the right epoch updates
+    let history_params_3 = HistoryParams::MostRecent(3);
     let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::MostRecent(3))
+        .key_history(&AkdLabel::from("hello"), history_params_3)
         .await?;
     assert_eq!(3, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -598,24 +608,7 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
         current_epoch,
         AkdLabel::from("hello"),
         history_proof,
-        HistoryVerificationParams::default(),
-    )?;
-
-    // "hello" was updated in epochs 1,2,3,5. Pull the updates since epoch 3 (inclusive)
-    let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::SinceEpoch(3))
-        .await?;
-    assert_eq!(2, history_proof.update_proofs.len());
-    assert_eq!(5, history_proof.update_proofs[0].epoch);
-    assert_eq!(3, history_proof.update_proofs[1].epoch);
-
-    // Now check that the key history verifies
-    key_history_verify::<TC>(
-        vrf_pk.as_bytes(),
-        root_hash.hash(),
-        current_epoch,
-        AkdLabel::from("hello"),
-        history_proof,
+        history_params_3,
         HistoryVerificationParams::default(),
     )?;
 
@@ -662,6 +655,7 @@ async fn test_malicious_key_history<TC: Configuration>() -> Result<(), AkdError>
         root_hash.epoch(),
         AkdLabel::from("hello"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     ).expect_err("The key history proof should fail here since the previous value was not marked stale at all");
 
@@ -687,6 +681,7 @@ async fn test_malicious_key_history<TC: Configuration>() -> Result<(), AkdError>
         root_hash.epoch(),
         AkdLabel::from("hello"),
         key_history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     ).expect_err("The key history proof should fail here since the previous value was marked stale one epoch too late.");
 
@@ -855,15 +850,15 @@ async fn test_simple_audit<TC: Configuration>() -> Result<(), AkdError> {
 
     // The audit should be of more than 1 epoch
     let invalid_audit = akd.audit(3, 3).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     // The audit epochs must be increasing
     let invalid_audit = akd.audit(3, 2).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     // The audit should throw an error when queried for an epoch which hasn't yet taken place!
     let invalid_audit = akd.audit(6, 7).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     Ok(())
 }
@@ -945,6 +940,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
         root_hash.epoch(),
         AkdLabel::from("hello"),
         history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     )
     .unwrap();
@@ -956,7 +952,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
         .unwrap();
 
     let invalid_audit = akd.audit(2, 3).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     Ok(())
 }
@@ -972,7 +968,7 @@ async fn test_directory_read_only_mode<TC: Configuration>() -> Result<(), AkdErr
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
     let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf).await;
-    assert!(matches!(akd, Err(_)));
+    assert!(akd.is_err());
 
     Ok(())
 }
@@ -1083,9 +1079,10 @@ async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError
         root_hash.epoch(),
         AkdLabel::from("hello"),
         history_proof.clone(),
+        HistoryParams::default(),
         HistoryVerificationParams::default(),
     );
-    assert!(matches!(tombstones, Err(_)));
+    assert!(tombstones.is_err());
 
     // We should be able to verify tombstones assuming the client is accepting
     // of tombstoned states
@@ -1095,6 +1092,7 @@ async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError
         root_hash.epoch(),
         AkdLabel::from("hello"),
         history_proof,
+        HistoryParams::default(),
         HistoryVerificationParams::AllowMissingValues,
     )?;
     assert_ne!(crate::TOMBSTONE, results[0].value.0);
@@ -1318,7 +1316,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("label").as_bytes().to_vec()),
+            AkdLabel("label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -1327,7 +1325,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("another label").as_bytes().to_vec()),
+            AkdLabel("another label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -1337,11 +1335,10 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let EpochHash(current_epoch, root_hash) = akd.get_epoch_hash().await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
-    let target_label = AkdLabel(format!("label").as_bytes().to_vec());
+    let target_label = AkdLabel("label".to_string().as_bytes().to_vec());
 
-    let (key_history_proof, _) = akd
-        .key_history(&target_label, HistoryParams::default())
-        .await?;
+    let history_params_5 = HistoryParams::MostRecent(5);
+    let (key_history_proof, _) = akd.key_history(&target_label, history_params_5).await?;
 
     // Normal verification should succeed
     key_history_verify::<TC>(
@@ -1350,17 +1347,37 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
         current_epoch,
         target_label.clone(),
         key_history_proof.clone(),
+        history_params_5,
         HistoryVerificationParams::default(),
     )?;
 
+    // Using an inconsistent set of history parameters should fail
+    for bad_params in [
+        HistoryParams::MostRecent(1),
+        HistoryParams::MostRecent(4),
+        HistoryParams::MostRecent(6),
+        HistoryParams::default(),
+    ] {
+        assert!(key_history_verify::<TC>(
+            vrf_pk.as_bytes(),
+            root_hash,
+            current_epoch,
+            target_label.clone(),
+            key_history_proof.clone(),
+            bad_params,
+            HistoryVerificationParams::default(),
+        )
+        .is_err());
+    }
+
     let mut malformed_proof_1 = key_history_proof.clone();
-    malformed_proof_1.until_marker_vrf_proofs = key_history_proof.until_marker_vrf_proofs
-        [..key_history_proof.until_marker_vrf_proofs.len() - 1]
+    malformed_proof_1.past_marker_vrf_proofs = key_history_proof.past_marker_vrf_proofs
+        [..key_history_proof.past_marker_vrf_proofs.len() - 1]
         .to_vec();
     let mut malformed_proof_2 = key_history_proof.clone();
-    malformed_proof_2.non_existence_until_marker_proofs = key_history_proof
-        .non_existence_until_marker_proofs
-        [..key_history_proof.non_existence_until_marker_proofs.len() - 1]
+    malformed_proof_2.existence_of_past_marker_proofs = key_history_proof
+        .existence_of_past_marker_proofs
+        [..key_history_proof.existence_of_past_marker_proofs.len() - 1]
         .to_vec();
     let mut malformed_proof_3 = key_history_proof.clone();
     malformed_proof_3.future_marker_vrf_proofs = key_history_proof.future_marker_vrf_proofs
@@ -1387,6 +1404,29 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
             current_epoch,
             target_label.clone(),
             malformed_proof,
+            history_params_5,
+            HistoryVerificationParams::default(),
+        )
+        .is_err());
+    }
+
+    let mut malformed_proof_start_version_is_zero = key_history_proof.clone();
+    malformed_proof_start_version_is_zero.update_proofs[0].epoch = 0;
+    let mut malformed_proof_end_version_exceeds_epoch = key_history_proof.clone();
+    malformed_proof_end_version_exceeds_epoch.update_proofs[0].epoch = current_epoch + 1;
+
+    // Malformed proof verification should fail
+    for malformed_proof in [
+        malformed_proof_start_version_is_zero,
+        malformed_proof_end_version_exceeds_epoch,
+    ] {
+        assert!(key_history_verify::<TC>(
+            vrf_pk.as_bytes(),
+            root_hash,
+            current_epoch,
+            target_label.clone(),
+            malformed_proof,
+            history_params_5,
             HistoryVerificationParams::default(),
         )
         .is_err());

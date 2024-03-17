@@ -230,6 +230,8 @@ pub enum DirectoryError {
     ReadOnlyDirectory(String),
     /// Publish
     Publish(String),
+    /// Detected an invalid version
+    InvalidVersion(String),
 }
 
 impl std::error::Error for DirectoryError {}
@@ -248,6 +250,9 @@ impl fmt::Display for DirectoryError {
             }
             Self::Publish(inner_message) => {
                 write!(f, "Directory publish error: {inner_message}")
+            }
+            Self::InvalidVersion(inner_message) => {
+                write!(f, "Invalid version error: {inner_message}")
             }
         }
     }

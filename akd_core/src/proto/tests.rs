@@ -185,6 +185,18 @@ fn test_convert_update_proof() {
 
 #[test]
 fn test_convert_history_proof() {
+    fn membership_proof() -> crate::MembershipProof {
+        crate::MembershipProof {
+            label: random_label(),
+            hash_val: AzksValue(random_hash()),
+            sibling_proofs: vec![crate::SiblingProof {
+                label: random_label(),
+                siblings: [random_azks_element()],
+                direction: Direction::Right,
+            }],
+        }
+    }
+
     fn non_membership_proof() -> crate::NonMembershipProof {
         crate::NonMembershipProof {
             label: random_label(),
@@ -209,40 +221,24 @@ fn test_convert_history_proof() {
             value: crate::AkdValue(random_hash().to_vec()),
             version: rng.gen(),
             existence_vrf_proof: random_hash().to_vec(),
-            existence_proof: crate::MembershipProof {
-                label: random_label(),
-                hash_val: AzksValue(random_hash()),
-                sibling_proofs: vec![crate::SiblingProof {
-                    label: random_label(),
-                    siblings: [random_azks_element()],
-                    direction: Direction::Right,
-                }],
-            },
+            existence_proof: membership_proof(),
             previous_version_vrf_proof: Some(random_hash().to_vec()),
-            previous_version_proof: Some(crate::MembershipProof {
-                label: random_label(),
-                hash_val: AzksValue(random_hash()),
-                sibling_proofs: vec![crate::SiblingProof {
-                    label: random_label(),
-                    siblings: [random_azks_element()],
-                    direction: Direction::Right,
-                }],
-            }),
+            previous_version_proof: Some(membership_proof()),
             commitment_nonce: random_hash().to_vec(),
         }
     }
 
     let original = crate::HistoryProof {
         update_proofs: vec![upd_proof(), upd_proof(), upd_proof()],
-        until_marker_vrf_proofs: vec![
+        past_marker_vrf_proofs: vec![
             random_hash().to_vec(),
             random_hash().to_vec(),
             random_hash().to_vec(),
         ],
-        non_existence_until_marker_proofs: vec![
-            non_membership_proof(),
-            non_membership_proof(),
-            non_membership_proof(),
+        existence_of_past_marker_proofs: vec![
+            membership_proof(),
+            membership_proof(),
+            membership_proof(),
         ],
         future_marker_vrf_proofs: vec![
             random_hash().to_vec(),
