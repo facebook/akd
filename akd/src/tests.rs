@@ -567,7 +567,10 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
 
     // "hello" was updated in epochs 1,2,3,5. Pull the latest item from the history (i.e. a lookup proof)
     let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::MostRecent(1))
+        .key_history(
+            &AkdLabel::from("hello"),
+            HistoryParams::MostRecentInsecure(1),
+        )
         .await?;
     assert_eq!(1, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -584,7 +587,10 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
 
     // Take the top 3 results, and check that we're getting the right epoch updates
     let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::MostRecent(3))
+        .key_history(
+            &AkdLabel::from("hello"),
+            HistoryParams::MostRecentInsecure(3),
+        )
         .await?;
     assert_eq!(3, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);
@@ -603,7 +609,10 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
 
     // "hello" was updated in epochs 1,2,3,5. Pull the updates since epoch 3 (inclusive)
     let (history_proof, root_hash) = akd
-        .key_history(&AkdLabel::from("hello"), HistoryParams::SinceEpoch(3))
+        .key_history(
+            &AkdLabel::from("hello"),
+            HistoryParams::SinceEpochInsecure(3),
+        )
         .await?;
     assert_eq!(2, history_proof.update_proofs.len());
     assert_eq!(5, history_proof.update_proofs[0].epoch);

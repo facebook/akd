@@ -461,8 +461,10 @@ where
         // apply filters specified by HistoryParams struct
         user_data = match params {
             HistoryParams::Complete => user_data,
-            HistoryParams::MostRecent(n) => user_data.into_iter().take(n).collect::<Vec<_>>(),
-            HistoryParams::SinceEpoch(epoch) => {
+            HistoryParams::MostRecentInsecure(n) => {
+                user_data.into_iter().take(n).collect::<Vec<_>>()
+            }
+            HistoryParams::SinceEpochInsecure(epoch) => {
                 user_data = user_data
                     .into_iter()
                     .filter(|val| val.epoch >= epoch)
@@ -861,10 +863,12 @@ where
 pub enum HistoryParams {
     /// Returns a complete history for a label
     Complete,
-    /// Returns up to the most recent N updates for a label
-    MostRecent(usize),
-    /// Returns all updates since a specified epoch (inclusive)
-    SinceEpoch(u64),
+    /// Returns up to the most recent N updates for a label. This is not secure, and
+    /// should not be used in a production environment.
+    MostRecentInsecure(usize),
+    /// Returns all updates since a specified epoch (inclusive). This is not secure, and
+    /// should not be used in a production environment.
+    SinceEpochInsecure(u64),
 }
 
 impl Default for HistoryParams {
