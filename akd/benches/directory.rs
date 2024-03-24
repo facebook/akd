@@ -79,7 +79,7 @@ fn history_generation<TC: NamedConfiguration>(c: &mut Criterion) {
 
                 // generate for the most recent 10 updates
                 let label = AkdLabel::from("User 1");
-                let params = akd::HistoryParams::MostRecent(5);
+                let params = akd::HistoryParams::MostRecentInsecure(5);
                 runtime
                     .block_on(directory.key_history(&label, params))
                     .unwrap();

@@ -198,11 +198,14 @@
 //! ```
 //!
 //! ## History Proofs
-//! As mentioned above, the security is defined by consistent views of the value for a key at any epoch.
+//! As mentioned above, security is defined by consistent views of the value for a key at any epoch.
 //! To this end, a server running an AKD needs to provide a way to check the history of a key. Note that in this case,
 //! the server is trusted for validating that a particular client is authorized to run a history check on a particular key.
-//! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch. The [HistoryParams] field
-//! can be used to limit the history that we issue proofs for, but in this example we default to a complete history.
+//! We can use [`Directory::key_history`] to prove the history of a key's values at a given epoch.
+//!
+//! The [HistoryParams] field can be used to limit the history that we issue proofs for, but in this
+//! example we default to a complete history. For more information on the parameters, see the
+//! [History Parameters](#history-parameters) section.
 //! ```
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
@@ -421,6 +424,19 @@
 //! }
 //! ```
 //! An application can set their own specific domain label to a custom string achieve domain separation from other applications.
+//!
+//! ## History Parameters
+//!
+//! The [HistoryParams] enum can be used to limit the number of updates for a given entry that the server provides
+//! to the client. The enum has the following options:
+//! - [HistoryParams::Complete]: Includes a complete history of all updates to an entry. This is the default option.
+//! - [HistoryParams::MostRecentInsecure]: Includes (at most) the most recent input number of updates for an entry.
+//! - [HistoryParams::SinceEpochInsecure]: Includes all updates to an entry since a given epoch.
+//!
+//! Note that the "insecure" options are not recommended for use in production, as they do not provide a
+//! complete history of updates, and lack inclusion proofs for earlier entries. These options should only be
+//! used for testing purposes.
+//!
 //!
 //! ## Compilation Features
 //!
