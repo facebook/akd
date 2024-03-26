@@ -593,8 +593,9 @@ impl Azks {
         let nodes = TreeNode::batch_get_from_storage(storage, &nodes, self.latest_epoch).await?;
         count += nodes.len() as u64;
 
-        // Now load the children of the nodes resolved on the direct path, which for non-already-loaded children will be the
-        // siblings necessray to generate the required proof structs.
+        // Now load the children of the nodes resolved on the direct path, which
+        // for non-already-loaded children will be the siblings necessary to
+        // generate the required proof structs.
         let children = nodes
             .into_iter()
             .flat_map(|node| match (node.left_child, node.right_child) {
