@@ -1073,11 +1073,9 @@ async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError
     let vrf_pk = akd.get_public_key().await?;
 
     // tombstone epochs 1 & 2
-    let tombstones = [
-        crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 1u64),
-        crate::storage::types::ValueStateKey("hello".as_bytes().to_vec(), 2u64),
-    ];
-    storage.tombstone_value_states(&tombstones).await?;
+    storage
+        .tombstone_value_states(&AkdLabel::from("hello"), 2)
+        .await?;
 
     // Now get a history proof for this key
     let (history_proof, root_hash) = akd

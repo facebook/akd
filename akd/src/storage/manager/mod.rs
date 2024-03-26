@@ -14,7 +14,6 @@ use crate::storage::transaction::Transaction;
 use crate::storage::types::DbRecord;
 use crate::storage::types::KeyData;
 use crate::storage::types::ValueState;
-use crate::storage::types::ValueStateKey;
 use crate::storage::Database;
 use crate::storage::DbSetState;
 use crate::storage::Storable;
@@ -421,17 +420,16 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
-    /// Tombstone a set of records adhereing to the caching + transactional
-    /// settings of the storage manager
-    pub async fn tombstone_value_states(&self, keys: &[ValueStateKey]) -> Result<(), StorageError> {
-        if keys.is_empty() {
-            return Ok(());
-        }
-
-        let data = self.batch_get::<ValueState>(keys).await?;
+    /// Tombstones all value states for a given AkdLabel, up to and including a given epoch
+    pub async fn tombstone_value_states(
+        &self,
+        username: &AkdLabel,
+        epoch: u64,
+    ) -> Result<(), StorageError> {
+        let key_data = self.get_user_data(username).await?;
         let mut new_data = vec![];
-        for record in data {
-            if let DbRecord::ValueState(value_state) = record {
+        for value_state in key_data.states.into_iter() {
+            if value_state.epoch <= epoch && value_state.value.0 != crate::TOMBSTONE {
                 new_data.push(DbRecord::ValueState(ValueState {
                     epoch: value_state.epoch,
                     label: value_state.label,
