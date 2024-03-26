@@ -647,35 +647,44 @@ async fn test_tombstoning_data<S: Database>(
         .unwrap();
     assert_eq!(5, data.states.len());
 
-    let keys_to_tombstone = [
-        ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 0u64),
-        ValueStateKey("tombstone_test_user".as_bytes().to_vec(), 1u64),
-        ValueStateKey(sample_state.username.to_vec(), 0u64),
-        ValueStateKey(sample_state.username.to_vec(), 1u64),
-        ValueStateKey(sample_state.username.to_vec(), 2u64),
-    ];
+    // tombstone up until given epochs
+    storage
+        .tombstone_value_states(&sample_state.username, 1)
+        .await?;
+    storage
+        .tombstone_value_states(&sample_state2.username, 2)
+        .await?;
 
-    // tombstone the given states
-    storage.tombstone_value_states(&keys_to_tombstone).await?;
-
-    for label in [AkdLabel::from("tombstone_test_user"), AkdLabel(rand_user)] {
-        for version in 0..5 {
-            let key = ValueStateKey(label.to_vec(), version);
-            let got = storage.get::<ValueState>(&key).await?;
-
-            if let DbRecord::ValueState(value_state) = got {
-                assert_eq!(version, value_state.epoch);
-                if keys_to_tombstone.contains(&key) {
-                    // should be a tombstone
-                    assert_eq!(crate::TOMBSTONE.to_vec(), value_state.value.0);
-                } else {
-                    // should NOT be a tombstone
-                    assert_ne!(crate::TOMBSTONE.to_vec(), value_state.value.0);
-                }
+    // check that correct records are tombstoned
+    storage
+        .get_user_data(&sample_state.username)
+        .await?
+        .states
+        .iter()
+        .for_each(|value_state| {
+            if value_state.epoch <= 1 {
+                // should be a tombstone
+                assert_eq!(crate::TOMBSTONE.to_vec(), value_state.value.0);
             } else {
-                panic!("Unable to retrieve value state {:?}", key);
+                // should NOT be a tombstone
+                assert_ne!(crate::TOMBSTONE.to_vec(), value_state.value.0);
             }
-        }
-    }
+        });
+
+    storage
+        .get_user_data(&sample_state2.username)
+        .await?
+        .states
+        .iter()
+        .for_each(|value_state| {
+            if value_state.epoch <= 2 {
+                // should be a tombstone
+                assert_eq!(crate::TOMBSTONE.to_vec(), value_state.value.0);
+            } else {
+                // should NOT be a tombstone
+                assert_ne!(crate::TOMBSTONE.to_vec(), value_state.value.0);
+            }
+        });
+
     Ok(())
 }
