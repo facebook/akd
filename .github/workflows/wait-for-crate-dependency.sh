@@ -10,7 +10,9 @@ get_crate_expected_version_number()
     # Additionally this regex with grep works for both the notations
     # 1. crate = { some_other_options ... version = "x.y.z" ... other_options }
     # 2. crate = "x.y.z"
-    local EXPECTED_VERSION=$(grep "$TARGET_CRATE" $INDEX_TOML_FILE | grep -o '[0-9]\.[0-9\.]\+' | head -n 1)
+    # It also supports optional pre-release suffixes in the form of "-pre.x"
+    # 3. crate = "w.x.y-pre.z"
+    local EXPECTED_VERSION=$(grep "$TARGET_CRATE" $INDEX_TOML_FILE | grep -o '[0-9]\.[0-9\.]\+\(-pre\.[0-9]\+\)\?'| head -n 1)
     echo $EXPECTED_VERSION
 }
 
