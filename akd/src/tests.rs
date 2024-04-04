@@ -34,6 +34,7 @@ use crate::{
 pub struct LocalDatabase;
 
 unsafe impl Send for LocalDatabase {}
+
 unsafe impl Sync for LocalDatabase {}
 
 mockall::mock! {
@@ -128,6 +129,45 @@ fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: &AsyncInMemoryDatabase) 
         .returning(move |arg, flag| {
             futures::executor::block_on(tmp_db.get_user_state_versions(arg, flag))
         });
+}
+
+// A test to ensure that any database error at the time a Directory is created
+// does not automatically attempt to create a new aZKS. Only aZKS not found errors
+// should assume that a successful read happened and no aZKS exists.
+test_config!(test_directory_azks_bootstrapping);
+async fn test_directory_azks_bootstrapping<TC: Configuration>() -> Result<(), AkdError> {
+    let vrf = HardCodedAkdVRF {};
+
+    // Verify that a Storage error results in an error when attempting to create the Directory
+    let mut mock_db = MockLocalDatabase {
+        ..Default::default()
+    };
+    mock_db
+        .expect_get::<Azks>()
+        .returning(|_| Err(StorageError::Connection("Fire!".to_string())));
+    mock_db.expect_set().times(0);
+    let storage = StorageManager::new_no_cache(mock_db);
+
+    let maybe_akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await;
+    assert!(maybe_akd.is_err());
+
+    // Verify that an aZKS not found error results in one being created with the Directory
+    // We're creating an empty directory here, so this is the expected behavior for NotFound
+    let mut mock_db = MockLocalDatabase {
+        ..Default::default()
+    };
+    let test_db = AsyncInMemoryDatabase::new();
+    setup_mocked_db(&mut mock_db, &test_db);
+    let storage = StorageManager::new_no_cache(mock_db);
+
+    let maybe_akd = Directory::<TC, _, _>::new(storage, vrf).await;
+    assert!(maybe_akd.is_ok());
+
+    let akd = maybe_akd.expect("Failed to get create a Directory!");
+    let azks = akd.retrieve_azks().await.expect("Failed to get aZKS!");
+    assert_eq!(0, azks.get_latest_epoch());
+
+    Ok(())
 }
 
 // A simple test to ensure that the empty tree hashes to the correct value

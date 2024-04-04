@@ -181,7 +181,7 @@ impl<Db: Database> StorageManager<Db> {
         let started = self.transaction.begin_transaction();
 
         // disable the cache cleaning since we're in a write transaction
-        // and will want to keep cache'd objects for the life of the transaction
+        // and will want to keep cached objects for the life of the transaction
         if let Some(cache) = &self.cache {
             cache.disable_clean();
         }

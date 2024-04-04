@@ -65,11 +65,15 @@ where
     pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
         let azks = Directory::<TC, S, V>::get_azks_from_storage(&storage, false).await;
 
-        if azks.is_err() {
-            // generate a new azks if one is not found
-            let azks = Azks::new::<TC, _>(&storage).await?;
-            // store it
-            storage.set(DbRecord::Azks(azks.clone())).await?;
+        if let Err(AkdError::Storage(StorageError::NotFound(e))) = azks {
+            info!("No aZKS was found in storage: {e}. Creating a new aZKS!");
+            // generate + store a new azks only if one is not found
+            let new_azks = Azks::new::<TC, _>(&storage).await?;
+            storage.set(DbRecord::Azks(new_azks)).await?;
+        } else {
+            // If the value is `Ok`, we drop it since we're not using it below
+            // In all other `Err` cases, we propagate the error to the caller
+            let _res = azks?;
         }
 
         Ok(Directory {
