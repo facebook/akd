@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.0-pre.3 (April 4, 2024)
+* Eliminates a rare bug that can result in an aZKS being overwritten during Directory initialization
+
 ## 0.12.0-pre.2 (March 26, 2024)
 * Updated storage tombstone API params to be more ergonomic
 * Renamed HistoryParams enum variants to highlight caveats
