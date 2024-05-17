@@ -248,6 +248,18 @@
 //! with respect to the latest root hash and public key, as follows. This function
 //! returns a list of values that have been associated with the specified entry, in
 //! reverse chronological order.
+//!
+//!
+//! We also use [`HistoryVerificationParams`] as an argument to the verification function, which encodes two values.
+//! First, it encodes a [`HistoryParams`]. Note that the same argument for [`HistoryParams`] that was used to generate
+//! the key history proof must also be used to verify the proof. Otherwise, verification may fail.
+//!
+//! [`HistoryVerificationParams`] also allows the consumer to specify whether or not a "tombstoned" value should be
+//! accepted in place of a valid value for the corresponding entry. This is useful
+//! in scenarios where the consumer wishes to verify that a particular entry exists,
+//! but does not care about the value associated with it. The default behavior is to
+//! not accept tombstoned values, but [`HistoryVerificationParams::AllowMissingValues`] can
+//! be specified to enable this behavior.
 //! ```
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
@@ -430,8 +442,7 @@
 //! The [HistoryParams] enum can be used to limit the number of updates for a given entry that the server provides
 //! to the client. The enum has the following options:
 //! - [HistoryParams::Complete]: Includes a complete history of all updates to an entry. This is the default option.
-//! - [HistoryParams::MostRecentInsecure]: Includes (at most) the most recent input number of updates for an entry.
-//! - [HistoryParams::SinceEpochInsecure]: Includes all updates to an entry since a given epoch.
+//! - [HistoryParams::MostRecent]: Includes (at most) the most recent input number of updates for an entry.
 //!
 //! Note that the "insecure" options are not recommended for use in production, as they do not provide a
 //! complete history of updates, and lack inclusion proofs for earlier entries. These options should only be
@@ -492,7 +503,8 @@ pub mod tree_node;
 pub mod local_auditing;
 
 pub use akd_core::{
-    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify, ARITY,
+    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify,
+    verify::history::HistoryParams, ARITY,
 };
 
 #[macro_use]
@@ -501,7 +513,7 @@ mod utils;
 // ========== Type re-exports which are commonly used ========== //
 pub use append_only_zks::Azks;
 pub use client::HistoryVerificationParams;
-pub use directory::{Directory, HistoryParams};
+pub use directory::Directory;
 pub use helper_structs::EpochHash;
 
 // ========== Constants and type aliases ========== //

@@ -33,6 +33,18 @@ fn random_label() -> crate::NodeLabel {
     label.get_prefix(label.label_len)
 }
 
+fn membership_proof() -> crate::MembershipProof {
+    crate::MembershipProof {
+        label: random_label(),
+        hash_val: AzksValue(random_hash()),
+        sibling_proofs: vec![crate::SiblingProof {
+            label: random_label(),
+            siblings: [random_azks_element()],
+            direction: Direction::Right,
+        }],
+    }
+}
+
 // ================= Test cases ================= //
 
 #[test]
@@ -183,66 +195,66 @@ fn test_convert_update_proof() {
     assert_eq!(original, (&protobuf).try_into().unwrap());
 }
 
+fn non_membership_proof() -> crate::NonMembershipProof {
+    crate::NonMembershipProof {
+        label: random_label(),
+        longest_prefix: random_label(),
+        longest_prefix_children: [random_azks_element(), random_azks_element()],
+        longest_prefix_membership_proof: crate::MembershipProof {
+            label: random_label(),
+            hash_val: AzksValue(random_hash()),
+            sibling_proofs: vec![crate::SiblingProof {
+                label: random_label(),
+                siblings: [random_azks_element()],
+                direction: Direction::Right,
+            }],
+        },
+    }
+}
+
+fn upd_proof() -> crate::UpdateProof {
+    let mut rng = thread_rng();
+    crate::UpdateProof {
+        epoch: rng.gen(),
+        value: crate::AkdValue(random_hash().to_vec()),
+        version: rng.gen(),
+        existence_vrf_proof: random_hash().to_vec(),
+        existence_proof: crate::MembershipProof {
+            label: random_label(),
+            hash_val: AzksValue(random_hash()),
+            sibling_proofs: vec![crate::SiblingProof {
+                label: random_label(),
+                siblings: [random_azks_element()],
+                direction: Direction::Right,
+            }],
+        },
+        previous_version_vrf_proof: Some(random_hash().to_vec()),
+        previous_version_proof: Some(crate::MembershipProof {
+            label: random_label(),
+            hash_val: AzksValue(random_hash()),
+            sibling_proofs: vec![crate::SiblingProof {
+                label: random_label(),
+                siblings: [random_azks_element()],
+                direction: Direction::Right,
+            }],
+        }),
+        commitment_nonce: random_hash().to_vec(),
+    }
+}
+
 #[test]
 fn test_convert_history_proof() {
-    fn non_membership_proof() -> crate::NonMembershipProof {
-        crate::NonMembershipProof {
-            label: random_label(),
-            longest_prefix: random_label(),
-            longest_prefix_children: [random_azks_element(), random_azks_element()],
-            longest_prefix_membership_proof: crate::MembershipProof {
-                label: random_label(),
-                hash_val: AzksValue(random_hash()),
-                sibling_proofs: vec![crate::SiblingProof {
-                    label: random_label(),
-                    siblings: [random_azks_element()],
-                    direction: Direction::Right,
-                }],
-            },
-        }
-    }
-
-    fn upd_proof() -> crate::UpdateProof {
-        let mut rng = thread_rng();
-        crate::UpdateProof {
-            epoch: rng.gen(),
-            value: crate::AkdValue(random_hash().to_vec()),
-            version: rng.gen(),
-            existence_vrf_proof: random_hash().to_vec(),
-            existence_proof: crate::MembershipProof {
-                label: random_label(),
-                hash_val: AzksValue(random_hash()),
-                sibling_proofs: vec![crate::SiblingProof {
-                    label: random_label(),
-                    siblings: [random_azks_element()],
-                    direction: Direction::Right,
-                }],
-            },
-            previous_version_vrf_proof: Some(random_hash().to_vec()),
-            previous_version_proof: Some(crate::MembershipProof {
-                label: random_label(),
-                hash_val: AzksValue(random_hash()),
-                sibling_proofs: vec![crate::SiblingProof {
-                    label: random_label(),
-                    siblings: [random_azks_element()],
-                    direction: Direction::Right,
-                }],
-            }),
-            commitment_nonce: random_hash().to_vec(),
-        }
-    }
-
     let original = crate::HistoryProof {
         update_proofs: vec![upd_proof(), upd_proof(), upd_proof()],
-        until_marker_vrf_proofs: vec![
+        past_marker_vrf_proofs: vec![
             random_hash().to_vec(),
             random_hash().to_vec(),
             random_hash().to_vec(),
         ],
-        non_existence_until_marker_proofs: vec![
-            non_membership_proof(),
-            non_membership_proof(),
-            non_membership_proof(),
+        existence_of_past_marker_proofs: vec![
+            membership_proof(),
+            membership_proof(),
+            membership_proof(),
         ],
         future_marker_vrf_proofs: vec![
             random_hash().to_vec(),

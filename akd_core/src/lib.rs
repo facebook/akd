@@ -154,6 +154,7 @@
 //! is at most the current epoch. The [HistoryProof] consists of:
 //! - A list of [UpdateProof]s, one for each version, which each contain a membership proof for the version `n` being fresh,
 //! and a membership proof for the version `n-1` being stale
+//! - A membership proof for `n_prev_pow` (or empty if n is a power of 2)
 //! - A series of non-membership proofs for each version in the range `[n+1, n_next_pow]`
 //! - A series of non-membership proofs for each power of 2 in the range `[n_next_pow, epoch_prev_pow]`
 //!
