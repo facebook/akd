@@ -119,7 +119,7 @@ pub(crate) async fn list_proofs(url: &str) -> Result<Vec<EpochSummary>> {
         is_truncated = truncated_result;
         if is_truncated {
             let last = keys[keys.len() - 1].clone();
-            start_after = last.key.clone();
+            start_after.clone_from(&last.key);
         }
         results.extend_from_slice(&keys);
     }

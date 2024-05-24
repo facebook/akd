@@ -64,11 +64,12 @@ pub struct AuditBlobName {
     pub current_hash: Digest,
 }
 
-impl std::string::ToString for AuditBlobName {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AuditBlobName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let previous_hash = hex::encode(self.previous_hash);
         let current_hash = hex::encode(self.current_hash);
-        format!(
+        write!(
+            f,
             "{}{}{}{}{}",
             self.epoch, NAME_SEPARATOR, previous_hash, NAME_SEPARATOR, current_hash
         )

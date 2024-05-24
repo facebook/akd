@@ -340,6 +340,7 @@ impl Azks {
     /// before it is written to storage. The is_new flag indicates whether the
     /// returned node is new or not.
     #[async_recursion]
+    #[allow(clippy::multiple_bound_locations)]
     pub(crate) async fn recursive_batch_insert_nodes<TC: Configuration, S: Database + 'static>(
         storage: &StorageManager<S>,
         node_label: Option<NodeLabel>,
@@ -880,6 +881,7 @@ impl Azks {
 
     #[async_recursion]
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::multiple_bound_locations)]
     async fn get_append_only_proof_helper<TC: Configuration, S: Database + 'static>(
         latest_epoch: u64,
         storage: &StorageManager<S>,
@@ -1669,9 +1671,7 @@ mod tests {
             // Recursively traverse the tree and check that the sibling of each node is correct
             let root_node = TreeNode::get_from_storage(&db, &NodeKey(NodeLabel::root()), 1).await?;
             let mut nodes: Vec<TreeNode> = vec![root_node];
-            while !nodes.is_empty() {
-                let current_node = nodes.pop().unwrap();
-
+            while let Some(current_node) = nodes.pop() {
                 let left_child = current_node.get_child_node(&db, Direction::Left, 1).await?;
                 let right_child = current_node
                     .get_child_node(&db, Direction::Right, 1)

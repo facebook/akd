@@ -87,13 +87,13 @@ message UpdateProof {
     optional bytes commitment_nonce = 8;
 }
 
-/* This proof consists of an array of [`UpdateProof`]s, non-membership proofs for 
-the versions up until the next marker, and then non-membership proofs for future markers
+/* This proof consists of an array of [`UpdateProof`]s, membership proofs for
+existence versions at past markers, and non-membership proofs for future markers
 up until the current epoch. */
 message HistoryProof {
     repeated UpdateProof update_proofs = 1;
-    repeated bytes until_marker_vrf_proofs = 2;
-    repeated NonMembershipProof non_existence_until_marker_proofs = 3;
+    repeated bytes past_marker_vrf_proofs = 2;
+    repeated MembershipProof existence_of_past_marker_proofs = 3;
     repeated bytes future_marker_vrf_proofs = 4;
     repeated NonMembershipProof non_existence_of_future_marker_proofs = 5;
 }

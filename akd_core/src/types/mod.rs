@@ -462,7 +462,19 @@ pub struct UpdateProof {
     pub commitment_nonce: Vec<u8>,
 }
 
-/// This proof is just an array of [`UpdateProof`]s.
+/// A client can query for a history of all versions associated with a given [AkdLabel], or the most recent k versions.
+/// The server returns a [HistoryProof] which can be verified to extract a list of [VerifyResult]s, one for each
+/// version.
+/// Let `n` be the latest version, `n_prev_pow` be the power of 2 that is at most n, `n_next_pow` the next power of 2 after `n`, and `epoch_prev_pow` be the power of 2 that
+/// is at most the current epoch. The [HistoryProof] consists of:
+/// - A list of [UpdateProof]s, one for each version, which each contain a membership proof for the version `n` being fresh,
+/// and a membership proof for the version `n-1` being stale
+/// - A membership proof for `n_prev_pow` (or empty if n is a power of 2)
+/// - A series of non-membership proofs for each version in the range `[n+1, n_next_pow]`
+/// - A series of non-membership proofs for each power of 2 in the range `[n_next_pow, epoch_prev_pow]`
+///
+/// A client verifies this proof by first verifying each of the update proofs, checking that they are in decreasing
+/// consecutive order by version. Then, it verifies the remaining proofs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde_serialization",
@@ -471,10 +483,10 @@ pub struct UpdateProof {
 pub struct HistoryProof {
     /// The update proofs in the key history
     pub update_proofs: Vec<UpdateProof>,
-    /// VRF Proofs for the labels of the values until the next marker version
-    pub until_marker_vrf_proofs: Vec<Vec<u8>>,
-    /// Proof that the values until the next marker version did not exist at this time
-    pub non_existence_until_marker_proofs: Vec<NonMembershipProof>,
+    /// VRF Proofs for the labels of the values for past markers
+    pub past_marker_vrf_proofs: Vec<Vec<u8>>,
+    /// Proof that the values for the past markers exist
+    pub existence_of_past_marker_proofs: Vec<MembershipProof>,
     /// VRF proofs for the labels of future marker entries
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist

@@ -16,11 +16,13 @@ use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
 use crate::{
     AkdLabel, AkdValue, AppendOnlyProof, AzksElement, Digest, EpochHash, HistoryProof, LookupProof,
-    NonMembershipProof, UpdateProof,
+    UpdateProof,
 };
 
 use crate::VersionFreshness;
 use akd_core::configuration::Configuration;
+use akd_core::utils::get_marker_versions;
+use akd_core::verify::history::HistoryParams;
 use log::{error, info};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
@@ -465,18 +467,7 @@ where
         // apply filters specified by HistoryParams struct
         user_data = match params {
             HistoryParams::Complete => user_data,
-            HistoryParams::MostRecentInsecure(n) => {
-                user_data.into_iter().take(n).collect::<Vec<_>>()
-            }
-            HistoryParams::SinceEpochInsecure(epoch) => {
-                user_data = user_data
-                    .into_iter()
-                    .filter(|val| val.epoch >= epoch)
-                    .collect::<Vec<_>>();
-                // Ordering should be maintained after filtering, but let's re-sort just in case
-                user_data.sort_by(|a, b| b.epoch.cmp(&a.epoch));
-                user_data
-            }
+            HistoryParams::MostRecent(n) => user_data.into_iter().take(n).collect::<Vec<_>>(),
         };
 
         if user_data.is_empty() {
@@ -502,7 +493,8 @@ where
         }
 
         let mut update_proofs = Vec::<UpdateProof>::new();
-        let mut last_version = 0;
+        let mut start_version = user_data[0].version;
+        let mut end_version = 0;
         for user_state in user_data {
             // Ignore states in storage that are ahead of current directory epoch
             if user_state.epoch <= current_epoch {
@@ -510,53 +502,56 @@ where
                     .create_single_update_proof(akd_label, &user_state)
                     .await?;
                 update_proofs.push(proof);
-                last_version = if user_state.version > last_version {
-                    user_state.version
-                } else {
-                    last_version
-                };
+                start_version = std::cmp::min(user_state.version, start_version);
+                end_version = std::cmp::max(user_state.version, end_version);
             }
         }
-        let next_marker = get_marker_version(last_version) + 1;
-        let final_marker = get_marker_version(current_epoch);
 
-        let mut until_marker_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_until_marker_proofs = Vec::<NonMembershipProof>::new();
+        if start_version == 0 {
+            return Err(AkdError::Directory(DirectoryError::InvalidVersion(
+                "Computed start version for the key history should be non-zero".to_string(),
+            )));
+        }
 
-        for ver in last_version + 1..(1 << next_marker) {
-            let label_for_ver = self
+        let (past_marker_versions, future_marker_versions) =
+            get_marker_versions(start_version, end_version, current_epoch);
+
+        let mut past_marker_vrf_proofs = vec![];
+        let mut existence_of_past_marker_proofs = vec![];
+
+        for version in past_marker_versions {
+            let node_label = self
                 .vrf
-                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, ver)
+                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, version)
                 .await?;
-            let non_existence_of_ver = current_azks
-                .get_non_membership_proof::<TC, _>(&self.storage, label_for_ver)
+            let existence_vrf = self
+                .vrf
+                .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, version)
                 .await?;
-            non_existence_until_marker_proofs.push(non_existence_of_ver);
-            until_marker_vrf_proofs.push(
-                self.vrf
-                    .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, ver)
-                    .await?
-                    .to_bytes()
-                    .to_vec(),
+            past_marker_vrf_proofs.push(existence_vrf.to_bytes().to_vec());
+            existence_of_past_marker_proofs.push(
+                current_azks
+                    .get_membership_proof::<TC, _>(&self.storage, node_label)
+                    .await?,
             );
         }
 
-        let mut future_marker_vrf_proofs = Vec::<Vec<u8>>::new();
-        let mut non_existence_of_future_marker_proofs = Vec::<NonMembershipProof>::new();
+        let mut future_marker_vrf_proofs = vec![];
+        let mut non_existence_of_future_marker_proofs = vec![];
 
-        for marker_power in next_marker..final_marker + 1 {
-            let ver = 1 << marker_power;
-            let label_for_ver = self
+        for version in future_marker_versions {
+            let node_label = self
                 .vrf
-                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, ver)
+                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, version)
                 .await?;
-            let non_existence_of_ver = current_azks
-                .get_non_membership_proof::<TC, _>(&self.storage, label_for_ver)
-                .await?;
-            non_existence_of_future_marker_proofs.push(non_existence_of_ver);
+            non_existence_of_future_marker_proofs.push(
+                current_azks
+                    .get_non_membership_proof::<TC, _>(&self.storage, node_label)
+                    .await?,
+            );
             future_marker_vrf_proofs.push(
                 self.vrf
-                    .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, ver)
+                    .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, version)
                     .await?
                     .to_bytes()
                     .to_vec(),
@@ -571,8 +566,8 @@ where
         Ok((
             HistoryProof {
                 update_proofs,
-                until_marker_vrf_proofs,
-                non_existence_until_marker_proofs,
+                past_marker_vrf_proofs,
+                existence_of_past_marker_proofs,
                 future_marker_vrf_proofs,
                 non_existence_of_future_marker_proofs,
             },
@@ -858,27 +853,6 @@ where
     /// Read-only access to [Directory::get_public_key](Directory::get_public_key).
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         self.0.get_public_key().await
-    }
-}
-
-/// The parameters that dictate how much of the history proof to return to the consumer
-/// (either a complete history, or some limited form).
-#[derive(Copy, Clone)]
-pub enum HistoryParams {
-    /// Returns a complete history for a label
-    Complete,
-    /// Returns up to the most recent N updates for a label. This is not secure, and
-    /// should not be used in a production environment.
-    MostRecentInsecure(usize),
-    /// Returns all updates since a specified epoch (inclusive). This is not secure, and
-    /// should not be used in a production environment.
-    SinceEpochInsecure(u64),
-}
-
-impl Default for HistoryParams {
-    /// By default, we return a complete history
-    fn default() -> Self {
-        Self::Complete
     }
 }
 

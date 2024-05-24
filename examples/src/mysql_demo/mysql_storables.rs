@@ -38,6 +38,7 @@ pub(crate) trait MySqlStorable {
 
     fn set_batch_params(items: &[DbRecord]) -> Result<mysql_async::Params>;
 
+    #[allow(dead_code)]
     fn get_statement<St: Storable>() -> String;
 
     fn get_batch_create_temp_table<St: Storable>() -> Option<String>;
