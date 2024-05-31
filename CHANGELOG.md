@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0-pre.4 (May 31, 2024)
+* Upgrades history proof generation to properly support the MostRecent parameter (giving a limited
+  history proof)
+
 ## 0.12.0-pre.3 (April 4, 2024)
 * Eliminates a rare bug that can result in an aZKS being overwritten during Directory initialization
 
