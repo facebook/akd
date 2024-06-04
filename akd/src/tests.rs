@@ -30,6 +30,7 @@ use crate::{
     VerifyResult,
 };
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct LocalDatabase;
 
