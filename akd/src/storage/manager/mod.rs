@@ -26,6 +26,7 @@ use log::debug;
 use log::{error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
+#[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::Ordering;
@@ -47,6 +48,7 @@ const METRIC_GET_USER_STATE: Metric = 7;
 const METRIC_GET_USER_DATA: Metric = 8;
 const METRIC_GET_USER_STATE_VERSIONS: Metric = 9;
 
+#[cfg(feature = "runtime_metrics")]
 const NUM_METRICS: usize = 10;
 
 #[cfg(test)]
@@ -59,7 +61,7 @@ pub struct StorageManager<Db: Database> {
     transaction: Transaction,
     /// The underlying database managed by this storage manager
     db: Arc<Db>,
-
+    #[cfg(feature = "runtime_metrics")]
     metrics: [Arc<AtomicU64>; NUM_METRICS],
 }
 
@@ -69,6 +71,7 @@ impl<Db: Database> Clone for StorageManager<Db> {
             cache: self.cache.clone(),
             transaction: self.transaction.clone(),
             db: self.db.clone(),
+            #[cfg(feature = "runtime_metrics")]
             metrics: self.metrics.clone(),
         }
     }
@@ -84,6 +87,7 @@ impl<Db: Database> StorageManager<Db> {
             cache: None,
             transaction: Transaction::new(),
             db: Arc::new(db),
+            #[cfg(feature = "runtime_metrics")]
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
@@ -103,6 +107,7 @@ impl<Db: Database> StorageManager<Db> {
             )),
             transaction: Transaction::new(),
             db: Arc::new(db),
+            #[cfg(feature = "runtime_metrics")]
             metrics: [0; NUM_METRICS].map(|_| Arc::new(AtomicU64::new(0))),
         }
     }
