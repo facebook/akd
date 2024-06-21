@@ -298,7 +298,7 @@ where
             #[cfg(not(feature = "greedy_lookup_preload"))]
             {
                 current_azks
-                    .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()])
+                    .preload_lookup_nodes(&self.storage, &vec![lookup_info.clone()], None)
                     .await?;
             }
         }
@@ -373,7 +373,7 @@ where
 
         // Load nodes needed using the lookup infos.
         current_azks
-            .preload_lookup_nodes(&self.storage, &lookup_infos)
+            .preload_lookup_nodes(&self.storage, &lookup_infos, None)
             .await?;
 
         // Ensure we have got all lookup infos needed.
@@ -479,27 +479,14 @@ where
             return Err(AkdError::Storage(StorageError::NotFound(msg)));
         }
 
-        #[cfg(feature = "preload_history")]
-        {
-            let mut lookup_infos = vec![];
-            for ud in user_data.iter() {
-                if let Ok(lo) = self.build_lookup_info(ud).await {
-                    lookup_infos.push(lo);
-                }
-            }
-            current_azks
-                .preload_lookup_nodes(&self.storage, &lookup_infos)
-                .await?;
-        }
-
         let mut update_proofs = Vec::<UpdateProof>::new();
         let mut start_version = user_data[0].version;
         let mut end_version = 0;
-        for user_state in user_data {
+        for user_state in &user_data {
             // Ignore states in storage that are ahead of current directory epoch
             if user_state.epoch <= current_epoch {
                 let proof = self
-                    .create_single_update_proof(akd_label, &user_state)
+                    .create_single_update_proof(akd_label, user_state)
                     .await?;
                 update_proofs.push(proof);
                 start_version = std::cmp::min(user_state.version, start_version);
@@ -515,6 +502,32 @@ where
 
         let (past_marker_versions, future_marker_versions) =
             get_marker_versions(start_version, end_version, current_epoch);
+
+        #[cfg(feature = "preload_history")]
+        {
+            let mut lookup_infos = vec![];
+            for ud in user_data.iter() {
+                if let Ok(lo) = self.build_lookup_info(ud).await {
+                    lookup_infos.push(lo);
+                }
+            }
+
+            let mut marker_labels = vec![];
+            for version in past_marker_versions
+                .iter()
+                .chain(future_marker_versions.iter())
+            {
+                let node_label = self
+                    .vrf
+                    .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, *version)
+                    .await?;
+                marker_labels.push(node_label);
+            }
+
+            current_azks
+                .preload_lookup_nodes(&self.storage, &lookup_infos, Some(marker_labels))
+                .await?;
+        }
 
         let mut past_marker_vrf_proofs = vec![];
         let mut existence_of_past_marker_proofs = vec![];

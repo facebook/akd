@@ -623,9 +623,10 @@ impl Azks {
         &self,
         storage: &StorageManager<S>,
         lookup_infos: &[LookupInfo],
+        marker_labels: Option<Vec<NodeLabel>>,
     ) -> Result<u64, AkdError> {
         // Collect lookup labels needed and convert them into Nodes for preloading.
-        let lookup_nodes: Vec<AzksElement> = lookup_infos
+        let mut lookup_nodes: Vec<AzksElement> = lookup_infos
             .iter()
             .flat_map(|li| vec![li.existent_label, li.marker_label, li.non_existent_label])
             .map(|l| AzksElement {
@@ -633,6 +634,13 @@ impl Azks {
                 value: AzksValue(EMPTY_DIGEST),
             })
             .collect();
+
+        if let Some(labels) = marker_labels {
+            lookup_nodes.extend(labels.iter().map(|l| AzksElement {
+                label: *l,
+                value: AzksValue(EMPTY_DIGEST),
+            }))
+        }
 
         // Load nodes.
         self.preload_nodes(storage, &AzksElementSet::from(lookup_nodes))

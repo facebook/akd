@@ -110,10 +110,6 @@ fn setup_mocked_db(db: &mut MockLocalDatabase, test_db: &AsyncInMemoryDatabase) 
             futures::executor::block_on(tmp_db.batch_get::<TreeNodeWithPreviousValue>(key))
         });
 
-    let tmp_db = test_db.clone();
-    db.expect_batch_get::<Azks>()
-        .returning(move |key| futures::executor::block_on(tmp_db.batch_get::<Azks>(key)));
-
     // ===== Get User Data ===== //
     let tmp_db = test_db.clone();
     db.expect_get_user_data()
