@@ -479,16 +479,11 @@ where
             return Err(AkdError::Storage(StorageError::NotFound(msg)));
         }
 
-        let mut update_proofs = Vec::<UpdateProof>::new();
         let mut start_version = user_data[0].version;
         let mut end_version = 0;
         for user_state in &user_data {
             // Ignore states in storage that are ahead of current directory epoch
             if user_state.epoch <= current_epoch {
-                let proof = self
-                    .create_single_update_proof(akd_label, user_state)
-                    .await?;
-                update_proofs.push(proof);
                 start_version = std::cmp::min(user_state.version, start_version);
                 end_version = std::cmp::max(user_state.version, end_version);
             }
@@ -527,6 +522,18 @@ where
             current_azks
                 .preload_lookup_nodes(&self.storage, &lookup_infos, Some(marker_labels))
                 .await?;
+        }
+
+        // The creation of update proofs should happen only after the preload operation (to prevent cache misses).
+        let mut update_proofs = Vec::<UpdateProof>::new();
+        for user_state in &user_data {
+            // Ignore states in storage that are ahead of current directory epoch
+            if user_state.epoch <= current_epoch {
+                let proof = self
+                    .create_single_update_proof(akd_label, user_state)
+                    .await?;
+                update_proofs.push(proof);
+            }
         }
 
         let mut past_marker_vrf_proofs = vec![];
