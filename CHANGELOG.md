@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.0-pre.6 (June 27, 2024)
+* Fixing a preloads ordering bug
+
 ## 0.12.0-pre.5 (June 3, 2024)
 * Only instantiate metrics attribute in storage manager when runtime metrics is enabled. This avoids an unnecessary
 import of atomic types, which not all architectures support.

@@ -22,7 +22,7 @@ Installation
 Add the following line to the dependencies of your `Cargo.toml`:
 
 ```
-akd = "0.12.0-pre.5"
+akd = "0.12.0-pre.6"
 ```
 
 ### Minimum Supported Rust Version
