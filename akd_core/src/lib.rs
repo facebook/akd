@@ -146,7 +146,7 @@
 //!
 //! ## History proofs
 //!
-//! A client can query for a history of all of the versions associated with a given [AkdLabel].
+//! A client can query for a history of all (or a subset) of the versions associated with a given [AkdLabel].
 //! The server returns a [HistoryProof] which can be verified to extract a list of [VerifyResult]s, one for each
 //! version.
 //!
@@ -154,12 +154,35 @@
 //! is at most the current epoch. The [HistoryProof] consists of:
 //! - A list of [UpdateProof]s, one for each version, which each contain a membership proof for the version `n` being fresh,
 //! and a membership proof for the version `n-1` being stale
-//! - A membership proof for `n_prev_pow` (or empty if n is a power of 2)
-//! - A series of non-membership proofs for each version in the range `[n+1, n_next_pow]`
-//! - A series of non-membership proofs for each power of 2 in the range `[n_next_pow, epoch_prev_pow]`
+//! - A (possibly empty) series of membership proof for past versions
+//! - A (possibly empty) series of non-membership proofs for future versions
 //!
 //! A client verifies this proof by first verifying each of the update proofs, checking that they are in decreasing
-//! consecutive order by version. Then, it verifies the remaining non-membership proofs.
+//! consecutive order by version. Then, it verifies the remaining membership and non-membership proofs corresponding
+//! to the past and future versions.
+//!
+//! The purpose behind these past and future version checks is essentially to ensure that, for a fixed epoch, two history
+//! proofs cannot present conflicting information about the history of updates for any given user's versions. This is perhaps
+//! better illustrated by considering what could happen if the history proofs did not contain the past membership and future
+//! non-membership proofs. Then, an attacker could present two history proofs for the same epoch, one containing a version `n`
+//! and the other containing a version `n+1`, and the client would have no way to determine what the latest version for that
+//! user actually is. So, the way this is resolved (originally as described in the SEEMless paper) is to provide a series of
+//! non-membership proofs for future versions, and membership proofs for past versions, with the guarantee that for two differing
+//! versions n and m (assuming n < m), the corresponding history proofs will be such that the non-membership proofs for n will
+//! intersect for at least one version number with the membership proofs for m. This would force the server to have to equivocate
+//! on that version number, which would be detectable by the client.
+//!
+//! There are several ways to algorithmically implement the past and future marker versions to guarantee that an intersection will
+//! always occur. One naive way is to simply have the server provide membership proofs for all versions from 1 to n (and 1 to m). This
+//! is the approach as described in OPTIKS (<https://eprint.iacr.org/2024/796.pdf>), which has the downside that the proof size is
+//! of course linear in the number of versions.
+//!
+//! In this implementation, we use a more efficient approach, which is inspired by SEEMless's approach to this problem (but is
+//! generalized to support "partial" history proofs that do not contain all versions of updates for a user). The basic idea is to
+//! include a constant number of membership proofs for past versions, and a relatively small number of non-membership proofs for
+//! future versions that technically still grows with the total number of epochs published, but by taking advantage of a carefully
+//! selected skiplist structure, the proof size is still logarithmic in the number of versions. This is described in the
+//! [utils::get_marker_versions()] function.
 //!
 //! ## Audit proofs
 //!
