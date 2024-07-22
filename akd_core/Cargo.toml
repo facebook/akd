@@ -1,6 +1,6 @@
 [package]
 name = "akd_core"
-version = "0.12.0-pre.6"
+version = "0.12.0-pre.7"
 authors = ["akd contributors"]
 description = "Core utilities for the akd crate"
 license = "MIT OR Apache-2.0"
