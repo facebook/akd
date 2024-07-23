@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0-pre.7 (July 22, 2024)
+* Added an efficiency optimization for history proof generation and
+  verification (incompatible with previous logic)
+
 ## 0.12.0-pre.6 (June 27, 2024)
 * Fixing a preloads ordering bug
 
