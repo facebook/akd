@@ -9,17 +9,23 @@
 //! by the API.
 
 use akd_core::configuration::Configuration;
+use std::default::Default;
 
+use crate::storage::types::KeyData;
+use crate::tree_node::TreeNodeWithPreviousValue;
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
     directory::{Directory, PublishCorruption, ReadOnlyDirectory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::{AkdError, DirectoryError, StorageError},
-    storage::{manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, Database},
+    storage::{
+        manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, types::ValueState,
+        Database,
+    },
     test_config,
     tests::{setup_mocked_db, MockLocalDatabase},
-    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams,
+    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams, NodeLabel,
 };
 
 // This test is meant to test the function poll_for_azks_change
@@ -114,6 +120,55 @@ async fn test_directory_azks_bootstrapping<TC: Configuration>() -> Result<(), Ak
     Ok(())
 }
 
+// It is possible to perform a "dirty read" when reading states during a key history operation
+// that will result in an epoch from the dirty read being higher than the aZKS epoch. In such an
+// event, we ignore value states that are part of the dirty read. This test ensures that we do not
+// inadvertently panic when inspecting marker versions due to "start version" and "end version"
+// invariants being violated.
+test_config!(test_key_history_dirty_reads);
+async fn test_key_history_dirty_reads<TC: Configuration>() -> Result<(), AkdError> {
+    let committed_epoch = 10;
+    let dirty_epoch = 11;
+
+    let mut mock_db = MockLocalDatabase::default();
+    mock_db.expect_get::<Azks>().returning(move |_| {
+        Ok(DbRecord::Azks(Azks {
+            latest_epoch: committed_epoch,
+            num_nodes: 1,
+        }))
+    });
+    mock_db.expect_get_user_data().returning(move |_| {
+        Ok(KeyData {
+            states: vec![ValueState {
+                value: AkdValue(Vec::new()),
+                version: 2,
+                label: NodeLabel {
+                    label_val: [0u8; 32],
+                    label_len: 32,
+                },
+                epoch: dirty_epoch,
+                username: AkdLabel::from("ferris"),
+            }],
+        })
+    });
+    // We can just return some fake error at this point, as we're not validating
+    // actual history proof functionality.
+    mock_db
+        .expect_get::<TreeNodeWithPreviousValue>()
+        .returning(|_| Err(StorageError::Other("Fake!".to_string())));
+
+    let storage = StorageManager::new_no_cache(mock_db);
+    let vrf = HardCodedAkdVRF {};
+    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+
+    // Ensure that we do not panic in this scenario, so we can just ignore the result.
+    let _res = akd
+        .key_history(&AkdLabel::from("ferris"), HistoryParams::MostRecent(1))
+        .await;
+
+    Ok(())
+}
+
 test_config!(test_read_during_publish);
 async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
@@ -202,7 +257,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
         .unwrap();
 
     let invalid_audit = akd.audit(2, 3).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     Ok(())
 }
@@ -218,7 +273,7 @@ async fn test_directory_read_only_mode<TC: Configuration>() -> Result<(), AkdErr
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
     let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf).await;
-    assert!(matches!(akd, Err(_)));
+    assert!(akd.is_err());
 
     Ok(())
 }
@@ -333,7 +388,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("label").as_bytes().to_vec()),
+            AkdLabel("label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -342,7 +397,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("another label").as_bytes().to_vec()),
+            AkdLabel("another label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -352,7 +407,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let EpochHash(current_epoch, root_hash) = akd.get_epoch_hash().await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
-    let target_label = AkdLabel(format!("label").as_bytes().to_vec());
+    let target_label = AkdLabel("label".to_string().as_bytes().to_vec());
 
     let history_params_5 = HistoryParams::MostRecent(5);
 
