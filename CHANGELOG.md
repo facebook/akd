@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0-pre.8 (August 23, 2024)
+* Fixed a bug in key history API that occurs when a proof is being generated while a transaction is
+  being committed
+* Updated test vectors to the latest version
+
 ## 0.12.0-pre.7 (July 22, 2024)
 * Added an efficiency optimization for history proof generation and
   verification (incompatible with previous logic)

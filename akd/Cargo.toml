@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.12.0-pre.7"
+version = "0.12.0-pre.8"
 authors = ["akd contributors"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -52,7 +52,7 @@ default = [
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { version = "0.12.0-pre.7", path = "../akd_core", default-features = false, features = [
+akd_core = { version = "0.12.0-pre.8", path = "../akd_core", default-features = false, features = [
     "vrf",
 ] }
 async-recursion = "1"
