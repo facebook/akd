@@ -480,7 +480,7 @@ where
         }
 
         let mut start_version = user_data[0].version;
-        let mut end_version = 0;
+        let mut end_version = user_data[0].version;
         for user_state in &user_data {
             // Ignore states in storage that are ahead of current directory epoch
             if user_state.epoch <= current_epoch {
@@ -489,9 +489,10 @@ where
             }
         }
 
-        if start_version == 0 {
+        if start_version == 0 || end_version == 0 {
             return Err(AkdError::Directory(DirectoryError::InvalidVersion(
-                "Computed start version for the key history should be non-zero".to_string(),
+                "Computed start and end versions for the key history should be non-zero"
+                    .to_string(),
             )));
         }
 
