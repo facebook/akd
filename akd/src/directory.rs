@@ -1034,7 +1034,7 @@ impl<TC: Configuration, S: Database + 'static, V: VRFKeyStorage> Directory<TC, S
             return Ok(EpochHash(current_epoch, root_hash));
         }
 
-        if let false = self.storage.begin_transaction() {
+        if !self.storage.begin_transaction() {
             error!("Transaction is already active");
             return Err(AkdError::Storage(StorageError::Transaction(
                 "Transaction is already active".to_string(),

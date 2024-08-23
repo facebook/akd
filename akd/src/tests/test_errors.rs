@@ -12,7 +12,7 @@ use akd_core::configuration::Configuration;
 use std::default::Default;
 
 use crate::storage::types::KeyData;
-use crate::tree_node::{TreeNode, TreeNodeWithPreviousValue};
+use crate::tree_node::TreeNodeWithPreviousValue;
 use crate::{
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
@@ -257,7 +257,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
         .unwrap();
 
     let invalid_audit = akd.audit(2, 3).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     Ok(())
 }
@@ -273,7 +273,7 @@ async fn test_directory_read_only_mode<TC: Configuration>() -> Result<(), AkdErr
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
     let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf).await;
-    assert!(matches!(akd, Err(_)));
+    assert!(akd.is_err());
 
     Ok(())
 }
@@ -388,7 +388,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("label").as_bytes().to_vec()),
+            AkdLabel("label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -397,7 +397,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
-            AkdLabel(format!("another label").as_bytes().to_vec()),
+            AkdLabel("another label".to_string().as_bytes().to_vec()),
             AkdValue::random(&mut rng),
         ));
         akd.publish(updates.clone()).await?;
@@ -407,7 +407,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let EpochHash(current_epoch, root_hash) = akd.get_epoch_hash().await?;
     // Get the VRF public key
     let vrf_pk = akd.get_public_key().await?;
-    let target_label = AkdLabel(format!("label").as_bytes().to_vec());
+    let target_label = AkdLabel("label".to_string().as_bytes().to_vec());
 
     let history_params_5 = HistoryParams::MostRecent(5);
 

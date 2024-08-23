@@ -303,7 +303,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
         borked_proof,
         HistoryVerificationParams::default(),
     );
-    assert!(matches!(result, Err(_)), "{}", "{result:?}");
+    assert!(result.is_err(), "{}", "{result:?}");
 
     Ok(())
 }
@@ -662,15 +662,15 @@ async fn test_simple_audit<TC: Configuration>() -> Result<(), AkdError> {
 
     // The audit should be of more than 1 epoch
     let invalid_audit = akd.audit(3, 3).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     // The audit epochs must be increasing
     let invalid_audit = akd.audit(3, 2).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     // The audit should throw an error when queried for an epoch which hasn't yet taken place!
     let invalid_audit = akd.audit(6, 7).await;
-    assert!(matches!(invalid_audit, Err(_)));
+    assert!(invalid_audit.is_err());
 
     Ok(())
 }
@@ -781,7 +781,7 @@ async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError
         history_proof.clone(),
         HistoryVerificationParams::default(),
     );
-    assert!(matches!(tombstones, Err(_)));
+    assert!(tombstones.is_err());
 
     // We should be able to verify tombstones assuming the client is accepting
     // of tombstoned states

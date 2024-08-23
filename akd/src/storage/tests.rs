@@ -26,21 +26,6 @@ type Azks = crate::append_only_zks::Azks;
 type TreeNode = crate::tree_node::TreeNode;
 type PvTreeNode = crate::tree_node::TreeNodeWithPreviousValue;
 
-// *** Tests *** //
-
-#[cfg(test)]
-mod memory_storage_tests {
-    use crate::storage::memory::AsyncInMemoryDatabase;
-    use serial_test::serial;
-
-    #[tokio::test]
-    #[serial]
-    async fn test_in_memory_db() {
-        let db = AsyncInMemoryDatabase::new();
-        crate::storage::tests::run_test_cases_for_storage_impl(db).await;
-    }
-}
-
 // *** Run the test cases for a given data-layer impl *** //
 /// Run the storage-layer test suite for a given storage implementation.
 /// This is public because it can be used by other implemented storage layers
@@ -687,4 +672,19 @@ async fn test_tombstoning_data<S: Database>(
         });
 
     Ok(())
+}
+
+// *** Tests *** //
+
+#[cfg(test)]
+mod memory_storage_tests {
+    use crate::storage::memory::AsyncInMemoryDatabase;
+    use serial_test::serial;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_in_memory_db() {
+        let db = AsyncInMemoryDatabase::new();
+        crate::storage::tests::run_test_cases_for_storage_impl(db).await;
+    }
 }
