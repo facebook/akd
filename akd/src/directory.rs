@@ -276,9 +276,9 @@ where
     ///
     /// * `current_azks`: The current [Azks] element
     /// * `lookup_info`: The information to target in the lookup request. Includes all
-    /// necessary information to build the proof
+    ///   necessary information to build the proof
     /// * `skip_preload`: Denotes if we should not preload as part of this optimization. Enabled
-    /// from bulk lookup proof generation, as it has its own preloading operation
+    ///   from bulk lookup proof generation, as it has its own preloading operation
     ///
     /// Returns [Ok(LookupProof)] if the proof generation succeeded, [Err(_)] otherwise
     async fn lookup_with_info(

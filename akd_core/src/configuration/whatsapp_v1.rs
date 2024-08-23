@@ -117,6 +117,7 @@ impl Configuration for WhatsAppV1Configuration {
     /// - I2OSP(len(label) as u64, label)
     /// - A single byte encoded as 0u8 if "stale", 1u8 if "fresh"
     /// - A u64 representing the version
+    ///
     /// These are all interpreted as a single byte array and hashed together, with the output
     /// of the hash returned.
     fn get_hash_from_label_input(

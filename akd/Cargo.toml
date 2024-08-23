@@ -14,9 +14,10 @@ readme = "../README.md"
 whatsapp_v1 = ["akd_core/whatsapp_v1"]
 experimental = ["akd_core/experimental"]
 
+rand = ["dep:rand"]
 bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
 public_tests = [
-    "dep:rand",
+    "rand",
     "dep:colored",
     "dep:once_cell",
     "serde_serialization",

@@ -9,8 +9,8 @@
 //! to verify any of the following AKD proofs
 //!
 //! 1. Lookup
-//! 2: Key history
-//! 3: Audit (append-only)
+//! 2. Key history
+//! 3. Audit (append-only)
 
 use crate::hash::Digest;
 #[cfg(feature = "serde_serialization")]
@@ -402,6 +402,7 @@ pub struct NonMembershipProof {
 /// * committed in the tree,
 /// * not too far ahead of the most recent marker version,
 /// * not stale when served.
+///
 /// This proof is sent in response to a lookup query for a particular key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
@@ -468,7 +469,7 @@ pub struct UpdateProof {
 /// Let `n` be the latest version, `n_prev_pow` be the power of 2 that is at most n, `n_next_pow` the next power of 2 after `n`, and `epoch_prev_pow` be the power of 2 that
 /// is at most the current epoch. The [HistoryProof] consists of:
 /// - A list of [UpdateProof]s, one for each version, which each contain a membership proof for the version `n` being fresh,
-/// and a membership proof for the version `n-1` being stale
+///   and a membership proof for the version `n-1` being stale
 /// - A membership proof for `n_prev_pow` (or empty if n is a power of 2)
 /// - A series of non-membership proofs for each version in the range `[n+1, n_next_pow]`
 /// - A series of non-membership proofs for each power of 2 in the range `[n_next_pow, epoch_prev_pow]`
