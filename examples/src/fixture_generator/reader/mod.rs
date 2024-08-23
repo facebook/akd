@@ -25,6 +25,10 @@ pub trait Reader {
     /// Reads a delta object for a given epoch.
     #[allow(dead_code)]
     fn read_delta(&mut self, epoch: u32) -> Result<Delta, ReaderError>;
+
+    /// Reads a String (freeform).
+    #[allow(dead_code)]
+    fn read_string(&mut self) -> Result<String, ReaderError>;
 }
 
 #[derive(Debug, PartialEq, Eq)]
