@@ -30,12 +30,12 @@
 //! This library supports the following operations for the directory it maintains:
 //! - [Publishing](#publishing): Allows the directory server to insert and update new entries into the directory.
 //! - [Lookup Proofs](#lookup-proofs): Handles point queries to the directory, providing proofs of validity based on the server's
-//! public key and a root hash for an epoch.
+//!   public key and a root hash for an epoch.
 //! - [History Proofs](#history-proofs): For a given index in the directory, provides proofs for the history of updates to this
-//! entry, matched against the server's public key and a root hash for an epoch.
+//!   entry, matched against the server's public key and a root hash for an epoch.
 //! - [Append-Only Proofs](#append-only-proofs): For a pair of epochs, provides a proof to an auditor that the database has evolved
-//! consistently and in an append-only manner. These append-only proofs use a verifiable random function (VRF)
-//! to avoid leaking any information about the labels and their corresponding values.
+//!   consistently and in an append-only manner. These append-only proofs use a verifiable random function (VRF)
+//!   to avoid leaking any information about the labels and their corresponding values.
 //!
 //!
 //! ### Asynchronicity
@@ -470,12 +470,12 @@
 //! Utilities:
 //! - `public_auditing`: Enables the publishing of audit proofs
 //! - `serde_serialization`: Will enable `serde` serialization support on all public structs used in storage & transmission operations. This is helpful
-//! in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
-//! also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
+//!   in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
+//!   also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
 //! - `runtime_metrics`: Collects metrics on the accesses to the storage layer
 //! - `public_tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
-//! unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
-//! used only in unit testing scenarios by altering your Cargo.toml as such:
+//!   unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
+//!   used only in unit testing scenarios by altering your Cargo.toml as such:
 //!
 
 #![warn(missing_docs)]

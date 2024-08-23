@@ -57,9 +57,9 @@ fn get_bit_length(input: u64) -> u64 {
 /// 1. Include the largest power of 2 that is less than start_version.
 /// 2. Include the largest element of MARKER_VERSION_SKIPLIST that is less than start_version.
 /// 3. Include at most a log_2(start_version) number of versions between start_version and the
-/// largest power of 2 less than start_version, determined as follows: For each bit position i
-/// in start_version, if the bit is 1, include the value of start_version with the ith bit set
-/// to 0 and followed by trailing zeros.
+///    largest power of 2 less than start_version, determined as follows: For each bit position i
+///    in start_version, if the bit is 1, include the value of start_version with the ith bit set
+///    to 0 and followed by trailing zeros.
 ///
 /// As a concrete example, if start_version = 85, the past marker versions would be [16, 64, 80, 84].
 /// Since:
@@ -73,12 +73,12 @@ fn get_bit_length(input: u64) -> u64 {
 /// The future marker versions are determined as follows:
 ///
 /// 1. Include all powers of 2 that begin from start_version, up until the smallest element in
-/// MARKER_VERSION_SKIPLIST that is greater than start_version.
+///    MARKER_VERSION_SKIPLIST that is greater than start_version.
 /// 2. Include all elements of MARKER_VERSION_SKIPLIST that are between start_version and epoch.
 /// 3. Include at most a log_2(start_version) number of versions between start_version and the
-/// smallest power of 2 greater than start_version, determined as follows: For each bit position i
-/// in start_version, if the bit is 0, include the value of start_version with the ith bit set
-/// to 1 and followed by trailing zeros.
+///    smallest power of 2 greater than start_version, determined as follows: For each bit position i
+///    in start_version, if the bit is 0, include the value of start_version with the ith bit set
+///    to 1 and followed by trailing zeros.
 ///
 /// As a concrete example, if start_version = 85, the future marker versions would be
 /// [86, 88, 96, 128, 256, 65536, 2^32] (potentially truncated depending on if any of these

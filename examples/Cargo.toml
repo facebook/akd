@@ -13,6 +13,9 @@ path = "src/main.rs"
 bench = false
 doc = false
 
+[features]
+# Collect runtime metrics on db access calls + timing
+runtime_metrics = []
 
 [dependencies]
 anyhow = "1"

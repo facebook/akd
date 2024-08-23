@@ -56,6 +56,7 @@
 //! - The label in bytes
 //! - A single byte encoded as `0u8` if "stale", `1u8` if "fresh"
 //! - A `u64` representing the version (starting at 1 for newly inserted labels, and incremented by 1 for each update)
+//!
 //! The resulting values are hashed together and used as the byte string (truncated to 256 bits) that is stored
 //! as the [NodeLabel].
 //!
@@ -136,7 +137,7 @@
 //! Let `n` be the current version, and let `m` be the largest power
 //! of 2 that is at most `n`. The [LookupProof] consists of:
 //! - The `commitment_nonce` corresponding to the value, which the client
-//! can hash together with the value to reconstruct the commitment
+//!   can hash together with the value to reconstruct the commitment
 //! - A membership and VRF proof for version `n` being marked as fresh
 //! - A non-membership and VRF proof for version `n` being marked as stale
 //! - A membership and VRF proof for version `m` being marked as fresh
@@ -153,7 +154,7 @@
 //! Let `n` be the latest version, `n_next_pow` the next power of 2 after `n`, and `epoch_prev_pow` be the power of 2 that
 //! is at most the current epoch. The [HistoryProof] consists of:
 //! - A list of [UpdateProof]s, one for each version, which each contain a membership proof for the version `n` being fresh,
-//! and a membership proof for the version `n-1` being stale
+//!   and a membership proof for the version `n-1` being stale
 //! - A (possibly empty) series of membership proof for past versions
 //! - A (possibly empty) series of non-membership proofs for future versions
 //!
