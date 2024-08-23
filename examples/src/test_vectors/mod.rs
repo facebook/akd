@@ -45,6 +45,18 @@ pub struct Metadata {
     pub domain_label: String,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TestVectorBytes {
+    vrf_pk: String,
+    epoch_hash: String,
+    epoch: u64,
+    label: String,
+    lookup_proof: String,
+    history_proof_recent: String,
+    history_proof_complete: String,
+    history_proof_complete_len: usize,
+}
+
 #[derive(Parser, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Args {
     /// Name of output path.
@@ -97,6 +109,39 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
     writer.write_comment(&comment);
     writer.write_object(metadata);
 
+    let test_vector_bytes = generate_impl::<TC>().await?;
+
+    writer.write_line();
+    writer.write_comment("Public Key");
+    writer.write_object(test_vector_bytes.vrf_pk);
+    writer.write_line();
+    writer.write_comment("Epoch Hash");
+    writer.write_object(test_vector_bytes.epoch_hash);
+    writer.write_line();
+    writer.write_comment("Epoch");
+    writer.write_object(test_vector_bytes.epoch);
+    writer.write_line();
+    writer.write_comment("Label");
+    writer.write_object(test_vector_bytes.label);
+    writer.write_line();
+    writer.write_comment("Lookup Proof");
+    writer.write_object(test_vector_bytes.lookup_proof);
+    writer.write_line();
+    writer.write_comment("History Proof (HistoryParams::MostRecent(1))");
+    writer.write_object(test_vector_bytes.history_proof_recent);
+    writer.write_line();
+    writer.write_comment(&format!(
+        "History Proof (HistoryParams::Complete with {} versions)",
+        test_vector_bytes.history_proof_complete_len
+    ));
+    writer.write_object(test_vector_bytes.history_proof_complete);
+
+    // flush writer and exit
+    writer.flush();
+    Ok(())
+}
+
+async fn generate_impl<TC: NamedConfiguration>() -> Result<TestVectorBytes> {
     let db = AsyncInMemoryDatabase::new();
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
@@ -206,44 +251,65 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
             }
 
             if (i, epoch) == (label_to_write, epoch_to_write) {
-                writer.write_line();
-                writer.write_comment("Public Key");
-                writer.write_object(hex::encode(vrf_pk.as_bytes()));
-                writer.write_line();
-                writer.write_comment("Epoch Hash");
-                writer.write_object(hex::encode(epoch_hash.hash()));
-                writer.write_line();
-                writer.write_comment("Epoch");
-                writer.write_object(epoch_hash.epoch());
-                writer.write_line();
-                writer.write_comment("Label");
-                writer.write_object(hex::encode(&label.clone().0));
-                writer.write_line();
-                writer.write_comment("Lookup Proof");
-                writer.write_object(hex::encode(
-                    akd_core::proto::specs::types::LookupProof::from(&lookup_proof)
-                        .write_to_bytes()?,
-                ));
-                writer.write_line();
-                writer.write_comment("History Proof (HistoryParams::MostRecent(1))");
-                writer.write_object(hex::encode(
-                    akd_core::proto::specs::types::HistoryProof::from(&history_proof_partial)
-                        .write_to_bytes()?,
-                ));
-                writer.write_line();
-                writer.write_comment(&format!(
-                    "History Proof (HistoryParams::Complete with {} versions)",
-                    history_results_complete.len()
-                ));
-                writer.write_object(hex::encode(
-                    akd_core::proto::specs::types::HistoryProof::from(&history_proof_complete)
-                        .write_to_bytes()?,
-                ));
+                return Ok(TestVectorBytes {
+                    vrf_pk: hex::encode(vrf_pk.as_bytes()),
+                    epoch_hash: hex::encode(epoch_hash.hash()),
+                    epoch: epoch_hash.epoch(),
+                    label: hex::encode(&label.clone().0),
+                    lookup_proof: hex::encode(
+                        akd_core::proto::specs::types::LookupProof::from(&lookup_proof)
+                            .write_to_bytes()?,
+                    ),
+                    history_proof_recent: hex::encode(
+                        akd_core::proto::specs::types::HistoryProof::from(&history_proof_partial)
+                            .write_to_bytes()?,
+                    ),
+                    history_proof_complete: hex::encode(
+                        akd_core::proto::specs::types::HistoryProof::from(&history_proof_complete)
+                            .write_to_bytes()?,
+                    ),
+                    history_proof_complete_len: history_results_complete.len(),
+                });
             }
         }
     }
+    panic!("Test vector not found");
+}
 
-    // flush writer and exit
-    writer.flush();
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        fixture_generator::reader::{yaml::YamlFileReader, Reader},
+        test_config,
+    };
+
+    // Path to where the test vector .yaml files are located
+    const TEST_VECTORS_FILE_PATH: &str = "src/test_vectors";
+
+    // Ensures that the output of the test vectors matches the expected output
+    // If this test fails, then this means that the test vectors have changed and the
+    // expected output needs to be updated by regenerating the test vectors
+    test_config!(test_output_vectors);
+    async fn test_output_vectors<TC: NamedConfiguration>() {
+        let mut reader = YamlFileReader::new(
+            File::open(format!("{}/{}.yaml", TEST_VECTORS_FILE_PATH, TC::name())).unwrap(),
+        )
+        .unwrap();
+
+        let test_vector_bytes_generated = generate_impl::<TC>().await.unwrap();
+
+        let test_vector_bytes_read = TestVectorBytes {
+            vrf_pk: reader.read_string().unwrap(),
+            epoch_hash: reader.read_string().unwrap(),
+            epoch: reader.read_string().unwrap().parse().unwrap(),
+            label: reader.read_string().unwrap(),
+            lookup_proof: reader.read_string().unwrap(),
+            history_proof_recent: reader.read_string().unwrap(),
+            history_proof_complete: reader.read_string().unwrap(),
+            history_proof_complete_len: 3, // This is a bit of a hack and is hard-coded
+        };
+
+        assert_eq!(test_vector_bytes_read, test_vector_bytes_generated);
+    }
 }

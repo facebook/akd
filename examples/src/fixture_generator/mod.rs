@@ -20,7 +20,7 @@
 mod examples;
 mod generator;
 mod parser;
-mod reader;
+pub mod reader;
 pub mod writer;
 
 pub(crate) use parser::Args;

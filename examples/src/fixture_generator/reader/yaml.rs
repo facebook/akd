@@ -132,4 +132,8 @@ impl Reader for YamlFileReader {
     fn read_delta(&mut self, epoch: u32) -> Result<Delta, ReaderError> {
         self.read_impl(|delta: &Delta| delta.epoch == epoch)
     }
+
+    fn read_string(&mut self) -> Result<String, ReaderError> {
+        self.read_impl(|_: &String| true)
+    }
 }
