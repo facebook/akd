@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.0-pre.9 (August 28, 2024)
+* Fixed a bug in key history API that can incorrectly return HistoryProofs without UpdateProofs.
+
 ## 0.12.0-pre.8 (August 23, 2024)
 * Fixed a bug in key history API that occurs when a proof is being generated while a transaction is
   being committed
