@@ -461,10 +461,12 @@ where
         let current_epoch = current_azks.get_latest_epoch();
         let mut user_data = self.storage.get_user_data(akd_label).await?.states;
 
-        // reverse sort from highest epoch to lowest
+        // Ignore states in storage which are ahead of the current directory epoch
+        user_data.retain(|vs| vs.epoch <= current_epoch);
+        // Reverse sort from highest epoch to lowest
         user_data.sort_by(|a, b| b.epoch.cmp(&a.epoch));
 
-        // apply filters specified by HistoryParams struct
+        // Apply filters specified by HistoryParams struct
         user_data = match params {
             HistoryParams::Complete => user_data,
             HistoryParams::MostRecent(n) => user_data.into_iter().take(n).collect::<Vec<_>>(),
@@ -482,11 +484,8 @@ where
         let mut start_version = user_data[0].version;
         let mut end_version = user_data[0].version;
         for user_state in &user_data {
-            // Ignore states in storage that are ahead of current directory epoch
-            if user_state.epoch <= current_epoch {
-                start_version = std::cmp::min(user_state.version, start_version);
-                end_version = std::cmp::max(user_state.version, end_version);
-            }
+            start_version = std::cmp::min(user_state.version, start_version);
+            end_version = std::cmp::max(user_state.version, end_version);
         }
 
         if start_version == 0 || end_version == 0 {
@@ -528,13 +527,10 @@ where
         // The creation of update proofs should happen only after the preload operation (to prevent cache misses).
         let mut update_proofs = Vec::<UpdateProof>::new();
         for user_state in &user_data {
-            // Ignore states in storage that are ahead of current directory epoch
-            if user_state.epoch <= current_epoch {
-                let proof = self
-                    .create_single_update_proof(akd_label, user_state)
-                    .await?;
-                update_proofs.push(proof);
-            }
+            let proof = self
+                .create_single_update_proof(akd_label, user_state)
+                .await?;
+            update_proofs.push(proof);
         }
 
         let mut past_marker_vrf_proofs = vec![];
