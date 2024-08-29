@@ -199,10 +199,11 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
     // Make the current azks a "checkpoint" to reset to later
     let checkpoint_azks = akd.retrieve_azks().await.unwrap();
 
-    // Publish for the third time
+    // Publish for the third time with a new label
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world_3")),
         (AkdLabel::from("hello2"), AkdValue::from("world2_3")),
+        (AkdLabel::from("hello3"), AkdValue::from("world3")),
     ])
     .await
     .unwrap();
@@ -249,6 +250,24 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
         HistoryVerificationParams::default(),
     )
     .unwrap();
+
+    // Lookup proof for the most recently added key (ahead of directory epoch) should
+    // result in the entry not being found.
+    let recently_added_lookup_result = akd.lookup(AkdLabel::from("hello3")).await;
+    assert!(matches!(
+        recently_added_lookup_result,
+        Err(AkdError::Storage(StorageError::NotFound(_)))
+    ));
+
+    // History proof for the most recently added key (ahead of directory epoch) should
+    // result in the entry not being found.
+    let recently_added_history_result = akd
+        .key_history(&AkdLabel::from("hello3"), HistoryParams::default())
+        .await;
+    assert!(matches!(
+        recently_added_history_result,
+        Err(AkdError::Storage(StorageError::NotFound(_)))
+    ));
 
     // Audit proof should only work up until checkpoint's epoch
     let audit_proof = akd.audit(1, 2).await.unwrap();

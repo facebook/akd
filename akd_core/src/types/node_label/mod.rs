@@ -22,7 +22,7 @@ use alloc::vec::Vec;
 #[cfg(test)]
 mod tests;
 
-/// Represents the label of a AKD node
+/// Represents the label of an AKD node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde_serialization",
