@@ -9,22 +9,21 @@
 //! objects
 
 use super::{CachedItem, DEFAULT_CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
+use crate::log::{debug, info};
 use crate::storage::DbRecord;
 use crate::storage::Storable;
+
 use akd_core::SizeOf;
 use dashmap::DashMap;
-#[cfg(not(feature = "runtime_metrics"))]
-use log::debug;
-use log::info;
-#[cfg(feature = "runtime_metrics")]
-use log::{debug, error, warn};
-
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+
+#[cfg(feature = "tracing")]
+use tracing::Instrument;
 
 /// Implements a basic cache with timing information which automatically flushes
 /// expired entries and removes them
@@ -44,25 +43,20 @@ pub struct TimedCache {
 
 impl TimedCache {
     /// Log cache access metrics along with size information
-    pub fn log_metrics(&self, _level: log::Level) {
+    pub fn log_metrics(&self) {
         #[cfg(feature = "runtime_metrics")]
         {
             let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
             let cache_size = self.map.len();
 
             let msg = format!("Cache hit since last: {hit_count}, cached size: {cache_size} items");
-            match _level {
-                log::Level::Trace => println!("{msg}"),
-                log::Level::Debug => debug!("{}", msg),
-                log::Level::Info => info!("{}", msg),
-                log::Level::Warn => warn!("{}", msg),
-                _ => error!("{}", msg),
-            }
+            info!("{msg}");
         }
     }
 }
 
 impl TimedCache {
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     async fn clean(&self) {
         if !self.can_clean.load(Ordering::Relaxed) {
             // cleaning is disabled
@@ -132,7 +126,7 @@ impl TimedCache {
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
     /// or take the default (30s) and an optional memory-pressure limit, where the cache will be
-    /// cleaned if too much memory is being utilized
+    /// cleaned if too much memory is being utilized.
     pub fn new(
         o_lifetime: Option<Duration>,
         o_memory_limit_bytes: Option<usize>,
@@ -160,7 +154,8 @@ impl TimedCache {
         }
     }
 
-    /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned
+    /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub async fn hit_test<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         self.clean().await;
 
@@ -199,7 +194,8 @@ impl TimedCache {
         None
     }
 
-    /// Put an item into the cache
+    /// Put an item into the cache.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub async fn put(&self, record: &DbRecord) {
         self.clean().await;
 
@@ -218,13 +214,21 @@ impl TimedCache {
         }
     }
 
-    /// Put a batch of items into the cache, utilizing a single write lock
+    /// Put a batch of items into the cache, utilizing a single write lock.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all, fields(num_records = records.len())))]
     pub async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
         for record in records.iter() {
             if let DbRecord::Azks(azks_ref) = &record {
+                #[cfg(not(feature = "tracing"))]
                 let mut azks_guard = self.azks.write().await;
+                #[cfg(feature = "tracing")]
+                let mut azks_guard = self
+                    .azks
+                    .write()
+                    .instrument(tracing::trace_span!("azks.write"))
+                    .await;
                 *azks_guard = Some(DbRecord::Azks(azks_ref.clone()));
             } else {
                 let key = record.get_full_binary_id();
@@ -237,13 +241,15 @@ impl TimedCache {
         }
     }
 
-    /// Flush the cache
+    /// Flush the cache.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub async fn flush(&self) {
         self.map.clear();
         *(self.azks.write().await) = None;
     }
 
-    /// Retrieve all of the cached items
+    /// Retrieve all the cached items.
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub async fn get_all(&self) -> Vec<DbRecord> {
         self.clean().await;
 
@@ -258,13 +264,15 @@ impl TimedCache {
         items
     }
 
-    /// Disable cache-cleaning (i.e. during a transaction)
+    /// Disable cache-cleaning (e.g. during a transaction).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub fn disable_clean(&self) {
         debug!("Disabling cache cleaning");
         self.can_clean.store(false, Ordering::Relaxed);
     }
 
-    /// Re-enable cache cleaning (i.e. when a transaction is over)
+    /// Re-enable cache cleaning (e.g. when a transaction is over).
+    #[cfg_attr(feature = "tracing", tracing::instrument(skip_all))]
     pub fn enable_clean(&self) {
         debug!("Enabling cache cleaning");
         self.can_clean.store(true, Ordering::Relaxed);

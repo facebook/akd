@@ -54,7 +54,7 @@ async fn test_directory_operations<TC: Configuration>() {
         let storage_manager = StorageManager::new_no_cache(mysql_db.clone());
         directory_test_suite::<TC, _, HardCodedAkdVRF>(&storage_manager, 50, &vrf).await;
 
-        storage_manager.log_metrics(log::Level::Trace).await;
+        storage_manager.log_metrics().await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
@@ -111,7 +111,7 @@ async fn test_directory_operations_with_caching<TC: Configuration>() {
         let storage_manager = StorageManager::new(mysql_db.clone(), None, None, None);
         directory_test_suite::<TC, _, HardCodedAkdVRF>(&storage_manager, 50, &vrf).await;
 
-        storage_manager.log_metrics(log::Level::Trace).await;
+        storage_manager.log_metrics().await;
 
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await

@@ -248,7 +248,7 @@ async fn process_input(
                     assert_eq!(Ok(()), storage.batch_set(data).await);
                     let toc: Duration = Instant::now() - tic;
                     println!("Insert batch of {} items in {} ms", len, toc.as_millis());
-                    storage.log_metrics(log::Level::Warn).await;
+                    storage.log_metrics().await;
                 } else {
                     error!("Command available with MySQL db's only");
                 }
