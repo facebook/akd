@@ -147,7 +147,7 @@ pub enum ValueStateRetrievalFlag {
 
 // == New Data Retrieval Logic == //
 
-/// This needs to be PUBLIC public, since anyone implementing a data-layer will need
+/// This needs to be public, since anyone implementing a data-layer will need
 /// to be able to access this and all the internal types
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(

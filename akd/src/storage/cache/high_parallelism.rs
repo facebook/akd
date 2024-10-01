@@ -9,16 +9,12 @@
 //! objects
 
 use super::{CachedItem, DEFAULT_CACHE_CLEAN_FREQUENCY_MS, DEFAULT_ITEM_LIFETIME_MS};
+use crate::log::{debug, info};
 use crate::storage::DbRecord;
 use crate::storage::Storable;
+
 use akd_core::SizeOf;
 use dashmap::DashMap;
-#[cfg(not(feature = "runtime_metrics"))]
-use log::debug;
-use log::info;
-#[cfg(feature = "runtime_metrics")]
-use log::{debug, error, warn};
-
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -44,20 +40,14 @@ pub struct TimedCache {
 
 impl TimedCache {
     /// Log cache access metrics along with size information
-    pub fn log_metrics(&self, _level: log::Level) {
+    pub fn log_metrics(&self) {
         #[cfg(feature = "runtime_metrics")]
         {
             let hit_count = self.hit_count.swap(0, Ordering::Relaxed);
             let cache_size = self.map.len();
 
             let msg = format!("Cache hit since last: {hit_count}, cached size: {cache_size} items");
-            match _level {
-                log::Level::Trace => println!("{msg}"),
-                log::Level::Debug => debug!("{}", msg),
-                log::Level::Info => info!("{}", msg),
-                log::Level::Warn => warn!("{}", msg),
-                _ => error!("{}", msg),
-            }
+            info!("{msg}");
         }
     }
 }
@@ -132,7 +122,7 @@ impl TimedCache {
 
     /// Create a new timed cache instance. You can supply an optional item lifetime parameter
     /// or take the default (30s) and an optional memory-pressure limit, where the cache will be
-    /// cleaned if too much memory is being utilized
+    /// cleaned if too much memory is being utilized.
     pub fn new(
         o_lifetime: Option<Duration>,
         o_memory_limit_bytes: Option<usize>,
@@ -160,7 +150,7 @@ impl TimedCache {
         }
     }
 
-    /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned
+    /// Perform a hit-test of the cache for a given key. If successful, Some(record) will be returned.
     pub async fn hit_test<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         self.clean().await;
 
@@ -199,7 +189,7 @@ impl TimedCache {
         None
     }
 
-    /// Put an item into the cache
+    /// Put an item into the cache.
     pub async fn put(&self, record: &DbRecord) {
         self.clean().await;
 
@@ -218,7 +208,7 @@ impl TimedCache {
         }
     }
 
-    /// Put a batch of items into the cache, utilizing a single write lock
+    /// Put a batch of items into the cache, utilizing a single write lock.
     pub async fn batch_put(&self, records: &[DbRecord]) {
         self.clean().await;
 
@@ -237,13 +227,13 @@ impl TimedCache {
         }
     }
 
-    /// Flush the cache
+    /// Flush the cache.
     pub async fn flush(&self) {
         self.map.clear();
         *(self.azks.write().await) = None;
     }
 
-    /// Retrieve all of the cached items
+    /// Retrieve all the cached items.
     pub async fn get_all(&self) -> Vec<DbRecord> {
         self.clean().await;
 
@@ -258,13 +248,13 @@ impl TimedCache {
         items
     }
 
-    /// Disable cache-cleaning (i.e. during a transaction)
+    /// Disable cache-cleaning (e.g. during a transaction).
     pub fn disable_clean(&self) {
         debug!("Disabling cache cleaning");
         self.can_clean.store(false, Ordering::Relaxed);
     }
 
-    /// Re-enable cache cleaning (i.e. when a transaction is over)
+    /// Re-enable cache cleaning (e.g. when a transaction is over).
     pub fn enable_clean(&self) {
         debug!("Enabling cache cleaning");
         self.can_clean.store(true, Ordering::Relaxed);
