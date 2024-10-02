@@ -9,6 +9,7 @@
 
 use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
+use crate::log::{debug, info};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::tree_node::{
@@ -22,8 +23,8 @@ use crate::{
     AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
     NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf, ARITY,
 };
+
 use async_recursion::async_recursion;
-use log::info;
 use std::cmp::Ordering;
 #[cfg(feature = "greedy_lookup_preload")]
 use std::collections::HashSet;
@@ -676,7 +677,7 @@ impl Azks {
                 .collect();
         }
 
-        info!("Preload of tree ({} nodes) completed", load_count);
+        debug!("Preload of tree ({} nodes) completed", load_count);
 
         Ok(load_count)
     }
@@ -802,7 +803,7 @@ impl Azks {
                     load_count
                 );
             }
-            storage.log_metrics(log::Level::Info).await;
+            storage.log_metrics().await;
 
             let (unchanged, leaves) = Self::get_append_only_proof_helper::<TC, _>(
                 latest_epoch,

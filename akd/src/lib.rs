@@ -254,7 +254,7 @@
 //! First, it encodes a [`HistoryParams`]. Note that the same argument for [`HistoryParams`] that was used to generate
 //! the key history proof must also be used to verify the proof. Otherwise, verification may fail.
 //!
-//! [`HistoryVerificationParams`] also allows the consumer to specify whether or not a "tombstoned" value should be
+//! [`HistoryVerificationParams`] also allows the consumer to specify whether a "tombstoned" value should be
 //! accepted in place of a valid value for the corresponding entry. This is useful
 //! in scenarios where the consumer wishes to verify that a particular entry exists,
 //! but does not care about the value associated with it. The default behavior is to
@@ -498,6 +498,16 @@ pub mod errors;
 pub mod helper_structs;
 pub mod storage;
 pub mod tree_node;
+
+/// Shim module to group logging-related macros more easily
+/// when switching between [log](https://docs.rs/log/latest/log/)
+/// and [tracing](https://docs.rs/tracing/latest/tracing/).
+pub mod log {
+    #[cfg(not(feature = "tracing"))]
+    pub use log::{debug, error, info, trace, warn};
+    #[cfg(feature = "tracing")]
+    pub use tracing::{debug, error, info, trace, warn};
+}
 
 #[cfg(feature = "public_auditing")]
 pub mod local_auditing;

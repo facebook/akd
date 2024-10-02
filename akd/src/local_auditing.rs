@@ -8,7 +8,7 @@
 //! This module contains all the type conversions between internal AKD & message types
 //! with the protobuf types
 //!
-//! Additionally it supports the conversion between the output from the `Directory` to
+//! Additionally, it supports the conversion between the output from the `Directory` to
 //! public-storage safe blob types encoded with Protobuf. Download and upload
 //! to the blob storage medium is left to the new application crate akd_local_auditor
 
