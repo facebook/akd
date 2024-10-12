@@ -459,7 +459,7 @@
 //!
 //! Performance optimizations:
 //! - `parallel_vrf`: Enables the VRF computations to be run in parallel
-//! - `parallel_azks`: Enables nodes to be read and inserted via multiple threads during a publish operation
+//! - `parallel_azks`: Enables nodes to be fetched and inserted via multiple threads during a publish operation
 //! - `preload_history`: Enable pre-loading of the nodes when generating history proofs
 //! - `greedy_lookup_preload`: Greedy loading of lookup proof nodes
 //!
