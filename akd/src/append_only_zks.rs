@@ -36,7 +36,7 @@ pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 
 /// The default available parallelism for parallel batch insertions, used when
 /// available parallelism cannot be determined at runtime. Should be > 1
-#[cfg(feature = "parallel_insert")]
+#[cfg(feature = "parallel_azks")]
 pub const DEFAULT_AVAILABLE_PARALLELISM: usize = 32;
 
 async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>) {
@@ -52,10 +52,10 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
 }
 
 fn get_parallel_levels() -> Option<u8> {
-    #[cfg(not(feature = "parallel_insert"))]
+    #[cfg(not(feature = "parallel_azks"))]
     return None;
 
-    #[cfg(feature = "parallel_insert")]
+    #[cfg(feature = "parallel_azks")]
     {
         // Based on profiling results, the best performance is achieved when the
         // number of spawned tasks is equal to the number of available threads.
@@ -922,7 +922,7 @@ impl Azks {
             let maybe_task: Option<
                 tokio::task::JoinHandle<Result<(Vec<AzksElement>, Vec<AzksElement>), AkdError>>,
             > = if let Some(left_child) = node.left_child {
-                #[cfg(feature = "parallel_insert")]
+                #[cfg(feature = "parallel_azks")]
                 {
                     if parallel_levels.map(|p| p as u64 > level).unwrap_or(false) {
                         // we can parallelise further!
@@ -971,7 +971,7 @@ impl Azks {
                     }
                 }
 
-                #[cfg(not(feature = "parallel_insert"))]
+                #[cfg(not(feature = "parallel_azks"))]
                 {
                     // NO Parallelism, BAD! parallelism. Get your nose out of the garbage!
                     let child_node =
