@@ -9,6 +9,9 @@
 //! to manage interactions with the data layer to optimize things like caching and
 //! transaction management
 
+use crate::log::debug;
+#[cfg(feature = "runtime_metrics")]
+use crate::log::info;
 use crate::storage::cache::TimedCache;
 use crate::storage::transaction::Transaction;
 use crate::storage::types::DbRecord;
@@ -21,9 +24,6 @@ use crate::storage::StorageError;
 use crate::AkdLabel;
 use crate::AkdValue;
 
-use log::debug;
-#[cfg(feature = "runtime_metrics")]
-use log::{error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
 #[cfg(feature = "runtime_metrics")]
@@ -81,7 +81,7 @@ unsafe impl<Db: Database> Sync for StorageManager<Db> {}
 unsafe impl<Db: Database> Send for StorageManager<Db> {}
 
 impl<Db: Database> StorageManager<Db> {
-    /// Create a new storage manager with NO CACHE
+    /// Create a new storage manager with NO CACHE.
     pub fn new_no_cache(db: Db) -> Self {
         Self {
             cache: None,
@@ -92,7 +92,7 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
-    /// Create a new storage manager with a cache utilizing the options provided (or defaults)
+    /// Create a new storage manager with a cache utilizing the options provided (or defaults).
     pub fn new(
         db: Db,
         cache_item_lifetime: Option<Duration>,
@@ -112,7 +112,7 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
-    /// Retrieve a reference to the database implementation
+    /// Retrieve a reference to the database implementation.
     #[cfg(any(test, feature = "public_tests"))]
     pub fn get_db(&self) -> Arc<Db> {
         self.db.clone()
@@ -123,13 +123,13 @@ impl<Db: Database> StorageManager<Db> {
         self.cache.is_some()
     }
 
-    /// Log metrics from the storage manager (cache, transaction, and storage hit rates etc)
-    pub async fn log_metrics(&self, level: log::Level) {
+    /// Log metrics from the storage manager (cache, transaction, and storage hit rates etc.).
+    pub async fn log_metrics(&self) {
         if let Some(cache) = &self.cache {
-            cache.log_metrics(level)
+            cache.log_metrics()
         }
 
-        self.transaction.log_metrics(level);
+        self.transaction.log_metrics();
 
         #[cfg(feature = "runtime_metrics")]
         {
@@ -169,19 +169,11 @@ impl<Db: Database> StorageManager<Db> {
                 snapshot[METRIC_WRITE_TIME]
             );
 
-            match level {
-                // Currently logs cannot be captured unless they are
-                // println!. Normally Level::Trace should use the trace! macro.
-                log::Level::Trace => println!("{msg}"),
-                log::Level::Debug => debug!("{}", msg),
-                log::Level::Info => info!("{}", msg),
-                log::Level::Warn => warn!("{}", msg),
-                _ => error!("{}", msg),
-            }
+            info!("{msg}");
         }
     }
 
-    /// Start an in-memory transaction of changes
+    /// Start an in-memory transaction of changes.
     pub fn begin_transaction(&self) -> bool {
         let started = self.transaction.begin_transaction();
 
@@ -194,7 +186,7 @@ impl<Db: Database> StorageManager<Db> {
         started
     }
 
-    /// Commit a transaction in the database
+    /// Commit a transaction in the database.
     pub async fn commit_transaction(&self) -> Result<u64, StorageError> {
         // this retrieves all the trans operations, and "de-activates" the transaction flag
         let records = self.transaction.commit_transaction()?;
@@ -233,7 +225,7 @@ impl<Db: Database> StorageManager<Db> {
         Ok(num_records as u64)
     }
 
-    /// Rollback a transaction
+    /// Rollback a transaction.
     pub fn rollback_transaction(&self) -> Result<(), StorageError> {
         self.transaction.rollback_transaction()?;
         // The transaction is being reverted and therefore we can re-enable
@@ -244,26 +236,26 @@ impl<Db: Database> StorageManager<Db> {
         Ok(())
     }
 
-    /// Retrieve a flag determining if there is a transaction active
+    /// Retrieve a flag determining if there is a transaction active.
     pub fn is_transaction_active(&self) -> bool {
         self.transaction.is_transaction_active()
     }
 
-    /// Disable cache cleaning (if present)
+    /// Disable cache cleaning (if present).
     pub fn disable_cache_cleaning(&self) {
         if let Some(cache) = &self.cache {
             cache.disable_clean();
         }
     }
 
-    /// Enable cache cleaning (if present)
+    /// Enable cache cleaning (if present).
     pub fn enable_cache_cleaning(&self) {
         if let Some(cache) = &self.cache {
             cache.enable_clean();
         }
     }
 
-    /// Store a record in the database
+    /// Store a record in the database.
     pub async fn set(&self, record: DbRecord) -> Result<(), StorageError> {
         // we're in a transaction, set the item in the transaction
         if self.is_transaction_active() {
@@ -282,7 +274,7 @@ impl<Db: Database> StorageManager<Db> {
         Ok(())
     }
 
-    /// Set a batch of records in the database
+    /// Set a batch of records in the database.
     pub async fn batch_set(&self, records: Vec<DbRecord>) -> Result<(), StorageError> {
         if records.is_empty() {
             // nothing to do, save the cycles
@@ -310,7 +302,7 @@ impl<Db: Database> StorageManager<Db> {
         Ok(())
     }
 
-    /// Retrieve a stored record directly from the data layer, ignoring any caching or transaction processes
+    /// Retrieve a stored record directly from the data layer, ignoring any caching or transaction processes.
     pub async fn get_direct<St: Storable>(
         &self,
         id: &St::StorageKey,
@@ -324,7 +316,7 @@ impl<Db: Database> StorageManager<Db> {
     }
 
     /// Retrieve from the cache only, not falling through to the data-layer. Check's the transaction
-    /// if active
+    /// if active.
     pub async fn get_from_cache_only<St: Storable>(&self, id: &St::StorageKey) -> Option<DbRecord> {
         // we're in a transaction, meaning the object _might_ be newer and therefore we should try and read if from the transaction
         // log instead of the raw storage layer
@@ -344,7 +336,7 @@ impl<Db: Database> StorageManager<Db> {
         None
     }
 
-    /// Retrieve a stored record from the database
+    /// Retrieve a stored record from the database.
     pub async fn get<St: Storable>(&self, id: &St::StorageKey) -> Result<DbRecord, StorageError> {
         if let Some(result) = self.get_from_cache_only::<St>(id).await {
             return Ok(result);
@@ -363,7 +355,7 @@ impl<Db: Database> StorageManager<Db> {
         Ok(record)
     }
 
-    /// Retrieve a batch of records by id from the database
+    /// Retrieve a batch of records by id from the database.
     pub async fn batch_get<St: Storable>(
         &self,
         ids: &[St::StorageKey],
@@ -418,14 +410,14 @@ impl<Db: Database> StorageManager<Db> {
         Ok(records)
     }
 
-    /// Flush the caching of objects (if present)
+    /// Flush the caching of objects (if present).
     pub async fn flush_cache(&self) {
         if let Some(cache) = &self.cache {
             cache.flush().await;
         }
     }
 
-    /// Tombstones all value states for a given AkdLabel, up to and including a given epoch
+    /// Tombstones all value states for a given AkdLabel, up to and including a given epoch.
     pub async fn tombstone_value_states(
         &self,
         username: &AkdLabel,
@@ -453,7 +445,7 @@ impl<Db: Database> StorageManager<Db> {
         Ok(())
     }
 
-    /// Retrieve the specified user state object based on the retrieval flag from the database
+    /// Retrieve the specified user state object based on the retrieval flag from the database.
     pub async fn get_user_state(
         &self,
         username: &AkdLabel,
@@ -501,7 +493,7 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
-    /// Retrieve all values states for a given user
+    /// Retrieve all values states for a given user.
     pub async fn get_user_data(&self, username: &AkdLabel) -> Result<KeyData, StorageError> {
         let maybe_db_data = match self
             .tic_toc(METRIC_READ_TIME, self.db.get_user_data(username))
@@ -547,7 +539,7 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
-    /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_state in a loop, but with less data retrieved from the storage layer
+    /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_state in a loop, but with less data retrieved from the storage layer.
     pub async fn get_user_state_versions(
         &self,
         usernames: &[AkdLabel],

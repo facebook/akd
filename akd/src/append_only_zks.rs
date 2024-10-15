@@ -9,6 +9,7 @@
 
 use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
+use crate::log::{debug, info};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::tree_node::{
@@ -22,8 +23,8 @@ use crate::{
     AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
     NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf, ARITY,
 };
+
 use async_recursion::async_recursion;
-use log::info;
 use std::cmp::Ordering;
 #[cfg(feature = "greedy_lookup_preload")]
 use std::collections::HashSet;
@@ -529,7 +530,7 @@ impl Azks {
         }
     }
 
-    /// Builds all of the POSSIBLE paths along the route from root node to
+    /// Builds all the POSSIBLE paths along the route from root node to
     /// leaf node. This will be grossly over-estimating the true size of the
     /// tree and the number of nodes required to be fetched, however
     /// it allows a single batch-get call in necessary scenarios
@@ -565,7 +566,7 @@ impl Azks {
         Ok(results)
     }
 
-    /// Preload for a single lookup operation by loading all of the nodes along
+    /// Preload for a single lookup operation by loading all the nodes along
     /// the direct path, and the children of resolved nodes on the path. This
     /// minimizes the number of batch_get operations to the storage layer which are
     /// called
@@ -678,7 +679,7 @@ impl Azks {
         )
         .await?;
 
-        info!("Preload of tree ({} nodes) completed", load_count);
+        debug!("Preload of tree ({} nodes) completed", load_count);
 
         Ok(load_count)
     }
@@ -769,6 +770,7 @@ impl Azks {
 
     /// Returns the Merkle membership proof for the trie as it stood at epoch
     // Assumes the verifier has access to the root at epoch
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_membership_proof<TC: Configuration, S: Database>(
         &self,
         storage: &StorageManager<S>,
@@ -783,6 +785,7 @@ impl Azks {
     /// In a compressed trie, the proof consists of the longest prefix
     /// of the label that is included in the trie, as well as its children, to show that
     /// none of the children is equal to the given label.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_non_membership_proof<TC: Configuration, S: Database>(
         &self,
         storage: &StorageManager<S>,
@@ -845,6 +848,7 @@ impl Azks {
     /// **RESTRICTIONS**: Note that `start_epoch` and `end_epoch` are valid only when the following are true
     /// * `start_epoch` <= `end_epoch`
     /// * `start_epoch` and `end_epoch` are both existing epochs of this AZKS
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_append_only_proof<TC: Configuration, S: Database + 'static>(
         &self,
         storage: &StorageManager<S>,
@@ -888,7 +892,7 @@ impl Azks {
                     load_count
                 );
             }
-            storage.log_metrics(log::Level::Info).await;
+            storage.log_metrics().await;
 
             let (unchanged, leaves) = Self::get_append_only_proof_helper::<TC, _>(
                 latest_epoch,
@@ -1113,6 +1117,7 @@ impl Azks {
     }
 
     /// Gets the root hash for this azks
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_root_hash<TC: Configuration, S: Database>(
         &self,
         storage: &StorageManager<S>,
@@ -1123,6 +1128,7 @@ impl Azks {
 
     /// Gets the root hash of the tree at the latest epoch if the passed epoch
     /// is equal to the latest epoch. Will return an error otherwise.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub(crate) async fn get_root_hash_safe<TC: Configuration, S: Database>(
         &self,
         storage: &StorageManager<S>,

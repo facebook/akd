@@ -18,6 +18,7 @@ use crate::{
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.
+#[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
 pub async fn audit_verify<TC: Configuration>(
     hashes: Vec<Digest>,
     proof: AppendOnlyProof,
@@ -52,7 +53,8 @@ pub async fn audit_verify<TC: Configuration>(
     Ok(())
 }
 
-/// Helper for audit, verifies an append-only proof
+/// Helper for audit, verifies an append-only proof.
+#[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
 pub async fn verify_consecutive_append_only<TC: Configuration>(
     proof: &SingleAppendOnlyProof,
     start_hash: Digest,

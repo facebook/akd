@@ -254,7 +254,7 @@
 //! First, it encodes a [`HistoryParams`]. Note that the same argument for [`HistoryParams`] that was used to generate
 //! the key history proof must also be used to verify the proof. Otherwise, verification may fail.
 //!
-//! [`HistoryVerificationParams`] also allows the consumer to specify whether or not a "tombstoned" value should be
+//! [`HistoryVerificationParams`] also allows the consumer to specify whether a "tombstoned" value should be
 //! accepted in place of a valid value for the corresponding entry. This is useful
 //! in scenarios where the consumer wishes to verify that a particular entry exists,
 //! but does not care about the value associated with it. The default behavior is to
@@ -460,12 +460,16 @@
 //! Performance optimizations:
 //! - `parallel_vrf`: Enables the VRF computations to be run in parallel
 //! - `parallel_azks`: Enables nodes to be fetched and inserted via multiple threads during a publish operation
-//! - `preload_history`: Enable pre-loading of the nodes when generating history proofs
+//! - `preload_history`: Enables pre-loading of nodes when generating history proofs
 //! - `greedy_lookup_preload`: Greedy loading of lookup proof nodes
 //!
 //! Benchmarking:
 //! - `bench`: Feature used when running benchmarks
-//! - `slow_internal_db`: Artifically slow the in-memory database (for benchmarking)
+//! - `slow_internal_db`: Artificially slow the in-memory database (for benchmarking)
+//!
+//! Tracing:
+//! - `tracing`: Enables [tracing](https://docs.rs/tracing/latest/tracing/). If not set, then the library default to [log](https://docs.rs/log/latest/log/).
+//! - `tracing_instrument`: Enables (tracing) instrumentation at the directory level. As a result, the library will generate spans for annotated functions.
 //!
 //! Utilities:
 //! - `public_auditing`: Enables the publishing of audit proofs
@@ -473,9 +477,10 @@
 //!   in the event you wish to directly serialize the structures to transmit between library <-> storage layer or library <-> clients. If you're
 //!   also utilizing VRFs (see (2.) below) it will additionally enable the _serde_ feature in the ed25519-dalek crate.
 //! - `runtime_metrics`: Collects metrics on the accesses to the storage layer
-//! - `public_tests`: Will expose some internal sanity testing functionality, which is often helpful so you don't have to write all your own
+//! - `public_tests`: Will expose some internal sanity testing functionality, which is often helpful, so you don't have to write all your own
 //!   unit test cases when implementing a storage layer yourself. This helps guarantee the sanity of a given storage implementation. Should be
-//!   used only in unit testing scenarios by altering your Cargo.toml as such:
+//!   used only in unit testing scenarios by altering your Cargo.toml as such.
+//!
 //!
 
 #![warn(missing_docs)]
@@ -498,6 +503,16 @@ pub mod errors;
 pub mod helper_structs;
 pub mod storage;
 pub mod tree_node;
+
+/// Shim module to group logging-related macros more easily
+/// when switching between [log](https://docs.rs/log/latest/log/)
+/// and [tracing](https://docs.rs/tracing/latest/tracing/).
+pub mod log {
+    #[cfg(not(feature = "tracing"))]
+    pub use log::{debug, error, info, trace, warn};
+    #[cfg(feature = "tracing")]
+    pub use tracing::{debug, error, info, trace, warn};
+}
 
 #[cfg(feature = "public_auditing")]
 pub mod local_auditing;

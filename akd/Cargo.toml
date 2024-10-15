@@ -14,32 +14,6 @@ readme = "../README.md"
 whatsapp_v1 = ["akd_core/whatsapp_v1"]
 experimental = ["akd_core/experimental"]
 
-rand = ["dep:rand"]
-bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
-public_tests = [
-    "rand",
-    "dep:colored",
-    "dep:once_cell",
-    "serde_serialization",
-    "akd_core/public_tests",
-    "akd_core/rand",
-    "dep:paste",
-]
-public_auditing = ["dep:protobuf", "akd_core/protobuf"]
-serde_serialization = ["dep:serde", "akd_core/serde_serialization"]
-# Collect runtime metrics on db access calls + timing
-runtime_metrics = []
-# Parallelize VRF calculations during publish
-parallel_vrf = ["akd_core/parallel_vrf"]
-# Parallelize node insertion during publish
-parallel_azks = []
-# Enable pre-loading of the nodes when generating history proofs
-preload_history = []
-# TESTING ONLY: Artifically slow the in-memory database (for benchmarking)
-slow_internal_db = []
-# Greedy loading of lookup proof nodes
-greedy_lookup_preload = []
-
 # Default features mix (experimental + audit-proof protobuf mgmt support)
 default = [
     "public_auditing",
@@ -49,6 +23,36 @@ default = [
     "greedy_lookup_preload",
     "experimental",
 ]
+
+bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
+# Greedy loading of lookup proof nodes
+greedy_lookup_preload = []
+public_auditing = ["dep:protobuf", "akd_core/protobuf"]
+# Parallelize node fetch and insertion during publish
+parallel_azks = []
+# Parallelize VRF calculations during publish
+parallel_vrf = ["akd_core/parallel_vrf"]
+# Enable pre-loading of the nodes when generating history proofs
+preload_history = []
+public_tests = [
+    "rand",
+    "dep:colored",
+    "dep:once_cell",
+    "serde_serialization",
+    "akd_core/public_tests",
+    "akd_core/rand",
+    "dep:paste",
+]
+rand = ["dep:rand"]
+# Collect runtime metrics on db access calls + timing
+runtime_metrics = []
+serde_serialization = ["dep:serde", "akd_core/serde_serialization"]
+# TESTING ONLY: Artifically slow the in-memory database (for benchmarking)
+slow_internal_db = []
+# Tracing instrumentation
+tracing = ["dep:tracing"]
+# Tracing-based instrumentation
+tracing_instrument = ["tracing/attributes"]
 
 [dependencies]
 ## Required dependencies ##
@@ -63,12 +67,13 @@ log = { version = "0.4", features = ["kv_unstable"] }
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 
 ## Optional dependencies ##
-serde = { version = "1", features = ["derive"], optional = true }
-rand = { version = "0.8", optional = true }
 colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
-protobuf = { version = "3", optional = true }
 paste = { version = "1", optional = true }
+protobuf = { version = "3", optional = true }
+rand = { version = "0.8", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+tracing = {version = "0.1.40", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
