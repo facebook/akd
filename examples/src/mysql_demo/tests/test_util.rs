@@ -246,7 +246,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
 // These allow us to accurately assess the additional efficiency of
 // bulk lookup proofs.
 async fn reset_mysql_db<S: Database>(mysql_db: &StorageManager<S>) {
-    mysql_db.log_metrics(Level::Warn).await;
+    mysql_db.log_metrics().await;
     mysql_db.flush_cache().await;
 }
 
@@ -343,13 +343,13 @@ pub(crate) async fn directory_test_suite<
 
             // Perform an audit proof from 1u64 -> 2u64
 
-            mysql_db.log_metrics(log::Level::Info).await;
+            mysql_db.log_metrics().await;
             log::warn!("Beginning audit proof generation");
             mysql_db.flush_cache().await;
             match dir.audit(1u64, 2u64).await {
                 Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
                 Ok(proof) => {
-                    mysql_db.log_metrics(log::Level::Info).await;
+                    mysql_db.log_metrics().await;
                     log::warn!("Done with audit proof generation");
                     let start_root_hash = root_hashes[0];
                     let end_root_hash = root_hashes[1];

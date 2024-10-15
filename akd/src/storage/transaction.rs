@@ -8,14 +8,14 @@
 //! A simple in-memory transaction object to minimize data-layer operations
 
 use crate::errors::StorageError;
+#[cfg(feature = "runtime_metrics")]
+use crate::log::info;
 use crate::storage::types::DbRecord;
 use crate::storage::types::ValueState;
 use crate::storage::types::ValueStateRetrievalFlag;
 use crate::storage::Storable;
 
 use dashmap::DashMap;
-#[cfg(feature = "runtime_metrics")]
-use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
@@ -72,30 +72,23 @@ impl Transaction {
     }
 
     /// Log metrics about the current transaction instance. Metrics will be cleared after log call
-    pub fn log_metrics(&self, _level: log::Level) {
+    pub fn log_metrics(&self) {
         #[cfg(feature = "runtime_metrics")]
         {
             let r = self.num_reads.swap(0, Ordering::Relaxed);
             let w = self.num_writes.swap(0, Ordering::Relaxed);
 
             let msg = format!("Transaction writes: {w}, Transaction reads: {r}");
-
-            match _level {
-                log::Level::Trace => trace!("{}", msg),
-                log::Level::Debug => debug!("{}", msg),
-                log::Level::Info => info!("{}", msg),
-                log::Level::Warn => warn!("{}", msg),
-                _ => error!("{}", msg),
-            }
+            info!("{msg}");
         }
     }
 
-    /// Start a transaction in the storage layer
+    /// Start a transaction in the storage layer.
     pub fn begin_transaction(&self) -> bool {
         !self.active.swap(true, Ordering::Relaxed)
     }
 
-    /// Commit a transaction in the storage layer
+    /// Commit a transaction in the storage layer.
     pub fn commit_transaction(&self) -> Result<Vec<DbRecord>, StorageError> {
         if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
@@ -120,7 +113,7 @@ impl Transaction {
         Ok(records)
     }
 
-    /// Rollback a transaction
+    /// Rollback a transaction.
     pub fn rollback_transaction(&self) -> Result<(), StorageError> {
         if !self.active.load(Ordering::Relaxed) {
             return Err(StorageError::Transaction(
@@ -135,12 +128,12 @@ impl Transaction {
         Ok(())
     }
 
-    /// Retrieve a flag determining if there is a transaction active
+    /// Retrieve a flag determining if there is a transaction active.
     pub fn is_transaction_active(&self) -> bool {
         self.active.load(Ordering::Relaxed)
     }
 
-    /// Hit test the current transaction to see if it is currently active
+    /// Hit test the current transaction to see if it is currently active.
     pub fn get<St: Storable>(&self, key: &St::StorageKey) -> Option<DbRecord> {
         let bin_id = St::get_full_binary_key_id(key);
 
@@ -152,7 +145,7 @@ impl Transaction {
         out
     }
 
-    /// Set a batch of values into the cache
+    /// Set a batch of values into the cache.
     pub fn batch_set(&self, records: &[DbRecord]) {
         for record in records {
             self.mods
@@ -165,7 +158,7 @@ impl Transaction {
         }
     }
 
-    /// Set a value in the transaction to be committed at transaction commit time
+    /// Set a value in the transaction to be committed at transaction commit time.
     pub fn set(&self, record: &DbRecord) {
         let bin_id = record.get_full_binary_id();
 
@@ -177,9 +170,9 @@ impl Transaction {
         }
     }
 
-    /// Retrieve all of the user data for a given username
+    /// Retrieve all the user data for a given username.
     ///
-    /// Note: This is a FULL SCAN operation of the entire transaction log
+    /// Note: This is a FULL SCAN operation of the entire transaction log.
     pub fn get_users_data(
         &self,
         usernames: &[crate::AkdLabel],
@@ -215,9 +208,9 @@ impl Transaction {
         results
     }
 
-    /// Retrieve the user state given the specified value state retrieval mode
+    /// Retrieve the user state given the specified value state retrieval mode.
     ///
-    /// Note: This is a FULL SCAN operation of the entire transaction log
+    /// Note: This is a FULL SCAN operation of the entire transaction log.
     #[allow(clippy::let_and_return)]
     pub fn get_user_state(
         &self,
@@ -236,9 +229,9 @@ impl Transaction {
         out
     }
 
-    /// Retrieve the batch of specified users user_state's based on the filtering flag provided
+    /// Retrieve the batch of specified users user_state's based on the filtering flag provided.
     ///
-    /// Note: This is a FULL SCAN operation of the entire transaction log
+    /// Note: This is a FULL SCAN operation of the entire transaction log.
     pub fn get_users_states(
         &self,
         usernames: &[crate::AkdLabel],
@@ -260,7 +253,7 @@ impl Transaction {
     }
 
     /// Find the appropriate item of the cached value states for a given user. This assumes that the incoming vector
-    /// is already sorted in ascending epoch order
+    /// is already sorted in ascending epoch order.
     fn find_appropriate_item(
         intermediate: Vec<ValueState>,
         flag: ValueStateRetrievalFlag,

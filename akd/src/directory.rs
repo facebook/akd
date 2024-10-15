@@ -11,6 +11,7 @@ use crate::append_only_zks::{Azks, InsertMode};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
 use crate::helper_structs::LookupInfo;
+use crate::log::{error, info};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
 use crate::storage::Database;
@@ -23,11 +24,12 @@ use crate::VersionFreshness;
 use akd_core::configuration::Configuration;
 use akd_core::utils::get_marker_versions;
 use akd_core::verify::history::HistoryParams;
-use log::{error, info};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+#[cfg(feature = "tracing_instrument")]
+use tracing::Instrument;
 
 /// The representation of a auditable key directory
 pub struct Directory<TC, S: Database, V> {
@@ -64,6 +66,7 @@ where
     /// Creates a new (stateless) instance of a auditable key directory.
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
         let azks = Directory::<TC, S, V>::get_azks_from_storage(&storage, false).await;
 
@@ -90,8 +93,9 @@ where
     ///
     /// Note that the vector of label-value pairs should not contain any entries with duplicate labels. This
     /// condition is explicitly checked, and an error will be returned if this is the case.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all, fields(num_updates = updates.len())))]
     pub async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
-        // The guard will be dropped at the end of the publish
+        // The guard will be dropped at the end of the publish operation
         let _guard = self.cache_lock.read().await;
 
         // Check for duplicate labels and return an error if any are encountered
@@ -254,6 +258,7 @@ where
     ///
     /// Returns [Ok((LookupProof, EpochHash))] upon successful generation for the latest version
     /// of the target label's state. [Err(_)] otherwise
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn lookup(&self, akd_label: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
         // The guard will be dropped at the end of the proof generation
         let _guard = self.cache_lock.read().await;
@@ -281,6 +286,7 @@ where
     ///   from bulk lookup proof generation, as it has its own preloading operation
     ///
     /// Returns [Ok(LookupProof)] if the proof generation succeeded, [Err(_)] otherwise
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     async fn lookup_with_info(
         &self,
         current_azks: &Azks,
@@ -351,6 +357,7 @@ where
 
     // TODO(eoz): Call proof generations async
     /// Allows efficient batch lookups by preloading necessary nodes for the lookups.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn batch_lookup(
         &self,
         akd_labels: &[AkdLabel],
@@ -392,6 +399,7 @@ where
         Ok((lookup_proofs, root_hash))
     }
 
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     async fn build_lookup_info(&self, latest_st: &ValueState) -> Result<LookupInfo, AkdError> {
         let akd_label = &latest_st.username;
         // Need to account for the case where the latest state is
@@ -419,6 +427,7 @@ where
         })
     }
 
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     async fn get_lookup_info(
         &self,
         akd_label: AkdLabel,
@@ -449,13 +458,21 @@ where
     /// this function returns all the values ever associated with it,
     /// and the epoch at which each value was first committed to the server state.
     /// It also returns the proof of the latest version being served at all times.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn key_history(
         &self,
         akd_label: &AkdLabel,
         params: HistoryParams,
     ) -> Result<(HistoryProof, EpochHash), AkdError> {
         // The guard will be dropped at the end of the proof generation
+        #[cfg(not(feature = "tracing_instrument"))]
         let _guard = self.cache_lock.read().await;
+        #[cfg(feature = "tracing_instrument")]
+        let _guard = self
+            .cache_lock
+            .read()
+            .instrument(tracing::info_span!("cache_lock.read"))
+            .await;
 
         let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
@@ -616,9 +633,24 @@ where
                 {
                     // acquire a singleton lock prior to flushing the cache to assert that no
                     // cache accesses are underway (i.e. publish/proof generations/etc)
+                    #[cfg(not(feature = "tracing_instrument"))]
                     let _guard = self.cache_lock.write().await;
+                    #[cfg(feature = "tracing_instrument")]
+                    let _guard = self
+                        .cache_lock
+                        .write()
+                        .instrument(tracing::info_span!("cache_lock.write"))
+                        .await;
+
                     // flush the cache in its entirety
+                    #[cfg(not(feature = "tracing_instrument"))]
                     self.storage.flush_cache().await;
+                    #[cfg(feature = "tracing_instrument")]
+                    self.storage
+                        .flush_cache()
+                        .instrument(tracing::info_span!("flush_cache"))
+                        .await;
+
                     // re-fetch the azks to load it into cache so when we release the cache lock
                     // others will see the new AZKS loaded up and ready
                     last =
@@ -643,13 +675,21 @@ where
 
     /// Returns an [AppendOnlyProof] for the leaves inserted into the underlying tree between
     /// the epochs `audit_start_ep` and `audit_end_ep`.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all, fields(start_epoch = audit_start_ep, end_epoch = audit_end_ep)))]
     pub async fn audit(
         &self,
         audit_start_ep: u64,
         audit_end_ep: u64,
     ) -> Result<AppendOnlyProof, AkdError> {
         // The guard will be dropped at the end of the proof generation
+        #[cfg(not(feature = "tracing_instrument"))]
         let _guard = self.cache_lock.read().await;
+        #[cfg(feature = "tracing_instrument")]
+        let _guard = self
+            .cache_lock
+            .read()
+            .instrument(tracing::info_span!("cache_lock.read"))
+            .await;
 
         let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
@@ -673,10 +713,12 @@ where
     }
 
     /// Retrieves the [Azks]
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub(crate) async fn retrieve_azks(&self) -> Result<Azks, crate::errors::AkdError> {
         Directory::<TC, S, V>::get_azks_from_storage(&self.storage, false).await
     }
 
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all, fields(ignore_cache = ignore_cache)))]
     async fn get_azks_from_storage(
         storage: &StorageManager<S>,
         ignore_cache: bool,
@@ -704,10 +746,12 @@ where
     /// HELPERS ///
 
     /// Use this function to retrieve the [VRFPublicKey] for this AKD.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         Ok(self.vrf.get_vrf_public_key().await?)
     }
 
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     async fn create_single_update_proof(
         &self,
         akd_label: &AkdLabel,
@@ -770,6 +814,7 @@ where
     }
 
     /// Gets the root hash at the current epoch.
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
         let current_azks = self.retrieve_azks().await?;
         let latest_epoch = current_azks.get_latest_epoch();
@@ -823,11 +868,13 @@ where
     }
 
     /// Read-only access to [Directory::lookup](Directory::lookup).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn lookup(&self, uname: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
         self.0.lookup(uname).await
     }
 
     /// Read-only access to [Directory::batch_lookup](Directory::batch_lookup).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn batch_lookup(
         &self,
         unames: &[AkdLabel],
@@ -836,6 +883,7 @@ where
     }
 
     /// Read-only access to [Directory::key_history](Directory::key_history).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn key_history(
         &self,
         uname: &AkdLabel,
@@ -845,6 +893,7 @@ where
     }
 
     /// Read-only access to [Directory::poll_for_azks_changes](Directory::poll_for_azks_changes).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn poll_for_azks_changes(
         &self,
         period: tokio::time::Duration,
@@ -854,6 +903,7 @@ where
     }
 
     /// Read-only access to [Directory::audit](Directory::audit).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn audit(
         &self,
         audit_start_ep: u64,
@@ -863,11 +913,13 @@ where
     }
 
     /// Read-only access to [Directory::get_epoch_hash].
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
         self.0.get_epoch_hash().await
     }
 
     /// Read-only access to [Directory::get_public_key](Directory::get_public_key).
+    #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
     pub async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
         self.0.get_public_key().await
     }
