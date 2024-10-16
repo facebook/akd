@@ -82,6 +82,15 @@ fn get_parallel_levels() -> Option<u8> {
     }
 }
 
+/// Determines parallelism for node preloading.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PreloadParallelism {
+    /// Parallelism will never be used regardless of configuration.
+    Disabled,
+    /// Parallelism will be used if configuration is eligible.
+    Default,
+}
+
 /// An azks is built both by the [crate::directory::Directory] and the auditor.
 /// However, both constructions have very minor differences, and the insert
 /// mode enum is used to differentiate between the two.
@@ -306,7 +315,9 @@ impl Azks {
         let azks_element_set = AzksElementSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
-        let (_, time_s) = tic_toc(self.preload_nodes(storage, &azks_element_set, false)).await;
+        let (_, time_s) =
+            tic_toc(self.preload_nodes(storage, &azks_element_set, PreloadParallelism::Default))
+                .await;
         if let Some(time) = time_s {
             info!("Preload of tree took {} s", time,);
         }
@@ -640,8 +651,12 @@ impl Azks {
 
         // Load nodes without parallelism, since multiple lookups could be
         // happening and parallelism might consume too many resources.
-        self.preload_nodes(storage, &AzksElementSet::from(lookup_nodes), true)
-            .await
+        self.preload_nodes(
+            storage,
+            &AzksElementSet::from(lookup_nodes),
+            PreloadParallelism::Disabled,
+        )
+        .await
     }
 
     /// Preloads given nodes using breadth-first search.
@@ -649,7 +664,7 @@ impl Azks {
         &self,
         storage: &StorageManager<S>,
         azks_element_set: &AzksElementSet,
-        no_parallelism: bool,
+        parallelism: PreloadParallelism,
     ) -> Result<u64, AkdError> {
         if !storage.has_cache() {
             info!("No cache found, skipping preload");
@@ -664,7 +679,7 @@ impl Azks {
         let azks_element_set = Arc::new(azks_element_set.clone());
         let epoch = self.get_latest_epoch();
         let node_keys = vec![NodeKey(NodeLabel::root())];
-        let parallel_levels = if no_parallelism {
+        let parallel_levels = if parallelism == PreloadParallelism::Disabled {
             None
         } else {
             get_parallel_levels()
@@ -1646,7 +1661,11 @@ mod tests {
         ]);
         let expected_preload_count = 3u64;
         let actual_preload_count = azks
-            .preload_nodes(&storage_manager, &azks_element_set, false)
+            .preload_nodes(
+                &storage_manager,
+                &azks_element_set,
+                PreloadParallelism::Default,
+            )
             .await
             .expect("Failed to preload nodes");
 
@@ -1657,7 +1676,11 @@ mod tests {
 
         // Test preload with no_parallelism
         let actual_preload_count = azks
-            .preload_nodes(&storage_manager, &azks_element_set, true)
+            .preload_nodes(
+                &storage_manager,
+                &azks_element_set,
+                PreloadParallelism::Disabled,
+            )
             .await
             .expect("Failed to preload nodes");
 
