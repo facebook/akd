@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0-pre.10 (Oct 17, 2024)
+* Added parallelization for node preloads during insertion
+* Added support for [tracing](https://docs.rs/tracing/latest/tracing/index.html)
+
 ## 0.12.0-pre.9 (August 28, 2024)
 * Fixed a bug in key history API that can incorrectly return HistoryProofs without UpdateProofs.
 

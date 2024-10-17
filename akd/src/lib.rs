@@ -458,10 +458,10 @@
 //! - `experimental`: Enables usage of `ExperimentalConfiguration`
 //!
 //! Performance optimizations:
-//! - `parallel_vrf`: Enables the VRF computations to be run in parallel
-//! - `parallel_insert`: Enables nodes to be inserted via multiple threads during a publish operation
-//! - `preload_history`: Enables pre-loading of nodes when generating history proofs
 //! - `greedy_lookup_preload`: Greedy loading of lookup proof nodes
+//! - `parallel_azks`: Enables nodes to be fetched and inserted via multiple threads during a publish operation
+//! - `parallel_vrf`: Enables the VRF computations to be run in parallel
+//! - `preload_history`: Enables pre-loading of nodes when generating history proofs
 //!
 //! Benchmarking:
 //! - `bench`: Feature used when running benchmarks

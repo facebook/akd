@@ -1,6 +1,6 @@
 [package]
 name = "akd"
-version = "0.12.0-pre.9"
+version = "0.12.0-pre.10"
 authors = ["akd contributors"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ experimental = ["akd_core/experimental"]
 default = [
     "public_auditing",
     "parallel_vrf",
-    "parallel_insert",
+    "parallel_azks",
     "preload_history",
     "greedy_lookup_preload",
     "experimental",
@@ -28,8 +28,8 @@ bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
 # Greedy loading of lookup proof nodes
 greedy_lookup_preload = []
 public_auditing = ["dep:protobuf", "akd_core/protobuf"]
-# Parallelize node insertion during publish
-parallel_insert = []
+# Parallelize node fetch and insertion during publish
+parallel_azks = []
 # Parallelize VRF calculations during publish
 parallel_vrf = ["akd_core/parallel_vrf"]
 # Enable pre-loading of the nodes when generating history proofs
@@ -56,7 +56,7 @@ tracing_instrument = ["tracing/attributes"]
 
 [dependencies]
 ## Required dependencies ##
-akd_core = { version = "0.12.0-pre.9", path = "../akd_core", default-features = false, features = [
+akd_core = { version = "0.12.0-pre.10", path = "../akd_core", default-features = false, features = [
     "vrf",
 ] }
 async-recursion = "1"
@@ -73,7 +73,7 @@ paste = { version = "1", optional = true }
 protobuf = { version = "3", optional = true }
 rand = { version = "0.8", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
-tracing = {version = "0.1.40", optional = true }
+tracing = { version = "0.1.40", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"

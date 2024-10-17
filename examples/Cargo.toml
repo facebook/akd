@@ -1,6 +1,6 @@
 [package]
 name = "examples"
-version = "0.12.0-pre.9"
+version = "0.12.0-pre.10"
 authors = ["akd contributors"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
