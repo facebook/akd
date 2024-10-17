@@ -1674,7 +1674,7 @@ mod tests {
             "Preload count returned unexpected value!"
         );
 
-        // Test preload with no_parallelism
+        // Test preload with parallelism disabled
         let actual_preload_count = azks
             .preload_nodes(
                 &storage_manager,
