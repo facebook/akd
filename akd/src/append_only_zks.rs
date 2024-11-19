@@ -75,7 +75,7 @@ fn get_parallel_levels() -> Option<u8> {
         let parallel_levels = (available_parallelism as f32).log2().ceil() as u8;
 
         info!(
-            "Insert will be performed in parallel (available parallelism: {}, parallel levels: {})",
+            "Parallel levels requested (available parallelism: {}, parallel levels: {})",
             available_parallelism, parallel_levels
         );
         Some(parallel_levels)
@@ -315,11 +315,20 @@ impl Azks {
         let azks_element_set = AzksElementSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
-        let (_, time_s) =
+        let (fallable_load_count, time_s) =
             tic_toc(self.preload_nodes(storage, &azks_element_set, PreloadParallelism::Default))
                 .await;
+        let load_count = fallable_load_count?;
         if let Some(time) = time_s {
-            info!("Preload of tree took {} s", time,);
+            info!(
+                "Preload of nodes for insert ({} objects loaded), took {} s",
+                load_count, time,
+            );
+        } else {
+            info!(
+                "Preload of nodes for insert ({} objects loaded) completed.",
+                load_count
+            );
         }
 
         // increment the current epoch
