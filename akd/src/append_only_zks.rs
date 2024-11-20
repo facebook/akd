@@ -1101,58 +1101,33 @@ impl Azks {
             let maybe_task: Option<
                 tokio::task::JoinHandle<Result<(Vec<AzksElement>, Vec<AzksElement>), AkdError>>,
             > = if let Some(left_child) = node.left_child {
-                #[cfg(feature = "parallel_azks")]
-                {
-                    if parallel_levels.map(|p| p as u64 > level).unwrap_or(false) {
-                        // we can parallelise further!
-                        let storage_clone = storage.clone();
-                        let tsk: tokio::task::JoinHandle<Result<_, AkdError>> =
-                            tokio::spawn(async move {
-                                let my_storage = storage_clone;
-                                let child_node = TreeNode::get_from_storage(
-                                    &my_storage,
-                                    &NodeKey(left_child),
-                                    latest_epoch,
-                                )
-                                .await?;
-                                Self::get_append_only_proof_helper::<TC, _>(
-                                    latest_epoch,
-                                    &my_storage,
-                                    child_node,
-                                    start_epoch,
-                                    end_epoch,
-                                    level + 1,
-                                    parallel_levels,
-                                )
-                                .await
-                            });
-
-                        Some(tsk)
-                    } else {
-                        // Enough parallelism already, STOP IT! Don't make me get the belt!
-                        let child_node =
-                            TreeNode::get_from_storage(storage, &NodeKey(left_child), latest_epoch)
-                                .await?;
-                        let (mut inner_unchanged, mut inner_leaf) =
+                if parallel_levels.map(|p| p as u64 > level).unwrap_or(false) {
+                    // we can parallelise further!
+                    let storage_clone = storage.clone();
+                    let tsk: tokio::task::JoinHandle<Result<_, AkdError>> =
+                        tokio::spawn(async move {
+                            let my_storage = storage_clone;
+                            let child_node = TreeNode::get_from_storage(
+                                &my_storage,
+                                &NodeKey(left_child),
+                                latest_epoch,
+                            )
+                            .await?;
                             Self::get_append_only_proof_helper::<TC, _>(
                                 latest_epoch,
-                                storage,
+                                &my_storage,
                                 child_node,
                                 start_epoch,
                                 end_epoch,
                                 level + 1,
                                 parallel_levels,
                             )
-                            .await?;
-                        unchanged.append(&mut inner_unchanged);
-                        leaves.append(&mut inner_leaf);
-                        None
-                    }
-                }
+                            .await
+                        });
 
-                #[cfg(not(feature = "parallel_azks"))]
-                {
-                    // NO Parallelism, BAD! parallelism. Get your nose out of the garbage!
+                    Some(tsk)
+                } else {
+                    // Enough parallelism already, STOP IT! Don't make me get the belt!
                     let child_node =
                         TreeNode::get_from_storage(storage, &NodeKey(left_child), latest_epoch)
                             .await?;
