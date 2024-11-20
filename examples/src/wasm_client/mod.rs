@@ -185,6 +185,7 @@ pub fn lookup_verify_experimental(
 pub mod tests {
     extern crate wasm_bindgen_test;
 
+    use akd::append_only_zks::AzksParallelismConfig;
     use akd::errors::AkdError;
     use akd::storage::memory::AsyncInMemoryDatabase;
     use akd::storage::StorageManager;
@@ -216,7 +217,7 @@ pub mod tests {
         let db = AsyncInMemoryDatabase::new();
         let storage = StorageManager::new_no_cache(db);
         let vrf = HardCodedAkdVRF {};
-        let akd = Directory::<TC, _, _>::new(storage, vrf)
+        let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default())
             .await
             .expect("Failed to construct directory");
 

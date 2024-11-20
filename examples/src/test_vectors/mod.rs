@@ -10,6 +10,7 @@
 
 use crate::fixture_generator::writer::yaml::YamlWriter;
 use crate::fixture_generator::writer::Writer;
+use akd::append_only_zks::AzksParallelismConfig;
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::hash::DIGEST_BYTES;
@@ -146,7 +147,8 @@ async fn generate_impl<TC: NamedConfiguration>() -> Result<TestVectorBytes> {
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage_manager, vrf).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default()).await?;
     let vrf_pk = akd.get_public_key().await?;
 
     let num_labels = 5;

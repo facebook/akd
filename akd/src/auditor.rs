@@ -9,6 +9,7 @@
 
 use akd_core::configuration::Configuration;
 
+use crate::append_only_zks::AzksParallelismConfig;
 use crate::AzksValue;
 use crate::{
     append_only_zks::InsertMode,
@@ -65,8 +66,13 @@ pub async fn verify_consecutive_append_only<TC: Configuration>(
     let manager = StorageManager::new_no_cache(db);
 
     let mut azks = Azks::new::<TC, _>(&manager).await?;
-    azks.batch_insert_nodes::<TC, _>(&manager, proof.unchanged_nodes.clone(), InsertMode::Auditor)
-        .await?;
+    azks.batch_insert_nodes::<TC, _>(
+        &manager,
+        proof.unchanged_nodes.clone(),
+        InsertMode::Auditor,
+        AzksParallelismConfig::default(),
+    )
+    .await?;
     let computed_start_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
     let mut verified = computed_start_root_hash == start_hash;
     azks.latest_epoch = end_epoch - 1;
@@ -79,8 +85,13 @@ pub async fn verify_consecutive_append_only<TC: Configuration>(
             y
         })
         .collect();
-    azks.batch_insert_nodes::<TC, _>(&manager, updated_inserted, InsertMode::Auditor)
-        .await?;
+    azks.batch_insert_nodes::<TC, _>(
+        &manager,
+        updated_inserted,
+        InsertMode::Auditor,
+        AzksParallelismConfig::default(),
+    )
+    .await?;
     let computed_end_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
     verified = verified && (computed_end_root_hash == end_hash);
     if !verified {

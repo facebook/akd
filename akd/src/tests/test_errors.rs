@@ -11,6 +11,7 @@
 use akd_core::configuration::Configuration;
 use std::default::Default;
 
+use crate::append_only_zks::AzksParallelismConfig;
 use crate::storage::types::KeyData;
 use crate::tree_node::TreeNodeWithPreviousValue;
 use crate::{
@@ -37,7 +38,12 @@ async fn test_directory_polling_azks_change<TC: Configuration>() -> Result<(), A
     let storage = StorageManager::new(db, None, None, None);
     let vrf = HardCodedAkdVRF {};
     // writer will write the AZKS record
-    let writer = Directory::<TC, _, _>::new(storage.clone(), vrf.clone()).await?;
+    let writer = Directory::<TC, _, _>::new(
+        storage.clone(),
+        vrf.clone(),
+        AzksParallelismConfig::default(),
+    )
+    .await?;
 
     writer
         .publish(vec![
@@ -47,7 +53,8 @@ async fn test_directory_polling_azks_change<TC: Configuration>() -> Result<(), A
         .await?;
 
     // reader will not write the AZKS but will be "polling" for AZKS changes
-    let reader = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf).await?;
+    let reader =
+        ReadOnlyDirectory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     // start the poller
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
@@ -98,7 +105,8 @@ async fn test_directory_azks_bootstrapping<TC: Configuration>() -> Result<(), Ak
     mock_db.expect_set().times(0);
     let storage = StorageManager::new_no_cache(mock_db);
 
-    let maybe_akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await;
+    let maybe_akd =
+        Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await;
     assert!(maybe_akd.is_err());
 
     // Verify that an aZKS not found error results in one being created with the Directory
@@ -110,7 +118,8 @@ async fn test_directory_azks_bootstrapping<TC: Configuration>() -> Result<(), Ak
     setup_mocked_db(&mut mock_db, &test_db);
     let storage = StorageManager::new_no_cache(mock_db);
 
-    let maybe_akd = Directory::<TC, _, _>::new(storage, vrf).await;
+    let maybe_akd =
+        Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await;
     assert!(maybe_akd.is_ok());
 
     let akd = maybe_akd.expect("Failed to get create a Directory!");
@@ -159,7 +168,7 @@ async fn test_key_history_dirty_reads<TC: Configuration>() -> Result<(), AkdErro
 
     let storage = StorageManager::new_no_cache(mock_db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     // Ensure that we do not panic in this scenario, so we can just ignore the result.
     let _res = akd
@@ -174,7 +183,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     // Publish once
     akd.publish(vec![
@@ -217,7 +226,7 @@ async fn test_read_during_publish<TC: Configuration>() -> Result<(), AkdError> {
     // re-create the directory instance so it refreshes from storage
     let storage = StorageManager::new_no_cache(db.clone());
     let vrf = HardCodedAkdVRF {};
-    let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf)
+    let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default())
         .await
         .unwrap();
 
@@ -291,7 +300,8 @@ async fn test_directory_read_only_mode<TC: Configuration>() -> Result<(), AkdErr
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // There is no AZKS object in the storage layer, directory construction should fail
-    let akd = ReadOnlyDirectory::<TC, _, _>::new(storage, vrf).await;
+    let akd =
+        ReadOnlyDirectory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await;
     assert!(akd.is_err());
 
     Ok(())
@@ -303,7 +313,8 @@ async fn test_publish_duplicate_entries<TC: Configuration>() -> Result<(), AkdEr
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
     // Create a set of updates
     let mut updates = vec![];
@@ -336,7 +347,7 @@ async fn test_malicious_key_history<TC: Configuration>() -> Result<(), AkdError>
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -401,7 +412,8 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
     let mut rng = rand::rngs::OsRng;
     for _ in 0..100 {
@@ -536,7 +548,8 @@ async fn test_lookup_verify_invalid_version_number<TC: Configuration>() -> Resul
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")

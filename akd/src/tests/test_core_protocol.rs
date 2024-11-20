@@ -12,6 +12,7 @@ use akd_core::{configuration::Configuration, hash::DIGEST_BYTES};
 use rand::{rngs::StdRng, SeedableRng};
 
 use crate::{
+    append_only_zks::AzksParallelismConfig,
     auditor::{audit_verify, verify_consecutive_append_only},
     client::{key_history_verify, lookup_verify},
     directory::Directory,
@@ -29,7 +30,7 @@ async fn test_empty_tree_root_hash<TC: Configuration>() -> Result<(), AkdError> 
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     let akd: Directory<_, AsyncInMemoryDatabase, HardCodedAkdVRF> =
-        Directory::<TC, _, _>::new(storage, vrf).await?;
+        Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     let hash = akd.get_epoch_hash().await?.1;
 
@@ -48,7 +49,7 @@ async fn test_simple_publish<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
     // Make sure you can publish and that something so simple
     // won't throw errors.
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -62,7 +63,7 @@ async fn test_complex_publish<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     let num_entries = 10000;
     let mut entries = vec![];
@@ -84,7 +85,7 @@ async fn test_simple_lookup<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
     // Add two labels and corresponding values to the akd
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -117,7 +118,7 @@ async fn test_small_key_history<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
     // Publish the first value for the label "hello"
     // Epoch here will be 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])
@@ -170,7 +171,7 @@ async fn test_simple_key_history<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
     // Epoch 1: Add labels "hello" and "hello2"
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -316,7 +317,8 @@ async fn test_complex_verification_many_versions<TC: Configuration>() -> Result<
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage_manager, vrf).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default()).await?;
     let vrf_pk = akd.get_public_key().await?;
 
     let num_labels = 4;
@@ -400,7 +402,8 @@ async fn test_limited_key_history<TC: Configuration>() -> Result<(), AkdError> {
     let storage_manager = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage_manager, vrf).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default()).await?;
 
     // epoch 1
     akd.publish(vec![
@@ -507,7 +510,7 @@ async fn test_simple_audit<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf).await?;
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default()).await?;
 
     akd.publish(vec![
         (AkdLabel::from("hello"), AkdValue::from("world")),
@@ -682,7 +685,8 @@ async fn test_simple_lookup_for_small_tree<TC: Configuration>() -> Result<(), Ak
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage, vrf.clone()).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
     // Create a set with 2 updates, (label, value) pairs
     // ("hello10", "hello10")
@@ -734,7 +738,8 @@ async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
     // epoch 0
-    let akd = Directory::<TC, _, _>::new(storage.clone(), vrf).await?;
+    let akd =
+        Directory::<TC, _, _>::new(storage.clone(), vrf, AzksParallelismConfig::default()).await?;
 
     // epoch 1
     akd.publish(vec![(AkdLabel::from("hello"), AkdValue::from("world"))])

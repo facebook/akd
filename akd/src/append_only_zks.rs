@@ -36,11 +36,6 @@ use std::sync::Arc;
 /// The default azks key
 pub const DEFAULT_AZKS_KEY: u8 = 1u8;
 
-/// The default available parallelism for parallel batch insertions, used when
-/// available parallelism cannot be determined at runtime. Should be > 1
-#[cfg(feature = "parallel_azks")]
-pub const DEFAULT_AVAILABLE_PARALLELISM: usize = 32;
-
 async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>) {
     #[cfg(feature = "runtime_metrics")]
     {
@@ -51,44 +46,6 @@ async fn tic_toc<T>(f: impl core::future::Future<Output = T>) -> (T, Option<f64>
     }
     #[cfg(not(feature = "runtime_metrics"))]
     (f.await, None)
-}
-
-fn get_parallel_levels() -> Option<u8> {
-    #[cfg(not(feature = "parallel_azks"))]
-    return None;
-
-    #[cfg(feature = "parallel_azks")]
-    {
-        // Based on profiling results, the best performance is achieved when the
-        // number of spawned tasks is equal to the number of available threads.
-        // We therefore get the number of available threads and calculate the
-        // number of levels that should be executed in parallel to give the
-        // number of tasks closest to the number of threads. While there might
-        // be other tasks that are running on the threads, this is a reasonable
-        // approximation that should yield good performance in most cases.
-        let available_parallelism = std::thread::available_parallelism()
-            .map_or(DEFAULT_AVAILABLE_PARALLELISM, |v| v.into());
-        // The number of tasks spawned at a level is the number of leaves at
-        // the level. As we are using a binary tree, the number of leaves at a
-        // level is 2^level. Therefore, the number of levels that should be
-        // executed in parallel is the log2 of the number of available threads.
-        let parallel_levels = (available_parallelism as f32).log2().ceil() as u8;
-
-        info!(
-            "Parallel levels requested (available parallelism: {}, parallel levels: {})",
-            available_parallelism, parallel_levels
-        );
-        Some(parallel_levels)
-    }
-}
-
-/// Determines parallelism for node preloading.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum PreloadParallelism {
-    /// Parallelism will never be used regardless of configuration.
-    Disabled,
-    /// Parallelism will be used if configuration is eligible.
-    Default,
 }
 
 /// An azks is built both by the [crate::directory::Directory] and the auditor.
@@ -243,6 +200,77 @@ impl AzksElementSet {
     }
 }
 
+/// Parallelism configuration for [Azks]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct AzksParallelismConfig {
+    /// Parallelization for node insertion.
+    pub insertion: AzksParallelismOption,
+    /// Parallelization for node preloading, during insertion and auditing.
+    pub preload: AzksParallelismOption,
+}
+
+impl AzksParallelismConfig {
+    /// The default fallback parallelism for parallel azks operations, used when
+    /// available parallelism cannot be determined automatically at runtime. Should be > 1
+    const DEFAULT_FALLBACK_PARALLELISM: u32 = 32;
+
+    /// Instantiate a parallelism config with no parallelism set for all fields.
+    pub fn none() -> Self {
+        Self {
+            insertion: AzksParallelismOption::None,
+            preload: AzksParallelismOption::None,
+        }
+    }
+}
+
+impl Default for AzksParallelismConfig {
+    fn default() -> Self {
+        Self {
+            insertion: AzksParallelismOption::Dynamic(Self::DEFAULT_FALLBACK_PARALLELISM),
+            preload: AzksParallelismOption::Dynamic(Self::DEFAULT_FALLBACK_PARALLELISM),
+        }
+    }
+}
+
+/// Parallelism setting for a given field in [AzksParallelismConfig].
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub enum AzksParallelismOption {
+    /// No parallelism.
+    None,
+    /// Set parallelism to a static value.
+    Static(u32),
+    /// Dynamically derive parallelism from the number of available cores,
+    /// falling back to the passed value if available cores cannot be retrieved.
+    Dynamic(u32),
+}
+
+impl AzksParallelismOption {
+    fn get_parallel_levels(&self) -> Option<u8> {
+        let parallelism = match *self {
+            AzksParallelismOption::None => return None,
+            AzksParallelismOption::Static(parallelism) => parallelism,
+            AzksParallelismOption::Dynamic(fallback_parallelism) => {
+                std::thread::available_parallelism()
+                    .map_or(fallback_parallelism, |v| v.get() as u32)
+            }
+        };
+
+        // We calculate the number of levels that should be executed in parallel
+        // to give the number of tasks closest to the available parallelism.
+        // The number of tasks spawned at a level is the number of leaves at
+        // the level. As we are using a binary tree, the number of leaves at a
+        // level is 2^level. Therefore, the number of levels that should be
+        // executed in parallel is the log2 of the number of available threads.
+        let parallel_levels = (parallelism as f32).log2().ceil() as u8;
+
+        info!(
+            "Parallel levels requested (parallelism: {}, parallel levels: {})",
+            parallelism, parallel_levels
+        );
+        Some(parallel_levels)
+    }
+}
+
 /// An append-only zero knowledge set, the data structure used to efficiently implement
 /// a auditable key directory.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -311,13 +339,13 @@ impl Azks {
         storage: &StorageManager<S>,
         nodes: Vec<AzksElement>,
         insert_mode: InsertMode,
+        parallelism_config: AzksParallelismConfig,
     ) -> Result<(), AkdError> {
         let azks_element_set = AzksElementSet::from(nodes);
 
         // preload the nodes that we will visit during the insertion
         let (fallible_load_count, time_s) =
-            tic_toc(self.preload_nodes(storage, &azks_element_set, PreloadParallelism::Default))
-                .await;
+            tic_toc(self.preload_nodes(storage, &azks_element_set, parallelism_config)).await;
         let load_count = fallible_load_count?;
         if let Some(time) = time_s {
             info!(
@@ -342,7 +370,7 @@ impl Azks {
                 azks_element_set,
                 self.latest_epoch,
                 insert_mode,
-                get_parallel_levels(),
+                parallelism_config.insertion.get_parallel_levels(),
             )
             .await?;
             root_node.write_to_storage(storage, is_new).await?;
@@ -663,7 +691,7 @@ impl Azks {
         self.preload_nodes(
             storage,
             &AzksElementSet::from(lookup_nodes),
-            PreloadParallelism::Disabled,
+            AzksParallelismConfig::none(),
         )
         .await
     }
@@ -673,7 +701,7 @@ impl Azks {
         &self,
         storage: &StorageManager<S>,
         azks_element_set: &AzksElementSet,
-        parallelism: PreloadParallelism,
+        parallelism_config: AzksParallelismConfig,
     ) -> Result<u64, AkdError> {
         if !storage.has_cache() {
             info!("No cache found, skipping preload");
@@ -688,11 +716,7 @@ impl Azks {
         let azks_element_set = Arc::new(azks_element_set.clone());
         let epoch = self.get_latest_epoch();
         let node_keys = vec![NodeKey(NodeLabel::root())];
-        let parallel_levels = if parallelism == PreloadParallelism::Disabled {
-            None
-        } else {
-            get_parallel_levels()
-        };
+        let parallel_levels = parallelism_config.preload.get_parallel_levels();
 
         let load_count = Azks::recursive_preload_nodes(
             storage,
@@ -878,6 +902,7 @@ impl Azks {
         storage: &StorageManager<S>,
         start_epoch: u64,
         end_epoch: u64,
+        parallelism_config: AzksParallelismConfig,
     ) -> Result<AppendOnlyProof, AkdError> {
         let latest_epoch = self.get_latest_epoch();
         if latest_epoch < end_epoch || end_epoch <= start_epoch {
@@ -897,7 +922,7 @@ impl Azks {
             latest_epoch,
             start_epoch,
             end_epoch,
-            PreloadParallelism::Default,
+            parallelism_config,
         ))
         .await;
         let load_count = fallible_load_count?;
@@ -925,7 +950,7 @@ impl Azks {
                 ep,
                 ep + 1,
                 0,
-                get_parallel_levels(),
+                parallelism_config.insertion.get_parallel_levels(),
             )
             .await?;
             info!("Generated audit proof for {} -> {}", ep, ep + 1);
@@ -945,7 +970,7 @@ impl Azks {
         latest_epoch: u64,
         start_epoch: u64,
         end_epoch: u64,
-        parallelism: PreloadParallelism,
+        parallelism_config: AzksParallelismConfig,
     ) -> Result<u64, AkdError> {
         if !storage.has_cache() {
             info!("No cache found, skipping preload");
@@ -953,11 +978,7 @@ impl Azks {
         }
 
         let node_keys = vec![NodeKey(NodeLabel::root())];
-        let parallel_levels = if parallelism == PreloadParallelism::Disabled {
-            None
-        } else {
-            get_parallel_levels()
-        };
+        let parallel_levels = parallelism_config.preload.get_parallel_levels();
 
         let load_count = Azks::recursive_preload_audit_nodes(
             storage,
@@ -1418,7 +1439,12 @@ mod tests {
         let mut azks2 = Azks::new::<TC, _>(&db2).await?;
 
         azks2
-            .batch_insert_nodes::<TC, _>(&db2, azks_element_set, InsertMode::Directory)
+            .batch_insert_nodes::<TC, _>(
+                &db2,
+                azks_element_set,
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            )
             .await?;
 
         assert_eq!(
@@ -1497,8 +1523,13 @@ mod tests {
         let mut azks = Azks::new::<TC, _>(&db).await?;
         for i in 0..8 {
             let node = nodes[7 - i];
-            azks.batch_insert_nodes::<TC, _>(&db, vec![node], InsertMode::Directory)
-                .await?;
+            azks.batch_insert_nodes::<TC, _>(
+                &db,
+                vec![node],
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            )
+            .await?;
         }
 
         let root_digest = azks.get_root_hash::<TC, _>(&db).await.unwrap();
@@ -1547,7 +1578,12 @@ mod tests {
         let mut azks2 = Azks::new::<TC, _>(&db2).await?;
 
         azks2
-            .batch_insert_nodes::<TC, _>(&db2, azks_element_set, InsertMode::Directory)
+            .batch_insert_nodes::<TC, _>(
+                &db2,
+                azks_element_set,
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            )
             .await?;
 
         assert_eq!(
@@ -1589,8 +1625,13 @@ mod tests {
         })
         .collect();
 
-        azks.batch_insert_nodes::<TC, _>(&db, nodes, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            nodes,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         // expected nodes inserted: 3 leaves, 2 internal nodes
         //                   -
@@ -1620,8 +1661,13 @@ mod tests {
         })
         .collect();
 
-        azks.batch_insert_nodes::<TC, _>(&db, nodes, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            nodes,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         // expected nodes inserted: 2 leaves, 1 internal node
         //                   -
@@ -1713,7 +1759,10 @@ mod tests {
             .preload_nodes(
                 &storage_manager,
                 &azks_element_set,
-                PreloadParallelism::Default,
+                AzksParallelismConfig {
+                    preload: AzksParallelismOption::Static(32),
+                    ..Default::default()
+                },
             )
             .await
             .expect("Failed to preload nodes");
@@ -1728,7 +1777,7 @@ mod tests {
             .preload_nodes(
                 &storage_manager,
                 &azks_element_set,
-                PreloadParallelism::Disabled,
+                AzksParallelismConfig::none(),
             )
             .await
             .expect("Failed to preload nodes");
@@ -1842,8 +1891,13 @@ mod tests {
             let database = AsyncInMemoryDatabase::new();
             let db = StorageManager::new_no_cache(database);
             let mut azks = Azks::new::<TC, _>(&db).await?;
-            azks.batch_insert_nodes::<TC, _>(&db, perm, InsertMode::Directory)
-                .await?;
+            azks.batch_insert_nodes::<TC, _>(
+                &db,
+                perm,
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            )
+            .await?;
 
             // Recursively traverse the tree and check that the sibling of each node is correct
             let root_node = TreeNode::get_from_storage(&db, &NodeKey(NodeLabel::root()), 1).await?;
@@ -1900,8 +1954,13 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<TC, _>(&db).await?;
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set.clone(), InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set.clone(),
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         let proof = azks
             .get_membership_proof::<TC, _>(&db, azks_element_set[0].label)
@@ -1931,8 +1990,13 @@ mod tests {
             let database = AsyncInMemoryDatabase::new();
             let db = StorageManager::new_no_cache(database);
             let mut azks = Azks::new::<TC, _>(&db).await?;
-            azks.batch_insert_nodes::<TC, _>(&db, azks_element_set.clone(), InsertMode::Directory)
-                .await?;
+            azks.batch_insert_nodes::<TC, _>(
+                &db,
+                azks_element_set.clone(),
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            )
+            .await?;
 
             let proof = azks
                 .get_membership_proof::<TC, _>(&db, azks_element_set[0].label)
@@ -1958,8 +2022,13 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<TC, _>(&db).await?;
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set.clone(), InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set.clone(),
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         let mut proof = azks
             .get_membership_proof::<TC, _>(&db, azks_element_set[0].label)
@@ -2008,8 +2077,13 @@ mod tests {
         ];
 
         let mut azks = Azks::new::<TC, _>(&db).await?;
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
         let search_label = NodeLabel::new(byte_arr_from_u64(0b1111 << 60), 64);
         let proof = azks
             .get_non_membership_proof::<TC, _>(&db, search_label)
@@ -2052,6 +2126,7 @@ mod tests {
             &db,
             azks_element_set.clone()[1..2].to_vec(),
             InsertMode::Directory,
+            AzksParallelismConfig::default(),
         )
         .await?;
         let proof = azks
@@ -2079,6 +2154,7 @@ mod tests {
             &db,
             azks_element_set.clone()[0..num_nodes - 1].to_vec(),
             InsertMode::Directory,
+            AzksParallelismConfig::default(),
         )
         .await?;
         let proof = azks
@@ -2104,6 +2180,7 @@ mod tests {
             &db,
             azks_element_set.clone()[0..num_nodes - 1].to_vec(),
             InsertMode::Directory,
+            AzksParallelismConfig::default(),
         )
         .await?;
         let proof = azks
@@ -2125,8 +2202,13 @@ mod tests {
             label: NodeLabel::new(byte_arr_from_u64(0b0), 64),
             value: AzksValue(EMPTY_DIGEST),
         }];
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_1, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_1,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
         let start_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
         let azks_element_set_2: Vec<AzksElement> = vec![AzksElement {
@@ -2134,11 +2216,18 @@ mod tests {
             value: AzksValue(EMPTY_DIGEST),
         }];
 
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_2, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_2,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
         let end_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
-        let proof = azks.get_append_only_proof::<TC, _>(&db, 1, 2).await?;
+        let proof = azks
+            .get_append_only_proof::<TC, _>(&db, 1, 2, AzksParallelismConfig::default())
+            .await?;
         audit_verify::<TC>(vec![start_hash, end_hash], proof).await?;
 
         Ok(())
@@ -2161,8 +2250,13 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_1, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_1,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
         let start_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
         let azks_element_set_2: Vec<AzksElement> = vec![
@@ -2176,11 +2270,18 @@ mod tests {
             },
         ];
 
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_2, InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_2,
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
         let end_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
-        let proof = azks.get_append_only_proof::<TC, _>(&db, 1, 2).await?;
+        let proof = azks
+            .get_append_only_proof::<TC, _>(&db, 1, 2, AzksParallelismConfig::default())
+            .await?;
         audit_verify::<TC>(vec![start_hash, end_hash], proof).await?;
         Ok(())
     }
@@ -2195,24 +2296,41 @@ mod tests {
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);
         let mut azks = Azks::new::<TC, _>(&db).await?;
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_1.clone(), InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_1.clone(),
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         let start_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
         let azks_element_set_2 = gen_random_elements(num_nodes, &mut rng);
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_2.clone(), InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_2.clone(),
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         let middle_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
         let azks_element_set_3: Vec<AzksElement> = gen_random_elements(num_nodes, &mut rng);
-        azks.batch_insert_nodes::<TC, _>(&db, azks_element_set_3.clone(), InsertMode::Directory)
-            .await?;
+        azks.batch_insert_nodes::<TC, _>(
+            &db,
+            azks_element_set_3.clone(),
+            InsertMode::Directory,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
 
         let end_hash = azks.get_root_hash::<TC, _>(&db).await?;
 
-        let proof = azks.get_append_only_proof::<TC, _>(&db, 1, 3).await?;
+        let proof = azks
+            .get_append_only_proof::<TC, _>(&db, 1, 3, AzksParallelismConfig::default())
+            .await?;
         let hashes = vec![start_hash, middle_hash, end_hash];
         audit_verify::<TC>(hashes, proof).await?;
 

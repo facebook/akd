@@ -18,7 +18,6 @@ experimental = ["akd_core/experimental"]
 default = [
     "public_auditing",
     "parallel_vrf",
-    "parallel_azks",
     "preload_history",
     "greedy_lookup_preload",
     "experimental",
@@ -28,8 +27,6 @@ bench = ["experimental", "public_tests", "tokio/rt-multi-thread"]
 # Greedy loading of lookup proof nodes
 greedy_lookup_preload = []
 public_auditing = ["dep:protobuf", "akd_core/protobuf"]
-# Parallelize node fetch and insertion during publish
-parallel_azks = []
 # Parallelize VRF calculations during publish
 parallel_vrf = ["akd_core/parallel_vrf"]
 # Enable pre-loading of the nodes when generating history proofs

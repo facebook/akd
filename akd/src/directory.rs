@@ -7,7 +7,7 @@
 
 //! Implementation of an auditable key directory
 
-use crate::append_only_zks::{Azks, InsertMode};
+use crate::append_only_zks::{Azks, AzksParallelismConfig, InsertMode};
 use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
 use crate::helper_structs::LookupInfo;
@@ -35,6 +35,7 @@ use tracing::Instrument;
 pub struct Directory<TC, S: Database, V> {
     storage: StorageManager<S>,
     vrf: V,
+    parallelism_config: AzksParallelismConfig,
     /// The cache lock guarantees that the cache is not
     /// flushed mid-proof generation. We allow multiple proof generations
     /// to occur (RwLock.read() operations can have multiple) but we want
@@ -51,6 +52,7 @@ impl<TC, S: Database, V: VRFKeyStorage> Clone for Directory<TC, S, V> {
         Self {
             storage: self.storage.clone(),
             vrf: self.vrf.clone(),
+            parallelism_config: self.parallelism_config,
             cache_lock: self.cache_lock.clone(),
             tc: PhantomData,
         }
@@ -67,7 +69,11 @@ where
     /// Takes as input a pointer to the storage being used for this instance.
     /// The state is stored in the storage.
     #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
-    pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
+    pub async fn new(
+        storage: StorageManager<S>,
+        vrf: V,
+        parallelism_config: AzksParallelismConfig,
+    ) -> Result<Self, AkdError> {
         let azks = Directory::<TC, S, V>::get_azks_from_storage(&storage, false).await;
 
         if let Err(AkdError::Storage(StorageError::NotFound(e))) = azks {
@@ -83,8 +89,9 @@ where
 
         Ok(Directory {
             storage,
-            cache_lock: Arc::new(RwLock::new(())),
             vrf,
+            parallelism_config,
+            cache_lock: Arc::new(RwLock::new(())),
             tc: PhantomData,
         })
     }
@@ -215,7 +222,12 @@ where
         info!("Starting inserting new leaves");
 
         if let Err(err) = current_azks
-            .batch_insert_nodes::<TC, _>(&self.storage, update_set, InsertMode::Directory)
+            .batch_insert_nodes::<TC, _>(
+                &self.storage,
+                update_set,
+                InsertMode::Directory,
+                self.parallelism_config,
+            )
             .await
         {
             // If we fail to do the batch-leaf insert, we should rollback the transaction so we can try again cleanly.
@@ -705,7 +717,12 @@ where
         } else {
             self.storage.disable_cache_cleaning();
             let result = current_azks
-                .get_append_only_proof::<TC, _>(&self.storage, audit_start_ep, audit_end_ep)
+                .get_append_only_proof::<TC, _>(
+                    &self.storage,
+                    audit_start_ep,
+                    audit_end_ep,
+                    self.parallelism_config,
+                )
                 .await;
             self.storage.enable_cache_cleaning();
             result
@@ -847,7 +864,11 @@ where
     /// Constructs a new instance of [ReadOnlyDirectory]. In the event that an [Azks]
     /// does not exist in the storage, or we're unable to retrieve it from storage, then
     /// a [DirectoryError] will be returned.
-    pub async fn new(storage: StorageManager<S>, vrf: V) -> Result<Self, AkdError> {
+    pub async fn new(
+        storage: StorageManager<S>,
+        vrf: V,
+        parallelism_config: AzksParallelismConfig,
+    ) -> Result<Self, AkdError> {
         let azks = Directory::<TC, S, V>::get_azks_from_storage(&storage, false).await;
 
         if azks.is_err() {
@@ -861,8 +882,9 @@ where
 
         Ok(Self(Directory {
             storage,
-            cache_lock: Arc::new(RwLock::new(())),
             vrf,
+            parallelism_config,
+            cache_lock: Arc::new(RwLock::new(())),
             tc: PhantomData,
         }))
     }
@@ -1091,7 +1113,12 @@ impl<TC: Configuration, S: Database + 'static, V: VRFKeyStorage> Directory<TC, S
         info!("Starting database insertion");
 
         current_azks
-            .batch_insert_nodes::<TC, _>(&self.storage, azks_element_set, InsertMode::Directory)
+            .batch_insert_nodes::<TC, _>(
+                &self.storage,
+                azks_element_set,
+                InsertMode::Directory,
+                self.parallelism_config,
+            )
             .await?;
 
         // batch all the inserts into a single transactional write to storage
