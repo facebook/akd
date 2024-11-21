@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0-pre.11 (Nov 21, 2024)
+* Added parallelization for node preloads during audit proof generation
+* Removed `parallel_azks` feature in favor of explicit parallelism configuration object allowing the
+setting of static or dynamic parallelism across insertion and preloads
+
 ## 0.12.0-pre.10 (Oct 17, 2024)
 * Added parallelization for node preloads during insertion
 * Added support for [tracing](https://docs.rs/tracing/latest/tracing/index.html)
