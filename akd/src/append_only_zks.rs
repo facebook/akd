@@ -215,10 +215,10 @@ impl AzksParallelismConfig {
     const DEFAULT_FALLBACK_PARALLELISM: u32 = 32;
 
     /// Instantiate a parallelism config with no parallelism set for all fields.
-    pub fn none() -> Self {
+    pub fn disabled() -> Self {
         Self {
-            insertion: AzksParallelismOption::None,
-            preload: AzksParallelismOption::None,
+            insertion: AzksParallelismOption::Disabled,
+            preload: AzksParallelismOption::Disabled,
         }
     }
 }
@@ -226,8 +226,8 @@ impl AzksParallelismConfig {
 impl Default for AzksParallelismConfig {
     fn default() -> Self {
         Self {
-            insertion: AzksParallelismOption::Dynamic(Self::DEFAULT_FALLBACK_PARALLELISM),
-            preload: AzksParallelismOption::Dynamic(Self::DEFAULT_FALLBACK_PARALLELISM),
+            insertion: AzksParallelismOption::AvailableOr(Self::DEFAULT_FALLBACK_PARALLELISM),
+            preload: AzksParallelismOption::AvailableOr(Self::DEFAULT_FALLBACK_PARALLELISM),
         }
     }
 }
@@ -236,20 +236,20 @@ impl Default for AzksParallelismConfig {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum AzksParallelismOption {
     /// No parallelism.
-    None,
+    Disabled,
     /// Set parallelism to a static value.
     Static(u32),
     /// Dynamically derive parallelism from the number of available cores,
     /// falling back to the passed value if available cores cannot be retrieved.
-    Dynamic(u32),
+    AvailableOr(u32),
 }
 
 impl AzksParallelismOption {
     fn get_parallel_levels(&self) -> Option<u8> {
         let parallelism = match *self {
-            AzksParallelismOption::None => return None,
+            AzksParallelismOption::Disabled => return None,
             AzksParallelismOption::Static(parallelism) => parallelism,
-            AzksParallelismOption::Dynamic(fallback_parallelism) => {
+            AzksParallelismOption::AvailableOr(fallback_parallelism) => {
                 std::thread::available_parallelism()
                     .map_or(fallback_parallelism, |v| v.get() as u32)
             }
@@ -691,7 +691,7 @@ impl Azks {
         self.preload_nodes(
             storage,
             &AzksElementSet::from(lookup_nodes),
-            AzksParallelismConfig::none(),
+            AzksParallelismConfig::disabled(),
         )
         .await
     }
@@ -1777,7 +1777,7 @@ mod tests {
             .preload_nodes(
                 &storage_manager,
                 &azks_element_set,
-                AzksParallelismConfig::none(),
+                AzksParallelismConfig::disabled(),
             )
             .await
             .expect("Failed to preload nodes");
