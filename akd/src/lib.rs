@@ -553,7 +553,7 @@ pub use akd_core::{
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
-pub use append_only_zks::Azks;
+pub use append_only_zks::{Azks, AzksParallelismConfig, AzksParallelismOption};
 pub use client::HistoryVerificationParams;
 pub use directory::Directory;
 pub use helper_structs::EpochHash;
