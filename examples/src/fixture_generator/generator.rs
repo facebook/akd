@@ -13,6 +13,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 
+use akd::append_only_zks::AzksParallelismConfig;
 use akd::directory::Directory;
 use akd::storage::types::DbRecord;
 use akd::storage::{StorageManager, StorageUtil};
@@ -129,9 +130,13 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
     let db = akd::storage::memory::AsyncInMemoryDatabase::new();
     let vrf = akd::ecvrf::HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
-        .await
-        .unwrap();
+    let akd = Directory::<TC, _, _>::new(
+        storage_manager.clone(),
+        vrf,
+        AzksParallelismConfig::default(),
+    )
+    .await
+    .unwrap();
 
     for epoch in 1..=args.epochs {
         // gather specified key updates

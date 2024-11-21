@@ -10,6 +10,7 @@ extern crate criterion;
 
 mod common;
 
+use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
@@ -56,7 +57,9 @@ fn history_generation<TC: NamedConfiguration>(c: &mut Criterion) {
                 );
                 let db_clone = db.clone();
                 let directory = runtime
-                    .block_on(async move { Directory::<TC, _, _>::new(db, vrf).await })
+                    .block_on(async move {
+                        Directory::<TC, _, _>::new(db, vrf, AzksParallelismConfig::default()).await
+                    })
                     .unwrap();
 
                 for _epoch in 1..num_updates {

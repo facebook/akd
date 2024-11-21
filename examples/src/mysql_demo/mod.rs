@@ -7,6 +7,7 @@
 
 //! An example tool for running AKD backed by MySQL storage
 
+use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::StorageManager;
 use akd::Directory;
@@ -144,9 +145,10 @@ pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
     if cli.memory_db {
         let db = akd::storage::memory::AsyncInMemoryDatabase::new();
         let storage_manager = StorageManager::new_no_cache(db);
-        let mut directory = Directory::<TC, _, _>::new(storage_manager, vrf)
-            .await
-            .unwrap();
+        let mut directory =
+            Directory::<TC, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default())
+                .await
+                .unwrap();
         if let Some(()) = pre_process_input(&cli, None).await {
             return Ok(());
         }
@@ -175,9 +177,13 @@ pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
             None,
             Some(Duration::from_secs(15)),
         );
-        let mut directory = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
-            .await
-            .unwrap();
+        let mut directory = Directory::<TC, _, _>::new(
+            storage_manager.clone(),
+            vrf,
+            AzksParallelismConfig::default(),
+        )
+        .await
+        .unwrap();
         tokio::spawn(async move {
             directory_host::init_host::<TC, _, HardCodedAkdVRF>(&mut rx, &mut directory).await
         });

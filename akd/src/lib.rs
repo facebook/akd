@@ -51,6 +51,7 @@
 //! [`storage::memory::AsyncInMemoryDatabase`] as in-memory storage, and [`ecvrf::HardCodedAkdVRF`] as the VRF.
 //! The [`directory::ReadOnlyDirectory`] creates a read-only directory which cannot be updated.
 //! ```
+//! use akd::append_only_zks::AzksParallelismConfig;
 //! use akd::storage::StorageManager;
 //! use akd::storage::memory::AsyncInMemoryDatabase;
 //! use akd::ecvrf::HardCodedAkdVRF;
@@ -63,7 +64,7 @@
 //! let vrf = HardCodedAkdVRF{};
 //!
 //! # tokio_test::block_on(async {
-//! let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf)
+//! let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default())
 //!     .await
 //!     .expect("Could not create a new directory");
 //! # });
@@ -76,6 +77,7 @@
 //! with a list of the pairs. In the following example, we derive the labels and values from strings. After publishing,
 //! the new epoch number and root hash are returned.
 //! ```
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -99,7 +101,11 @@
 //!
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(
+//! #         storage_manager,
+//! #         vrf,
+//! #         AzksParallelismConfig::default()
+//! #     ).await.unwrap();
 //! let EpochHash(epoch, root_hash) = akd.publish(entries)
 //!     .await.expect("Error with publishing");
 //! println!("Published epoch {} with root hash: {}", epoch, hex::encode(root_hash));
@@ -112,6 +118,7 @@
 //! We can call [`Directory::lookup`] to generate a [`LookupProof`] that proves the correctness
 //! of a client lookup for an existing entry.
 //! ```
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -135,7 +142,11 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(
+//! #         storage_manager,
+//! #         vrf,
+//! #         AzksParallelismConfig::default()
+//! #     ).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! let (lookup_proof, epoch_hash) = akd.lookup(
@@ -147,6 +158,7 @@
 //! To verify a valid proof, we call [`client::lookup_verify`], with respect to the root hash and
 //! the server's public key.
 //! ```
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -170,7 +182,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default()).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let (lookup_proof, epoch_hash) = akd.lookup(
@@ -207,6 +219,7 @@
 //! example we default to a complete history. For more information on the parameters, see the
 //! [History Parameters](#history-parameters) section.
 //! ```
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -230,7 +243,7 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf, AzksParallelismConfig::default()).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! use akd::HistoryParams;
@@ -271,6 +284,7 @@
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::EpochHash;
 //! # use akd::HistoryParams;
 //! # use akd::{AkdLabel, AkdValue};
@@ -285,7 +299,11 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(
+//! #         storage_manager,
+//! #         vrf,
+//! #         AzksParallelismConfig::default()
+//! #     ).await.unwrap();
 //! #     let _ = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     let _ = akd.publish(
@@ -337,6 +355,7 @@
 //! # let db = AsyncInMemoryDatabase::new();
 //! # let storage_manager = StorageManager::new_no_cache(db);
 //! # let vrf = HardCodedAkdVRF{};
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::EpochHash;
 //! # use akd::{AkdLabel, AkdValue};
 //! # use akd::Digest;
@@ -350,7 +369,11 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(
+//! #         storage_manager,
+//! #         vrf,
+//! #         AzksParallelismConfig::default()
+//! #     ).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! // Publish new entries into a second epoch
@@ -368,6 +391,7 @@
 //! ```
 //! The auditor then verifies the above [`AppendOnlyProof`] using [`auditor::audit_verify`].
 //! ```
+//! # use akd::append_only_zks::AzksParallelismConfig;
 //! # use akd::storage::StorageManager;
 //! # use akd::storage::memory::AsyncInMemoryDatabase;
 //! # use akd::ecvrf::HardCodedAkdVRF;
@@ -391,7 +415,11 @@
 //! #
 //! # tokio_test::block_on(async {
 //! #     let vrf = HardCodedAkdVRF{};
-//! #     let mut akd = Directory::<Config, _, _>::new(storage_manager, vrf).await.unwrap();
+//! #     let mut akd = Directory::<Config, _, _>::new(
+//! #         storage_manager,
+//! #         vrf,
+//! #         AzksParallelismConfig::default()
+//! #     ).await.unwrap();
 //! #     let EpochHash(epoch, root_hash) = akd.publish(entries)
 //! #         .await.expect("Error with publishing");
 //! #     // Publish new entries into a second epoch
@@ -459,7 +487,6 @@
 //!
 //! Performance optimizations:
 //! - `greedy_lookup_preload`: Greedy loading of lookup proof nodes
-//! - `parallel_azks`: Enables nodes to be fetched and inserted via multiple threads during a publish operation
 //! - `parallel_vrf`: Enables the VRF computations to be run in parallel
 //! - `preload_history`: Enables pre-loading of nodes when generating history proofs
 //!
@@ -526,7 +553,7 @@ pub use akd_core::{
 mod utils;
 
 // ========== Type re-exports which are commonly used ========== //
-pub use append_only_zks::Azks;
+pub use append_only_zks::{Azks, AzksParallelismConfig, AzksParallelismOption};
 pub use client::HistoryVerificationParams;
 pub use directory::Directory;
 pub use helper_structs::EpochHash;

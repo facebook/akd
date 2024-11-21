@@ -7,6 +7,7 @@
 
 extern crate thread_id;
 
+use akd::append_only_zks::AzksParallelismConfig;
 use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::{Database, StorageManager};
@@ -144,7 +145,12 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
     }
 
     // create & test the directory
-    let maybe_dir = Directory::<TC, _, _>::new(mysql_db.clone(), vrf.clone()).await;
+    let maybe_dir = Directory::<TC, _, _>::new(
+        mysql_db.clone(),
+        vrf.clone(),
+        AzksParallelismConfig::default(),
+    )
+    .await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {
@@ -279,7 +285,12 @@ pub(crate) async fn directory_test_suite<
     }
     let mut root_hashes = vec![];
     // create & test the directory
-    let maybe_dir = Directory::<TC, _, _>::new(mysql_db.clone(), vrf.clone()).await;
+    let maybe_dir = Directory::<TC, _, _>::new(
+        mysql_db.clone(),
+        vrf.clone(),
+        AzksParallelismConfig::default(),
+    )
+    .await;
     match maybe_dir {
         Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
         Ok(dir) => {

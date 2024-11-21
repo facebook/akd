@@ -10,6 +10,7 @@
 use std::fs::File;
 
 use akd::{
+    append_only_zks::AzksParallelismConfig,
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     storage::{memory::AsyncInMemoryDatabase, Database, StorageManager, StorageUtil},
@@ -39,9 +40,13 @@ async fn test_use_fixture<TC: NamedConfiguration>() {
         .unwrap();
     let vrf = HardCodedAkdVRF {};
     let storage_manager = StorageManager::new_no_cache(db);
-    let akd = Directory::<TC, _, _>::new(storage_manager.clone(), vrf)
-        .await
-        .unwrap();
+    let akd = Directory::<TC, _, _>::new(
+        storage_manager.clone(),
+        vrf,
+        AzksParallelismConfig::default(),
+    )
+    .await
+    .unwrap();
 
     // publish delta updates
     let delta = reader.read_delta(epochs[1]).unwrap();

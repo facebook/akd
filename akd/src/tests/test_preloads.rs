@@ -10,6 +10,7 @@
 use akd_core::configuration::Configuration;
 
 use crate::{
+    append_only_zks::AzksParallelismConfig,
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     errors::{AkdError, StorageError},
@@ -31,7 +32,7 @@ async fn test_publish_op_makes_no_get_requests<TC: Configuration>() -> Result<()
 
     let storage = StorageManager::new_no_cache(db);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf)
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default())
         .await
         .expect("Failed to create directory");
 
@@ -61,7 +62,7 @@ async fn test_publish_op_makes_no_get_requests<TC: Configuration>() -> Result<()
 
     let storage = StorageManager::new_no_cache(db2);
     let vrf = HardCodedAkdVRF {};
-    let akd = Directory::<TC, _, _>::new(storage, vrf)
+    let akd = Directory::<TC, _, _>::new(storage, vrf, AzksParallelismConfig::default())
         .await
         .expect("Failed to create directory");
 

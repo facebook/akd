@@ -10,7 +10,7 @@ extern crate criterion;
 
 mod common;
 
-use akd::append_only_zks::InsertMode;
+use akd::append_only_zks::{AzksParallelismConfig, InsertMode};
 use akd::auditor;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
@@ -57,6 +57,7 @@ fn batch_insertion<TC: NamedConfiguration>(c: &mut Criterion) {
                         &db,
                         initial_node_set.clone(),
                         InsertMode::Directory,
+                        AzksParallelismConfig::default(),
                     ))
                     .unwrap();
                 (azks, db, node_set.clone())
@@ -67,6 +68,7 @@ fn batch_insertion<TC: NamedConfiguration>(c: &mut Criterion) {
                         &db,
                         node_set,
                         InsertMode::Directory,
+                        AzksParallelismConfig::default(),
                     ))
                     .unwrap();
             },
@@ -107,6 +109,7 @@ fn audit_verify<TC: NamedConfiguration>(c: &mut Criterion) {
                         &db,
                         initial_node_set.clone(),
                         InsertMode::Directory,
+                        AzksParallelismConfig::default(),
                     ))
                     .unwrap();
 
@@ -118,12 +121,18 @@ fn audit_verify<TC: NamedConfiguration>(c: &mut Criterion) {
                         &db,
                         node_set.clone(),
                         InsertMode::Directory,
+                        AzksParallelismConfig::default(),
                     ))
                     .unwrap();
 
                 let end_hash = runtime.block_on(azks.get_root_hash::<TC, _>(&db)).unwrap();
                 let proof = runtime
-                    .block_on(azks.get_append_only_proof::<TC, _>(&db, 1, 2))
+                    .block_on(azks.get_append_only_proof::<TC, _>(
+                        &db,
+                        1,
+                        2,
+                        AzksParallelismConfig::default(),
+                    ))
                     .unwrap();
 
                 (start_hash, end_hash, proof)
@@ -157,7 +166,12 @@ fn audit_generate<TC: NamedConfiguration>(c: &mut Criterion) {
     for _epoch in 0..num_epochs {
         let node_set = gen_nodes(&mut rng, num_leaves);
         runtime
-            .block_on(azks.batch_insert_nodes::<TC, _>(&db, node_set, InsertMode::Directory))
+            .block_on(azks.batch_insert_nodes::<TC, _>(
+                &db,
+                node_set,
+                InsertMode::Directory,
+                AzksParallelismConfig::default(),
+            ))
             .unwrap();
     }
     let epoch = azks.get_latest_epoch();
@@ -172,7 +186,12 @@ fn audit_generate<TC: NamedConfiguration>(c: &mut Criterion) {
             || {},
             |_| {
                 let _proof = runtime
-                    .block_on(azks.get_append_only_proof::<TC, _>(&db, epoch - 1, epoch))
+                    .block_on(azks.get_append_only_proof::<TC, _>(
+                        &db,
+                        epoch - 1,
+                        epoch,
+                        AzksParallelismConfig::default(),
+                    ))
                     .unwrap();
             },
             BatchSize::PerIteration,
