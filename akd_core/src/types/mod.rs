@@ -280,7 +280,7 @@ pub const EMPTY_VALUE: [u8; 1] = [0u8];
 /// Should a tombstone be encountered, we have to assume that the hash of the value is correct, and we move forward without being able to
 /// verify the raw value. We utilize an empty array to save space in the storage layer
 ///
-/// See [GitHub issue #130](https://github.com/novifinancial/akd/issues/130) for more context
+/// See [GitHub issue #130](https://github.com/facebook/akd/issues/130) for more context
 pub const TOMBSTONE: &[u8] = &[];
 
 // ============================================
