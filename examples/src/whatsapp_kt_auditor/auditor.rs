@@ -54,11 +54,7 @@ pub(crate) async fn audit_epoch(blob: akd::local_auditing::AuditBlob) -> Result<
     )
     .await
     {
-        bail!(
-            "Audit proof for epoch {} failed to verify with error: {}",
-            end_epoch,
-            akd_error
-        )
+        bail!("Audit proof for epoch {end_epoch} failed to verify with error: {akd_error}")
     } else {
         // verification passed, generate the appropriate QR code
         Ok(format!(
@@ -97,6 +93,22 @@ pub(crate) fn display_audit_proofs_info(info: &mut [EpochSummary]) -> Result<Str
         "Loaded epochs between ({}) and ({}), inclusively.",
         min.name.epoch, max.name.epoch
     ))
+}
+
+pub(crate) async fn get_proof_from_epoch(url: &str, epoch: u64) -> Result<EpochSummary> {
+    let params: Vec<(String, String)> = vec![
+        ("list-type".to_string(), "2".to_string()),
+        ("prefix".to_string(), format!("{epoch}/")),
+    ];
+
+    let (keys, truncated_result) = get_xml(url, &params).await.unwrap();
+    if truncated_result || keys.len() > 1 {
+        bail!("Found multiple matches for epoch {epoch}, which is unexpected. Bailing...");
+    }
+    if keys.is_empty() {
+        bail!("Could not find epoch {epoch}");
+    }
+    Ok(keys[0].clone())
 }
 
 pub(crate) async fn list_proofs(url: &str) -> Result<Vec<EpochSummary>> {
