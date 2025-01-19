@@ -11,7 +11,7 @@ mod auditor;
 
 use akd::local_auditing::AuditBlobName;
 use anyhow::{anyhow, bail, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -45,15 +45,27 @@ impl TryFrom<&str> for EpochSummary {
 }
 
 #[derive(Parser, Debug, Clone)]
+#[clap(author, about, long_about = None)]
 pub(crate) struct CliArgs {
-    /// Optional argument to indicate that only the latest epoch should be audited
+    /// The type of command to run
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum Command {
+    /// For auditing a specific epoch
+    #[clap(short_flag = 'e', name = "Choose a specific epoch to audit")]
+    Epoch { epoch: u64 },
+    /// For auditing all epochs through an interactive interface
     #[clap(
-        long = "latest",
-        short = 'l',
-        name = "Audit only the latest epoch",
-        default_value = "false"
+        short_flag = 'i',
+        name = "Load all epochs to be audited (this can take some time...)"
     )]
-    audit_latest: bool,
+    Interactive,
+    /// Indicate that only the latest epoch should be audited
+    #[clap(short_flag = 'l', name = "Audit only the latest epoch")]
+    AuditLatest,
 }
 
 #[derive(Debug)]
@@ -68,72 +80,85 @@ struct CliOption {
 }
 
 pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
-    let pb = start_progress_bar("Loading epochs...");
-    let mut proofs = auditor::list_proofs(WHATSAPP_KT_DOMAIN).await?;
-    finish_progress_bar(pb, auditor::display_audit_proofs_info(&mut proofs)?);
+    match args.command {
+        Command::AuditLatest => {
+            // Just audit the latest epoch and exit
+            let proofs = load_all_proofs().await?;
+            let latest_epoch_summary = proofs.last().expect("No epochs found");
+            do_epoch_audit(latest_epoch_summary).await?;
+            return Ok(());
+        }
+        Command::Epoch { epoch } => {
+            let epoch_summary = auditor::get_proof_from_epoch(WHATSAPP_KT_DOMAIN, epoch).await?;
+            do_epoch_audit(&epoch_summary).await?;
+            return Ok(());
+        }
+        Command::Interactive => {
+            let proofs = load_all_proofs().await?;
+            let items: Vec<CliOption> = vec![
+                CliOption {
+                    cli_type: CliType::Audit,
+                    text: "Audit".to_string(),
+                },
+                CliOption {
+                    cli_type: CliType::Quit,
+                    text: "Quit".to_string(),
+                },
+            ];
 
-    if args.audit_latest {
-        // Just audit the latest epoch and exit
-        let latest_epoch_summary = proofs.last().expect("No epochs found");
-        do_epoch_audit(latest_epoch_summary).await?;
-        return Ok(());
-    }
+            loop {
+                let selection = Select::with_theme(&ColorfulTheme::default())
+                    .items(
+                        &items
+                            .iter()
+                            .map(|item| item.text.clone())
+                            .collect::<Vec<String>>(),
+                    )
+                    .default(0)
+                    .interact_opt()?;
 
-    let items: Vec<CliOption> = vec![
-        CliOption {
-            cli_type: CliType::Audit,
-            text: "Audit".to_string(),
-        },
-        CliOption {
-            cli_type: CliType::Quit,
-            text: "Quit".to_string(),
-        },
-    ];
-
-    loop {
-        let selection = Select::with_theme(&ColorfulTheme::default())
-            .items(
-                &items
-                    .iter()
-                    .map(|item| item.text.clone())
-                    .collect::<Vec<String>>(),
-            )
-            .default(0)
-            .interact_opt()?;
-
-        match selection {
-            Some(index) => match items[index].cli_type {
-                CliType::Audit => {
-                    let epoch_input: String = Input::new()
-                        .with_prompt("Audit which epoch?".to_string())
-                        .validate_with(|input: &String| -> Result<(), &str> {
-                            let int = input.parse::<usize>().map_err(|_| "Not a valid epoch")?;
-                            if 1 <= int && int <= proofs.len() {
-                                Ok(())
-                            } else {
-                                Err("Epoch is out of available range")
-                            }
-                        })
-                        .interact_text()?;
-                    let epoch = epoch_input.parse::<u64>()?;
-                    let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == epoch);
-                    if let Some(epoch_summary) = maybe_proof {
-                        do_epoch_audit(epoch_summary).await?;
-                    } else {
-                        bail!("Could not find epoch {}", epoch);
+                match selection {
+                    Some(index) => match items[index].cli_type {
+                        CliType::Audit => {
+                            let epoch_input: String = Input::new()
+                                .with_prompt("Audit which epoch?".to_string())
+                                .validate_with(|input: &String| -> Result<(), &str> {
+                                    let int =
+                                        input.parse::<usize>().map_err(|_| "Not a valid epoch")?;
+                                    if 1 <= int && int <= proofs.len() {
+                                        Ok(())
+                                    } else {
+                                        Err("Epoch is out of available range")
+                                    }
+                                })
+                                .interact_text()?;
+                            let epoch = epoch_input.parse::<u64>()?;
+                            let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == epoch);
+                            let Some(epoch_summary) = maybe_proof else {
+                                bail!("Could not find epoch {epoch}");
+                            };
+                            do_epoch_audit(epoch_summary).await?;
+                        }
+                        CliType::Quit => {
+                            break;
+                        }
+                    },
+                    None => {
+                        break;
                     }
                 }
-                CliType::Quit => {
-                    break;
-                }
-            },
-            None => {
-                break;
             }
         }
     }
 
     Ok(())
+}
+
+async fn load_all_proofs() -> Result<Vec<EpochSummary>> {
+    let pb = start_progress_bar("Loading epochs...");
+    let mut proofs = auditor::list_proofs(WHATSAPP_KT_DOMAIN).await?;
+    finish_progress_bar(pb, auditor::display_audit_proofs_info(&mut proofs)?);
+    Ok(proofs)
 }
 
 pub(crate) async fn do_epoch_audit(epoch_summary: &EpochSummary) -> Result<()> {
@@ -142,8 +167,9 @@ pub(crate) async fn do_epoch_audit(epoch_summary: &EpochSummary) -> Result<()> {
     finish_progress_bar(
         pb1,
         format!(
-            "Successfully downloaded proof for epoch {}.",
-            epoch_summary.name.epoch
+            "Successfully downloaded proof for epoch {}. ({})",
+            epoch_summary.name.epoch,
+            bytesize::ByteSize::b(proof.data.len() as u64)
         ),
     );
 
