@@ -1298,10 +1298,7 @@ impl Azks {
             });
 
             prev_node = curr_node.clone();
-            match curr_node
-                .get_child_node(storage, direction, latest_epoch)
-                .await?
-            {
+            match child {
                 Some(n) => curr_node = n,
                 None => {
                     return Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(
