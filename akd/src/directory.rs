@@ -760,7 +760,7 @@ where
         }
     }
 
-    /// HELPERS ///
+    // HELPERS //
 
     /// Use this function to retrieve the [VRFPublicKey] for this AKD.
     #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
@@ -875,7 +875,7 @@ where
             return Err(AkdError::Directory(DirectoryError::ReadOnlyDirectory(
                 format!(
                     "Cannot start directory in read-only mode when AZKS is missing, error: {:?}",
-                    azks.err().take()
+                    azks.err()
                 ),
             )));
         }
@@ -947,13 +947,12 @@ where
     }
 }
 
-/// Helpers
-
+// Helpers
 pub(crate) fn get_marker_version(version: u64) -> u64 {
     (64 - version.leading_zeros() - 1).into()
 }
 
-/// Helpers for testing
+// Helpers for testing
 
 /// This enum is meant to insert corruptions into a malicious publish function.
 #[derive(Debug, Clone)]

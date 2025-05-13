@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.0-pre.12 (May 12, 2025)
+* Addressed clippy warnings and errors
+
 ## 0.12.0-pre.11 (Nov 21, 2024)
 * Added parallelization for node preloads during audit proof generation
 * Removed `parallel_azks` feature in favor of explicit parallelism configuration object allowing the

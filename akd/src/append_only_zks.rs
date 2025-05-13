@@ -550,11 +550,7 @@ impl Azks {
                     .await
                 {
                     Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
-                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
-                            Some(node)
-                        } else {
-                            None
-                        }
+                        tnpv.determine_node_to_get(self.latest_epoch).ok()
                     }
                     _ => None,
                 }
@@ -565,11 +561,7 @@ impl Azks {
                     .await
                 {
                     Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
-                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
-                            Some(node)
-                        } else {
-                            None
-                        }
+                        tnpv.determine_node_to_get(self.latest_epoch).ok()
                     }
                     _ => None,
                 }

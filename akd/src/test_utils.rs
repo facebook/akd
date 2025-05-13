@@ -23,7 +23,7 @@ pub(crate) struct TestConsoleLogger;
 impl TestConsoleLogger {
     pub(crate) fn format_log_record(record: &Record) {
         let target = {
-            if let Some(target_str) = record.target().split(':').last() {
+            if let Some(target_str) = record.target().split(':').next_back() {
                 if let Some(line) = record.line() {
                     format!(" ({target_str}:{line})")
                 } else {

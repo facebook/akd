@@ -269,7 +269,7 @@ impl Transaction {
                 .into_iter()
                 .rev()
                 .find(|item| item.epoch <= epoch),
-            ValueStateRetrievalFlag::MaxEpoch => intermediate.into_iter().last(),
+            ValueStateRetrievalFlag::MaxEpoch => intermediate.into_iter().next_back(),
             ValueStateRetrievalFlag::MinEpoch => intermediate.into_iter().next(),
         }
     }
