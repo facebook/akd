@@ -31,7 +31,7 @@ impl ConsoleLogger {
 
     pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record, no_color: bool) {
         let target = {
-            if let Some(target_str) = record.target().split(':').last() {
+            if let Some(target_str) = record.target().split(':').next_back() {
                 if let Some(line) = record.line() {
                     format!(" ({target_str}:{line})")
                 } else {

@@ -550,11 +550,7 @@ impl Azks {
                     .await
                 {
                     Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
-                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
-                            Some(node)
-                        } else {
-                            None
-                        }
+                        tnpv.determine_node_to_get(self.latest_epoch).ok()
                     }
                     _ => None,
                 }
@@ -565,11 +561,7 @@ impl Azks {
                     .await
                 {
                     Some(crate::storage::types::DbRecord::TreeNode(tnpv)) => {
-                        if let Ok(node) = tnpv.determine_node_to_get(self.latest_epoch) {
-                            Some(node)
-                        } else {
-                            None
-                        }
+                        tnpv.determine_node_to_get(self.latest_epoch).ok()
                     }
                     _ => None,
                 }
@@ -1306,10 +1298,7 @@ impl Azks {
             });
 
             prev_node = curr_node.clone();
-            match curr_node
-                .get_child_node(storage, direction, latest_epoch)
-                .await?
-            {
+            match child {
                 Some(n) => curr_node = n,
                 None => {
                     return Err(AkdError::TreeNode(TreeNodeError::NoChildAtEpoch(

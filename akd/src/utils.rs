@@ -29,7 +29,7 @@ pub(crate) fn random_label(rng: &mut impl rand::Rng) -> crate::NodeLabel {
     }
 }
 
-/// NOTE(new_config): Add a new configuration here
+// NOTE(new_config): Add a new configuration here
 
 /// Macro used for running tests with different configurations
 #[cfg(any(test, feature = "public_tests"))]

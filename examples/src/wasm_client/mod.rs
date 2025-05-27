@@ -137,7 +137,7 @@ fn lookup_verify<TC: Configuration>(
     }
 }
 
-/// NOTE(new_config): Add a new configuration here
+// NOTE(new_config): Add a new configuration here
 
 /// Verify a lookup proof in WebAssembly for WhatsAppV1Configuration,
 /// utilizing serde serialized structure for the proof

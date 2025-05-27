@@ -78,11 +78,11 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
     assert!(args
         .capture_states
         .as_ref()
-        .map_or(true, |states| states.iter().max().unwrap() <= &args.epochs));
+        .is_none_or(|states| states.iter().max().unwrap() <= &args.epochs));
     assert!(args
         .capture_deltas
         .as_ref()
-        .map_or(true, |deltas| deltas.iter().max().unwrap() <= &args.epochs));
+        .is_none_or(|deltas| deltas.iter().max().unwrap() <= &args.epochs));
 
     // process users
     let mut user_map = HashMap::new();
