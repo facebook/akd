@@ -41,7 +41,7 @@ pub(crate) fn log_init(level: Level) {
 
             log::set_max_level(level.to_level_filter());
             if let Err(error) = log::set_boxed_logger(Box::new(mlogger)) {
-                panic!("Error initializing multi-logger: {}", error);
+                panic!("Error initializing multi-logger: {error}");
             }
         } else {
             panic!("Error creating file logger!");
@@ -52,7 +52,7 @@ pub(crate) fn log_init(level: Level) {
 
 pub(crate) fn format_log_record(io: &mut (dyn Write + Send), record: &Record) {
     let target = {
-        if let Some(target_str) = record.target().split(':').last() {
+        if let Some(target_str) = record.target().split(':').next_back() {
             if let Some(line) = record.line() {
                 format!(" ({target_str}:{line})")
             } else {
@@ -152,7 +152,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
     )
     .await;
     match maybe_dir {
-        Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
+        Err(akd_error) => panic!("Error initializing directory: {akd_error:?}"),
         Ok(dir) => {
             info!("AKD Directory started. Beginning tests");
 
@@ -167,7 +167,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                 }
 
                 if let Err(error) = dir.publish(data).await {
-                    panic!("Error publishing batch {:?}", error);
+                    panic!("Error publishing batch {error:?}");
                 } else {
                     info!("Published epoch {}", i);
                 }
@@ -189,7 +189,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
             // Lookup selected users one by one
             for label in labels.clone() {
                 match dir.lookup(label.clone()).await {
-                    Err(error) => panic!("Error looking up user information {:?}", error),
+                    Err(error) => panic!("Error looking up user information {error:?}"),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::lookup_verify::<TC>(
@@ -199,7 +199,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                             label,
                             proof,
                         ) {
-                            panic!("Lookup proof failed to verify {:?}", error);
+                            panic!("Lookup proof failed to verify {error:?}");
                         }
                     }
                 }
@@ -216,7 +216,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
             let start = Instant::now();
             // Bulk lookup selected users
             match dir.batch_lookup(&labels).await {
-                Err(error) => panic!("Error batch looking up user information {:?}", error),
+                Err(error) => panic!("Error batch looking up user information {error:?}"),
                 Ok((proofs, root_hash)) => {
                     assert_eq!(labels.len(), proofs.len());
 
@@ -231,7 +231,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                             label,
                             proof,
                         ) {
-                            panic!("Batch lookup failed to verify for index {} {:?}", i, error);
+                            panic!("Batch lookup failed to verify for index {i} {error:?}");
                         }
                     }
                 }
@@ -292,7 +292,7 @@ pub(crate) async fn directory_test_suite<
     )
     .await;
     match maybe_dir {
-        Err(akd_error) => panic!("Error initializing directory: {:?}", akd_error),
+        Err(akd_error) => panic!("Error initializing directory: {akd_error:?}"),
         Ok(dir) => {
             // Publish 3 epochs of user material
             for i in 1..=3 {
@@ -305,7 +305,7 @@ pub(crate) async fn directory_test_suite<
                 }
 
                 if let Err(error) = dir.publish(data).await {
-                    panic!("Error publishing batch {:?}", error);
+                    panic!("Error publishing batch {error:?}");
                 }
                 let root_hash = dir.get_epoch_hash().await.unwrap().1;
                 root_hashes.push(root_hash);
@@ -315,7 +315,7 @@ pub(crate) async fn directory_test_suite<
             for user in users.iter().choose_multiple(&mut rng, 10) {
                 let key = AkdLabel::from(user);
                 match dir.lookup(key.clone()).await {
-                    Err(error) => panic!("Error looking up user information {:?}", error),
+                    Err(error) => panic!("Error looking up user information {error:?}"),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::lookup_verify::<TC>(
@@ -325,7 +325,7 @@ pub(crate) async fn directory_test_suite<
                             key,
                             proof,
                         ) {
-                            panic!("Lookup proof failed to verify {:?}", error);
+                            panic!("Lookup proof failed to verify {error:?}");
                         }
                     }
                 }
@@ -335,7 +335,7 @@ pub(crate) async fn directory_test_suite<
             for user in users.iter().choose_multiple(&mut rng, 2) {
                 let key = AkdLabel::from(user);
                 match dir.key_history(&key, HistoryParams::default()).await {
-                    Err(error) => panic!("Error performing key history retrieval {:?}", error),
+                    Err(error) => panic!("Error performing key history retrieval {error:?}"),
                     Ok((proof, root_hash)) => {
                         let vrf_pk = dir.get_public_key().await.unwrap();
                         if let Err(error) = akd::client::key_history_verify::<TC>(
@@ -346,7 +346,7 @@ pub(crate) async fn directory_test_suite<
                             proof,
                             akd::HistoryVerificationParams::default(),
                         ) {
-                            panic!("History proof failed to verify {:?}", error);
+                            panic!("History proof failed to verify {error:?}");
                         }
                     }
                 }
@@ -358,7 +358,7 @@ pub(crate) async fn directory_test_suite<
             log::warn!("Beginning audit proof generation");
             mysql_db.flush_cache().await;
             match dir.audit(1u64, 2u64).await {
-                Err(error) => panic!("Error perform audit proof retrieval {:?}", error),
+                Err(error) => panic!("Error perform audit proof retrieval {error:?}"),
                 Ok(proof) => {
                     mysql_db.log_metrics().await;
                     log::warn!("Done with audit proof generation");

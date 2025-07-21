@@ -104,7 +104,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
 
     let get_result = storage.get::<PvTreeNode>(&key2).await;
     if let Err(err) = get_result {
-        panic!("Failed to retrieve history tree node (2) {:?}", err)
+        panic!("Failed to retrieve history tree node (2) {err:?}")
     }
 
     // === ValueState storage === //
@@ -222,7 +222,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
         .await;
     // should be the same thing as the previous get
     match got_all_min_states {
-        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {:?}", err),
+        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {err:?}"),
         Ok(lst) if lst.len() != rand_users.len() => {
             panic!(
                 "Retrieved list length does not match input length {} != {}",
@@ -263,7 +263,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
         .await;
     // should be the same thing as the previous get
     match got_all_max_states {
-        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {:?}", err),
+        Err(err) => panic!("Failed to retrieve batch of user at min epochs: {err:?}"),
         Ok(lst) if lst.len() != rand_users.len() => {
             panic!(
                 "Retrieved list length does not match input length {} != {}",

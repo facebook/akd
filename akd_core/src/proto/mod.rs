@@ -142,8 +142,7 @@ impl TryFrom<&specs::types::NodeLabel> for crate::NodeLabel {
 
         if label_len > 256 {
             return Err(ConversionError::Deserialization(format!(
-                "Label length is too long, should be at most 256: {len}",
-                len = label_len
+                "Label length is too long, should be at most 256: {label_len}",
             )));
         }
 

@@ -62,8 +62,7 @@ pub(crate) async fn audit_epoch(blob: akd::local_auditing::AuditBlob) -> Result<
     } else {
         // verification passed, generate the appropriate QR code
         Ok(format!(
-            "Audit proof for epoch {} has verified successfully!",
-            end_epoch
+            "Audit proof for epoch {end_epoch} has verified successfully!"
         ))
     }
 }
@@ -171,7 +170,7 @@ async fn get_xml(url: &str, params: &[(String, String)]) -> Result<(Vec<EpochSum
                     should_check_truncated = false;
                 }
             }
-            Err(e) => println!("Error with parsing XML: {}", e),
+            Err(e) => println!("Error with parsing XML: {e}"),
             _ => (),
         }
     }

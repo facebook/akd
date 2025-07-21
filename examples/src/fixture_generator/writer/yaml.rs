@@ -26,7 +26,7 @@ impl<T: Write> YamlWriter<T> {
 
 impl<T: Write> Writer for YamlWriter<T> {
     fn write_object(&mut self, object: impl Serialize) {
-        writeln!(self.out, "{}", YAML_SEPARATOR).unwrap();
+        writeln!(self.out, "{YAML_SEPARATOR}").unwrap();
         serde_yaml::to_writer(&mut self.out, &object).unwrap();
     }
 

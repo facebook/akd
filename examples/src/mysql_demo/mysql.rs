@@ -171,7 +171,7 @@ impl<'a> AsyncMySqlDatabase {
                     let db = self.clone();
                     tokio::task::spawn(async move {
                         if let Err(err) = db.refresh_connection_pool().await {
-                            error!("Error refreshing MySql connection pool: {:?}", err);
+                            error!("Error refreshing MySql connection pool: {err:?}");
                         }
                     });
                 }
@@ -259,7 +259,7 @@ impl<'a> AsyncMySqlDatabase {
                     }
                     Err(_err) => {
                         #[cfg(test)]
-                        panic!("Error setting up db {}", _err)
+                        panic!("Error setting up db {_err}")
                     }
                 }
             }
@@ -271,13 +271,12 @@ impl<'a> AsyncMySqlDatabase {
                     attempts,
                     start.elapsed().as_secs()
                 );
-                error!("{}", message);
+                error!("{message}");
                 return Err(StorageError::Connection(message));
             }
 
             warn!(
-                "Failed {:?} reconnection attempt(s) to MySQL database. Will retry in {} seconds",
-                attempts, SQL_RECONNECTION_DELAY_SECS
+                "Failed {attempts:?} reconnection attempt(s) to MySQL database. Will retry in {SQL_RECONNECTION_DELAY_SECS} seconds",
             );
 
             tokio::time::sleep(tokio::time::Duration::from_secs(
@@ -462,7 +461,7 @@ impl<'a> AsyncMySqlDatabase {
 
         // insert the remainder as a final statement
         if let Some((remainder, count)) = fallout {
-            debug!("MySQL batch - remainder {} insert", count);
+            debug!("MySQL batch - remainder {count} insert");
             let remainder_stmt = statement(count);
             let out = trans.exec_drop(remainder_stmt, remainder).await;
             self.check_for_infra_error(out)?;
@@ -535,12 +534,12 @@ impl<'a> AsyncMySqlDatabase {
                         std::str::from_utf8(&result.stdout),
                         std::str::from_utf8(&result.stderr),
                     ) {
-                        info!("Docker ls output\nSTDOUT: {}\nSTDERR: {}", out, err);
+                        info!("Docker ls output\nSTDOUT: {out}\nSTDERR: {err}");
                     }
                     break;
                 }
                 Err(err) => {
-                    warn!("Docker ls returned error \"{:?}\"\nTrying next possible docker command location", err);
+                    warn!("Docker ls returned error \"{err:?}\"\nTrying next possible docker command location");
                 }
             }
         }
@@ -566,7 +565,7 @@ impl<'a> AsyncMySqlDatabase {
             let err = std::str::from_utf8(&result.stderr);
             if let Ok(error_message) = err {
                 if !error_message.is_empty() {
-                    error!("Error executing docker command: {}", error_message);
+                    error!("Error executing docker command: {error_message}");
                 }
             }
 
@@ -623,7 +622,7 @@ impl<'a> AsyncMySqlDatabase {
                 id
             ))),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
@@ -637,7 +636,7 @@ impl Database for AsyncMySqlDatabase {
         match self.internal_set(record, None).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
@@ -719,7 +718,7 @@ impl Database for AsyncMySqlDatabase {
         match result.await {
             Ok(_) => Ok(()),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
@@ -851,7 +850,7 @@ impl Database for AsyncMySqlDatabase {
                 }
             }
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 return Err(StorageError::Other(format!("MySQL Error {error}")));
             }
         }
@@ -925,7 +924,7 @@ impl Database for AsyncMySqlDatabase {
         match result.await {
             Ok(output) => Ok(output),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
@@ -1014,7 +1013,7 @@ impl Database for AsyncMySqlDatabase {
             Ok(Some(result)) => Ok(result),
             Ok(None) => Err(StorageError::NotFound(format!("ValueState {username:?}"))),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }
@@ -1203,7 +1202,7 @@ impl Database for AsyncMySqlDatabase {
         match result.await {
             Ok(()) => Ok(results),
             Err(error) => {
-                error!("MySQL error {}", error);
+                error!("MySQL error {error}");
                 Err(StorageError::Other(format!("MySQL Error {error}")))
             }
         }

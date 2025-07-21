@@ -22,7 +22,7 @@ async fn test_mysql_db() {
         )
         .await
         {
-            panic!("Error creating test database: {}", error);
+            panic!("Error creating test database: {error}");
         }
 
         let mysql_db = AsyncMySqlDatabase::new(
