@@ -55,6 +55,11 @@ pub async fn audit_verify<TC: Configuration>(
 }
 
 /// Helper for audit, verifies an append-only proof.
+///
+/// This function first creates a new AZKS instance with the unchanged nodes from the proof,
+/// then it verifies the start hash against the root hash of this AZKS instance.
+/// Next, it creates another AZKS instance with the unchanged nodes and inserted nodes,
+/// and verifies the end hash against the root hash of this second AZKS instance.
 #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
 pub async fn verify_consecutive_append_only<TC: Configuration>(
     proof: &SingleAppendOnlyProof,
@@ -62,40 +67,58 @@ pub async fn verify_consecutive_append_only<TC: Configuration>(
     end_hash: Digest,
     end_epoch: u64,
 ) -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
-    let manager = StorageManager::new_no_cache(db);
+    let manager1 = StorageManager::new_no_cache(
+        AsyncInMemoryDatabase::new_with_remove_child_nodes_on_insertion(),
+    );
+    let mut azks1 = Azks::new::<TC, _>(&manager1).await?;
+    azks1
+        .batch_insert_nodes::<TC, _>(
+            &manager1,
+            proof.unchanged_nodes.clone(),
+            InsertMode::Auditor,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
+    let computed_start_root_hash: Digest = azks1.get_root_hash::<TC, _>(&manager1).await?;
+    if computed_start_root_hash != start_hash {
+        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof(
+            format!(
+                "Start hash {} does not match computed root hash {}",
+                hex::encode(start_hash),
+                hex::encode(computed_start_root_hash)
+            ),
+        )));
+    }
 
-    let mut azks = Azks::new::<TC, _>(&manager).await?;
-    azks.batch_insert_nodes::<TC, _>(
-        &manager,
-        proof.unchanged_nodes.clone(),
-        InsertMode::Auditor,
-        AzksParallelismConfig::default(),
-    )
-    .await?;
-    let computed_start_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
-    let mut verified = computed_start_root_hash == start_hash;
-    azks.latest_epoch = end_epoch - 1;
-    let updated_inserted = proof
-        .inserted
-        .iter()
-        .map(|x| {
-            let mut y = *x;
-            y.value = AzksValue(TC::hash_leaf_with_commitment(x.value, end_epoch).0);
-            y
-        })
-        .collect();
-    azks.batch_insert_nodes::<TC, _>(
-        &manager,
-        updated_inserted,
-        InsertMode::Auditor,
-        AzksParallelismConfig::default(),
-    )
-    .await?;
-    let computed_end_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
-    verified = verified && (computed_end_root_hash == end_hash);
-    if !verified {
-        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
+    let manager2 = StorageManager::new_no_cache(
+        AsyncInMemoryDatabase::new_with_remove_child_nodes_on_insertion(),
+    );
+    let mut azks2 = Azks::new::<TC, _>(&manager2).await?;
+    azks2.latest_epoch = end_epoch - 1;
+    let mut unchanged_with_inserted_nodes = proof.unchanged_nodes.clone();
+    unchanged_with_inserted_nodes.extend(proof.inserted.iter().map(|x| {
+        let mut y = *x;
+        y.value = AzksValue(TC::hash_leaf_with_commitment(x.value, end_epoch).0);
+        y
+    }));
+
+    azks2
+        .batch_insert_nodes::<TC, _>(
+            &manager2,
+            unchanged_with_inserted_nodes,
+            InsertMode::Auditor,
+            AzksParallelismConfig::default(),
+        )
+        .await?;
+    let computed_end_root_hash: Digest = azks2.get_root_hash::<TC, _>(&manager2).await?;
+    if computed_end_root_hash != end_hash {
+        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof(
+            format!(
+                "End hash {} does not match computed root hash {}",
+                hex::encode(end_hash),
+                hex::encode(computed_end_root_hash)
+            ),
+        )));
     }
     Ok(())
 }
