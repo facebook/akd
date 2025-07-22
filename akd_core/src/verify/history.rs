@@ -125,8 +125,7 @@ fn verify_with_history_params(
             // Make sure the start version is 1
             if start_version != 1 {
                 return Err(VerificationError::HistoryProof(format!(
-                    "Expected start version to be 1 given that it is a complete history, but got start_version = {}",
-                    start_version
+                    "Expected start version to be 1 given that it is a complete history, but got start_version = {start_version}",
                 )));
             }
         }
@@ -135,15 +134,13 @@ fn verify_with_history_params(
             match num_proofs.cmp(&recency) {
                 Ordering::Greater => {
                     return Err(VerificationError::HistoryProof(format!(
-                        "Expected at most {} update proofs, but got {} of them",
-                        recency, num_proofs
+                        "Expected at most {recency} update proofs, but got {num_proofs} of them",
                     )))
                 }
                 Ordering::Less => {
                     if start_version != 1 {
                         return Err(VerificationError::HistoryProof(format!(
-                            "Expected at most {} update proofs, but got {} of them",
-                            recency, num_proofs
+                            "Expected at most {recency} update proofs, but got {num_proofs} of them",
                         )));
                     }
                 }

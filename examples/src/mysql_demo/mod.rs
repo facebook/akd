@@ -201,7 +201,7 @@ async fn pre_process_input(cli: &CliArgs, db: Option<&AsyncMySqlDatabase>) -> Op
         println!("======= Dropping database ======= ");
         if let Some(mysql_db) = db {
             if let Err(error) = mysql_db.drop_tables().await {
-                error!("Error dropping database: {}", error);
+                error!("Error dropping database: {error}");
             } else {
                 info!("Database dropped.");
             }
@@ -308,7 +308,7 @@ async fn process_input(
                     match rpc_rx.await {
                         Err(err) => code = Some(format!("{err}")),
                         Ok(Err(dir_err)) => code = Some(dir_err),
-                        Ok(Ok(msg)) => info!("{}", msg),
+                        Ok(Ok(msg)) => info!("{msg}"),
                     }
                     if code.is_some() {
                         break;
@@ -316,7 +316,7 @@ async fn process_input(
                 }
 
                 if let Some(err) = code {
-                    error!("Benchmark operation error {}", err);
+                    error!("Benchmark operation error {err}");
                 } else {
                     let toc = tic.elapsed();
 
@@ -356,7 +356,7 @@ async fn process_input(
                     })
                     .collect();
 
-                info!("Inserting {} users", num_users);
+                info!("Inserting {num_users} users");
                 let (rpc_tx, _) = tokio::sync::oneshot::channel();
                 let rpc = directory_host::Rpc(
                     directory_host::DirectoryCommand::PublishBatch(user_data.clone()),
@@ -388,11 +388,11 @@ async fn process_input(
                             break;
                         }
                     }
-                    info!("LOOKUP of {} users complete (iteration {})", num_users, i);
+                    info!("LOOKUP of {num_users} users complete (iteration {i})");
                 }
 
                 if let Some(err) = code {
-                    error!("Benchmark operation error {}", err);
+                    error!("Benchmark operation error {err}");
                 } else {
                     let toc = tic.elapsed();
 
@@ -410,7 +410,7 @@ async fn process_input(
                 println!("======= One-off flushing of the database ======= ");
                 if let Some(mysql_db) = db {
                     if let Err(error) = mysql_db.get_db().delete_data().await {
-                        error!("Error flushing database: {}", error);
+                        error!("Error flushing database: {error}");
                     } else {
                         info!("Database flushed.");
                     }
@@ -420,7 +420,7 @@ async fn process_input(
                 println!("======= Dropping database ======= ");
                 if let Some(mysql_db) = db {
                     if let Err(error) = mysql_db.get_db().drop_tables().await {
-                        error!("Error dropping database: {}", error);
+                        error!("Error dropping database: {error}");
                     } else {
                         info!("Database dropped.");
                     }
@@ -488,7 +488,7 @@ async fn process_input(
                                 println!("Response: {success}");
                             }
                             Ok(Err(dir_err)) => {
-                                error!("Error in directory processing command: {}", dir_err);
+                                error!("Error in directory processing command: {dir_err}");
                             }
                             Err(_) => {
                                 error!("Failed to receive result from directory");
@@ -500,7 +500,7 @@ async fn process_input(
                                 println!("Response: {success}");
                             }
                             Ok(Ok(Err(dir_err))) => {
-                                error!("Error in directory processing command: {}", dir_err);
+                                error!("Error in directory processing command: {dir_err}");
                             }
                             Ok(Err(_)) => {
                                 error!("Failed to receive result from directory");

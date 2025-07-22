@@ -248,7 +248,7 @@ where
         info!("Committing transaction");
         match self.storage.commit_transaction().await {
             Ok(num_records) => {
-                info!("Transaction committed ({} records)", num_records);
+                info!("Transaction committed ({num_records} records)");
             }
             Err(err) => {
                 error!("Failed to commit transaction, rolling back");

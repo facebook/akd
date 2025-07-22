@@ -42,6 +42,7 @@ impl AsyncInMemoryDatabase {
     }
 
     #[cfg(test)]
+    /// Used to clear the in-memory database for testing purposes
     pub fn clear(&self) {
         self.db.clear();
         self.user_info.clear();

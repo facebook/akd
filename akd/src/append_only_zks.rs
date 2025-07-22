@@ -264,8 +264,7 @@ impl AzksParallelismOption {
         let parallel_levels = (parallelism as f32).log2().ceil() as u8;
 
         info!(
-            "Parallel levels requested (parallelism: {}, parallel levels: {})",
-            parallelism, parallel_levels
+            "Parallel levels requested (parallelism: {parallelism}, parallel levels: {parallel_levels})",
         );
         Some(parallel_levels)
     }
@@ -348,15 +347,9 @@ impl Azks {
             tic_toc(self.preload_nodes(storage, &azks_element_set, parallelism_config)).await;
         let load_count = fallible_load_count?;
         if let Some(time) = time_s {
-            info!(
-                "Preload of nodes for insert ({} objects loaded), took {} s",
-                load_count, time,
-            );
+            info!("Preload of nodes for insert ({load_count} objects loaded), took {time} s",);
         } else {
-            info!(
-                "Preload of nodes for insert ({} objects loaded) completed.",
-                load_count
-            );
+            info!("Preload of nodes for insert ({load_count} objects loaded) completed.",);
         }
 
         // increment the current epoch
@@ -378,7 +371,7 @@ impl Azks {
             // update the number of nodes
             self.num_nodes += num_inserted;
 
-            info!("Batch insert completed ({} new nodes)", num_inserted);
+            info!("Batch insert completed ({num_inserted} new nodes)");
         }
 
         Ok(())
@@ -652,11 +645,7 @@ impl Azks {
             TreeNode::batch_get_from_storage(storage, &children, self.latest_epoch).await?;
         count += children.len() as u64;
 
-        log::info!(
-            "Greedy lookup proof preloading loaded {} of {} nodes",
-            count,
-            requested_count
-        );
+        log::info!("Greedy lookup proof preloading loaded {count} of {requested_count} nodes");
 
         Ok(count)
     }
@@ -719,7 +708,7 @@ impl Azks {
         )
         .await?;
 
-        debug!("Preload of tree ({} nodes) completed", load_count);
+        debug!("Preload of tree ({load_count} nodes) completed");
 
         Ok(load_count)
     }
@@ -919,15 +908,9 @@ impl Azks {
         .await;
         let load_count = fallible_load_count?;
         if let Some(time) = time_s {
-            info!(
-                "Preload of nodes for audit ({} objects loaded), took {} s",
-                load_count, time,
-            );
+            info!("Preload of nodes for audit ({load_count} objects loaded), took {time} s",);
         } else {
-            info!(
-                "Preload of nodes for audit ({} objects loaded) completed.",
-                load_count
-            );
+            info!("Preload of nodes for audit ({load_count} objects loaded) completed.");
         }
         storage.log_metrics().await;
 

@@ -30,7 +30,7 @@ async fn test_directory_operations<TC: Configuration>() {
         )
         .await
         {
-            panic!("Error creating test database: {}", error);
+            panic!("Error creating test database: {error}");
         }
 
         // connect to the newly created test db
@@ -87,7 +87,7 @@ async fn test_directory_operations_with_caching<TC: Configuration>() {
         )
         .await
         {
-            panic!("Error creating test database: {}", error);
+            panic!("Error creating test database: {error}");
         }
 
         // connect to the newly created test db
@@ -144,7 +144,7 @@ async fn test_lookups<TC: Configuration>() {
         )
         .await
         {
-            panic!("Error creating test database: {}", error);
+            panic!("Error creating test database: {error}");
         }
 
         // connect to the newly created test db

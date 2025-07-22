@@ -82,8 +82,8 @@ impl TimedCache {
                     }
                 });
 
-                info!("Removed {} expired elements from the cache", num_removed);
-                debug!("Retained cache size is {} bytes", retained_size);
+                info!("Removed {num_removed} expired elements from the cache");
+                debug!("Retained cache size is {retained_size} bytes");
 
                 if retained_size > memory_limit_bytes {
                     info!("Retained cache size has exceeded the predefined limit, cleaning old entries");

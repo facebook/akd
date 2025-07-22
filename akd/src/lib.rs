@@ -70,6 +70,18 @@
 //! # });
 //! ```
 //!
+//! ### VRF Setup
+//!
+//! In order to use the directory, we need to set up a VRF key that will be used throughout the lifetime
+//! of the directory. This can be done creating a struct that implements the [`ecvrf::VRFKeyStorage`] trait, which
+//! requires an implementation of the `retrieve` method. The `retrieve` method should return
+//! the VRF private key as a vector of bytes.
+//!
+//! Initially (during directory setup), we use the bytes of an `ed25519-dalek` signing key as the VRF private key. You can
+//! refer to the [ed25519-dalek documentation](https://docs.rs/ed25519-dalek/latest/ed25519_dalek/struct.SigningKey.html)
+//! for more information on how to generate a signing key. These bytes will need to be stored in a secure and persistent
+//! location, and the `retrieve` method of [`ecvrf::VRFKeyStorage`] should return these bytes when called.
+//!
 //! For more information on setting configurations, see the [Configurations](#configurations) section.
 //!
 //! ## Publishing
