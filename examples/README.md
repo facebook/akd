@@ -21,6 +21,11 @@ You can also automatically audit the latest epoch with the `-l` parameter (for "
 ```
 cargo run -p examples --release -- whatsapp-kt-auditor -l
 ```
+or if you want to audit a specific epoch:
+```
+cargo run -p examples --release -- whatsapp-kt-auditor -e 42
+```
+
 
 ### MySQL Demo
 

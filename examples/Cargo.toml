@@ -20,6 +20,7 @@ runtime_metrics = []
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+bytesize = "1"
 colored = "2"
 clap = { version = "4", features = ["derive"] }
 dialoguer = "0.11"
