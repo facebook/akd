@@ -14,6 +14,7 @@ use crate::storage::types::{
     DbRecord, KeyData, StorageType, ValueState, ValueStateKey, ValueStateRetrievalFlag,
 };
 use crate::storage::{Database, Storable, StorageUtil};
+use crate::tree_node::{NodeKey, TreeNodeWithPreviousValue};
 use crate::{AkdLabel, AkdValue};
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -30,15 +31,42 @@ type UserValueMap = HashMap<Epoch, ValueState>;
 pub struct AsyncInMemoryDatabase {
     db: Arc<DashMap<Vec<u8>, DbRecord>>,
     user_info: Arc<DashMap<Vec<u8>, UserValueMap>>,
+    /// This flag is used to determine whether the database will automatically
+    /// (and aggressively) remove entries corresponding to left and right
+    /// children of a tree node when the node is inserted. The purpose behind this
+    /// is to reduce the size of the in-memory database by culling the child enries
+    /// once the parent node's hash has been calculated. The primary use case for this
+    /// is to improve auditing memory usage and time (since during auditing, we no longer
+    /// care about the child node hashes once its parent has been computed). Note that this
+    /// technique takes advantage of the way batch insertion of nodes into the tree works,
+    /// since we always process all of the children of a particular subtree before processing
+    /// the root of that subtree.
+    remove_child_nodes_on_insertion: bool,
 }
 
 unsafe impl Send for AsyncInMemoryDatabase {}
 unsafe impl Sync for AsyncInMemoryDatabase {}
 
 impl AsyncInMemoryDatabase {
+    /// Returns the size of the in-memory database
+    pub fn size_of_db(&self) -> usize {
+        self.db.len()
+    }
+
     /// Creates a new in memory db
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            remove_child_nodes_on_insertion: false,
+            ..Self::default()
+        }
+    }
+
+    /// Creates a new in memory db with the flag set to remove child nodes on insertion
+    pub fn new_with_remove_child_nodes_on_insertion() -> Self {
+        Self {
+            remove_child_nodes_on_insertion: true,
+            ..Self::default()
+        }
     }
 
     #[cfg(test)]
@@ -103,6 +131,22 @@ impl Database for AsyncInMemoryDatabase {
                     }
                 }
             } else {
+                if self.remove_child_nodes_on_insertion {
+                    if let DbRecord::TreeNode(node) = record.clone() {
+                        if let Some(left_child) = node.latest_node.left_child {
+                            self.db
+                                .remove(&TreeNodeWithPreviousValue::get_full_binary_key_id(
+                                    &NodeKey(left_child),
+                                ));
+                        }
+                        if let Some(right_child) = node.latest_node.right_child {
+                            self.db
+                                .remove(&TreeNodeWithPreviousValue::get_full_binary_key_id(
+                                    &NodeKey(right_child),
+                                ));
+                        }
+                    }
+                }
                 self.db.insert(record.get_full_binary_id(), record);
             }
         }
