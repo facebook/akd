@@ -134,11 +134,10 @@ pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
                                 .interact_text()?;
                             let epoch = epoch_input.parse::<u64>()?;
                             let maybe_proof = proofs.iter().find(|proof| proof.name.epoch == epoch);
-                            if let Some(epoch_summary) = maybe_proof {
-                                do_epoch_audit(epoch_summary).await?;
-                            } else {
-                                bail!("Could not find epoch {}", epoch);
-                            }
+                            let Some(epoch_summary) = maybe_proof else {
+                                bail!("Could not find epoch {epoch}");
+                            };
+                            do_epoch_audit(epoch_summary).await?;
                         }
                         CliType::Quit => {
                             break;

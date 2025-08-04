@@ -96,19 +96,19 @@ pub(crate) fn display_audit_proofs_info(info: &mut [EpochSummary]) -> Result<Str
 }
 
 pub(crate) async fn get_proof_from_epoch(url: &str, epoch: u64) -> Result<EpochSummary> {
-    let params: Vec<(String, String)> = vec![
+    let params = vec![
         ("list-type".to_string(), "2".to_string()),
         ("prefix".to_string(), format!("{epoch}/")),
     ];
 
-    let (keys, truncated_result) = get_xml(url, &params).await.unwrap();
+    let (mut keys, truncated_result) = get_xml(url, &params).await?;
     if truncated_result || keys.len() > 1 {
         bail!("Found multiple matches for epoch {epoch}, which is unexpected. Bailing...");
     }
     if keys.is_empty() {
         bail!("Could not find epoch {epoch}");
     }
-    Ok(keys[0].clone())
+    Ok(keys.remove(0))
 }
 
 pub(crate) async fn list_proofs(url: &str) -> Result<Vec<EpochSummary>> {
