@@ -8,6 +8,7 @@
 //! Code for an auditor of a authenticated key directory
 
 use akd_core::configuration::Configuration;
+use akd_core::AzksElement;
 
 use crate::append_only_zks::AzksParallelismConfig;
 use crate::AzksValue;
@@ -55,6 +56,11 @@ pub async fn audit_verify<TC: Configuration>(
 }
 
 /// Helper for audit, verifies an append-only proof.
+///
+/// This function first creates a new AZKS instance with the unchanged nodes from the proof,
+/// then it verifies the start hash against the root hash of this AZKS instance.
+/// Next, it creates another AZKS instance with the unchanged nodes and inserted nodes,
+/// and verifies the end hash against the root hash of this second AZKS instance.
 #[cfg_attr(feature = "tracing_instrument", tracing::instrument(skip_all))]
 pub async fn verify_consecutive_append_only<TC: Configuration>(
     proof: &SingleAppendOnlyProof,
@@ -62,40 +68,52 @@ pub async fn verify_consecutive_append_only<TC: Configuration>(
     end_hash: Digest,
     end_epoch: u64,
 ) -> Result<(), AkdError> {
-    let db = AsyncInMemoryDatabase::new();
-    let manager = StorageManager::new_no_cache(db);
+    verify_append_only_hash::<TC>(proof.unchanged_nodes.clone(), start_hash, None).await?;
 
+    let mut unchanged_with_inserted_nodes = proof.unchanged_nodes.clone();
+    unchanged_with_inserted_nodes.extend(proof.inserted.iter().map(|x| {
+        let mut y = *x;
+        y.value = AzksValue(TC::hash_leaf_with_commitment(x.value, end_epoch).0);
+        y
+    }));
+
+    verify_append_only_hash::<TC>(unchanged_with_inserted_nodes, end_hash, Some(end_epoch - 1))
+        .await?;
+    Ok(())
+}
+
+/// This function verifies the root hash of an AZKS instance against an expected hash.
+/// It creates an AZKS instance from a set of nodes, and checks if the computed root
+/// hash matches the expected hash. The optional latest_epoch parameter allows for
+/// specifying the latest epoch for the AZKS instance.
+async fn verify_append_only_hash<TC: Configuration>(
+    nodes: Vec<AzksElement>,
+    expected_hash: Digest,
+    latest_epoch: Option<u64>,
+) -> Result<(), AkdError> {
+    let manager = StorageManager::new_no_cache(
+        AsyncInMemoryDatabase::new_with_remove_child_nodes_on_insertion(),
+    );
     let mut azks = Azks::new::<TC, _>(&manager).await?;
+    if let Some(epoch) = latest_epoch {
+        azks.latest_epoch = epoch;
+    }
     azks.batch_insert_nodes::<TC, _>(
         &manager,
-        proof.unchanged_nodes.clone(),
+        nodes,
         InsertMode::Auditor,
         AzksParallelismConfig::default(),
     )
     .await?;
-    let computed_start_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
-    let mut verified = computed_start_root_hash == start_hash;
-    azks.latest_epoch = end_epoch - 1;
-    let updated_inserted = proof
-        .inserted
-        .iter()
-        .map(|x| {
-            let mut y = *x;
-            y.value = AzksValue(TC::hash_leaf_with_commitment(x.value, end_epoch).0);
-            y
-        })
-        .collect();
-    azks.batch_insert_nodes::<TC, _>(
-        &manager,
-        updated_inserted,
-        InsertMode::Auditor,
-        AzksParallelismConfig::default(),
-    )
-    .await?;
-    let computed_end_root_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
-    verified = verified && (computed_end_root_hash == end_hash);
-    if !verified {
-        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof));
+    let computed_hash: Digest = azks.get_root_hash::<TC, _>(&manager).await?;
+    if computed_hash != expected_hash {
+        return Err(AkdError::AzksErr(AzksError::VerifyAppendOnlyProof(
+            format!(
+                "Expected hash {} does not match computed root hash {}",
+                hex::encode(expected_hash),
+                hex::encode(computed_hash)
+            ),
+        )));
     }
     Ok(())
 }

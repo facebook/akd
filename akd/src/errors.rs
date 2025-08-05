@@ -195,7 +195,7 @@ pub enum AzksError {
     /// Membership proof did not verify
     VerifyMembershipProof(String),
     /// Append-only proof did not verify
-    VerifyAppendOnlyProof,
+    VerifyAppendOnlyProof(String),
     /// Thrown when a place where an epoch is needed wasn't provided one.
     NoEpochGiven,
 }
@@ -208,8 +208,8 @@ impl fmt::Display for AzksError {
             Self::VerifyMembershipProof(error_string) => {
                 write!(f, "{error_string}")
             }
-            Self::VerifyAppendOnlyProof => {
-                write!(f, "Append only proof did not verify!")
+            Self::VerifyAppendOnlyProof(error_string) => {
+                write!(f, "Append only proof did not verify: {error_string}")
             }
             Self::NoEpochGiven => {
                 write!(f, "An epoch was required but not supplied")
