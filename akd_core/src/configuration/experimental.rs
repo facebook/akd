@@ -11,7 +11,7 @@ use core::marker::PhantomData;
 
 use super::traits::DomainLabel;
 use crate::configuration::Configuration;
-use crate::hash::{Digest, DIGEST_BYTES};
+use crate::hash::{DIGEST_BYTES, Digest};
 use crate::utils::i2osp_array;
 use crate::{AkdLabel, AkdValue, AzksValue, AzksValueWithEpoch, NodeLabel, VersionFreshness};
 

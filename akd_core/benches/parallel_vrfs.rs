@@ -9,12 +9,12 @@
 
 extern crate criterion;
 use self::criterion::*;
+use akd_core::VersionFreshness;
 use akd_core::configuration::NamedConfiguration;
 use akd_core::ecvrf::{VRFExpandedPrivateKey, VRFPublicKey};
-use akd_core::VersionFreshness;
-use akd_core::{ecvrf::VRFKeyStorage, AkdLabel, AkdValue};
-use rand::distributions::Alphanumeric;
+use akd_core::{AkdLabel, AkdValue, ecvrf::VRFKeyStorage};
 use rand::Rng;
+use rand::distr::Alphanumeric;
 
 macro_rules! bench_config {
     ( $x:ident ) => {
@@ -71,7 +71,7 @@ fn main() {
 
 bench_config!(bench_single_vrf);
 fn bench_single_vrf<TC: NamedConfiguration>(c: &mut Criterion) {
-    let rng = rand::rngs::OsRng;
+    let rng = rand::rng();
 
     // Generate a random label
     let label = AkdLabel::from(

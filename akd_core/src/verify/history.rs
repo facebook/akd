@@ -7,11 +7,11 @@
 
 //! Verification of key history proofs
 
+use super::VerificationError;
 use super::base::{
     verify_existence, verify_existence_with_commitment, verify_existence_with_val,
     verify_nonexistence,
 };
-use super::VerificationError;
 
 use crate::configuration::Configuration;
 use crate::hash::Digest;
@@ -135,7 +135,7 @@ fn verify_with_history_params(
                 Ordering::Greater => {
                     return Err(VerificationError::HistoryProof(format!(
                         "Expected at most {recency} update proofs, but got {num_proofs} of them",
-                    )))
+                    )));
                 }
                 Ordering::Less => {
                     if start_version != 1 {

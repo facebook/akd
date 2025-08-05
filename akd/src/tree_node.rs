@@ -7,14 +7,14 @@
 
 //! The implementation of a node for a history patricia tree
 
+use crate::AzksValue;
+use crate::PrefixOrdering;
 use crate::errors::{AkdError, StorageError, TreeNodeError};
 use crate::hash::EMPTY_DIGEST;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, StorageType};
 use crate::storage::{Database, Storable};
-use crate::AzksValue;
-use crate::PrefixOrdering;
-use crate::{node_label::*, Direction};
+use crate::{Direction, node_label::*};
 use akd_core::configuration::Configuration;
 #[cfg(feature = "serde_serialization")]
 use akd_core::utils::serde_helpers::{azks_value_hex_deserialize, azks_value_hex_serialize};
@@ -414,7 +414,7 @@ impl TreeNode {
         // Set child according to given direction.
         match self.label.get_prefix_ordering(child_node.label) {
             PrefixOrdering::Invalid => {
-                return Err(TreeNodeError::NoDirection(child_node.label, None))
+                return Err(TreeNodeError::NoDirection(child_node.label, None));
             }
             PrefixOrdering::WithZero => {
                 self.left_child = Some(child_node.label);
@@ -561,8 +561,8 @@ mod tests {
     use akd_core::hash::DIGEST_BYTES;
 
     use super::*;
-    use crate::utils::byte_arr_from_u64;
     use crate::NodeLabel;
+    use crate::utils::byte_arr_from_u64;
     type InMemoryDb = crate::storage::memory::AsyncInMemoryDatabase;
     use crate::storage::manager::StorageManager;
     use crate::test_config;
@@ -779,9 +779,9 @@ mod tests {
 
         let right_child_expected_hash = (
             TC::compute_parent_hash_from_children(
-                &AzksValue(leaf_2_hash.0 .0),
+                &AzksValue(leaf_2_hash.0.0),
                 &leaf_2_hash.1,
-                &AzksValue(leaf_1_hash.0 .0),
+                &AzksValue(leaf_1_hash.0.0),
                 &leaf_1_hash.1,
             ),
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32).value::<TC>(),
@@ -796,9 +796,9 @@ mod tests {
         };
 
         let expected = TC::compute_root_hash_from_val(&TC::compute_parent_hash_from_children(
-            &AzksValue(leaf_0_hash.0 .0),
+            &AzksValue(leaf_0_hash.0.0),
             &leaf_0_hash.1,
-            &AzksValue(right_child_expected_hash.0 .0),
+            &AzksValue(right_child_expected_hash.0.0),
             &right_child_expected_hash.1,
         ));
         assert!(root_digest == expected, "Root hash not equal to expected");
@@ -806,8 +806,8 @@ mod tests {
     }
 
     test_config!(test_insert_single_leaf_below_root_both_sides);
-    async fn test_insert_single_leaf_below_root_both_sides<TC: Configuration>(
-    ) -> Result<(), AkdError> {
+    async fn test_insert_single_leaf_below_root_both_sides<TC: Configuration>()
+    -> Result<(), AkdError> {
         let database = InMemoryDb::new();
         let db = StorageManager::new_no_cache(database);
         let mut root = new_root_node::<TC>();
@@ -896,9 +896,9 @@ mod tests {
         // Children: left: leaf2, right: leaf1, label: 1
         let right_child_expected_hash = (
             TC::compute_parent_hash_from_children(
-                &AzksValue(leaf_2_hash.0 .0),
+                &AzksValue(leaf_2_hash.0.0),
                 &leaf_2_hash.1,
-                &AzksValue(leaf_1_hash.0 .0),
+                &AzksValue(leaf_1_hash.0.0),
                 &leaf_1_hash.1,
             ),
             NodeLabel::new(byte_arr_from_u64(0b1u64 << 63), 1u32).value::<TC>(),
@@ -907,9 +907,9 @@ mod tests {
         // Children: left: new_leaf, right: leaf3, label: 0
         let left_child_expected_hash = (
             TC::compute_parent_hash_from_children(
-                &AzksValue(leaf_0_hash.0 .0),
+                &AzksValue(leaf_0_hash.0.0),
                 &leaf_0_hash.1,
-                &AzksValue(leaf_3_hash.0 .0),
+                &AzksValue(leaf_3_hash.0.0),
                 &leaf_3_hash.1,
             ),
             NodeLabel::new(byte_arr_from_u64(0b0u64), 1u32).value::<TC>(),
@@ -969,9 +969,9 @@ mod tests {
             let right_child_hash = leaf_hashes[2 * i + 1].clone();
             layer_1_hashes.push((
                 TC::compute_parent_hash_from_children(
-                    &AzksValue(left_child_hash.0 .0),
+                    &AzksValue(left_child_hash.0.0),
                     &left_child_hash.1,
-                    &AzksValue(right_child_hash.0 .0),
+                    &AzksValue(right_child_hash.0.0),
                     &right_child_hash.1,
                 ),
                 NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).value::<TC>(),

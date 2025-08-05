@@ -7,21 +7,21 @@
 
 //! An implementation of an append-only zero knowledge set
 
+use crate::Configuration;
 use crate::hash::EMPTY_DIGEST;
 use crate::helper_structs::LookupInfo;
 use crate::log::{debug, info};
 use crate::storage::manager::StorageManager;
 use crate::storage::types::StorageType;
 use crate::tree_node::{
-    new_interior_node, new_leaf_node, new_root_node, node_to_azks_value, node_to_label,
-    NodeHashingMode, NodeKey, TreeNode, TreeNodeType,
+    NodeHashingMode, NodeKey, TreeNode, TreeNodeType, new_interior_node, new_leaf_node,
+    new_root_node, node_to_azks_value, node_to_label,
 };
-use crate::Configuration;
 use crate::{
+    ARITY, AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
+    NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf,
     errors::{AkdError, DirectoryError, ParallelismError, TreeNodeError},
     storage::{Database, Storable},
-    AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
-    NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf, ARITY,
 };
 
 use async_recursion::async_recursion;
@@ -1320,8 +1320,8 @@ type AppendOnlyHelper = (Vec<AzksElement>, Vec<AzksElement>);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::types::DbRecord;
     use crate::storage::StorageUtil;
+    use crate::storage::types::DbRecord;
     use crate::test_config;
     use crate::tree_node::TreeNodeWithPreviousValue;
     use crate::utils::byte_arr_from_u64;
@@ -1331,7 +1331,7 @@ mod tests {
         storage::memory::AsyncInMemoryDatabase,
     };
     use itertools::Itertools;
-    use rand::{rngs::StdRng, seq::SliceRandom, RngCore, SeedableRng};
+    use rand::{RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
     use std::time::Duration;
 
     #[cfg(feature = "greedy_lookup_preload")]
@@ -1460,9 +1460,9 @@ mod tests {
             let right_child_hash = leaf_hashes[2 * i + 1].clone();
             layer_1_hashes.push((
                 TC::compute_parent_hash_from_children(
-                    &AzksValue(left_child_hash.0 .0),
+                    &AzksValue(left_child_hash.0.0),
                     &left_child_hash.1,
-                    &AzksValue(right_child_hash.0 .0),
+                    &AzksValue(right_child_hash.0.0),
                     &right_child_hash.1,
                 ),
                 NodeLabel::new(byte_arr_from_u64(j << 62), 2u32).value::<TC>(),
@@ -1475,9 +1475,9 @@ mod tests {
             let right_child_hash = layer_1_hashes[2 * i + 1].clone();
             layer_2_hashes.push((
                 TC::compute_parent_hash_from_children(
-                    &AzksValue(left_child_hash.0 .0),
+                    &AzksValue(left_child_hash.0.0),
                     &left_child_hash.1,
-                    &AzksValue(right_child_hash.0 .0),
+                    &AzksValue(right_child_hash.0.0),
                     &right_child_hash.1,
                 ),
                 NodeLabel::new(byte_arr_from_u64(j << 63), 1u32).value::<TC>(),
@@ -1485,9 +1485,9 @@ mod tests {
         }
 
         let expected = TC::compute_root_hash_from_val(&TC::compute_parent_hash_from_children(
-            &AzksValue(layer_2_hashes[0].0 .0),
+            &AzksValue(layer_2_hashes[0].0.0),
             &layer_2_hashes[0].1,
-            &AzksValue(layer_2_hashes[1].0 .0),
+            &AzksValue(layer_2_hashes[1].0.0),
             &layer_2_hashes[1].1,
         ));
 
@@ -1813,8 +1813,8 @@ mod tests {
     }
 
     test_config!(test_azks_element_set_get_longest_common_prefix);
-    async fn test_azks_element_set_get_longest_common_prefix<TC: Configuration>(
-    ) -> Result<(), AkdError> {
+    async fn test_azks_element_set_get_longest_common_prefix<TC: Configuration>()
+    -> Result<(), AkdError> {
         let num_nodes = 10;
         let database = AsyncInMemoryDatabase::new();
         let db = StorageManager::new_no_cache(database);

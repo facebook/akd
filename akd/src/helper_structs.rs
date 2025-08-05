@@ -9,7 +9,7 @@
 //! to make it easier to pass arguments around.
 
 use crate::Digest;
-use crate::{storage::types::ValueState, NodeLabel};
+use crate::{NodeLabel, storage::types::ValueState};
 
 /// Root hash of the tree and its associated epoch
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

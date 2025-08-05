@@ -10,15 +10,15 @@
 use akd_core::configuration::Configuration;
 
 use crate::{
+    AkdLabel, AkdValue,
     append_only_zks::AzksParallelismConfig,
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
     errors::{AkdError, StorageError},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
     test_config,
-    tests::{setup_mocked_db, MockLocalDatabase},
+    tests::{MockLocalDatabase, setup_mocked_db},
     tree_node::TreeNodeWithPreviousValue,
-    AkdLabel, AkdValue,
 };
 
 test_config!(test_publish_op_makes_no_get_requests);

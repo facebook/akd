@@ -11,14 +11,14 @@ use super::*;
 use crate::test_config_sync;
 #[cfg(feature = "nostd")]
 use alloc::vec;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 // ================= Test helpers ================= //
 
 fn random_label() -> crate::NodeLabel {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     crate::NodeLabel {
-        label_val: rng.gen::<[u8; 32]>(),
+        label_val: rng.random::<[u8; 32]>(),
         label_len: 256,
     }
 }
@@ -180,7 +180,8 @@ fn test_byte_arr_from_u64_medium() {
     let computed = byte_arr_from_u64(val);
     assert!(
         expected == computed,
-        "{}", "Byte from u64 conversion wrong for medium, ~2 byte u64! Expected {expected:?} and got {computed:?}"
+        "{}",
+        "Byte from u64 conversion wrong for medium, ~2 byte u64! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -200,7 +201,8 @@ fn test_byte_arr_from_u64_larger() {
     let computed = byte_arr_from_u64(val);
     assert!(
         expected == computed,
-        "{}", "Byte from u64 conversion wrong for larger, ~3 byte u64! Expected {expected:?} and got {computed:?}"
+        "{}",
+        "Byte from u64 conversion wrong for larger, ~3 byte u64! Expected {expected:?} and got {computed:?}"
     )
 }
 
@@ -310,7 +312,8 @@ fn test_node_label_lcp_self_prefix_leading_one<TC: Configuration>() {
     let computed = label_1.get_longest_common_prefix::<TC>(label_2);
     assert!(
         computed == expected,
-        "{}", "Longest common substring with self with leading one, not equal to itself! Expected: {expected:?}, Got: {computed:?}"
+        "{}",
+        "Longest common substring with self with leading one, not equal to itself! Expected: {expected:?}, Got: {computed:?}"
     )
 }
 
@@ -335,7 +338,8 @@ fn test_node_label_lcp_other_one<TC: Configuration>() {
     let computed = label_1.get_longest_common_prefix::<TC>(label_2);
     assert!(
         computed == expected,
-        "{}", "Longest common substring with other with leading one, not equal to expected! Expected: {expected:?}, Computed: {computed:?}"
+        "{}",
+        "Longest common substring with other with leading one, not equal to expected! Expected: {expected:?}, Computed: {computed:?}"
     )
 }
 
@@ -420,7 +424,8 @@ fn test_get_dir_example() {
     let computed = label_2.get_prefix_ordering(label_1);
     assert!(
         computed == expected,
-        "{}", "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
+        "{}",
+        "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
     )
 }
 
@@ -436,7 +441,8 @@ fn test_get_prefix_small() {
     let computed = label_1.get_prefix(prefix_len);
     assert!(
         computed == label_2,
-        "{}", "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
+        "{}",
+        "Direction not equal to expected. Node = {label_1:?}, prefix = {label_2:?}, computed = {computed:?}"
     )
 }
 

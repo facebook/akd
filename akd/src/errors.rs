@@ -8,8 +8,8 @@
 //! Errors for various data structure operations.
 use core::fmt;
 
-use crate::node_label::NodeLabel;
 use crate::Direction;
+use crate::node_label::NodeLabel;
 
 /// Symbolizes a AkdError, thrown by the akd.
 #[cfg_attr(test, derive(PartialEq, Eq))]

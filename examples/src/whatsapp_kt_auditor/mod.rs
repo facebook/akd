@@ -10,7 +10,7 @@
 mod auditor;
 
 use akd::local_auditing::AuditBlobName;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};

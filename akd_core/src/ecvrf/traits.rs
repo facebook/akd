@@ -183,7 +183,7 @@ pub trait VRFKeyStorage: Clone + Sync + Send {
                     Err(join_err) => {
                         return Err(VrfError::SigningKey(format!(
                             "Parallel VRF join error {join_err}"
-                        )))
+                        )));
                     }
                     Ok((node_label, (label, freshness, version, value))) => {
                         results.push(((label, freshness, version, value), node_label));

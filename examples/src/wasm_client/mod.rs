@@ -187,8 +187,8 @@ pub mod tests {
 
     use akd::append_only_zks::AzksParallelismConfig;
     use akd::errors::AkdError;
-    use akd::storage::memory::AsyncInMemoryDatabase;
     use akd::storage::StorageManager;
+    use akd::storage::memory::AsyncInMemoryDatabase;
     use akd::{AkdLabel, AkdValue, Directory};
     use protobuf::Message;
 

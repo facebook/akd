@@ -7,8 +7,8 @@
 
 //! Verification of lookup proofs
 
-use super::base::{verify_existence, verify_existence_with_val, verify_nonexistence};
 use super::VerificationError;
+use super::base::{verify_existence, verify_existence_with_val, verify_nonexistence};
 
 use crate::configuration::Configuration;
 use crate::hash::Digest;

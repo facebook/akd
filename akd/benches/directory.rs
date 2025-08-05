@@ -10,14 +10,14 @@ extern crate criterion;
 
 mod common;
 
+use akd::NamedConfiguration;
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::manager::StorageManager;
 use akd::storage::memory::AsyncInMemoryDatabase;
-use akd::NamedConfiguration;
 use akd::{AkdLabel, AkdValue, Directory};
 use criterion::{BatchSize, Criterion};
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 

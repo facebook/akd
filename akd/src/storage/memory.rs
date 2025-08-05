@@ -224,7 +224,7 @@ impl Database for AsyncInMemoryDatabase {
                         ValueStateRetrievalFlag::SpecificVersion(version)
                             if version == kvp.version =>
                         {
-                            return Ok(kvp.clone())
+                            return Ok(kvp.clone());
                         }
                         ValueStateRetrievalFlag::LeqEpoch(epoch) if epoch == kvp.epoch => {
                             return Ok(kvp.clone());
@@ -244,7 +244,7 @@ impl Database for AsyncInMemoryDatabase {
                             }
                         }
                         ValueStateRetrievalFlag::SpecificEpoch(epoch) if epoch == kvp.epoch => {
-                            return Ok(kvp.clone())
+                            return Ok(kvp.clone());
                         }
                         _ => continue,
                     }

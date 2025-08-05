@@ -9,9 +9,11 @@
 //! functionality and error handling upon verification
 
 use akd_core::{configuration::Configuration, hash::DIGEST_BYTES};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
+    AkdLabel, AkdValue, AppendOnlyProof, EpochHash, HistoryParams, HistoryVerificationParams,
+    VerifyResult,
     append_only_zks::AzksParallelismConfig,
     auditor::{audit_verify, verify_consecutive_append_only},
     client::{key_history_verify, lookup_verify},
@@ -19,8 +21,7 @@ use crate::{
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::AkdError,
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
-    test_config, AkdLabel, AkdValue, AppendOnlyProof, EpochHash, HistoryParams,
-    HistoryVerificationParams, VerifyResult,
+    test_config,
 };
 
 // A simple test to ensure that the empty tree hashes to the correct value

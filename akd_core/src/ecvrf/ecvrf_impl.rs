@@ -34,11 +34,11 @@ const NODE_LABEL_LEN: usize = 32;
  *
  * If you still see the error, you can simply ignore. It's harmless.
 */
+use ed25519_dalek::SECRET_KEY_LENGTH;
 use ed25519_dalek::SecretKey as ed25519_PrivateKey;
 use ed25519_dalek::Sha512;
 use ed25519_dalek::SigningKey as ed25519_SigningKey;
 use ed25519_dalek::VerifyingKey as ed25519_PublicKey;
-use ed25519_dalek::SECRET_KEY_LENGTH;
 use ed25519_dalek::{Digest, PUBLIC_KEY_LENGTH};
 
 const SUITE: u8 = 0x03;
@@ -214,7 +214,7 @@ impl VRFPublicKey {
             None => {
                 return Err(VrfError::Verification(
                     "Failed to decompress public key into Edwards point".to_string(),
-                ))
+                ));
             }
         };
         let cprime = hash_points(
@@ -358,7 +358,7 @@ impl TryFrom<&[u8]> for Proof {
             None => {
                 return Err(VrfError::PublicKey(
                     "Failed to decompress public key into Edwards Point".to_string(),
-                ))
+                ));
             }
         };
 

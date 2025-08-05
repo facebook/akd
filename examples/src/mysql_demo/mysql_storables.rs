@@ -9,10 +9,10 @@
 
 use std::convert::TryInto;
 
-use akd::storage::types::{DbRecord, StorageType};
-use akd::storage::Storable;
-use akd::tree_node::{NodeKey, TreeNodeWithPreviousValue};
 use akd::NodeLabel;
+use akd::storage::Storable;
+use akd::storage::types::{DbRecord, StorageType};
+use akd::tree_node::{NodeKey, TreeNodeWithPreviousValue};
 use mysql_async::prelude::*;
 use mysql_async::*;
 
@@ -24,8 +24,7 @@ pub(crate) const TABLE_USER: &str = "users";
 pub(crate) const TEMP_IDS_TABLE: &str = "temp_ids_table";
 
 const SELECT_AZKS_DATA: &str = "`epoch`, `num_nodes`";
-const SELECT_HISTORY_TREE_NODE_DATA: &str =
-    "`label_len`, `label_val`, `last_epoch`, `least_descendant_ep`, `parent_label_len`, `parent_label_val`, `node_type`, `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`, `p_last_epoch`, `p_least_descendant_ep`, `p_parent_label_len`, `p_parent_label_val`, `p_node_type`, `p_left_child_len`, `p_left_child_label_val`, `p_right_child_len`, `p_right_child_label_val`, `p_hash`";
+const SELECT_HISTORY_TREE_NODE_DATA: &str = "`label_len`, `label_val`, `last_epoch`, `least_descendant_ep`, `parent_label_len`, `parent_label_val`, `node_type`, `left_child_len`, `left_child_label_val`, `right_child_len`, `right_child_label_val`, `hash`, `p_last_epoch`, `p_least_descendant_ep`, `p_parent_label_len`, `p_parent_label_val`, `p_node_type`, `p_left_child_len`, `p_left_child_label_val`, `p_right_child_len`, `p_right_child_label_val`, `p_hash`";
 const SELECT_USER_DATA: &str =
     "`username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data`";
 
@@ -63,12 +62,15 @@ pub(crate) trait MySqlStorable {
 impl MySqlStorable for DbRecord {
     fn set_statement(&self) -> String {
         match &self {
-            DbRecord::Azks(_) => format!("INSERT INTO `{TABLE_AZKS}` (`key`, {SELECT_AZKS_DATA})
+            DbRecord::Azks(_) => format!(
+                "INSERT INTO `{TABLE_AZKS}` (`key`, {SELECT_AZKS_DATA})
             VALUES (:key, :epoch, :num_nodes)
             ON DUPLICATE KEY UPDATE
                 `epoch` = :epoch
-                , `num_nodes` = :num_nodes"),
-            DbRecord::TreeNode(_) => format!("INSERT INTO `{TABLE_HISTORY_TREE_NODES}` ({SELECT_HISTORY_TREE_NODE_DATA})
+                , `num_nodes` = :num_nodes"
+            ),
+            DbRecord::TreeNode(_) => format!(
+                "INSERT INTO `{TABLE_HISTORY_TREE_NODES}` ({SELECT_HISTORY_TREE_NODE_DATA})
             VALUES (:label_len
                 , :label_val
                 , :last_epoch
@@ -113,8 +115,11 @@ impl MySqlStorable for DbRecord {
                 , `p_left_child_label_val` = :p_left_child_label_val
                 , `p_right_child_len` = :p_right_child_len
                 , `p_right_child_label_val` = :p_right_child_label_val
-                , `p_hash` = :p_hash"),
-            DbRecord::ValueState(_) => format!("INSERT INTO `{TABLE_USER}` ({SELECT_USER_DATA}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)"),
+                , `p_hash` = :p_hash"
+            ),
+            DbRecord::ValueState(_) => format!(
+                "INSERT INTO `{TABLE_USER}` ({SELECT_USER_DATA}) VALUES (:username, :epoch, :version, :node_label_val, :node_label_len, :data)"
+            ),
         }
     }
 
@@ -390,20 +395,12 @@ impl MySqlStorable for DbRecord {
     fn get_batch_create_temp_table<St: Storable>() -> Option<String> {
         match St::data_type() {
             StorageType::Azks => None,
-            StorageType::TreeNode => {
-                Some(
-                    format!(
-                        "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))"
-                    )
-                )
-            },
-            StorageType::ValueState => {
-                Some(
-                    format!(
-                        "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))"
-                    )
-                )
-            },
+            StorageType::TreeNode => Some(format!(
+                "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`label_len` INT UNSIGNED NOT NULL, `label_val` VARBINARY(32) NOT NULL, PRIMARY KEY(`label_len`, `label_val`))"
+            )),
+            StorageType::ValueState => Some(format!(
+                "CREATE TEMPORARY TABLE `{TEMP_IDS_TABLE}`(`username` VARCHAR(256) NOT NULL, `epoch` BIGINT UNSIGNED NOT NULL, PRIMARY KEY(`username`, `epoch`))"
+            )),
         }
     }
 

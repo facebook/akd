@@ -10,11 +10,11 @@
 use std::fs::File;
 
 use akd::{
+    NamedConfiguration,
     append_only_zks::AzksParallelismConfig,
     directory::Directory,
     ecvrf::HardCodedAkdVRF,
-    storage::{memory::AsyncInMemoryDatabase, Database, StorageManager, StorageUtil},
-    NamedConfiguration,
+    storage::{Database, StorageManager, StorageUtil, memory::AsyncInMemoryDatabase},
 };
 
 use crate::fixture_generator::reader::Reader;

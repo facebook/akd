@@ -15,9 +15,9 @@ use std::result::Result; // import without risk of name clashing
 
 use serde::de::DeserializeOwned;
 
+use crate::fixture_generator::YAML_SEPARATOR;
 use crate::fixture_generator::generator::{Delta, Metadata, State};
 use crate::fixture_generator::reader::{Reader, ReaderError};
-use crate::fixture_generator::YAML_SEPARATOR;
 
 impl From<std::io::Error> for ReaderError {
     fn from(error: std::io::Error) -> Self {
@@ -69,7 +69,7 @@ impl YamlFileReader {
                 None => {
                     return Err(ReaderError::Format(
                         "EOF encountered while looking for start of YAML doc".to_string(),
-                    ))
+                    ));
                 }
                 Some(Err(err)) => return Err(ReaderError::Input(err.to_string())),
             }
