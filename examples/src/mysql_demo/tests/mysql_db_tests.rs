@@ -48,6 +48,8 @@ async fn test_mysql_db() {
             println!("ERROR: Failed to clean MySQL test database with error {error}");
         }
     } else {
-        println!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        println!(
+            "WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running."
+        );
     }
 }

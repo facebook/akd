@@ -11,7 +11,7 @@ use akd_core::hash::EMPTY_DIGEST;
 
 use super::*;
 use crate::storage::memory::AsyncInMemoryDatabase;
-use crate::storage::{types::*, StorageUtil};
+use crate::storage::{StorageUtil, types::*};
 use crate::tree_node::{NodeKey, TreeNodeWithPreviousValue};
 use crate::*;
 

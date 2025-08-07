@@ -8,12 +8,12 @@
 //! This module implements operations for a simple asynchronized mysql database
 
 use crate::mysql_demo::mysql_storables::MySqlStorable;
+use akd::NodeLabel;
 use akd::errors::StorageError;
 use akd::hash::DIGEST_BYTES;
 use akd::storage::types::{DbRecord, KeyData, StorageType, ValueState, ValueStateRetrievalFlag};
 use akd::storage::{Database, Storable};
 use akd::tree_node::TreeNodeWithPreviousValue;
-use akd::NodeLabel;
 use akd::{AkdLabel, AkdValue};
 use async_trait::async_trait;
 use log::{debug, error, info, warn};
@@ -539,7 +539,9 @@ impl<'a> AsyncMySqlDatabase {
                     break;
                 }
                 Err(err) => {
-                    warn!("Docker ls returned error \"{err:?}\"\nTrying next possible docker command location");
+                    warn!(
+                        "Docker ls returned error \"{err:?}\"\nTrying next possible docker command location"
+                    );
                 }
             }
         }

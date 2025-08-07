@@ -5,10 +5,10 @@
 // License, Version 2.0 found in the LICENSE-APACHE file in the root directory
 // of this source tree. You may select, at your option, one of the above-listed licenses.
 
+use akd::HistoryParams;
 use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::Database;
-use akd::HistoryParams;
 use akd::{AkdLabel, AkdValue};
 use akd::{Directory, EpochHash};
 use log::{error, info};

@@ -11,7 +11,7 @@ use crate::mysql_demo::tests::test_util::{
 };
 use crate::test_config_serial;
 use akd::storage::StorageManager;
-use akd::{ecvrf::HardCodedAkdVRF, Configuration};
+use akd::{Configuration, ecvrf::HardCodedAkdVRF};
 use log::{error, info, warn};
 
 test_config_serial!(test_directory_operations);
@@ -47,7 +47,7 @@ async fn test_directory_operations<TC: Configuration>() {
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
-            error!("Error cleaning mysql prior to test suite: {}", error);
+            error!("Error cleaning mysql prior to test suite: {error}");
         }
 
         let vrf = HardCodedAkdVRF {};
@@ -59,13 +59,12 @@ async fn test_directory_operations<TC: Configuration>() {
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
         {
-            error!(
-                "ERROR: Failed to clean MySQL test database with error {}",
-                error
-            );
+            error!("ERROR: Failed to clean MySQL test database with error {error}");
         }
     } else {
-        warn!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        warn!(
+            "WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running."
+        );
     }
 
     info!("\n\n******** Completed MySQL Directory Operations Integration Test ********\n\n");
@@ -75,7 +74,9 @@ test_config_serial!(test_directory_operations_with_caching);
 async fn test_directory_operations_with_caching<TC: Configuration>() {
     log_init(log::Level::Info);
 
-    info!("\n\n******** Starting MySQL Directory Operations (w/caching) Integration Test ********\n\n");
+    info!(
+        "\n\n******** Starting MySQL Directory Operations (w/caching) Integration Test ********\n\n"
+    );
 
     if AsyncMySqlDatabase::test_guard() {
         // create the "test" database
@@ -104,7 +105,7 @@ async fn test_directory_operations_with_caching<TC: Configuration>() {
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
-            error!("Error cleaning mysql prior to test suite: {}", error);
+            error!("Error cleaning mysql prior to test suite: {error}");
         }
 
         let vrf = HardCodedAkdVRF {};
@@ -116,16 +117,17 @@ async fn test_directory_operations_with_caching<TC: Configuration>() {
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
         {
-            error!(
-                "ERROR: Failed to clean MySQL test database with error {}",
-                error
-            );
+            error!("ERROR: Failed to clean MySQL test database with error {error}");
         }
     } else {
-        warn!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        warn!(
+            "WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running."
+        );
     }
 
-    info!("\n\n******** Completed MySQL Directory Operations (w/caching) Integration Test ********\n\n");
+    info!(
+        "\n\n******** Completed MySQL Directory Operations (w/caching) Integration Test ********\n\n"
+    );
 }
 
 test_config_serial!(test_lookups);
@@ -161,7 +163,7 @@ async fn test_lookups<TC: Configuration>() {
 
         // delete all data from the db
         if let Err(error) = mysql_db.delete_data().await {
-            error!("Error cleaning mysql prior to test suite: {}", error);
+            error!("Error cleaning mysql prior to test suite: {error}");
         }
 
         let vrf = HardCodedAkdVRF {};
@@ -172,13 +174,12 @@ async fn test_lookups<TC: Configuration>() {
         // clean the test infra
         if let Err(mysql_async::Error::Server(error)) = storage_manager.get_db().drop_tables().await
         {
-            error!(
-                "ERROR: Failed to clean MySQL test database with error {}",
-                error
-            );
+            error!("ERROR: Failed to clean MySQL test database with error {error}");
         }
     } else {
-        warn!("WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running.");
+        warn!(
+            "WARN: Skipping MySQL test due to test guard noting that the docker container appears to not be running."
+        );
     }
 
     info!("\n\n******** Completed MySQL Lookup Tests ********\n\n");

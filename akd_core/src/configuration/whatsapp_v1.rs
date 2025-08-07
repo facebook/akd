@@ -8,10 +8,10 @@
 //! Defines the WhatsApp v1 configuration
 
 use crate::configuration::Configuration;
-use crate::hash::{Digest, DIGEST_BYTES};
+use crate::hash::{DIGEST_BYTES, Digest};
 use crate::utils::i2osp_array;
 use crate::{
-    AkdLabel, AkdValue, AzksValue, AzksValueWithEpoch, NodeLabel, VersionFreshness, EMPTY_VALUE,
+    AkdLabel, AkdValue, AzksValue, AzksValueWithEpoch, EMPTY_VALUE, NodeLabel, VersionFreshness,
 };
 
 #[cfg(feature = "nostd")]

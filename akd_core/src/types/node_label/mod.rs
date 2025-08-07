@@ -8,7 +8,7 @@
 //! This module contains the specifics for NodeLabel only, other types don't have the
 //! same level of detail and aren't broken into sub-modules
 
-use crate::{configuration::Configuration, PrefixOrdering, SizeOf};
+use crate::{PrefixOrdering, SizeOf, configuration::Configuration};
 
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{bytes_deserialize_hex, bytes_serialize_hex};

@@ -9,11 +9,11 @@
 
 use super::EpochSummary;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use std::convert::TryFrom;
-use xml::reader::XmlEvent;
 use xml::EventReader;
+use xml::reader::XmlEvent;
 
 // Constant strings specific to the XML returned from the Cloudfront bucket query
 const KEY_STR: &str = "Key";
@@ -86,7 +86,10 @@ pub(crate) fn display_audit_proofs_info(info: &mut [EpochSummary]) -> Result<Str
             });
 
     if !is_contiguous {
-        bail!("The audit proofs appear to not be contiguous. There's a break in the linear history at epoch {}", maybe_broken_epoch.name.epoch);
+        bail!(
+            "The audit proofs appear to not be contiguous. There's a break in the linear history at epoch {}",
+            maybe_broken_epoch.name.epoch
+        );
     }
 
     Ok(format!(

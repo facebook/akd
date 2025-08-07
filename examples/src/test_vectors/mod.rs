@@ -8,14 +8,14 @@
 //! Produces test vectors for various structs that can be used to verify operations
 //! in the client against what the server produces.
 
-use crate::fixture_generator::writer::yaml::YamlWriter;
 use crate::fixture_generator::writer::Writer;
+use crate::fixture_generator::writer::yaml::YamlWriter;
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::directory::Directory;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::hash::DIGEST_BYTES;
-use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::storage::StorageManager;
+use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::verify::{key_history_verify, lookup_verify};
 use akd::{
     AkdLabel, AkdValue, DomainLabel, HistoryParams, HistoryVerificationParams, NamedConfiguration,
@@ -282,7 +282,7 @@ async fn generate_impl<TC: NamedConfiguration>() -> Result<TestVectorBytes> {
 mod tests {
     use super::*;
     use crate::{
-        fixture_generator::reader::{yaml::YamlFileReader, Reader},
+        fixture_generator::reader::{Reader, yaml::YamlFileReader},
         test_config,
     };
 

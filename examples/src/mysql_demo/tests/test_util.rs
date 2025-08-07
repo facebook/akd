@@ -7,18 +7,18 @@
 
 extern crate thread_id;
 
+use akd::Directory;
+use akd::HistoryParams;
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::configuration::Configuration;
 use akd::ecvrf::VRFKeyStorage;
 use akd::storage::{Database, StorageManager};
-use akd::Directory;
-use akd::HistoryParams;
 use akd::{AkdLabel, AkdValue};
-use log::{info, Level, Metadata, Record};
+use log::{Level, Metadata, Record, info};
 use once_cell::sync::OnceCell;
-use rand::distributions::Alphanumeric;
+use rand::Rng;
+use rand::distr::Alphanumeric;
 use rand::seq::IteratorRandom;
-use rand::{thread_rng, Rng};
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -131,12 +131,12 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
     num_lookups: usize,
 ) {
     // generate the test data
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     let mut users: Vec<String> = vec![];
     for _ in 0..num_users {
         users.push(
-            thread_rng()
+            rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(30)
                 .map(char::from)
@@ -169,7 +169,7 @@ pub(crate) async fn test_lookups<TC: Configuration, S: Database + 'static, V: VR
                 if let Err(error) = dir.publish(data).await {
                     panic!("Error publishing batch {error:?}");
                 } else {
-                    info!("Published epoch {}", i);
+                    info!("Published epoch {i}");
                 }
             }
 
@@ -271,12 +271,12 @@ pub(crate) async fn directory_test_suite<
     vrf: &V,
 ) {
     // generate the test data
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     let mut users: Vec<String> = vec![];
     for _ in 0..num_users {
         users.push(
-            thread_rng()
+            rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(30)
                 .map(char::from)

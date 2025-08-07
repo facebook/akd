@@ -15,7 +15,7 @@ pub mod specs;
 #[cfg(test)]
 mod tests;
 
-use crate::{hash::Digest, AzksValue, Bit};
+use crate::{AzksValue, Bit, hash::Digest};
 
 use core::convert::{TryFrom, TryInto};
 use protobuf::MessageField;
@@ -79,9 +79,7 @@ macro_rules! require_messagefield {
 }
 
 macro_rules! hash_from_bytes {
-    ($obj:expr) => {{
-        crate::hash::try_parse_digest($obj).map_err(Self::Error::Deserialization)?
-    }};
+    ($obj:expr) => {{ crate::hash::try_parse_digest($obj).map_err(Self::Error::Deserialization)? }};
 }
 
 macro_rules! convert_from_vector {
@@ -229,7 +227,7 @@ impl TryFrom<&specs::types::SiblingProof> for crate::SiblingProof {
             _ => {
                 return Err(ConversionError::Deserialization(format!(
                     "Invalid direction: {direction}"
-                )))
+                )));
             }
         };
 

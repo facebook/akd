@@ -12,9 +12,9 @@ use crate::ecvrf::{VRFKeyStorage, VRFPublicKey};
 use crate::errors::{AkdError, DirectoryError, StorageError};
 use crate::helper_structs::LookupInfo;
 use crate::log::{error, info};
+use crate::storage::Database;
 use crate::storage::manager::StorageManager;
 use crate::storage::types::{DbRecord, ValueState, ValueStateRetrievalFlag};
-use crate::storage::Database;
 use crate::{
     AkdLabel, AkdValue, AppendOnlyProof, AzksElement, Digest, EpochHash, HistoryProof, LookupProof,
     UpdateProof,
@@ -207,7 +207,9 @@ where
         }
 
         if update_set.is_empty() {
-            info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
+            info!(
+                "After filtering for duplicated user information, there is no publish which is necessary (0 updates)"
+            );
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<TC, _>(&self.storage).await?;
             return Ok(EpochHash(current_epoch, root_hash));
@@ -752,7 +754,9 @@ where
         match got {
             DbRecord::Azks(azks) => Ok(azks),
             _ => {
-                error!("No AZKS can be found. You should re-initialize the directory to create a new one");
+                error!(
+                    "No AZKS can be found. You should re-initialize the directory to create a new one"
+                );
                 Err(AkdError::Storage(StorageError::NotFound(
                     "AZKS not found".to_string(),
                 )))
@@ -1097,7 +1101,9 @@ impl<TC: Configuration, S: Database + 'static, V: VRFKeyStorage> Directory<TC, S
         let azks_element_set: Vec<AzksElement> = update_set.to_vec();
 
         if azks_element_set.is_empty() {
-            info!("After filtering for duplicated user information, there is no publish which is necessary (0 updates)");
+            info!(
+                "After filtering for duplicated user information, there is no publish which is necessary (0 updates)"
+            );
             // The AZKS has not been updated/mutated at this point, so we can just return the root hash from before
             let root_hash = current_azks.get_root_hash::<TC, _>(&self.storage).await?;
             return Ok(EpochHash(current_epoch, root_hash));

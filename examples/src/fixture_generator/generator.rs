@@ -18,14 +18,14 @@ use akd::directory::Directory;
 use akd::storage::types::DbRecord;
 use akd::storage::{StorageManager, StorageUtil};
 use akd::{AkdLabel, AkdValue, DomainLabel, NamedConfiguration};
-use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 
 use crate::fixture_generator::parser::Args;
-use crate::fixture_generator::writer::yaml::YamlWriter;
 use crate::fixture_generator::writer::Writer;
+use crate::fixture_generator::writer::yaml::YamlWriter;
 
 /// Directory state comprises all database records at a particular epoch.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,14 +75,16 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
 
     // args assertions
     assert!(args.max_updates >= args.min_updates);
-    assert!(args
-        .capture_states
-        .as_ref()
-        .is_none_or(|states| states.iter().max().unwrap() <= &args.epochs));
-    assert!(args
-        .capture_deltas
-        .as_ref()
-        .is_none_or(|deltas| deltas.iter().max().unwrap() <= &args.epochs));
+    assert!(
+        args.capture_states
+            .as_ref()
+            .is_none_or(|states| states.iter().max().unwrap() <= &args.epochs)
+    );
+    assert!(
+        args.capture_deltas
+            .as_ref()
+            .is_none_or(|deltas| deltas.iter().max().unwrap() <= &args.epochs)
+    );
 
     // process users
     let mut user_map = HashMap::new();
@@ -152,7 +154,7 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
 
         // generate random key updates if allowed
         if !args.no_generated_updates {
-            let num_updates = rng.gen_range(args.min_updates..args.max_updates);
+            let num_updates = rng.random_range(args.min_updates..args.max_updates);
             for _ in updates.len()..num_updates as usize {
                 updates.push((AkdLabel::random(&mut rng), AkdValue::random(&mut rng)));
             }

@@ -12,13 +12,13 @@
 //! 2. Key history
 //! 3. Audit (append-only)
 
+use crate::ARITY;
 use crate::hash::Digest;
 #[cfg(feature = "serde_serialization")]
 use crate::utils::serde_helpers::{
     azks_value_hex_deserialize, azks_value_hex_serialize, bytes_deserialize_hex,
     bytes_serialize_hex,
 };
-use crate::ARITY;
 
 #[cfg(feature = "nostd")]
 use alloc::string::{String, ToString};

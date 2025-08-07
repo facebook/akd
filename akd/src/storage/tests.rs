@@ -7,19 +7,19 @@
 
 //! Test utilities of storage layers implementing the storage primatives for AKD
 
+use crate::NodeLabel;
 use crate::errors::StorageError;
-use crate::storage::types::*;
 use crate::storage::Database;
 use crate::storage::StorageManager;
+use crate::storage::types::*;
 use crate::tree_node::*;
 use crate::utils::byte_arr_from_u64;
-use crate::NodeLabel;
 use crate::{AkdLabel, AkdValue};
 
-use akd_core::hash::EMPTY_DIGEST;
 use akd_core::AzksValue;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use akd_core::hash::EMPTY_DIGEST;
+use rand::Rng;
+use rand::distr::Alphanumeric;
 use std::time::{Duration, Instant};
 
 type Azks = crate::append_only_zks::Azks;
@@ -134,7 +134,7 @@ async fn test_get_and_set_item<Ns: Database>(storage: &Ns) {
 async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
-        let str: String = thread_rng()
+        let str: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(30)
             .map(char::from)
@@ -239,7 +239,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1 .0;
+                                && value_state.version == result.1.0;
                         }
                         false
                     })
@@ -253,7 +253,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
                     });
 
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1 .0), initial_record);
+                assert_eq!(Some(result.1.0), initial_record);
             }
         }
     }
@@ -280,7 +280,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
                     .find(|&x| {
                         if let DbRecord::ValueState(value_state) = &x {
                             return value_state.username == result.0
-                                && value_state.version == result.1 .0;
+                                && value_state.version == result.1.0;
                         }
                         false
                     })
@@ -293,7 +293,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
                         }
                     });
                 // assert it matches what was given matches what was retrieved
-                assert_eq!(Some(result.1 .0), initial_record);
+                assert_eq!(Some(result.1.0), initial_record);
             }
         }
     }
@@ -302,7 +302,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
 async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
     let mut rand_users: Vec<Vec<u8>> = vec![];
     for _ in 0..20 {
-        let str: String = thread_rng()
+        let str: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(30)
             .map(char::from)
@@ -380,14 +380,14 @@ async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
 }
 
 async fn test_user_data<S: Database>(storage: &S) {
-    let rand_user = thread_rng()
+    let rand_user = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(30)
         .map(char::from)
         .collect::<String>()
         .as_bytes()
         .to_vec();
-    let rand_value = thread_rng()
+    let rand_value = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(1028)
         .map(char::from)
@@ -581,7 +581,7 @@ async fn test_user_data<S: Database>(storage: &S) {
 async fn test_tombstoning_data<S: Database>(
     storage: &StorageManager<S>,
 ) -> Result<(), crate::errors::AkdError> {
-    let rand_user = thread_rng()
+    let rand_user = rand::rng()
         .sample_iter(&Alphanumeric)
         .take(30)
         .map(char::from)

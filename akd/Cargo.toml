@@ -4,7 +4,7 @@ version = "0.12.0-pre.12"
 authors = ["akd contributors"]
 description = "An implementation of an auditable key directory"
 license = "MIT OR Apache-2.0"
-edition = "2021"
+edition = "2024"
 keywords = ["key-transparency", "akd"]
 repository = "https://github.com/facebook/akd"
 readme = "../README.md"
@@ -68,7 +68,7 @@ colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
 paste = { version = "1", optional = true }
 protobuf = { version = "3", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9.2", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 tracing = { version = "0.1.40", optional = true }
 

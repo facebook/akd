@@ -15,10 +15,10 @@ use crate::storage::Storable;
 
 use akd_core::SizeOf;
 use dashmap::DashMap;
+use std::sync::Arc;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
@@ -86,7 +86,9 @@ impl TimedCache {
                 debug!("Retained cache size is {retained_size} bytes");
 
                 if retained_size > memory_limit_bytes {
-                    info!("Retained cache size has exceeded the predefined limit, cleaning old entries");
+                    info!(
+                        "Retained cache size has exceeded the predefined limit, cleaning old entries"
+                    );
                     // calculate the percentage we'd need to trim off to get to 100% utilization and take another 5%
                     let percent_clean =
                         0.05 + 1.0 - (memory_limit_bytes as f64) / (retained_size as f64);

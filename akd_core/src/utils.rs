@@ -180,7 +180,9 @@ pub fn get_marker_versions(
 // function will panic.
 fn find_max_index_in_skiplist(input: u64) -> usize {
     if input < MARKER_VERSION_SKIPLIST[0] {
-        panic!("find_max_index_in_skiplist called with input less than smallest element of MARKER_VERSION_SKIPLIST");
+        panic!(
+            "find_max_index_in_skiplist called with input less than smallest element of MARKER_VERSION_SKIPLIST"
+        );
     }
     let mut i = 0;
     while i < MARKER_VERSION_SKIPLIST.len() {
@@ -292,7 +294,7 @@ macro_rules! test_config_sync {
 mod tests {
     use super::*;
     use alloc::vec;
-    use rand::{rngs::OsRng, Rng};
+    use rand::Rng;
 
     #[test]
     fn test_get_marker_versions() {
@@ -331,24 +333,24 @@ mod tests {
     }
 
     fn gen_versions(
-        rng: &mut OsRng,
+        rng: &mut rand::rngs::ThreadRng,
         start_type: &RangeType,
         end_type: &RangeType,
         epoch_type: &RangeType,
     ) -> (u64, u64, u64) {
         let small_jump = 10;
         let medium_jump = 1000;
-        let start_version: u64 = rng.gen_range(match start_type {
+        let start_version: u64 = rng.random_range(match start_type {
             RangeType::Small => 1..small_jump,
             RangeType::Medium => 1..medium_jump,
             RangeType::Large => 1..u64::MAX - 2 * (small_jump + medium_jump),
         });
-        let end_version: u64 = rng.gen_range(match end_type {
+        let end_version: u64 = rng.random_range(match end_type {
             RangeType::Small => start_version..start_version + small_jump,
             RangeType::Medium => start_version..start_version + medium_jump,
             RangeType::Large => start_version..u64::MAX - small_jump - medium_jump,
         });
-        let epoch: u64 = rng.gen_range(match epoch_type {
+        let epoch: u64 = rng.random_range(match epoch_type {
             RangeType::Small => end_version..end_version + small_jump,
             RangeType::Medium => end_version..end_version + medium_jump,
             RangeType::Large => end_version..u64::MAX,
@@ -362,7 +364,7 @@ mod tests {
 
         let iterations = 10000;
         let options = [RangeType::Small, RangeType::Medium, RangeType::Large];
-        let mut rng = OsRng;
+        let mut rng = rand::rng();
         for (start_type, end_type, epoch_type) in itertools::iproduct!(&options, &options, &options)
         {
             for _ in 0..iterations {

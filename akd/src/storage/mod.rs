@@ -13,7 +13,7 @@ use crate::{AkdLabel, AkdValue};
 
 use async_trait::async_trait;
 #[cfg(feature = "serde_serialization")]
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::{Send, Sync};

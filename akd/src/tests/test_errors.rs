@@ -15,18 +15,18 @@ use crate::append_only_zks::AzksParallelismConfig;
 use crate::storage::types::KeyData;
 use crate::tree_node::TreeNodeWithPreviousValue;
 use crate::{
+    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams, NodeLabel,
     auditor::audit_verify,
     client::{key_history_verify, lookup_verify},
     directory::{Directory, PublishCorruption, ReadOnlyDirectory},
     ecvrf::{HardCodedAkdVRF, VRFKeyStorage},
     errors::{AkdError, DirectoryError, StorageError},
     storage::{
-        manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord, types::ValueState,
-        Database,
+        Database, manager::StorageManager, memory::AsyncInMemoryDatabase, types::DbRecord,
+        types::ValueState,
     },
     test_config,
-    tests::{setup_mocked_db, MockLocalDatabase},
-    AkdLabel, AkdValue, Azks, EpochHash, HistoryParams, HistoryVerificationParams, NodeLabel,
+    tests::{MockLocalDatabase, setup_mocked_db},
 };
 
 // This test is meant to test the function poll_for_azks_change
@@ -415,7 +415,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let akd =
         Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
-    let mut rng = rand::rngs::OsRng;
+    let mut rng = rand::rng();
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
@@ -465,17 +465,19 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
         HistoryParams::MostRecent(6),
         HistoryParams::default(),
     ] {
-        assert!(key_history_verify::<TC>(
-            vrf_pk.as_bytes(),
-            root_hash,
-            current_epoch,
-            target_label.clone(),
-            key_history_proof.clone(),
-            HistoryVerificationParams::Default {
-                history_params: bad_params
-            },
-        )
-        .is_err());
+        assert!(
+            key_history_verify::<TC>(
+                vrf_pk.as_bytes(),
+                root_hash,
+                current_epoch,
+                target_label.clone(),
+                key_history_proof.clone(),
+                HistoryVerificationParams::Default {
+                    history_params: bad_params
+                },
+            )
+            .is_err()
+        );
     }
 
     let mut malformed_proof_1 = key_history_proof.clone();
@@ -506,15 +508,17 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
         malformed_proof_3,
         malformed_proof_4,
     ] {
-        assert!(key_history_verify::<TC>(
-            vrf_pk.as_bytes(),
-            root_hash,
-            current_epoch,
-            target_label.clone(),
-            malformed_proof,
-            correct_verification_params
-        )
-        .is_err());
+        assert!(
+            key_history_verify::<TC>(
+                vrf_pk.as_bytes(),
+                root_hash,
+                current_epoch,
+                target_label.clone(),
+                malformed_proof,
+                correct_verification_params
+            )
+            .is_err()
+        );
     }
 
     let mut malformed_proof_start_version_is_zero = key_history_proof.clone();
@@ -527,15 +531,17 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
         malformed_proof_start_version_is_zero,
         malformed_proof_end_version_exceeds_epoch,
     ] {
-        assert!(key_history_verify::<TC>(
-            vrf_pk.as_bytes(),
-            root_hash,
-            current_epoch,
-            target_label.clone(),
-            malformed_proof,
-            correct_verification_params,
-        )
-        .is_err());
+        assert!(
+            key_history_verify::<TC>(
+                vrf_pk.as_bytes(),
+                root_hash,
+                current_epoch,
+                target_label.clone(),
+                malformed_proof,
+                correct_verification_params,
+            )
+            .is_err()
+        );
     }
 
     Ok(())

@@ -10,17 +10,17 @@
 use crate::errors::StorageError;
 #[cfg(feature = "runtime_metrics")]
 use crate::log::info;
+use crate::storage::Storable;
 use crate::storage::types::DbRecord;
 use crate::storage::types::ValueState;
 use crate::storage::types::ValueStateRetrievalFlag;
-use crate::storage::Storable;
 
 use dashmap::DashMap;
 use std::collections::HashMap;
+use std::sync::Arc;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 /// Represents an in-memory transaction, keeping a mutable state
 /// of the changes. When you "commit" this transaction, you return the
@@ -284,7 +284,7 @@ mod tests {
     use crate::tree_node::*;
     use crate::utils::byte_arr_from_u64;
     use crate::{AkdLabel, AkdValue, AzksValue};
-    use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 
     #[test]
     fn test_commit_order() -> Result<(), StorageError> {

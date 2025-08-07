@@ -7,15 +7,15 @@
 
 //! An example tool for running AKD backed by MySQL storage
 
+use akd::Directory;
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::StorageManager;
-use akd::Directory;
 use clap::{Parser, ValueEnum};
 use commands::Command;
 use log::{debug, error, info, warn};
 use mysql::AsyncMySqlDatabase;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;

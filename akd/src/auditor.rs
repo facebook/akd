@@ -7,16 +7,16 @@
 
 //! Code for an auditor of a authenticated key directory
 
-use akd_core::configuration::Configuration;
 use akd_core::AzksElement;
+use akd_core::configuration::Configuration;
 
-use crate::append_only_zks::AzksParallelismConfig;
 use crate::AzksValue;
+use crate::append_only_zks::AzksParallelismConfig;
 use crate::{
+    AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
     append_only_zks::InsertMode,
     errors::{AkdError, AuditorError, AzksError},
     storage::{manager::StorageManager, memory::AsyncInMemoryDatabase},
-    AppendOnlyProof, Azks, Digest, SingleAppendOnlyProof,
 };
 
 /// Verifies an audit proof, given start and end hashes for a merkle patricia tree.

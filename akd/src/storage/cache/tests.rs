@@ -10,8 +10,8 @@
 use super::*;
 use std::time::Duration;
 
-use crate::storage::types::{ValueState, ValueStateKey};
 use crate::storage::DbRecord;
+use crate::storage::types::{ValueState, ValueStateKey};
 use crate::{AkdLabel, AkdValue, NodeLabel};
 
 #[tokio::test]

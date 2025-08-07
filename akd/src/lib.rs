@@ -557,8 +557,8 @@ pub mod log {
 pub mod local_auditing;
 
 pub use akd_core::{
-    configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify,
-    verify::history::HistoryParams, ARITY,
+    ARITY, configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify,
+    verify::history::HistoryParams,
 };
 
 #[macro_use]
