@@ -17,6 +17,7 @@ use crate::storage::Storable;
 
 use dashmap::DashMap;
 use std::collections::HashMap;
+use std::slice;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -218,7 +219,7 @@ impl Transaction {
         flag: ValueStateRetrievalFlag,
     ) -> Option<ValueState> {
         let intermediate = self
-            .get_users_data(&[username.clone()])
+            .get_users_data(slice::from_ref(username))
             .remove(username)
             .unwrap_or_default();
         let out = Self::find_appropriate_item(intermediate, flag);

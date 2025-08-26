@@ -26,6 +26,7 @@ use crate::AkdValue;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::slice;
 #[cfg(feature = "runtime_metrics")]
 use std::sync::atomic::AtomicU64;
 #[cfg(feature = "runtime_metrics")]
@@ -518,7 +519,7 @@ impl<Db: Database> StorageManager<Db> {
 
             let transaction_records = self
                 .transaction
-                .get_users_data(&[username.clone()])
+                .get_users_data(slice::from_ref(username))
                 .remove(username)
                 .unwrap_or_default();
             for transaction_record in transaction_records.into_iter() {
