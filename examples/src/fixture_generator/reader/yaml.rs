@@ -25,6 +25,7 @@ impl From<std::io::Error> for ReaderError {
     }
 }
 
+#[allow(dead_code)]
 /// YAML format file reader.
 pub struct YamlFileReader {
     file: File,
@@ -32,6 +33,7 @@ pub struct YamlFileReader {
     buffer: Peekable<Lines<BufReader<File>>>,
 }
 
+#[allow(dead_code)]
 impl YamlFileReader {
     #[cfg(test)]
     pub fn new(file: File) -> Result<Self, ReaderError> {

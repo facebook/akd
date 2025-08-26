@@ -31,6 +31,7 @@ pub trait Reader {
     fn read_string(&mut self) -> Result<String, ReaderError>;
 }
 
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReaderError {
     NotFound,
