@@ -465,6 +465,45 @@ where
         }
     }
 
+    /// Generates VRF proofs and non-membership proofs for future marker versions.
+    /// This is a helper method to eliminate code duplication between the non-existent
+    /// user case and the normal key history generation.
+    async fn generate_future_marker_proofs(
+        &self,
+        akd_label: &AkdLabel,
+        current_azks: &Azks,
+        future_marker_versions: &[u64],
+    ) -> Result<(Vec<Vec<u8>>, Vec<crate::NonMembershipProof>), AkdError> {
+        let mut future_marker_vrf_proofs = Vec::with_capacity(future_marker_versions.len());
+        let mut non_existence_of_future_marker_proofs =
+            Vec::with_capacity(future_marker_versions.len());
+
+        for &version in future_marker_versions {
+            let node_label = self
+                .vrf
+                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, version)
+                .await?;
+
+            let non_membership_proof = current_azks
+                .get_non_membership_proof::<TC, _>(&self.storage, node_label)
+                .await?;
+            non_existence_of_future_marker_proofs.push(non_membership_proof);
+
+            let vrf_proof = self
+                .vrf
+                .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, version)
+                .await?
+                .to_bytes()
+                .to_vec();
+            future_marker_vrf_proofs.push(vrf_proof);
+        }
+
+        Ok((
+            future_marker_vrf_proofs,
+            non_existence_of_future_marker_proofs,
+        ))
+    }
+
     /// Takes in the current state of the server and a label.
     /// If the label is present in the current state,
     /// this function returns all the values ever associated with it,
@@ -488,7 +527,42 @@ where
 
         let current_azks = self.retrieve_azks().await?;
         let current_epoch = current_azks.get_latest_epoch();
-        let mut user_data = self.storage.get_user_data(akd_label).await?.states;
+
+        let mut user_data = match self.storage.get_user_data(akd_label).await {
+            Ok(data) => data.states,
+            Err(StorageError::NotFound(_)) => {
+                // For non-existent labels, return a non-inclusion proof with future marker versions
+                // from the skiplist up to the current epoch
+                let epoch_index: usize = akd_core::utils::find_max_index_in_skiplist(current_epoch);
+                let future_marker_versions: Vec<u64> =
+                    akd_core::utils::MARKER_VERSION_SKIPLIST[0..=epoch_index].to_vec();
+
+                let (future_marker_vrf_proofs, non_existence_of_future_marker_proofs) = self
+                    .generate_future_marker_proofs(
+                        akd_label,
+                        &current_azks,
+                        &future_marker_versions,
+                    )
+                    .await?;
+
+                let root_hash = EpochHash(
+                    current_epoch,
+                    current_azks.get_root_hash::<TC, _>(&self.storage).await?,
+                );
+
+                return Ok((
+                    HistoryProof {
+                        update_proofs: vec![],
+                        past_marker_vrf_proofs: vec![],
+                        existence_of_past_marker_proofs: vec![],
+                        future_marker_vrf_proofs,
+                        non_existence_of_future_marker_proofs,
+                    },
+                    root_hash,
+                ));
+            }
+            Err(e) => return Err(AkdError::Storage(e)),
+        };
 
         // Ignore states in storage which are ahead of the current directory epoch
         user_data.retain(|vs| vs.epoch <= current_epoch);
@@ -582,27 +656,9 @@ where
             );
         }
 
-        let mut future_marker_vrf_proofs = vec![];
-        let mut non_existence_of_future_marker_proofs = vec![];
-
-        for version in future_marker_versions {
-            let node_label = self
-                .vrf
-                .get_node_label::<TC>(akd_label, VersionFreshness::Fresh, version)
-                .await?;
-            non_existence_of_future_marker_proofs.push(
-                current_azks
-                    .get_non_membership_proof::<TC, _>(&self.storage, node_label)
-                    .await?,
-            );
-            future_marker_vrf_proofs.push(
-                self.vrf
-                    .get_label_proof::<TC>(akd_label, VersionFreshness::Fresh, version)
-                    .await?
-                    .to_bytes()
-                    .to_vec(),
-            );
-        }
+        let (future_marker_vrf_proofs, non_existence_of_future_marker_proofs) = self
+            .generate_future_marker_proofs(akd_label, &current_azks, &future_marker_versions)
+            .await?;
 
         let root_hash = EpochHash(
             current_epoch,

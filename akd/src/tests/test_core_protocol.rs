@@ -732,6 +732,135 @@ async fn test_simple_lookup_for_small_tree<TC: Configuration>() -> Result<(), Ak
     Ok(())
 }
 
+test_config!(test_key_history_nonexistent_label);
+async fn test_key_history_nonexistent_label<TC: Configuration>() -> Result<(), AkdError> {
+    // Test at different epoch levels to ensure robustness
+    let test_cases = vec![
+        (1, vec![1]),
+        (2, vec![1, 2]),
+        (5, vec![1, 2, 4]),
+        (16, vec![1, 2, 4, 16]),
+        (100, vec![1, 2, 4, 16]),
+        (256, vec![1, 2, 4, 16, 256]),
+        (1000, vec![1, 2, 4, 16, 256]),
+    ];
+
+    for (target_epoch, expected_future_versions) in test_cases {
+        let db = AsyncInMemoryDatabase::new();
+        let storage = StorageManager::new_no_cache(db);
+        let vrf = HardCodedAkdVRF {};
+        let akd =
+            Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default())
+                .await?;
+
+        // Publish enough updates to reach the target epoch
+        for epoch in 1..=target_epoch {
+            let user_label = format!("user_epoch_{epoch}");
+            let user_value = format!("value_{epoch}");
+            akd.publish(vec![(
+                AkdLabel::from(user_label.as_str()),
+                AkdValue::from(user_value.as_str()),
+            )])
+            .await?;
+        }
+
+        let current_epoch = akd.retrieve_azks().await?.get_latest_epoch();
+        assert_eq!(
+            current_epoch, target_epoch,
+            "Should be at epoch {target_epoch}"
+        );
+
+        // Try to get history for a label that does not exist
+        let nonexistent_label_str = format!("nonexistent_user_epoch_{target_epoch}");
+        let nonexistent_label = AkdLabel::from(nonexistent_label_str.as_str());
+        let (history_proof, root_hash) = akd
+            .key_history(&nonexistent_label, HistoryParams::default())
+            .await?;
+
+        // The proof should be a non-inclusion proof with empty update_proofs
+        assert_eq!(
+            0,
+            history_proof.update_proofs.len(),
+            "Update proofs should be empty for nonexistent user at epoch {target_epoch}"
+        );
+        assert_eq!(
+            0,
+            history_proof.past_marker_vrf_proofs.len(),
+            "Past marker VRF proofs should be empty for nonexistent user at epoch {target_epoch}"
+        );
+        assert_eq!(0, history_proof.existence_of_past_marker_proofs.len(),
+                   "Past marker existence proofs should be empty for nonexistent user at epoch {target_epoch}");
+
+        // Check the exact expected future marker versions
+        assert_eq!(
+            history_proof.future_marker_vrf_proofs.len(), 
+            expected_future_versions.len(),
+            "Future marker VRF proofs count should match expected at epoch {}: expected {:?}, got {}",
+            target_epoch, expected_future_versions, history_proof.future_marker_vrf_proofs.len()
+        );
+        assert_eq!(
+            history_proof.non_existence_of_future_marker_proofs.len(), 
+            expected_future_versions.len(),
+            "Future marker non-existence proofs count should match expected at epoch {}: expected {:?}, got {}",
+            target_epoch, expected_future_versions, history_proof.non_existence_of_future_marker_proofs.len()
+        );
+
+        // Verify the structure makes sense and passes verification
+        let vrf_pk = akd.get_public_key().await?;
+        let result = crate::client::key_history_verify::<TC>(
+            vrf_pk.as_bytes(),
+            root_hash.hash(),
+            root_hash.epoch(),
+            nonexistent_label.clone(),
+            history_proof.clone(),
+            crate::HistoryVerificationParams::default(),
+        );
+
+        match &result {
+            Ok(verify_results) => {
+                assert_eq!(
+                    0,
+                    verify_results.len(),
+                    "Verification results should be empty for nonexistent user at epoch {}",
+                    target_epoch
+                );
+            }
+            Err(e) => {
+                panic!(
+                    "Key history verification failed at epoch {}: {:?}",
+                    target_epoch, e
+                );
+            }
+        }
+
+        // Let's also verify that we can extract the actual NodeLabels from the VRF proofs
+        // and they match our expectations for the specific versions
+        let mut actual_node_labels = Vec::new();
+        for (i, vrf_proof_bytes) in history_proof.future_marker_vrf_proofs.iter().enumerate() {
+            // Parse VRF proof and extract NodeLabel using the VRF instance
+            if let Ok(proof) = akd_core::ecvrf::Proof::try_from(vrf_proof_bytes.as_slice()) {
+                let node_label = vrf.get_node_label_from_vrf_proof(proof).await;
+                actual_node_labels.push(node_label);
+
+                // Also verify this matches what we'd expect for this specific version
+                let expected_version = expected_future_versions[i];
+                let expected_node_label = vrf
+                    .get_node_label::<TC>(
+                        &nonexistent_label,
+                        akd_core::VersionFreshness::Fresh,
+                        expected_version,
+                    )
+                    .await?;
+
+                assert_eq!(node_label, expected_node_label,
+                          "VRF proof node label should match expected node label for version {expected_version} at epoch {target_epoch}");
+            }
+        }
+    }
+
+    Ok(())
+}
+
 test_config!(test_tombstoned_key_history);
 async fn test_tombstoned_key_history<TC: Configuration>() -> Result<(), AkdError> {
     let db = AsyncInMemoryDatabase::new();

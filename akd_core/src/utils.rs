@@ -12,7 +12,7 @@ use alloc::vec::Vec;
 
 /// This array is: [2, 4, 16, 256, 65536, 2^32] and is used in get_marker_versions() as
 /// an efficiency optimization
-const MARKER_VERSION_SKIPLIST: [u64; 7] = [1, 1 << 1, 1 << 2, 1 << 4, 1 << 8, 1 << 16, 1 << 32];
+pub const MARKER_VERSION_SKIPLIST: [u64; 7] = [1, 1 << 1, 1 << 2, 1 << 4, 1 << 8, 1 << 16, 1 << 32];
 
 /// a list of past marker versions used by history proofs
 pub type PastMarkerVersions = Vec<u64>;
@@ -167,18 +167,18 @@ pub fn get_marker_versions(
     (past_marker_versions, future_marker_versions)
 }
 
-// Given an input u64 and a sorted array of u64s, find the largest index for which
-// the corresponding array element is less than the input.
-//
-// This implementation performs a linear search over the MARKER_VERSION_SKIPLIST array,
-// but since it is sorted, it could be faster to do a binary search. However, given that
-// the array is small, there shouldn't be too much of a difference
-// between a binary search and a linear one. But if this ends up being problematic
-// in the future, it could certainly be optimized.
-//
-// Note that if the input is less than the smallest element of the array, then this
-// function will panic.
-fn find_max_index_in_skiplist(input: u64) -> usize {
+/// Given an input u64 and a sorted array of u64s, find the largest index for which
+/// the corresponding array element is less than the input.
+///
+/// This implementation performs a linear search over the MARKER_VERSION_SKIPLIST array,
+/// but since it is sorted, it could be faster to do a binary search. However, given that
+/// the array is small, there shouldn't be too much of a difference
+/// between a binary search and a linear one. But if this ends up being problematic
+/// in the future, it could certainly be optimized.
+///
+/// Note that if the input is less than the smallest element of the array, then this
+/// function will panic.
+pub fn find_max_index_in_skiplist(input: u64) -> usize {
     if input < MARKER_VERSION_SKIPLIST[0] {
         panic!("find_max_index_in_skiplist called with input less than smallest element of MARKER_VERSION_SKIPLIST");
     }

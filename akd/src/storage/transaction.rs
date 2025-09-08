@@ -218,7 +218,7 @@ impl Transaction {
         flag: ValueStateRetrievalFlag,
     ) -> Option<ValueState> {
         let intermediate = self
-            .get_users_data(&[username.clone()])
+            .get_users_data(std::slice::from_ref(username))
             .remove(username)
             .unwrap_or_default();
         let out = Self::find_appropriate_item(intermediate, flag);

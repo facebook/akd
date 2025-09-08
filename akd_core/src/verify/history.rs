@@ -67,17 +67,23 @@ impl Default for HistoryVerificationParams {
 
 fn verify_with_history_params(
     current_epoch: u64,
-    akd_label: &AkdLabel,
     proof: &HistoryProof,
     params: HistoryParams,
 ) -> Result<(Vec<u64>, Vec<u64>), VerificationError> {
     let num_proofs = proof.update_proofs.len();
 
-    // Make sure the update proofs are non-empty
+    // If we have no update proofs, this is likely a non-inclusion proof for a non-existent user
     if num_proofs == 0 {
-        return Err(VerificationError::HistoryProof(format!(
-            "No update proofs included in the proof of user {akd_label:?} at epoch {current_epoch:?}!"
-        )));
+        // For non-existent users, we should only have future marker proofs for non-existence
+        // The future marker versions should be elements from the skiplist up to current_epoch
+        let epoch_index: usize = crate::utils::find_max_index_in_skiplist(current_epoch);
+        let expected_future_versions: Vec<u64> =
+            crate::utils::MARKER_VERSION_SKIPLIST[0..=epoch_index].to_vec();
+
+        // TODO: add checks for proof lengths
+
+        // Return empty past markers and computed future markers for verification
+        return Ok((vec![], expected_future_versions));
     }
 
     // Check that the sent proofs are for a contiguous sequence of decreasing versions
@@ -206,7 +212,7 @@ pub fn key_history_verify<TC: Configuration>(
         HistoryVerificationParams::AllowMissingValues { history_params } => history_params,
     };
     let (past_marker_versions, future_marker_versions) =
-        verify_with_history_params(current_epoch, &akd_label, &proof, params)?;
+        verify_with_history_params(current_epoch, &proof, params)?;
 
     // Verify all individual update proofs
     let mut maybe_previous_update_epoch = None;
