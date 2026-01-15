@@ -1,4 +1,4 @@
-# Use root/example as user/password credentials
+# Use root/exaDarbydaGOD1/akdmple as user/password credentials
 services:
   db:
     container_name: akd-test-db
