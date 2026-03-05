@@ -1,50 +1,22 @@
 # Changelog
 
-## 0.12.0-pre.12 (May 13, 2025)
-* Addressed clippy warnings and errors
-* Removed redundant function call in append_only_zks
-
-## 0.12.0-pre.11 (Nov 21, 2024)
-* Added parallelization for node preloads during audit proof generation
-* Removed `parallel_azks` feature in favor of explicit parallelism configuration object allowing the
-setting of static or dynamic parallelism across insertion and preloads
-
-## 0.12.0-pre.10 (Oct 17, 2024)
-* Added parallelization for node preloads during insertion
+## 0.12.0 (March 4, 2026)
+* Auditing improvements that reduce memory usage and runtime for proof verification
+* Added configurable parallelism for node preloads during insertion and audit proof generation,
+  replacing the `parallel_azks` feature
 * Added support for [tracing](https://docs.rs/tracing/latest/tracing/index.html)
-
-## 0.12.0-pre.9 (August 28, 2024)
-* Fixed a bug in key history API that can incorrectly return HistoryProofs without UpdateProofs.
-
-## 0.12.0-pre.8 (August 23, 2024)
-* Fixed a bug in key history API that occurs when a proof is being generated while a transaction is
-  being committed
-* Updated test vectors to the latest version
-
-## 0.12.0-pre.7 (July 22, 2024)
-* Added an efficiency optimization for history proof generation and
-  verification (incompatible with previous logic)
-
-## 0.12.0-pre.6 (June 27, 2024)
-* Fixing a preloads ordering bug
-
-## 0.12.0-pre.5 (June 3, 2024)
-* Only instantiate metrics attribute in storage manager when runtime metrics is enabled. This avoids an unnecessary
-import of atomic types, which not all architectures support.
-
-## 0.12.0-pre.4 (May 31, 2024)
-* Upgrades history proof generation to properly support the MostRecent parameter (giving a limited
-  history proof)
-
-## 0.12.0-pre.3 (April 4, 2024)
-* Eliminates a rare bug that can result in an aZKS being overwritten during Directory initialization
-
-## 0.12.0-pre.2 (March 26, 2024)
-* Updated storage tombstone API params to be more ergonomic
+* Added efficiency optimization for history proof generation and verification (incompatible with
+  previous versions)
+* Upgraded history proof generation to support the MostRecent parameter
+* Fixed bugs in key history API
+* Fixed a preloads ordering bug
+* Fixed a rare bug where aZKS could be overwritten during Directory initialization
+* Fixed metrics attribute to only instantiate when runtime metrics is enabled
+* Updated storage tombstone API to be more ergonomic
 * Renamed HistoryParams enum variants to highlight caveats
-* Added NCC audit report to README
-* Improved documentation
-* Updated deploy script to support pre-release version strings
+* Added individual epoch auditing in kt auditor example
+* Improved documentation, including VRF key setup and NCC audit report
+* Updated test vectors
 
 ## 0.11.0 (October 26, 2023)
 * Added error-handling for various edge-cases when performing akd_core verification
