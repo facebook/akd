@@ -207,6 +207,11 @@ extern crate alloc;
 #[cfg(all(feature = "protobuf", not(feature = "nostd")))]
 pub mod proto;
 
+#[cfg(not(feature = "nostd"))]
+pub mod directory_trait;
+#[cfg(not(feature = "nostd"))]
+pub use directory_trait::VerifiableKeyDirectory;
+
 pub mod ecvrf;
 pub mod hash;
 pub mod utils;

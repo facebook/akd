@@ -273,6 +273,21 @@ impl AkdValue {
     }
 }
 
+/// Root hash of the tree and its associated epoch
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct EpochHash(pub u64, pub Digest);
+
+impl EpochHash {
+    /// Get the contained epoch
+    pub fn epoch(&self) -> u64 {
+        self.0
+    }
+    /// Get the contained hash
+    pub fn hash(&self) -> Digest {
+        self.1
+    }
+}
+
 /// The value to be hashed every time an empty node's hash is to be considered
 pub const EMPTY_VALUE: [u8; 1] = [0u8];
 

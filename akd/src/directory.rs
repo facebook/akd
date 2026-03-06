@@ -24,6 +24,8 @@ use crate::VersionFreshness;
 use akd_core::configuration::Configuration;
 use akd_core::utils::get_marker_versions;
 use akd_core::verify::history::HistoryParams;
+use akd_core::VerifiableKeyDirectory;
+use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -844,6 +846,65 @@ where
         let raw_key = self.vrf.retrieve().await?;
         let commitment_key = TC::hash(&raw_key);
         Ok(commitment_key)
+    }
+}
+
+#[async_trait]
+impl<TC, S, V> VerifiableKeyDirectory for Directory<TC, S, V>
+where
+    TC: Configuration,
+    S: Database + 'static,
+    V: VRFKeyStorage,
+{
+    type LookupProof = LookupProof;
+    type HistoryProof = HistoryProof;
+    type AuditProof = AppendOnlyProof;
+    type PublicKey = VRFPublicKey;
+    type Error = AkdError;
+
+    async fn publish(
+        &self,
+        updates: Vec<(AkdLabel, AkdValue)>,
+    ) -> Result<EpochHash, AkdError> {
+        Directory::publish(self, updates).await
+    }
+
+    async fn lookup(
+        &self,
+        label: AkdLabel,
+    ) -> Result<(LookupProof, EpochHash), AkdError> {
+        Directory::lookup(self, label).await
+    }
+
+    async fn batch_lookup(
+        &self,
+        labels: &[AkdLabel],
+    ) -> Result<(Vec<LookupProof>, EpochHash), AkdError> {
+        Directory::batch_lookup(self, labels).await
+    }
+
+    async fn key_history(
+        &self,
+        label: &AkdLabel,
+        params: HistoryParams,
+    ) -> Result<(HistoryProof, EpochHash), AkdError> {
+        Directory::key_history(self, label, params).await
+    }
+
+    async fn audit(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> Result<AppendOnlyProof, AkdError> {
+        Directory::audit(self, start, end).await
+    }
+
+    async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
+        Directory::get_public_key(self).await
+    }
+
+    async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
+        Directory::get_epoch_hash(self).await
     }
 }
 

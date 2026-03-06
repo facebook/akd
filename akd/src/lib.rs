@@ -558,7 +558,7 @@ pub mod local_auditing;
 
 pub use akd_core::{
     configuration, configuration::*, ecvrf, hash, hash::Digest, proto, types::*, verify,
-    verify::history::HistoryParams, ARITY,
+    verify::history::HistoryParams, VerifiableKeyDirectory, ARITY,
 };
 
 #[macro_use]
@@ -568,7 +568,6 @@ mod utils;
 pub use append_only_zks::{Azks, AzksParallelismConfig, AzksParallelismOption};
 pub use client::HistoryVerificationParams;
 pub use directory::Directory;
-pub use helper_structs::EpochHash;
 
 // ========== Constants and type aliases ========== //
 #[cfg(any(test, feature = "public_tests"))]
