@@ -9,6 +9,7 @@
 
 mod fixture_generator;
 mod mysql_demo;
+mod scaling_bench;
 mod test_vectors;
 mod wasm_client;
 mod whatsapp_kt_auditor;
@@ -35,6 +36,8 @@ enum ExampleType {
     FixtureGenerator(fixture_generator::Args),
     /// Test vectors generator
     TestVectors(test_vectors::Args),
+    /// Key directory scaling benchmarks
+    ScalingBench(scaling_bench::Args),
 }
 
 // MAIN //
@@ -47,6 +50,7 @@ async fn main() -> Result<()> {
         ExampleType::MysqlDemo(args) => mysql_demo::render_cli(args).await?,
         ExampleType::FixtureGenerator(args) => fixture_generator::run(args).await,
         ExampleType::TestVectors(args) => test_vectors::run(args).await,
+        ExampleType::ScalingBench(args) => scaling_bench::run(args).await,
     }
 
     Ok(())

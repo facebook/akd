@@ -338,3 +338,18 @@ impl fmt::Display for ParallelismError {
         }
     }
 }
+
+impl From<AkdError> for akd_traits::KeyDirectoryError {
+    fn from(e: AkdError) -> Self {
+        match e {
+            AkdError::TreeNode(e) => akd_traits::KeyDirectoryError::Directory(format!("{e:?}")),
+            AkdError::Directory(e) => akd_traits::KeyDirectoryError::Directory(format!("{e:?}")),
+            AkdError::AzksErr(e) => akd_traits::KeyDirectoryError::Directory(format!("{e:?}")),
+            AkdError::Vrf(e) => akd_traits::KeyDirectoryError::Directory(format!("{e:?}")),
+            AkdError::Storage(e) => akd_traits::KeyDirectoryError::Storage(format!("{e:?}")),
+            AkdError::AuditErr(e) => akd_traits::KeyDirectoryError::Audit(format!("{e:?}")),
+            AkdError::Parallelism(e) => akd_traits::KeyDirectoryError::Other(format!("{e:?}")),
+            AkdError::TestErr(s) => akd_traits::KeyDirectoryError::Other(s),
+        }
+    }
+}
