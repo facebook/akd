@@ -41,7 +41,7 @@ impl Default for HistoryParams {
 }
 
 /// Parameters for customizing how history proof verification proceeds
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum HistoryVerificationParams {
     /// No customization to the verification procedure
     Default {

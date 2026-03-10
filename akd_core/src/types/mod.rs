@@ -14,10 +14,7 @@
 
 use crate::hash::Digest;
 #[cfg(feature = "serde_serialization")]
-use crate::utils::serde_helpers::{
-    azks_value_hex_deserialize, azks_value_hex_serialize, bytes_deserialize_hex,
-    bytes_serialize_hex,
-};
+use crate::utils::serde_helpers::{azks_value_hex_deserialize, azks_value_hex_serialize};
 use crate::ARITY;
 
 #[cfg(feature = "nostd")]
@@ -26,8 +23,6 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 #[cfg(feature = "nostd")]
 use core::cmp::{Ord, Ordering, PartialOrd};
-#[cfg(feature = "rand")]
-use rand::{CryptoRng, Rng};
 #[cfg(not(feature = "nostd"))]
 use std::cmp::{Ord, Ordering, PartialOrd};
 
@@ -153,123 +148,24 @@ impl Direction {
     }
 }
 
-/// The label of a particular entry in the AKD
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
-pub struct AkdLabel(
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(serialize_with = "bytes_serialize_hex")
-    )]
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(deserialize_with = "bytes_deserialize_hex")
-    )]
-    pub Vec<u8>,
-);
+// Re-export types from akd_traits
+/// Backward-compatible re-export for [`DirectoryLabel`]
+pub use akd_traits::types::DirectoryLabel as AkdLabel;
+/// Backward-compatible re-export for [`DirectoryValue`]
+pub use akd_traits::types::DirectoryValue as AkdValue;
+pub use akd_traits::types::{DirectoryLabel, DirectoryValue, EpochHash, VerifyResult};
 
-impl SizeOf for AkdLabel {
+/// The label of a particular entry in the AKD
+impl SizeOf for DirectoryLabel {
     fn size_of(&self) -> usize {
         self.0.len()
-    }
-}
-
-impl core::ops::Deref for AkdLabel {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl core::ops::DerefMut for AkdLabel {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl core::convert::From<&str> for AkdLabel {
-    fn from(s: &str) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl core::convert::From<&String> for AkdLabel {
-    fn from(s: &String) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl AkdLabel {
-    #[cfg(feature = "rand")]
-    /// Gets a random label
-    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; 32];
-        rng.fill_bytes(&mut bytes);
-        Self(bytes.to_vec())
     }
 }
 
 /// The value of a particular entry in the AKD
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Serialize, serde::Deserialize)
-)]
-pub struct AkdValue(
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(serialize_with = "bytes_serialize_hex")
-    )]
-    #[cfg_attr(
-        feature = "serde_serialization",
-        serde(deserialize_with = "bytes_deserialize_hex")
-    )]
-    pub Vec<u8>,
-);
-
-impl SizeOf for AkdValue {
+impl SizeOf for DirectoryValue {
     fn size_of(&self) -> usize {
         self.0.len()
-    }
-}
-
-impl core::ops::Deref for AkdValue {
-    type Target = Vec<u8>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl core::ops::DerefMut for AkdValue {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl core::convert::From<&str> for AkdValue {
-    fn from(s: &str) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl core::convert::From<&String> for AkdValue {
-    fn from(s: &String) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl AkdValue {
-    #[cfg(feature = "rand")]
-    /// Gets a random value for a AKD
-    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; 32];
-        rng.fill_bytes(&mut bytes);
-        Self(bytes.to_vec())
     }
 }
 
@@ -306,7 +202,7 @@ pub struct AzksValueWithEpoch(pub Digest);
 /// Represents an element to be inserted into the AZKS. This
 /// is a pair consisting of a label ([NodeLabel]) and a value.
 /// The purpose of the directory publish is to convert an
-/// insertion set of ([AkdLabel], [AkdValue]) tuples into a
+/// insertion set of ([DirectoryLabel], [DirectoryValue]) tuples into a
 /// set of [AzksElement]s, which are then inserted into
 /// the AZKS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -492,24 +388,6 @@ pub struct HistoryProof {
     pub future_marker_vrf_proofs: Vec<Vec<u8>>,
     /// Proof that future markers did not exist
     pub non_existence_of_future_marker_proofs: Vec<NonMembershipProof>,
-}
-
-/// The payload that is outputted as a result of successful verification of
-/// a [LookupProof] or [HistoryProof]. This includes the fields containing the
-/// epoch that the leaf was published in, the version corresponding to the value,
-/// and the value itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde_serialization",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-pub struct VerifyResult {
-    /// The epoch of this record
-    pub epoch: u64,
-    /// Version at this update
-    pub version: u64,
-    /// The plaintext value associated with the record
-    pub value: AkdValue,
 }
 
 /// Proof that no leaves were deleted from the initial epoch.

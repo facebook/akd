@@ -23,19 +23,21 @@ whatsapp_v1 = ["dep:blake3"]
 experimental = ["dep:blake3"]
 # Include the VRF verification logic
 vrf = ["ed25519-dalek", "curve25519-dalek"]
-serde_serialization = ["dep:serde", "dep:serde_bytes", "ed25519-dalek/serde"]
+serde_serialization = ["dep:serde", "dep:serde_bytes", "ed25519-dalek/serde", "akd_traits/serde"]
 # Parallelize VRF calculations during publish
 parallel_vrf = ["tokio"]
 
 bench = ["parallel_vrf", "experimental", "vrf", "tokio/rt-multi-thread"]
 public_tests = ["dep:paste"]
 protobuf = ["dep:protobuf"]
+rand = ["dep:rand", "akd_traits/rand"]
 
 # Default features mix
 default = ["vrf", "experimental"]
 
 [dependencies]
 ## Required dependencies ##
+akd_traits = { path = "../akd_traits", default-features = false }
 async-trait = "0.1"
 curve25519-dalek = { version = "4", optional = true }
 ed25519-dalek = { version = "2", features = [
