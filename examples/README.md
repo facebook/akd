@@ -11,20 +11,7 @@ There are currently three examples supported in this library:
 
 ### WhatsApp Key Transparency Auditor
 
-To run this example:
-```
-cargo run -p examples --release -- whatsapp-kt-auditor
-```
-and this will bring up an interactive interface which allows you to load the current epochs, and choose which epochs to audit.
-
-You can also automatically audit the latest epoch with the `-l` parameter (for "latest"), by running:
-```
-cargo run -p examples --release -- whatsapp-kt-auditor -l
-```
-or if you want to audit a specific epoch:
-```
-cargo run -p examples --release -- whatsapp-kt-auditor -e 42
-```
+See [whatsapp_kt_auditor/README.md](src/whatsapp_kt_auditor/README.md) for full documentation.
 
 
 ### MySQL Demo

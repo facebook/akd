@@ -19,7 +19,27 @@ use std::convert::TryFrom;
 use std::time::Duration;
 
 // Default domain for WhatsApp's key transparency audit proofs
-const WHATSAPP_KT_DOMAIN: &str = "https://d1tfr3x7n136ak.cloudfront.net";
+const WHATSAPP_KT_V1_DOMAIN: &str = "https://d1tfr3x7n136ak.cloudfront.net";
+const WHATSAPP_KT_V2_DOMAIN: &str = "https://d4ttn6vhp3mg0.cloudfront.net";
+
+#[derive(Clone, Debug, Default, clap::ValueEnum)]
+pub(crate) enum LogVersion {
+    /// The legacy WhatsApp KT log
+    V1,
+    /// The current WhatsApp KT log
+    #[default]
+    V2,
+}
+
+impl LogVersion {
+    fn url(&self) -> &'static str {
+        match self {
+            LogVersion::V1 => WHATSAPP_KT_V1_DOMAIN,
+            LogVersion::V2 => WHATSAPP_KT_V2_DOMAIN,
+        }
+    }
+}
+
 type TC = akd::WhatsAppV1Configuration;
 
 /// Represents the summary of an epoch, and a unique key referring to the raw object in native storage (if needed)
@@ -47,6 +67,10 @@ impl TryFrom<&str> for EpochSummary {
 #[derive(Parser, Debug, Clone)]
 #[clap(author, about, long_about = None)]
 pub(crate) struct CliArgs {
+    /// Which log version to audit (v1 = legacy, v2 = current)
+    #[clap(long, default_value = "v2")]
+    log: LogVersion,
+
     /// The type of command to run
     #[clap(subcommand)]
     command: Command,
@@ -54,17 +78,14 @@ pub(crate) struct CliArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 enum Command {
-    /// For auditing a specific epoch
-    #[clap(short_flag = 'e', name = "Choose a specific epoch to audit")]
+    /// Audit a specific epoch
+    #[clap(short_flag = 'e')]
     Epoch { epoch: u64 },
-    /// For auditing all epochs through an interactive interface
-    #[clap(
-        short_flag = 'i',
-        name = "Load all epochs to be audited (this can take some time...)"
-    )]
+    /// Load all epochs and choose which to audit interactively
+    #[clap(short_flag = 'i')]
     Interactive,
-    /// Indicate that only the latest epoch should be audited
-    #[clap(short_flag = 'l', name = "Audit only the latest epoch")]
+    /// Audit only the latest epoch
+    #[clap(short_flag = 'l')]
     AuditLatest,
 }
 
@@ -80,21 +101,22 @@ struct CliOption {
 }
 
 pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
+    let url = args.log.url();
     match args.command {
         Command::AuditLatest => {
             // Just audit the latest epoch and exit
-            let proofs = load_all_proofs().await?;
+            let proofs = load_all_proofs(url).await?;
             let latest_epoch_summary = proofs.last().expect("No epochs found");
-            do_epoch_audit(latest_epoch_summary).await?;
+            do_epoch_audit(url, latest_epoch_summary).await?;
             return Ok(());
         }
         Command::Epoch { epoch } => {
-            let epoch_summary = auditor::get_proof_from_epoch(WHATSAPP_KT_DOMAIN, epoch).await?;
-            do_epoch_audit(&epoch_summary).await?;
+            let epoch_summary = auditor::get_proof_from_epoch(url, epoch).await?;
+            do_epoch_audit(url, &epoch_summary).await?;
             return Ok(());
         }
         Command::Interactive => {
-            let proofs = load_all_proofs().await?;
+            let proofs = load_all_proofs(url).await?;
             let items: Vec<CliOption> = vec![
                 CliOption {
                     cli_type: CliType::Audit,
@@ -137,7 +159,7 @@ pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
                             let Some(epoch_summary) = maybe_proof else {
                                 bail!("Could not find epoch {epoch}");
                             };
-                            do_epoch_audit(epoch_summary).await?;
+                            do_epoch_audit(url, epoch_summary).await?;
                         }
                         CliType::Quit => {
                             break;
@@ -154,16 +176,16 @@ pub(crate) async fn render_cli(args: CliArgs) -> Result<()> {
     Ok(())
 }
 
-async fn load_all_proofs() -> Result<Vec<EpochSummary>> {
+async fn load_all_proofs(url: &str) -> Result<Vec<EpochSummary>> {
     let pb = start_progress_bar("Loading epochs...");
-    let mut proofs = auditor::list_proofs(WHATSAPP_KT_DOMAIN).await?;
+    let mut proofs = auditor::list_proofs(url).await?;
     finish_progress_bar(pb, auditor::display_audit_proofs_info(&mut proofs)?);
     Ok(proofs)
 }
 
-pub(crate) async fn do_epoch_audit(epoch_summary: &EpochSummary) -> Result<()> {
+pub(crate) async fn do_epoch_audit(url: &str, epoch_summary: &EpochSummary) -> Result<()> {
     let pb1 = start_progress_bar("Downloading proof...");
-    let proof = auditor::get_proof(WHATSAPP_KT_DOMAIN, epoch_summary).await?;
+    let proof = auditor::get_proof(url, epoch_summary).await?;
     finish_progress_bar(
         pb1,
         format!(
