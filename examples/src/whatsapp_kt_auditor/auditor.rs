@@ -10,7 +10,6 @@
 use super::EpochSummary;
 
 use anyhow::{anyhow, bail, Result};
-use clap::{Parser, Subcommand};
 use std::convert::TryFrom;
 use xml::reader::XmlEvent;
 use xml::EventReader;
@@ -19,26 +18,6 @@ use xml::EventReader;
 const KEY_STR: &str = "Key";
 const IS_TRUNCATED_STR: &str = "IsTruncated";
 const TRUE_STR: &str = "true";
-
-/// Storage options for retrieving audit proofs
-#[derive(Subcommand, Clone, Debug)]
-pub enum AuditCommand {
-    /// Audit a specific epoch
-    Audit {
-        /// The epoch to audit
-        #[clap(long)]
-        epoch: u64,
-    },
-    /// Load the available epochs to audit
-    LoadEpochs,
-}
-
-/// Audit operations supported by the client
-#[derive(Parser, Clone, Debug)]
-pub struct AuditArgs {
-    #[clap(subcommand)]
-    command: AuditCommand,
-}
 
 pub(crate) async fn audit_epoch(blob: akd::local_auditing::AuditBlob) -> Result<String> {
     // decode the proof
