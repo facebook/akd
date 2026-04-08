@@ -22,8 +22,11 @@ use crate::{
 
 use crate::VersionFreshness;
 use akd_core::configuration::Configuration;
+use akd_core::types::VerifyResult;
 use akd_core::utils::get_marker_versions;
 use akd_core::verify::history::HistoryParams;
+use akd_traits::KeyDirectory;
+use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -844,6 +847,102 @@ where
         let raw_key = self.vrf.retrieve().await?;
         let commitment_key = TC::hash(&raw_key);
         Ok(commitment_key)
+    }
+}
+
+#[async_trait]
+impl<TC, S, V> KeyDirectory for Directory<TC, S, V>
+where
+    TC: Configuration,
+    S: Database + 'static,
+    V: VRFKeyStorage,
+{
+    type LookupProof = LookupProof;
+    type HistoryProof = HistoryProof;
+    type AuditProof = AppendOnlyProof;
+    type PublicKey = VRFPublicKey;
+    type HistoryParams = akd_core::verify::history::HistoryParams;
+    type HistoryVerificationParams = crate::client::HistoryVerificationParams;
+    type Error = AkdError;
+
+    async fn publish(&self, updates: Vec<(AkdLabel, AkdValue)>) -> Result<EpochHash, AkdError> {
+        Directory::publish(self, updates).await
+    }
+
+    async fn lookup(&self, label: AkdLabel) -> Result<(LookupProof, EpochHash), AkdError> {
+        Directory::lookup(self, label).await
+    }
+
+    async fn batch_lookup(
+        &self,
+        labels: &[AkdLabel],
+    ) -> Result<(Vec<LookupProof>, EpochHash), AkdError> {
+        Directory::batch_lookup(self, labels).await
+    }
+
+    async fn key_history(
+        &self,
+        label: &AkdLabel,
+        params: akd_core::verify::history::HistoryParams,
+    ) -> Result<(HistoryProof, EpochHash), AkdError> {
+        Directory::key_history(self, label, params).await
+    }
+
+    async fn audit(&self, start_epoch: u64, end_epoch: u64) -> Result<AppendOnlyProof, AkdError> {
+        Directory::audit(self, start_epoch, end_epoch).await
+    }
+
+    async fn get_public_key(&self) -> Result<VRFPublicKey, AkdError> {
+        Directory::get_public_key(self).await
+    }
+
+    async fn get_epoch_hash(&self) -> Result<EpochHash, AkdError> {
+        Directory::get_epoch_hash(self).await
+    }
+
+    fn lookup_verify(
+        public_key: &VRFPublicKey,
+        root_hash: Digest,
+        current_epoch: u64,
+        label: AkdLabel,
+        proof: LookupProof,
+    ) -> Result<VerifyResult, akd_traits::KeyDirectoryError> {
+        akd_core::verify::lookup::lookup_verify::<TC>(
+            public_key.as_bytes(),
+            root_hash,
+            current_epoch,
+            label,
+            proof,
+        )
+        .map_err(|e| akd_traits::KeyDirectoryError::Verification(format!("{e:?}")))
+    }
+
+    fn key_history_verify(
+        public_key: &VRFPublicKey,
+        root_hash: Digest,
+        current_epoch: u64,
+        label: AkdLabel,
+        proof: HistoryProof,
+        params: crate::client::HistoryVerificationParams,
+    ) -> Result<Vec<VerifyResult>, akd_traits::KeyDirectoryError> {
+        akd_core::verify::history::key_history_verify::<TC>(
+            public_key.as_bytes(),
+            root_hash,
+            current_epoch,
+            label,
+            proof,
+            params,
+        )
+        .map_err(|e| akd_traits::KeyDirectoryError::Verification(format!("{e:?}")))
+    }
+
+    async fn audit_verify(
+        hashes: Vec<Digest>,
+        proof: AppendOnlyProof,
+    ) -> Result<(), akd_traits::KeyDirectoryError> {
+        crate::auditor::audit_verify::<TC>(hashes, proof)
+            .await
+            .map_err(|e| e.into())
     }
 }
 

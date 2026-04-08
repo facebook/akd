@@ -456,7 +456,7 @@ async fn process_input(
                             println!("Error flushing database: {error}");
                         } else {
                             println!(
-                                "Database flushed, exiting application. Please restart to create a new VKD"
+                                "Database flushed, exiting application. Please restart to create a new directory"
                             );
                             break;
                         }

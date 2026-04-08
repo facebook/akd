@@ -41,6 +41,7 @@ xml-rs = "0.8"
 reqwest = "0.11"
 regex = "1"
 serde_yaml = "0.9"
+bincode = "1"
 wasm-bindgen = "0.2"
 
 akd = { path = "../akd", features = [
@@ -50,6 +51,7 @@ akd = { path = "../akd", features = [
     "experimental",
 ] }
 akd_core = { path = "../akd_core" }
+akd_traits = { path = "../akd_traits" }
 
 [dev-dependencies]
 serial_test = "2"
