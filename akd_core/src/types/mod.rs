@@ -27,7 +27,7 @@ use alloc::vec::Vec;
 #[cfg(feature = "nostd")]
 use core::cmp::{Ord, Ordering, PartialOrd};
 #[cfg(feature = "rand")]
-use rand::{CryptoRng, Rng};
+use rand::CryptoRng;
 #[cfg(not(feature = "nostd"))]
 use std::cmp::{Ord, Ordering, PartialOrd};
 
@@ -206,7 +206,7 @@ impl core::convert::From<&String> for AkdLabel {
 impl AkdLabel {
     #[cfg(feature = "rand")]
     /// Gets a random label
-    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng>(rng: &mut R) -> Self {
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
         Self(bytes.to_vec())
@@ -266,7 +266,7 @@ impl core::convert::From<&String> for AkdValue {
 impl AkdValue {
     #[cfg(feature = "rand")]
     /// Gets a random value for a AKD
-    pub fn random<R: CryptoRng + Rng>(rng: &mut R) -> Self {
+    pub fn random<R: CryptoRng>(rng: &mut R) -> Self {
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
         Self(bytes.to_vec())

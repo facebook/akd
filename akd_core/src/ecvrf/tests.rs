@@ -26,7 +26,7 @@ use proptest::prelude::*;
 use proptest_derive::Arbitrary;
 #[cfg(feature = "serde_serialization")]
 use rand::rngs::StdRng;
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 /// A type family for schemes which know how to generate key material from
@@ -35,7 +35,7 @@ pub trait Uniform {
     /// Generate key material from an RNG for testing purposes.
     fn generate_for_testing<R>(rng: &mut R) -> Self
     where
-        R: CryptoRng + RngCore;
+        R: CryptoRng;
 }
 
 /// Output value of our hash function. Intentionally opaque for safety and modularity.
@@ -49,7 +49,7 @@ pub struct HashValue {
 impl Uniform for VRFPrivateKey {
     fn generate_for_testing<R>(rng: &mut R) -> Self
     where
-        R: CryptoRng + RngCore,
+        R: CryptoRng,
     {
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
@@ -86,7 +86,7 @@ where
 {
     fn generate_for_testing<R>(rng: &mut R) -> Self
     where
-        R: RngCore + CryptoRng,
+        R: CryptoRng,
     {
         let private_key = S::generate_for_testing(rng);
         private_key.into()

@@ -152,7 +152,7 @@ pub(crate) async fn generate<TC: NamedConfiguration, L: DomainLabel>(args: &Args
 
         // generate random key updates if allowed
         if !args.no_generated_updates {
-            let num_updates = rng.gen_range(args.min_updates..args.max_updates);
+            let num_updates = rng.random_range(args.min_updates..args.max_updates);
             for _ in updates.len()..num_updates as usize {
                 updates.push((AkdLabel::random(&mut rng), AkdValue::random(&mut rng)));
             }

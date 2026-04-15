@@ -11,14 +11,14 @@ use super::*;
 use crate::test_config_sync;
 #[cfg(feature = "nostd")]
 use alloc::vec;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 // ================= Test helpers ================= //
 
 fn random_label() -> crate::NodeLabel {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     crate::NodeLabel {
-        label_val: rng.gen::<[u8; 32]>(),
+        label_val: rng.random::<[u8; 32]>(),
         label_len: 256,
     }
 }

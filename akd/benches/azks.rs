@@ -203,10 +203,10 @@ fn gen_nodes(rng: &mut impl Rng, num_nodes: usize) -> Vec<AzksElement> {
     (0..num_nodes)
         .map(|_| {
             let label = NodeLabel {
-                label_val: rng.gen::<[u8; 32]>(),
+                label_val: rng.random::<[u8; 32]>(),
                 label_len: 256,
             };
-            let value = AzksValue(rng.gen::<[u8; 32]>());
+            let value = AzksValue(rng.random::<[u8; 32]>());
             AzksElement { label, value }
         })
         .collect()
