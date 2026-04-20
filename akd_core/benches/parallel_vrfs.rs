@@ -13,7 +13,7 @@ use akd_core::configuration::NamedConfiguration;
 use akd_core::ecvrf::{VRFExpandedPrivateKey, VRFPublicKey};
 use akd_core::VersionFreshness;
 use akd_core::{ecvrf::VRFKeyStorage, AkdLabel, AkdValue};
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::Rng;
 
 macro_rules! bench_config {
@@ -71,11 +71,11 @@ fn main() {
 
 bench_config!(bench_single_vrf);
 fn bench_single_vrf<TC: NamedConfiguration>(c: &mut Criterion) {
-    let rng = rand::rngs::OsRng;
+    let mut rng = rand::rng();
 
     // Generate a random label
     let label = AkdLabel::from(
-        &rng.sample_iter(&Alphanumeric)
+        &rng.sample_iter(Alphanumeric)
             .take(32)
             .map(char::from)
             .collect::<String>(),

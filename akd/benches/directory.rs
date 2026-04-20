@@ -17,7 +17,7 @@ use akd::storage::memory::AsyncInMemoryDatabase;
 use akd::NamedConfiguration;
 use akd::{AkdLabel, AkdValue, Directory};
 use criterion::{BatchSize, Criterion};
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -63,8 +63,8 @@ fn history_generation<TC: NamedConfiguration>(c: &mut Criterion) {
                     .unwrap();
 
                 for _epoch in 1..num_updates {
-                    let value: String = (0..rng.gen_range(10..20))
-                        .map(|_| rng.sample(&Alphanumeric))
+                    let value: String = (0..rng.random_range(10..20))
+                        .map(|_| rng.sample(Alphanumeric))
                         .map(char::from)
                         .collect();
                     let data = idata

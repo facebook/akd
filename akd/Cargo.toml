@@ -68,7 +68,7 @@ colored = { version = "2", optional = true }
 once_cell = { version = "1", optional = true }
 paste = { version = "1", optional = true }
 protobuf = { version = "3", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9.3", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 tracing = { version = "0.1.40", optional = true }
 

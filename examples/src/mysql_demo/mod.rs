@@ -15,7 +15,7 @@ use clap::{Parser, ValueEnum};
 use commands::Command;
 use log::{debug, error, info, warn};
 use mysql::AsyncMySqlDatabase;
-use rand::distributions::Alphanumeric;
+use rand::distr::Alphanumeric;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::convert::From;
@@ -226,7 +226,7 @@ async fn process_input(
                 for i in 0..*num_users {
                     values.push(
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(Alphanumeric)
                             .take(30)
                             .map(char::from)
                             .collect(),
@@ -271,7 +271,7 @@ async fn process_input(
                 let users: Vec<String> = (1..=*num_users)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(Alphanumeric)
                             .take(256)
                             .map(char::from)
                             .collect()
@@ -280,7 +280,7 @@ async fn process_input(
                 let data: Vec<String> = (1..=*num_updates_per_user)
                     .map(|i| {
                         StdRng::seed_from_u64(i)
-                            .sample_iter(&Alphanumeric)
+                            .sample_iter(Alphanumeric)
                             .take(1024)
                             .map(char::from)
                             .collect()
@@ -343,12 +343,12 @@ async fn process_input(
                     .map(|i| {
                         (
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Alphanumeric)
+                                .sample_iter(Alphanumeric)
                                 .take(256)
                                 .map(char::from)
                                 .collect(),
                             StdRng::seed_from_u64(i)
-                                .sample_iter(&Alphanumeric)
+                                .sample_iter(Alphanumeric)
                                 .take(1024)
                                 .map(char::from)
                                 .collect(),

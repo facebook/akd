@@ -415,7 +415,7 @@ async fn test_key_history_verify_malformed<TC: Configuration>() -> Result<(), Ak
     let akd =
         Directory::<TC, _, _>::new(storage, vrf.clone(), AzksParallelismConfig::default()).await?;
 
-    let mut rng = rand::rngs::OsRng;
+    let mut rng = rand::rng();
     for _ in 0..100 {
         let mut updates = vec![];
         updates.push((
