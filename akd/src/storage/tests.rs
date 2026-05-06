@@ -144,8 +144,7 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
 
     let mut data = Vec::new();
 
-    let mut epoch = 1;
-    for value in rand_users.iter() {
+    for (epoch, value) in (1..).zip(rand_users.iter()) {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
                 value: AkdValue(value.clone()),
@@ -158,7 +157,6 @@ async fn test_batch_get_items<Ns: Database>(storage: &Ns) {
                 username: AkdLabel(user.clone()),
             }));
         }
-        epoch += 1;
     }
 
     let tic = Instant::now();
@@ -312,8 +310,7 @@ async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
 
     let mut data = Vec::new();
 
-    let mut epoch = 1;
-    for value in rand_users.iter() {
+    for (epoch, value) in (1..).zip(rand_users.iter()) {
         for user in rand_users.iter() {
             data.push(DbRecord::ValueState(ValueState {
                 value: AkdValue(value.clone()),
@@ -326,7 +323,6 @@ async fn test_transactions<S: Database>(storage: &StorageManager<S>) {
                 username: AkdLabel(user.clone()),
             }));
         }
-        epoch += 1;
     }
 
     data.push(DbRecord::Azks(Azks {

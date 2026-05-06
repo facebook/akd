@@ -184,7 +184,7 @@ impl Database for AsyncInMemoryDatabase {
         if let Some(result) = self.user_info.get(&username.0) {
             let mut results: Vec<ValueState> = result.values().cloned().collect::<Vec<_>>();
             // return ordered by epoch (from smallest -> largest)
-            results.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+            results.sort_by_key(|a| a.epoch);
 
             Ok(KeyData { states: results })
         } else {

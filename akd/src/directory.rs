@@ -493,7 +493,7 @@ where
         // Ignore states in storage which are ahead of the current directory epoch
         user_data.retain(|vs| vs.epoch <= current_epoch);
         // Reverse sort from highest epoch to lowest
-        user_data.sort_by(|a, b| b.epoch.cmp(&a.epoch));
+        user_data.sort_by_key(|b| std::cmp::Reverse(b.epoch));
 
         // Apply filters specified by HistoryParams struct
         user_data = match params {
