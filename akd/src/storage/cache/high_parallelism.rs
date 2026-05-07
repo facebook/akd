@@ -98,7 +98,7 @@ impl TimedCache {
                         .iter()
                         .map(|kv| (kv.key().clone(), kv.value().expiration))
                         .collect::<Vec<_>>();
-                    keys_and_expiration.sort_by(|(_, a), (_, b)| a.cmp(b));
+                    keys_and_expiration.sort_by_key(|(_, a)| *a);
                     // take `num_clean` old entries and remove them
                     for key in keys_and_expiration
                         .into_iter()

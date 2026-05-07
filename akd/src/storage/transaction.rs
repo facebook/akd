@@ -203,7 +203,7 @@ impl Transaction {
 
         // sort all the value lists by epoch
         for (_k, v) in results.iter_mut() {
-            v.sort_unstable_by(|a, b| a.epoch.cmp(&b.epoch));
+            v.sort_unstable_by_key(|a| a.epoch);
         }
 
         results
