@@ -22,6 +22,9 @@ mod client;
 mod proofs;
 mod setup;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::{bail, Result};
 use clap::Parser;
 

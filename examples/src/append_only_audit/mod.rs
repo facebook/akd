@@ -27,6 +27,9 @@ mod archive;
 mod audit;
 mod population;
 
+#[cfg(test)]
+mod tests;
+
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::memory::AsyncInMemoryDatabase;

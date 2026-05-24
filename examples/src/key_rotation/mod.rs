@@ -26,6 +26,9 @@ mod history;
 mod report;
 mod rotation;
 
+#[cfg(test)]
+mod tests;
+
 use akd::append_only_zks::AzksParallelismConfig;
 use akd::ecvrf::HardCodedAkdVRF;
 use akd::storage::memory::AsyncInMemoryDatabase;
