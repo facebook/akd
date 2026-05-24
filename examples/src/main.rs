@@ -7,7 +7,10 @@
 
 //! A set of example applications and utilities for AKD
 
+mod append_only_audit;
+mod basic_lookup;
 mod fixture_generator;
+mod key_rotation;
 mod mysql_demo;
 mod test_vectors;
 mod wasm_client;
@@ -27,6 +30,12 @@ pub struct Arguments {
 
 #[derive(Subcommand, Debug, Clone)]
 enum ExampleType {
+    /// Publish a set of users and verify a lookup proof for one of them
+    BasicLookup(basic_lookup::Args),
+    /// Simulate key rotations for a user and verify the full history proof
+    KeyRotation(key_rotation::Args),
+    /// Simulate directory growth across multiple epochs and verify append-only integrity
+    AppendOnlyAudit(append_only_audit::Args),
     /// WhatsApp Key Transparency Auditor
     WhatsappKtAuditor(whatsapp_kt_auditor::CliArgs),
     /// MySQL Demo
@@ -43,6 +52,9 @@ async fn main() -> Result<()> {
     let args = Arguments::parse();
 
     match args.example {
+        ExampleType::BasicLookup(args) => basic_lookup::run(args).await?,
+        ExampleType::KeyRotation(args) => key_rotation::run(args).await?,
+        ExampleType::AppendOnlyAudit(args) => append_only_audit::run(args).await?,
         ExampleType::WhatsappKtAuditor(args) => whatsapp_kt_auditor::render_cli(args).await?,
         ExampleType::MysqlDemo(args) => mysql_demo::render_cli(args).await?,
         ExampleType::FixtureGenerator(args) => fixture_generator::run(args).await,
