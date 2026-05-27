@@ -38,11 +38,8 @@ use anyhow::Result;
 use clap::Parser;
 
 /// Concrete directory type shared across this module's sub-files.
-type AkdDir = akd::directory::Directory<
-    akd::WhatsAppV1Configuration,
-    AsyncInMemoryDatabase,
-    HardCodedAkdVRF,
->;
+type AkdDir =
+    akd::directory::Directory<akd::WhatsAppV1Configuration, AsyncInMemoryDatabase, HardCodedAkdVRF>;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(
@@ -71,13 +68,22 @@ pub(crate) async fn run(args: Args) -> Result<()> {
     // Other users are also registered in epoch 1 to populate the tree so that
     // alice's proofs are non-trivial (i.e. the tree has more than one leaf).
     akd.publish(vec![
-        (AkdLabel::from("bob@example.com"), akd::AkdValue::from("bob_key_v1")),
-        (AkdLabel::from("carol@example.com"), akd::AkdValue::from("carol_key_v1")),
+        (
+            AkdLabel::from("bob@example.com"),
+            akd::AkdValue::from("bob_key_v1"),
+        ),
+        (
+            AkdLabel::from("carol@example.com"),
+            akd::AkdValue::from("carol_key_v1"),
+        ),
     ])
     .await?;
 
     let alice = AkdLabel::from("alice@example.com");
-    println!("Directory initialised. Simulating {} key rotations for alice.\n", count);
+    println!(
+        "Directory initialised. Simulating {} key rotations for alice.\n",
+        count
+    );
 
     // ── 2. Plan and publish all rotations ────────────────────────────────────
     // Each rotation is modelled as a RotationEvent with a reason and a unique

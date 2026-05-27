@@ -37,8 +37,14 @@ async fn test_publish_lookup_verify<TC: NamedConfiguration>() {
 
     // Publish two entries in a single epoch.
     let entries = vec![
-        (AkdLabel::from("alice@example.com"), AkdValue::from("alice_public_key_v1")),
-        (AkdLabel::from("bob@example.com"), AkdValue::from("bob_public_key_v1")),
+        (
+            AkdLabel::from("alice@example.com"),
+            AkdValue::from("alice_public_key_v1"),
+        ),
+        (
+            AkdLabel::from("bob@example.com"),
+            AkdValue::from("bob_public_key_v1"),
+        ),
     ];
     let epoch_hash = akd.publish(entries).await.expect("publish failed");
     assert_eq!(epoch_hash.epoch(), 1);
@@ -48,14 +54,9 @@ async fn test_publish_lookup_verify<TC: NamedConfiguration>() {
     let (proof, eh) = akd.lookup(label.clone()).await.expect("lookup failed");
     let pk = akd.get_public_key().await.expect("public key fetch failed");
 
-    let result = akd::client::lookup_verify::<TC>(
-        pk.as_bytes(),
-        eh.hash(),
-        eh.epoch(),
-        label,
-        proof,
-    )
-    .expect("verification failed");
+    let result =
+        akd::client::lookup_verify::<TC>(pk.as_bytes(), eh.hash(), eh.epoch(), label, proof)
+            .expect("verification failed");
 
     assert_eq!(result.epoch, 1);
     assert_eq!(result.version, 1);
@@ -95,8 +96,9 @@ async fn test_lookup_reflects_correct_epoch<TC: NamedConfiguration>() {
     let (proof, eh) = akd.lookup(label.clone()).await.expect("lookup failed");
     let pk = akd.get_public_key().await.expect("public key fetch failed");
 
-    let result = akd::client::lookup_verify::<TC>(pk.as_bytes(), eh.hash(), eh.epoch(), label, proof)
-        .expect("verification failed");
+    let result =
+        akd::client::lookup_verify::<TC>(pk.as_bytes(), eh.hash(), eh.epoch(), label, proof)
+            .expect("verification failed");
 
     assert_eq!(result.epoch, 2, "bob was added in epoch 2");
     assert_eq!(result.version, 1);

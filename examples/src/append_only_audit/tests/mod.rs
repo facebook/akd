@@ -35,8 +35,14 @@ async fn test_audit_proof_two_epochs<TC: NamedConfiguration>() {
     // Epoch 1
     let EpochHash(e1, h1) = akd
         .publish(vec![
-            (AkdLabel::from("alice@example.com"), AkdValue::from("alice_key_v1")),
-            (AkdLabel::from("bob@example.com"), AkdValue::from("bob_key_v1")),
+            (
+                AkdLabel::from("alice@example.com"),
+                AkdValue::from("alice_key_v1"),
+            ),
+            (
+                AkdLabel::from("bob@example.com"),
+                AkdValue::from("bob_key_v1"),
+            ),
         ])
         .await
         .expect("epoch 1 publish failed");
@@ -44,8 +50,14 @@ async fn test_audit_proof_two_epochs<TC: NamedConfiguration>() {
     // Epoch 2: alice rotates, carol joins.
     let EpochHash(e2, h2) = akd
         .publish(vec![
-            (AkdLabel::from("alice@example.com"), AkdValue::from("alice_key_v2")),
-            (AkdLabel::from("carol@example.com"), AkdValue::from("carol_key_v1")),
+            (
+                AkdLabel::from("alice@example.com"),
+                AkdValue::from("alice_key_v2"),
+            ),
+            (
+                AkdLabel::from("carol@example.com"),
+                AkdValue::from("carol_key_v1"),
+            ),
         ])
         .await
         .expect("epoch 2 publish failed");
@@ -53,7 +65,10 @@ async fn test_audit_proof_two_epochs<TC: NamedConfiguration>() {
     assert_eq!(e1, 1);
     assert_eq!(e2, 2);
 
-    let proof = akd.audit(e1, e2).await.expect("audit proof generation failed");
+    let proof = akd
+        .audit(e1, e2)
+        .await
+        .expect("audit proof generation failed");
     // audit_verify requires hashes in order: [h_start, ..., h_end]
     akd::auditor::audit_verify::<TC>(vec![h1, h2], proof)
         .await
@@ -75,9 +90,18 @@ async fn test_audit_proof_three_epochs<TC: NamedConfiguration>() {
     let mut hashes: Vec<Digest> = Vec::new();
 
     let batches: &[&[(&str, &str)]] = &[
-        &[("u1@example.com", "u1_key_v1"), ("u2@example.com", "u2_key_v1")],
-        &[("u1@example.com", "u1_key_v2"), ("u3@example.com", "u3_key_v1")],
-        &[("u2@example.com", "u2_key_v2"), ("u4@example.com", "u4_key_v1")],
+        &[
+            ("u1@example.com", "u1_key_v1"),
+            ("u2@example.com", "u2_key_v1"),
+        ],
+        &[
+            ("u1@example.com", "u1_key_v2"),
+            ("u3@example.com", "u3_key_v1"),
+        ],
+        &[
+            ("u2@example.com", "u2_key_v2"),
+            ("u4@example.com", "u4_key_v1"),
+        ],
     ];
 
     for batch in batches {
@@ -89,7 +113,10 @@ async fn test_audit_proof_three_epochs<TC: NamedConfiguration>() {
         hashes.push(h);
     }
 
-    let proof = akd.audit(1, 3).await.expect("audit proof generation failed");
+    let proof = akd
+        .audit(1, 3)
+        .await
+        .expect("audit proof generation failed");
     akd::auditor::audit_verify::<TC>(hashes, proof)
         .await
         .expect("audit verification failed for three-epoch range");

@@ -74,7 +74,11 @@ pub(super) fn plan_rotations(count: usize) -> Vec<RotationEvent> {
         .map(|i| {
             let reason = reasons[(i - 1) % reasons.len()].clone();
             let key_name = format!("alice_key_rotation_{i}");
-            RotationEvent { index: i, reason, key_name }
+            RotationEvent {
+                index: i,
+                reason,
+                key_name,
+            }
         })
         .collect()
 }
@@ -94,8 +98,15 @@ pub(super) async fn apply_rotation(
 
     println!(
         "  rotation {:>2} — epoch {:>2} — {:20} — key: \"{}\"",
-        event.index, epoch, event.reason.to_string(), event.key_name
+        event.index,
+        epoch,
+        event.reason.to_string(),
+        event.key_name
     );
 
-    Ok(PublishedRotation { event, epoch, root_hash })
+    Ok(PublishedRotation {
+        event,
+        epoch,
+        root_hash,
+    })
 }

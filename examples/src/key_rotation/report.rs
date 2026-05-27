@@ -14,7 +14,10 @@ use super::rotation::PublishedRotation;
 /// and in which epoch, in chronological order.
 pub(super) fn print_rotation_log(published: &[PublishedRotation]) {
     println!("\n── Rotation publish log ──────────────────────────────────────────");
-    println!("{:<6} {:<8} {:<24} {:<28} {}", "Rot.", "Epoch", "Reason", "Key name", "Root hash (12 hex)");
+    println!(
+        "{:<6} {:<8} {:<24} {:<28} {:<16}",
+        "Rot.", "Epoch", "Reason", "Key name", "Root hash (12 hex)"
+    );
     println!("{}", "─".repeat(72));
     for p in published {
         println!(
@@ -36,7 +39,10 @@ pub(super) fn print_rotation_log(published: &[PublishedRotation]) {
 /// can trace the key lifecycle from registration through each rotation.
 pub(super) fn print_history_table(records: &[HistoryRecord]) {
     println!("── Verified key history (client-side proof check passed) ─────────");
-    println!("{:<8} {:<10} {:<24} {}", "Epoch", "Version", "Reason", "Key name");
+    println!(
+        "{:<8} {:<10} {:<24} {:<24}",
+        "Epoch", "Version", "Reason", "Key name"
+    );
     println!("{}", "─".repeat(72));
     for r in records {
         println!(

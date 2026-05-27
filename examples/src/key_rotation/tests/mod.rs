@@ -38,9 +38,9 @@ async fn test_history_covers_all_rotations<TC: NamedConfiguration>() {
     // Publish three successive key values for alice.
     for i in 1..=num_rotations {
         let value = AkdValue::from(format!("alice_key_v{i}").as_str());
-        akd.publish(vec![(alice.clone(), value)]).await.unwrap_or_else(|e| {
-            panic!("rotation {i} publish failed: {e}")
-        });
+        akd.publish(vec![(alice.clone(), value)])
+            .await
+            .unwrap_or_else(|e| panic!("rotation {i} publish failed: {e}"));
     }
 
     // The history proof must span all three epochs.
@@ -69,7 +69,10 @@ async fn test_history_covers_all_rotations<TC: NamedConfiguration>() {
     assert_eq!(history[0].version, num_rotations as u64);
     assert_eq!(history[0].value, AkdValue::from("alice_key_v3"));
     assert_eq!(history[num_rotations - 1].version, 1);
-    assert_eq!(history[num_rotations - 1].value, AkdValue::from("alice_key_v1"));
+    assert_eq!(
+        history[num_rotations - 1].value,
+        AkdValue::from("alice_key_v1")
+    );
 }
 
 /// Verifies that MostRecent(1) history returns only the latest binding.
@@ -86,9 +89,12 @@ async fn test_most_recent_history_returns_one_entry<TC: NamedConfiguration>() {
     let alice = AkdLabel::from("alice@example.com");
 
     for i in 1..=4u32 {
-        akd.publish(vec![(alice.clone(), AkdValue::from(format!("key_v{i}").as_str()))])
-            .await
-            .expect("publish failed");
+        akd.publish(vec![(
+            alice.clone(),
+            AkdValue::from(format!("key_v{i}").as_str()),
+        )])
+        .await
+        .expect("publish failed");
     }
 
     let (proof, epoch_hash) = akd
@@ -109,7 +115,11 @@ async fn test_most_recent_history_returns_one_entry<TC: NamedConfiguration>() {
     )
     .expect("history verification failed");
 
-    assert_eq!(history.len(), 1, "MostRecent(1) must return exactly one entry");
+    assert_eq!(
+        history.len(),
+        1,
+        "MostRecent(1) must return exactly one entry"
+    );
     assert_eq!(history[0].version, 4, "must be the latest version");
     assert_eq!(history[0].value, AkdValue::from("key_v4"));
 }
@@ -152,7 +162,10 @@ async fn test_rotation_reasons_cycle() {
     // First cycle (indices 0–3)
     assert!(matches!(events[0].reason, RotationReason::DeviceUpgrade));
     assert!(matches!(events[1].reason, RotationReason::SecurityIncident));
-    assert!(matches!(events[2].reason, RotationReason::ScheduledRotation));
+    assert!(matches!(
+        events[2].reason,
+        RotationReason::ScheduledRotation
+    ));
     assert!(matches!(events[3].reason, RotationReason::AccountRecovery));
     // Second cycle (indices 4–7) mirrors the first.
     assert!(matches!(events[4].reason, RotationReason::DeviceUpgrade));

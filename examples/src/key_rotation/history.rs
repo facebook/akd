@@ -53,9 +53,7 @@ pub(super) async fn fetch_and_verify(
     published: &[PublishedRotation],
 ) -> Result<Vec<HistoryRecord>> {
     // ── Server side ──────────────────────────────────────────────────────────
-    let (history_proof, epoch_hash) = dir
-        .key_history(label, HistoryParams::Complete)
-        .await?;
+    let (history_proof, epoch_hash) = dir.key_history(label, HistoryParams::Complete).await?;
 
     // ── Client side ──────────────────────────────────────────────────────────
     let public_key = dir.get_public_key().await?;
@@ -77,7 +75,7 @@ pub(super) async fn fetch_and_verify(
     let num = results.len();
     let records: Vec<HistoryRecord> = results
         .into_iter()
-        .rev()                           // now chronological order
+        .rev() // now chronological order
         .enumerate()
         .map(|(i, r)| {
             // published[i] corresponds to the (i+1)-th rotation (1-based).

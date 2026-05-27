@@ -89,10 +89,7 @@ const EPOCH_CONTENTS: &[EpochContent] = &[
 ///   - the assigned epoch number (1-based, assigned by the directory)
 ///   - the resulting root hash
 ///   - the number of changes committed in this epoch
-pub(super) async fn publish_epoch(
-    dir: &AkdDir,
-    idx: usize,
-) -> Result<(u64, Digest, usize)> {
+pub(super) async fn publish_epoch(dir: &AkdDir, idx: usize) -> Result<(u64, Digest, usize)> {
     let content = &EPOCH_CONTENTS[idx];
     let entries: Vec<(AkdLabel, AkdValue)> = content
         .entries

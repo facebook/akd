@@ -38,11 +38,8 @@ use anyhow::Result;
 use clap::Parser;
 
 /// Concrete directory type shared across this module's sub-files.
-type AkdDir = akd::directory::Directory<
-    akd::WhatsAppV1Configuration,
-    AsyncInMemoryDatabase,
-    HardCodedAkdVRF,
->;
+type AkdDir =
+    akd::directory::Directory<akd::WhatsAppV1Configuration, AsyncInMemoryDatabase, HardCodedAkdVRF>;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(

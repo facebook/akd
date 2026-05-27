@@ -41,7 +41,9 @@ pub(super) struct AuditorArchive {
 
 impl AuditorArchive {
     pub(super) fn new() -> Self {
-        Self { records: Vec::new() }
+        Self {
+            records: Vec::new(),
+        }
     }
 
     /// Records a newly observed epoch.
@@ -52,7 +54,12 @@ impl AuditorArchive {
         change_count: usize,
         description: String,
     ) {
-        self.records.push(EpochRecord { epoch, root_hash, change_count, description });
+        self.records.push(EpochRecord {
+            epoch,
+            root_hash,
+            change_count,
+            description,
+        });
     }
 
     /// Returns the root hashes for epochs in `[start_epoch, end_epoch]`
@@ -69,7 +76,10 @@ impl AuditorArchive {
     /// Prints a tabular view of the archive to stdout.
     pub(super) fn print_log(&self) {
         println!("\n── Auditor's hash archive ────────────────────────────────────────");
-        println!("{:<8} {:<10} {:<32} {}", "Epoch", "Changes", "Root hash (first 16 hex)", "Description");
+        println!(
+            "{:<8} {:<10} {:<32} {:<24}",
+            "Epoch", "Changes", "Root hash (first 16 hex)", "Description"
+        );
         println!("{}", "─".repeat(80));
         for r in &self.records {
             println!(
