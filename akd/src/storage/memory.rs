@@ -192,6 +192,26 @@ impl Database for AsyncInMemoryDatabase {
         }
     }
 
+    /// Retrieve the user data for a given user within the epoch range [start_epoch, end_epoch]
+    async fn get_user_data_in_range(
+        &self,
+        username: &AkdLabel,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<KeyData, StorageError> {
+        if let Some(result) = self.user_info.get(&username.0) {
+            let mut results: Vec<ValueState> = result
+                .values()
+                .filter(|state| state.epoch >= start_epoch && state.epoch <= end_epoch)
+                .cloned()
+                .collect();
+            results.sort_by_key(|a| a.epoch);
+            Ok(KeyData { states: results })
+        } else {
+            Err(StorageError::NotFound(format!("ValueState {username:?}")))
+        }
+    }
+
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,

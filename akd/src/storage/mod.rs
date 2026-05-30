@@ -118,6 +118,14 @@ pub trait Database: Send + Sync {
     /// Retrieve the user data for a given user
     async fn get_user_data(&self, username: &AkdLabel) -> Result<types::KeyData, StorageError>;
 
+    /// Retrieve the user data for a given user within the epoch range [start_epoch, end_epoch]
+    async fn get_user_data_in_range(
+        &self,
+        username: &AkdLabel,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<types::KeyData, StorageError>;
+
     /// Retrieve a specific state for a given user
     async fn get_user_state(
         &self,

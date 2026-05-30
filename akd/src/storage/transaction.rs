@@ -209,6 +209,23 @@ impl Transaction {
         results
     }
 
+    /// Retrieve all user data for a given username within the epoch range [start_epoch, end_epoch].
+    ///
+    /// Note: This is a FULL SCAN operation of the entire transaction log.
+    pub fn get_user_data_in_range(
+        &self,
+        username: &crate::AkdLabel,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Vec<ValueState> {
+        self.get_users_data(slice::from_ref(username))
+            .remove(username)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|state| state.epoch >= start_epoch && state.epoch <= end_epoch)
+            .collect()
+    }
+
     /// Retrieve the user state given the specified value state retrieval mode.
     ///
     /// Note: This is a FULL SCAN operation of the entire transaction log.

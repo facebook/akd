@@ -540,6 +540,58 @@ impl<Db: Database> StorageManager<Db> {
         }
     }
 
+    /// Retrieve all value states for a given user within the epoch range [start_epoch, end_epoch].
+    pub async fn get_user_data_in_range(
+        &self,
+        username: &AkdLabel,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> Result<KeyData, StorageError> {
+        let maybe_db_data = match self
+            .tic_toc(
+                METRIC_READ_TIME,
+                self.db
+                    .get_user_data_in_range(username, start_epoch, end_epoch),
+            )
+            .await
+        {
+            Err(StorageError::NotFound(_)) => Ok(None),
+            Ok(something) => Ok(Some(something)),
+            Err(other) => Err(other),
+        }?;
+        self.increment_metric(METRIC_GET_USER_DATA);
+
+        if self.is_transaction_active() {
+            let mut map = maybe_db_data
+                .map(|data| {
+                    data.states
+                        .into_iter()
+                        .map(|state| (state.epoch, state))
+                        .collect::<HashMap<u64, _>>()
+                })
+                .unwrap_or_else(HashMap::new);
+
+            for record in self
+                .transaction
+                .get_user_data_in_range(username, start_epoch, end_epoch)
+            {
+                map.insert(record.epoch, record);
+            }
+
+            let mut states: Vec<ValueState> = map.into_values().collect();
+            states.sort_by_key(|s| s.epoch);
+            return Ok(KeyData { states });
+        }
+
+        if let Some(data) = maybe_db_data {
+            Ok(data)
+        } else {
+            Err(StorageError::NotFound(format!(
+                "ValueState records for {username:?}"
+            )))
+        }
+    }
+
     /// Retrieve the user -> state version mapping in bulk. This is the same as get_user_state in a loop, but with less data retrieved from the storage layer.
     pub async fn get_user_state_versions(
         &self,
