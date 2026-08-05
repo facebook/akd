@@ -18,7 +18,7 @@ use crate::tree_node::{
 };
 use crate::Configuration;
 use crate::{
-    errors::{AkdError, DirectoryError, ParallelismError, TreeNodeError},
+    errors::{AkdError, AzksError, DirectoryError, ParallelismError, TreeNodeError},
     storage::{Database, Storable},
     AppendOnlyProof, AzksElement, AzksValue, Digest, Direction, MembershipProof, NodeLabel,
     NonMembershipProof, PrefixOrdering, SiblingProof, SingleAppendOnlyProof, SizeOf, ARITY,
@@ -453,8 +453,27 @@ impl Azks {
         // nodes are located in with respect to the current node and call this
         // function recursively on the left and right child nodes. The current
         // node is updated with the new child nodes.
+        let element_count = azks_element_set.len();
         let (left_azks_element_set, right_azks_element_set) =
             azks_element_set.partition(current_node.label);
+        // `partition` silently discards any element not strictly beneath the
+        // pivot. In Auditor mode the only legitimate drop is the single element
+        // consumed to become this leaf; any other drop loses a committed value
+        // (e.g. an unchanged interior node that is a strict prefix of an inserted
+        // leaf) and breaks the append-only guarantee, so reject it. Scoped to
+        // Auditor mode, the only path that inserts interior nodes alongside
+        // leaves; the directory publish path inserts full-length leaves only.
+        if matches!(insert_mode, InsertMode::Auditor)
+            && left_azks_element_set.len() + right_azks_element_set.len() != element_count
+            && !(current_node.node_type == TreeNodeType::Leaf && element_count == 1)
+        {
+            return Err(AkdError::AzksErr(AzksError::BatchInsertDroppedNode(
+                format!(
+                    "a committed value was dropped while inserting under node {:?}",
+                    current_node.label
+                ),
+            )));
+        }
         let child_parallel_levels =
             parallel_levels.and_then(|x| if x <= 1 { None } else { Some(x - 1) });
 
@@ -1424,6 +1443,90 @@ mod tests {
             azks2.get_root_hash::<TC, _>(&db2).await?,
             "Batch insert doesn't match individual insert"
         );
+
+        Ok(())
+    }
+
+    // An `InsertMode::Auditor` node set that forces `partition` to drop a
+    // committed value must be rejected, while collision-free sets still insert.
+    test_config!(test_auditor_insert_rejects_dropped_nodes);
+    async fn test_auditor_insert_rejects_dropped_nodes<TC: Configuration>() -> Result<(), AkdError>
+    {
+        async fn try_auditor_insert<TC: Configuration>(
+            nodes: Vec<AzksElement>,
+        ) -> Result<(), AkdError> {
+            let db = StorageManager::new_no_cache(AsyncInMemoryDatabase::new());
+            let mut azks = Azks::new::<TC, _>(&db).await?;
+            azks.batch_insert_nodes::<TC, _>(
+                &db,
+                nodes,
+                InsertMode::Auditor,
+                AzksParallelismConfig::default(),
+            )
+            .await
+        }
+        let val = |s: &[u8]| AzksValue(TC::hash(s));
+
+        // (a) An interior node (1-bit label) that is a strict prefix of a leaf
+        // (256-bit label): the interior node's committed value is dropped when
+        // both are inserted together -- the reported bypass, one level deeper
+        // than the direct root child.
+        let prefix = try_auditor_insert::<TC>(vec![
+            AzksElement {
+                label: NodeLabel::new([0u8; 32], 1),
+                value: val(b"a"),
+            },
+            AzksElement {
+                label: NodeLabel::new([0u8; 32], 256),
+                value: val(b"b"),
+            },
+        ])
+        .await;
+        assert!(
+            matches!(
+                prefix,
+                Err(AkdError::AzksErr(AzksError::BatchInsertDroppedNode(_)))
+            ),
+            "strict-prefix collision must be rejected, got {prefix:?}"
+        );
+
+        // (b) Two elements sharing a label but committing to different values:
+        // one is dropped at the interior pivot created for their common prefix.
+        let dup = try_auditor_insert::<TC>(vec![
+            AzksElement {
+                label: NodeLabel::new([1u8; 32], 256),
+                value: val(b"a"),
+            },
+            AzksElement {
+                label: NodeLabel::new([1u8; 32], 256),
+                value: val(b"b"),
+            },
+        ])
+        .await;
+        assert!(
+            matches!(
+                dup,
+                Err(AkdError::AzksErr(AzksError::BatchInsertDroppedNode(_)))
+            ),
+            "duplicate-label collision must be rejected, got {dup:?}"
+        );
+
+        // Positive control: two distinct full-length leaves have no prefix
+        // relation, so nothing is dropped and the auditor insert succeeds.
+        let mut b_label = [0u8; 32];
+        b_label[0] = 1;
+        try_auditor_insert::<TC>(vec![
+            AzksElement {
+                label: NodeLabel::new([0u8; 32], 256),
+                value: val(b"a"),
+            },
+            AzksElement {
+                label: NodeLabel::new(b_label, 256),
+                value: val(b"b"),
+            },
+        ])
+        .await
+        .expect("disjoint leaves must insert cleanly in auditor mode");
 
         Ok(())
     }
