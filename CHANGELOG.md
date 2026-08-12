@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0 (August 12, 2026)
+* Fixed an append-only bypass where batch node insertion in auditor mode could silently drop a
+  committed value
+* Updated the rand crate to address [RUSTSEC-2026-0097](https://rustsec.org/advisories/RUSTSEC-2026-0097.html)
+* Updated the whatsapp-kt-auditor example CLI, including documentation
+* Addressed clippy warnings and errors, including lints introduced by Rust 1.97
+
 ## 0.12.0 (March 4, 2026)
 * Auditing improvements that reduce memory usage and runtime for proof verification
 * Added configurable parallelism for node preloads during insertion and audit proof generation,
