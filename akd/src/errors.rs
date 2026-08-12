@@ -196,6 +196,9 @@ pub enum AzksError {
     VerifyMembershipProof(String),
     /// Append-only proof did not verify
     VerifyAppendOnlyProof(String),
+    /// A batch insertion dropped one or more nodes (a node could not be placed
+    /// strictly beneath its parent). This indicates a malformed node set.
+    BatchInsertDroppedNode(String),
     /// Thrown when a place where an epoch is needed wasn't provided one.
     NoEpochGiven,
 }
@@ -210,6 +213,9 @@ impl fmt::Display for AzksError {
             }
             Self::VerifyAppendOnlyProof(error_string) => {
                 write!(f, "Append only proof did not verify: {error_string}")
+            }
+            Self::BatchInsertDroppedNode(error_string) => {
+                write!(f, "Batch insert dropped a node: {error_string}")
             }
             Self::NoEpochGiven => {
                 write!(f, "An epoch was required but not supplied")

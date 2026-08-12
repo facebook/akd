@@ -117,3 +117,111 @@ async fn verify_append_only_hash<TC: Configuration>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::verify_membership_for_tests_only;
+    use crate::test_config;
+    use crate::{
+        AzksValue, Direction, MembershipProof, NodeLabel, SiblingProof, SingleAppendOnlyProof,
+    };
+
+    // Regression test for the auditor append-only bypass: when an unchanged
+    // interior node's label is a strict prefix of an inserted leaf's label,
+    // `partition` used to silently drop the unchanged node, letting a malicious
+    // server rewrite a label's value (`val1` -> `val2`) while still producing a
+    // valid append-only proof. `audit_verify` must now reject the transition.
+    test_config!(test_auditor_rejects_prefix_collision_value_rewrite);
+    #[allow(non_snake_case)]
+    async fn test_auditor_rejects_prefix_collision_value_rewrite<TC: Configuration>(
+    ) -> Result<(), AkdError> {
+        const AUDIT_EPOCH: u64 = 2;
+        const START_EPOCH: u64 = AUDIT_EPOCH - 1;
+
+        // `shell_label` (1 bit) is a strict prefix of `label` (256 bits). This
+        // is what triggers the drop in `partition` when both are inserted.
+        let shell_label = NodeLabel::new([0u8; 32], 1);
+        let label = NodeLabel::new([0u8; 32], 256);
+
+        let empty_child = AzksElement {
+            label: TC::empty_label(),
+            value: TC::empty_node_hash(),
+        };
+        // Value of a node whose only (left) child is `(child_label, child_val)`.
+        let parent_hash = |child_label: NodeLabel, child_val: AzksValue| {
+            TC::compute_parent_hash_from_children(
+                &child_val,
+                &child_label.value::<TC>(),
+                &empty_child.value,
+                &empty_child.label.value::<TC>(),
+            )
+        };
+
+        let val1 = AzksValue(TC::hash(b"val1"));
+        let val2 = AzksValue(TC::hash(b"val2"));
+        // The auditor re-commits leaves with their corresponding epoch.
+        let leaf_val1 = AzksValue(TC::hash_leaf_with_commitment(val1, START_EPOCH).0);
+        let leaf_val2 = AzksValue(TC::hash_leaf_with_commitment(val2, AUDIT_EPOCH).0);
+
+        // root ->[left] Leaf(shell_label, shell_val), where shell_val commits to
+        // the subtree Interior(shell_label) ->[left] Leaf(label, val1).
+        let shell_val = parent_hash(label, leaf_val1);
+        let root_hash1 = TC::compute_root_hash_from_val(&parent_hash(shell_label, shell_val));
+        // root ->[left] Interior(shell_label) ->[left] Leaf(label, val2).
+        let root_hash2 = TC::compute_root_hash_from_val(&parent_hash(
+            shell_label,
+            parent_hash(label, leaf_val2),
+        ));
+
+        let update_proof = SingleAppendOnlyProof {
+            unchanged_nodes: vec![AzksElement {
+                label: shell_label,
+                value: shell_val,
+            }],
+            inserted: vec![AzksElement { label, value: val2 }],
+        };
+
+        // Sanity: the two membership proofs genuinely disagree on `label`'s
+        // value, so accepting this transition would break append-only-ness.
+        let sibling_path = vec![
+            SiblingProof {
+                label: NodeLabel::root(),
+                siblings: [empty_child],
+                direction: Direction::Left,
+            },
+            SiblingProof {
+                label: shell_label,
+                siblings: [empty_child],
+                direction: Direction::Left,
+            },
+        ];
+        let membership = |hash_val| MembershipProof {
+            label,
+            hash_val,
+            sibling_proofs: sibling_path.clone(),
+        };
+        verify_membership_for_tests_only::<TC>(root_hash1, &membership(leaf_val1)).unwrap();
+        verify_membership_for_tests_only::<TC>(root_hash2, &membership(leaf_val2)).unwrap();
+        assert_ne!(leaf_val1, leaf_val2);
+
+        // The core assertion: the auditor must reject the crafted transition.
+        let result = audit_verify::<TC>(
+            vec![root_hash1, root_hash2],
+            AppendOnlyProof {
+                proofs: vec![update_proof],
+                epochs: vec![START_EPOCH],
+            },
+        )
+        .await;
+        assert!(
+            matches!(
+                result,
+                Err(AkdError::AzksErr(AzksError::BatchInsertDroppedNode(_)))
+            ),
+            "auditor must reject the value-rewrite transition, got {result:?}"
+        );
+
+        Ok(())
+    }
+}
