@@ -711,10 +711,7 @@ impl MySqlStorable for DbRecord {
                     let massaged_hash_vec: akd::Digest =
                         akd::hash::try_parse_digest(&hash_vec).map_err(|_| cast_err())?;
                     let massaged_prev_hash_vec: Option<akd::Digest> = match prev_hash_vec {
-                        Some(v) => match akd::hash::try_parse_digest(&v).map_err(|_| cast_err()) {
-                            Ok(r) => Some(r),
-                            Err(err) => return Err(err),
-                        },
+                        Some(v) => Some(akd::hash::try_parse_digest(&v).map_err(|_| cast_err())?),
                         None => None,
                     };
 
