@@ -21,8 +21,10 @@ nostd = []
 # Supported configurations
 whatsapp_v1 = ["dep:blake3"]
 experimental = ["dep:blake3"]
-# Include the VRF verification logic
-vrf = ["ed25519-dalek", "curve25519-dalek"]
+# (Deprecated) The VRF verification logic is always compiled in, so this
+# feature no longer gates anything. Kept as an empty feature for backwards
+# compatibility with crates that enable `akd_core/vrf`.
+vrf = []
 serde_serialization = ["dep:serde", "dep:serde_bytes", "ed25519-dalek/serde"]
 # Parallelize VRF calculations during publish
 parallel_vrf = ["tokio"]
@@ -37,11 +39,11 @@ default = ["vrf", "experimental"]
 [dependencies]
 ## Required dependencies ##
 async-trait = "0.1"
-curve25519-dalek = { version = "4", optional = true }
+curve25519-dalek = { version = "4" }
 ed25519-dalek = { version = "2", features = [
     "digest",
     "legacy_compatibility",
-], optional = true }
+] }
 hex = "0.4"
 zeroize = "1"
 
