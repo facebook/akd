@@ -30,7 +30,6 @@ pub enum VerificationError {
     /// Error verifying a history proof
     HistoryProof(String),
     /// Error verifying a VRF proof
-    #[cfg(feature = "vrf")]
     Vrf(crate::ecvrf::VrfError),
     /// Error converting protobuf types during verification
     #[cfg(feature = "protobuf")]
@@ -46,7 +45,6 @@ impl core::fmt::Display for VerificationError {
             }
             VerificationError::LookupProof(err) => format!("(Lookup proof) - {err}"),
             VerificationError::HistoryProof(err) => format!("(History proof) - {err}"),
-            #[cfg(feature = "vrf")]
             VerificationError::Vrf(vrf) => vrf.to_string(),
             #[cfg(feature = "protobuf")]
             VerificationError::Serialization(proto) => proto.to_string(),
@@ -55,7 +53,6 @@ impl core::fmt::Display for VerificationError {
     }
 }
 
-#[cfg(feature = "vrf")]
 impl From<crate::ecvrf::VrfError> for VerificationError {
     fn from(input: crate::ecvrf::VrfError) -> Self {
         VerificationError::Vrf(input)
