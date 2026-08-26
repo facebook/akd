@@ -930,6 +930,83 @@ impl Database for AsyncMySqlDatabase {
         }
     }
 
+    async fn get_user_data_in_range(
+        &self,
+        username: &AkdLabel,
+        start_epoch: u64,
+        end_epoch: u64,
+    ) -> core::result::Result<KeyData, StorageError> {
+        self.record_call_stats('r', "get_user_data_in_range".to_string(), "".to_string())
+            .await;
+
+        let result = async {
+            let mut conn = self.get_connection().await?;
+            let statement_text =
+                "SELECT `username`, `epoch`, `version`, `node_label_val`, `node_label_len`, `data` FROM `"
+                    .to_owned()
+                    + TABLE_USER
+                    + "` WHERE `username` = :the_user AND `epoch` >= :start_epoch AND `epoch` <= :end_epoch";
+            let mut result = conn
+                .exec_iter(
+                    statement_text,
+                    params! {
+                        "the_user" => username.0.clone(),
+                        "start_epoch" => start_epoch,
+                        "end_epoch" => end_epoch,
+                    },
+                )
+                .await?;
+            let out = result
+                .map(|mut row| {
+                    if let (
+                        Some(username),
+                        Some(epoch),
+                        Some(version),
+                        Some(node_label_val),
+                        Some(node_label_len),
+                        Some(data),
+                    ) = (
+                        row.take(0),
+                        row.take(1),
+                        row.take(2),
+                        row.take::<Vec<u8>, _>(3),
+                        row.take(4),
+                        row.take(5),
+                    ) {
+                        let r: core::result::Result<[u8; 32], _> = node_label_val.try_into();
+                        if let Ok(label_val) = r {
+                            return Some(ValueState {
+                                epoch,
+                                version,
+                                label: NodeLabel {
+                                    label_val,
+                                    label_len: node_label_len,
+                                },
+                                value: AkdValue(data),
+                                username: AkdLabel(username),
+                            });
+                        }
+                    }
+                    None
+                })
+                .await
+                .map(|a| a.into_iter().flatten().collect::<Vec<_>>());
+
+            let selected_records = self.check_for_infra_error(out)?;
+            Ok::<KeyData, MySqlError>(KeyData {
+                states: selected_records,
+            })
+        };
+
+        match result.await {
+            Ok(output) => Ok(output),
+            Err(error) => {
+                error!("MySQL error {error}");
+                Err(StorageError::Other(format!("MySQL Error {error}")))
+            }
+        }
+    }
+
     async fn get_user_state(
         &self,
         username: &AkdLabel,
